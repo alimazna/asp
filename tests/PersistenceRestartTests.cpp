@@ -4,8 +4,10 @@
 
 #include "persistence/FilePersistenceStore.h"
 #include "persistence/PersistenceEngine.h"
+#include "reconciliation/ReconciliationEngine.h"
 #include "recovery/CheckpointManager.h"
 #include "recovery/CrashRecoveryManager.h"
+#include "shadow/PositionSimulator.h"
 
 #include <atomic>
 #include <filesystem>
@@ -132,6 +134,60 @@ TEST_CASE(checkpoint_and_crash_recovery) {
                  static_cast<int>(RecoveryOutcome::RESUMED));
         CHECK_EQ(report.restoredSequence, latest.sequence);
     }
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE(persisted_positions_reconcile_cleanly) {
+    const std::string root = freshRoot("reconcile");
+    FilePersistenceStore store(root);
+    PersistenceEngine engine(&store);
+
+    SimulatedPosition position;
+    position.positionId = EntityId("pos-1");
+    position.commandId = EntityId("cmd-1");
+    position.decisionId = EntityId("dec-1");
+    position.direction = SignalDirection::LONG;
+    // Deliberately awkward doubles: must round-trip exactly.
+    position.entryPrice = 2000.1234567890123;
+    position.stopPrice = 1995.9876543210987;
+    position.targetPrice = 2012.5;
+    position.lots = 0.1337;
+    position.contractSize = 100.0;
+    position.timeframe = Timeframe::M15;
+    position.state = PositionState::OPEN;
+    REQUIRE(engine.persistPosition(position));
+
+    ReconciliationEngine reconciler(&store);
+    const ReconciliationReport report =
+        reconciler.reconcile({position}, Timestamp::fromEpochMillis(1735689600000));
+    CHECK(report.clean);
+    CHECK_EQ(report.matched, static_cast<std::size_t>(1));
+    CHECK_EQ(report.mismatched, static_cast<std::size_t>(0));
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE(reconciliation_reports_missing_ledger_entry) {
+    const std::string root = freshRoot("recon-missing");
+    FilePersistenceStore store(root);
+
+    SimulatedPosition position;
+    position.positionId = EntityId("pos-unpersisted");
+    position.commandId = EntityId("cmd-2");
+    position.decisionId = EntityId("dec-2");
+    position.direction = SignalDirection::LONG;
+    position.entryPrice = 2000.0;
+    position.stopPrice = 1995.0;
+    position.targetPrice = 2012.0;
+    position.lots = 0.1;
+    position.state = PositionState::OPEN;
+
+    ReconciliationEngine reconciler(&store);
+    const ReconciliationReport report =
+        reconciler.reconcile({position}, Timestamp::fromEpochMillis(1735689600000));
+    CHECK(!report.clean);
+    CHECK_EQ(report.mismatched, static_cast<std::size_t>(1));
+    CHECK_EQ(static_cast<int>(report.items[0].finding),
+             static_cast<int>(ReconciliationFinding::MISSING_IN_LEDGER));
     std::filesystem::remove_all(root);
 }
 

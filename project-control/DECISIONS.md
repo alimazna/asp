@@ -58,3 +58,20 @@ A supervised child that fails before `exec` must be reported as a failed launch
 (`ERROR`), not `ONLINE`. On POSIX this is detected with a close-on-exec
 self-pipe; on Windows a failed `CreateProcess` is already reported directly.
 
+
+## DEC-017 — Live decision pipeline composition
+The runtime composition root runs the decision chain once per new closed bar of
+the primary operational timeframe (M15), inside `DecisionPipeline`
+(`src/runtime/DecisionPipeline.{h,cpp}`). The chain is the live analogue of the
+deterministic replay engine and uses the same engines, so live and replay
+decisions are structurally identical. The decision is recorded in the ledger and
+durable store *before* any shadow command is issued. Overlapping bridge windows
+are deduplicated per timeframe so a closed bar is never published twice. Macro
+context is UNKNOWN by default (no calendar feed) and is carried through as
+explicit uncertainty rather than fabricated as clear. Live execution remains
+impossible by construction.
+
+## DEC-018 — Persistence numeric round-trip precision
+Position and outcome doubles persisted through `PersistenceEngine` are encoded
+with 17 significant digits (`std::setprecision(17)`) so a write/read round-trip
+is bit-faithful and reconciliation cannot report a spurious FIELD_MISMATCH.

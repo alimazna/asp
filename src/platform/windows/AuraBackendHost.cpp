@@ -4,8 +4,12 @@
 // starts the bundled Python MT5 bridge as a supervised child, and runs the
 // runtime loop. The user is never asked to open a terminal or run Python.
 
+#include "api/BackendFacade.h"
+#include "governance/ApprovalGate.h"
+#include "governance/IncidentManager.h"
 #include "platform/windows/PathResolver.h"
 #include "runtime/AuraRuntime.h"
+#include "telegram/TelegramGateway.h"
 
 #include <chrono>
 #include <csignal>
@@ -81,10 +85,25 @@ int main(int argc, char** argv) {
     const int intervalMillis = parseIntervalMillis(argc, argv);
     const bool oneShot = wantsOneShot(argc, argv);
 
+    // The in-process facade is the backend API surface the frontend talks to.
+    // The transport (local API, IPC) is a separate concern; the contract is
+    // identical either way.
+    aura::IncidentManager incidents;
+    aura::ApprovalGate approvals(runtime.guardian());
+    aura::TelegramGateway telegram;
+    aura::BackendFacade facade(aura::FacadeDependencies{
+        &runtime, &runtime.health(), &runtime.ledger(), &runtime.positions(),
+        &incidents, &approvals, &telegram});
+
+    // Development/ops surface: expose the current state summary once at start.
+    const aura::ApiResponse systemState = facade.handle("GET", "/api/v1/system/state");
+    std::cout << "  api system/state: " << systemState.body << "\n";
+
     do {
         aura::RuntimeCycleReport cycle = runtime.tick(aura::Timestamp::now());
         std::cout << "cycle: ingested=" << cycle.timeframesIngested
                   << " failed=" << cycle.timeframesFailed
+                  << " shadow=" << cycle.shadowCommandsIssued
                   << " mode=" << aura::toString(runtime.mode()) << "\n";
         for (const auto& issue : cycle.issues) {
             std::cerr << "  issue: " << issue << "\n";

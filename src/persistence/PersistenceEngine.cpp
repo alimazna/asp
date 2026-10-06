@@ -2,9 +2,22 @@
 
 #include "persistence/PersistenceEngine.h"
 
+#include <iomanip>
 #include <sstream>
 
 namespace aura {
+
+namespace {
+
+// Doubles must survive a write/read round-trip so reconciliation compares
+// equal values rather than reporting a spurious mismatch.
+std::string exact(double value) {
+    std::ostringstream out;
+    out << std::setprecision(17) << value;
+    return out.str();
+}
+
+}  // namespace
 
 PersistenceEngine::PersistenceEngine(IPersistenceStore* store,
                                      PersistenceEngineConfig config)
@@ -44,10 +57,10 @@ std::string PersistenceEngine::encodePrediction(const PredictionRecord& record) 
 std::string PersistenceEngine::encodePosition(const SimulatedPosition& position) const {
     std::ostringstream out;
     // Field order is relied upon by the reconciliation engine.
-    out << position.entryPrice << "|" << position.stopPrice << "|"
-        << position.targetPrice << "|" << position.lots << "|"
-        << toString(position.state) << "|" << position.exitPrice << "|"
-        << position.realizedPnL;
+    out << exact(position.entryPrice) << "|" << exact(position.stopPrice) << "|"
+        << exact(position.targetPrice) << "|" << exact(position.lots) << "|"
+        << toString(position.state) << "|" << exact(position.exitPrice) << "|"
+        << exact(position.realizedPnL);
     return out.str();
 }
 

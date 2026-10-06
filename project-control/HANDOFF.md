@@ -17,8 +17,10 @@ Frontend handoff is allowed only after:
   Windows double-click path is compiled but was not executed in this
   environment — treat as a documented limitation, not a claim.
 - (4) Bridge handshake/loopback/schema and error contracts have real evidence
-  (`PythonBridgeContractTests`). Real MT5 candle retrieval has **no** evidence
-  (no broker here).
+  (`PythonBridgeContractTests`), and the host was started for real on Linux with
+  the bridge reaching `ONLINE`. Real MT5 candle retrieval has **no** evidence
+  (no broker here). The live decision chain has real evidence
+  (`DecisionPipelineIntegrationTests`).
 - (5) `BACKEND_FRONTEND_API_V1.md` is implemented by `src/api/BackendApiSchema.h`
   and `BackendFacade` (api `v1`, schema `1.0`). Freeze it before Alpha starts.
 - (6) `PROJECT_STATE.md` is set to `BACKEND_REVIEW_PASS`; flip to
@@ -37,6 +39,11 @@ Frontend handoff is allowed only after:
   eligibility → signal → score/confidence → macro/market quality → risk →
   shadow execution → positions → outcomes → persistence/audit/research.
 - Python is a data-ingestion bridge only. Strategy/decision logic stays in C++.
+- The live chain is driven by `src/runtime/DecisionPipeline.{h,cpp}` from
+  `AuraRuntime::tick()`: each new closed M15 bar is evaluated through the full
+  chain, the decision is recorded before any shadow command, and open positions
+  advance against each newly closed bar. The same engines back the deterministic
+  replay engine, so live and replay decisions are structurally identical.
 
 ## 2. Startup model
 - Paths resolve from the executable location (`PathResolver`), never from CWD.

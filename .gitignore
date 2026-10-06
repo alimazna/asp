@@ -18,10 +18,12 @@ cmake-build-*/
 *.user
 *.swp
 
-# Runtime / local data (never commit local state or secrets)
-logs/
-data/
-runtime/
+# Runtime / local data (never commit local state or secrets).
+# Anchored to the repository root: a bare `runtime/`, `data/`, or `logs/`
+# would also match source directories such as src/runtime/ and src/data/.
+/logs/
+/data/
+/runtime/
 *.log
 *.db
 *.sqlite

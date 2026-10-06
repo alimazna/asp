@@ -50,6 +50,14 @@ Automated backend review performed against:
 ### 6. Decision/shadow (§E)
 - Deterministic decision identity (timeframe + closed-bar open + direction);
   duplicate identities rejected by the ledger.
+- The live runtime now actually runs the decision chain on every new closed M15
+  bar via `DecisionPipeline` (`src/runtime/DecisionPipeline.{h,cpp}`): features
+  -> structure -> regime -> eligibility -> signal -> score -> confidence ->
+  probability -> macro/market-quality -> risk -> portfolio -> shadow execution
+  -> position -> persistence -> outcomes. The chain is the same set of engines
+  used by replay, so live and replay decisions are structurally identical.
+- The decision is recorded in the ledger and durable store *before* a shadow
+  command is issued; overlapping bridge windows are deduplicated per timeframe.
 - Score (0..100 ranking) and confidence (0..1 meta-measure) are separate;
   probability is explicitly `null`/uncalibrated.
 - Risk precedes shadow execution; portfolio limits applied; shadow lifecycle
@@ -71,7 +79,11 @@ Automated backend review performed against:
   not executed in this environment.
 
 ### 10. Evidence (§I)
-- 10/10 CTest executables pass; build is warning-clean under `-Wall -Wextra`.
+- 11/11 CTest executables pass; build is warning-clean under `-Wall -Wextra`.
+- The backend host was started for real (Linux): paths resolved, bridge launched
+  as a supervised child and reached `ONLINE`, handshake succeeded, and the
+  facade served `/api/v1/system/state`. Timeframes reported explicit bridge
+  errors because MetaTrader5 is absent.
 - See `TEST_LOG.md` for the per-test evidence and the explicit NOT RUN items.
 
 ## Defects found and fixed during review
@@ -82,6 +94,12 @@ Automated backend review performed against:
 3. `BarFinalizer` rejected epoch-0 boundary bars — fixed to reject only negative
    open times.
 4. No factory to construct the process-wide Guardian — added `makeGuardian()`.
+5. The runtime ingested and published bars but never ran the decision chain, and
+   re-published the bridge's overlapping window as duplicate history. Fixed by
+   adding `DecisionPipeline` and per-timeframe publish dedup.
+6. `PersistenceEngine` wrote position doubles at default precision, so a
+   write/read round-trip did not compare equal and reconciliation reported a
+   spurious FIELD_MISMATCH. Fixed with `std::setprecision(17)`.
 
 ## Explicitly not claimed
 - Profitability, calibrated probability, broker validation, live-trading safety,

@@ -24,10 +24,16 @@ broker_validation: REQUIRED
 ## Current checkpoint
 The complete backend task graph is implemented: 222/222 manifest output paths
 exist on disk and build as one static core library (`aura_core`) plus the
-`aura_backend_host` entry point. Ten deterministic test executables are wired
-into CTest and pass. A full backend review against the control-plane documents
-was performed (see `project-control/BACKEND_REVIEW.md`); the gate is **PASS**
-with the documented evidence limitations.
+`aura_backend_host` entry point. Eleven deterministic test executables are wired
+into CTest and pass. The runtime now runs the full live decision chain per new
+closed M15 bar (`src/runtime/DecisionPipeline.{h,cpp}`) through to shadow
+execution, positions, persistence, and outcomes, with per-timeframe
+closed-bar dedup. The backend host was started for real: paths resolved, the
+Python bridge launched as a supervised child and reached `ONLINE`, the handshake
+succeeded, and the v1 facade served `system/state`. A full backend review
+against the control-plane documents was performed (see
+`project-control/BACKEND_REVIEW.md`); the gate is **PASS** with the documented
+evidence limitations.
 
 ## Scope boundary
 - Backend only. No ASTRA frontend/UI work has begun; Alpha remains deferred.

@@ -14,7 +14,9 @@
 | 2026-10-06 | TST-0008 decision identity | PASS | `build/DecisionIdentityTests` | Deterministic IDs, duplicate rejection, score≠probability |
 | 2026-10-06 | TST-0009 backend API contract | PASS | `build/BackendApiContractTests` | Versioned v1 envelope, unknown-not-safe, command allow-list |
 | 2026-10-06 | TST-0010 package smoke | PASS | `build/PackageSmokeTests` | RuntimeManifest parses, packaging coherent, error envelope structured |
-| 2026-10-06 | Full CTest run | PASS | `ctest --test-dir build` | 10/10 tests, 0 failures |
+| 2026-10-06 | TST-0011 live decision pipeline integration | PASS | `build/DecisionPipelineIntegrationTests` | closed bar -> decision -> shadow -> position -> persistence; duplicate bar is a no-op; short history yields no decision |
+| 2026-10-06 | Full CTest run | PASS | `ctest --test-dir build` | 11/11 tests, 0 failures |
+| 2026-10-06 | Backend host live start | PASS (degraded data) | `./build/aura_backend_host --once --dev-system-python` | startup READY, bridge ONLINE, facade serves system/state; 9/9 timeframes report explicit bridge errors because MetaTrader5 is absent |
 | 2026-10-06 | Backend review gate | PASS (with documented limitations) | `project-control/BACKEND_REVIEW.md` | 222/222 outputs present |
 
 ## Defects found and fixed during this run
@@ -27,11 +29,25 @@
   negative open times are invalid now.
 - `src/guardian/IGuardian.h` / `Guardian.cpp`: added `makeGuardian()` so the
   process-wide Guardian can be constructed through its interface.
+- `src/runtime/AuraRuntime.cpp`: the runtime ingested data but never ran the
+  decision chain, and re-published the bridge's overlapping window as duplicate
+  closed-bar history. Added the live decision pipeline
+  (`src/runtime/DecisionPipeline.{h,cpp}`, HOST-0009/0010 composition) and
+  per-timeframe publish dedup. The chain now runs on each new closed M15 bar:
+  features -> structure -> regime -> eligibility -> signal -> score ->
+  confidence -> probability -> macro/market-quality -> risk -> portfolio ->
+  shadow execution -> position -> persistence -> outcomes.
+- `src/persistence/PersistenceEngine.cpp`: position doubles were written with
+  default `ostream` precision, so a write/read round-trip did not compare equal
+  and reconciliation reported a spurious FIELD_MISMATCH. Encoded with
+  `setprecision(17)`; covered by new reconciliation tests.
+- `src/platform/windows/AuraBackendHost.cpp`: constructed the in-process
+  `BackendFacade` over the runtime so the host actually exposes the v1 API.
 
 ## Required evidence categories before frontend handoff
 - static analysis: PASS (build with `-Wall -Wextra`, zero warnings)
-- unit tests: PASS (10/10)
-- integration tests: PASS (real loopback bridge boot + contract)
+- unit tests: PASS (11/11)
+- integration tests: PASS (real loopback bridge boot + contract + live decision chain)
 - Windows build: NOT RUN (Linux toolchain used; Windows path compiled but not executed)
 - bridge startup/handshake: PASS
 - MT5 candle retrieval test: NOT RUN (no MetaTrader5 / broker in this environment)
