@@ -35,6 +35,16 @@ against the control-plane documents was performed (see
 `project-control/BACKEND_REVIEW.md`); the gate is **PASS** with the documented
 evidence limitations.
 
+## Frontend integration map
+The final frontend integration map has been generated:
+`project-control/FRONTEND_INTEGRATION_MAP.md` (documentation only). It records
+the implemented v1 API surface (11 GET routes + 2 allow-listed commands), the
+system/service/health states, market-data and timeframe-authority model, and
+nine documentation-vs-implementation discrepancies (D1–D9), each marked
+`BACKEND DATA NOT EXPOSED` where the backend does not emit the documented
+field. Notably, no concrete frontend↔backend transport is implemented yet
+(D1); this must be resolved before Alpha codes against a transport.
+
 ## Scope boundary
 - Backend only. No ASTRA frontend/UI work has begun; Alpha remains deferred.
 - SHADOW is the only execution mode. Live order placement does not exist in the

@@ -31,6 +31,11 @@ Frontend handoff is allowed only after:
 
 # Alpha frontend handoff package
 
+> The authoritative connection map for Alpha is
+> `project-control/FRONTEND_INTEGRATION_MAP.md`. It records the implemented
+> API surface, states, and the documentation-vs-implementation discrepancies
+> (notably: no concrete frontend↔backend transport is implemented yet).
+
 ## 1. Backend architecture
 - C++17 runtime core built as one static library `aura_core`; the only executable
   is `aura_backend_host` (the double-click entry point).
@@ -142,6 +147,7 @@ ctest --test-dir build --output-on-failure
   `requires_manual_cmd: false`.
 
 ## 13. Exact files Alpha should read
+- `project-control/FRONTEND_INTEGRATION_MAP.md` (authoritative connection map)
 - `docs/AURA_ASTRA_MASTER_UNIFIED_PROJECT_v4.0.md`
 - `docs/architecture/BACKEND_FRONTEND_API_V1.md`
 - `docs/architecture/BACKEND_DONE_DEFINITION.md`

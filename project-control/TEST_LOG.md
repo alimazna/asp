@@ -18,6 +18,7 @@
 | 2026-10-06 | Full CTest run | PASS | `ctest --test-dir build` | 11/11 tests, 0 failures |
 | 2026-10-06 | Backend host live start | PASS (degraded data) | `./build/aura_backend_host --once --dev-system-python` | startup READY, bridge ONLINE, facade serves system/state; 9/9 timeframes report explicit bridge errors because MetaTrader5 is absent |
 | 2026-10-06 | Backend review gate | PASS (with documented limitations) | `project-control/BACKEND_REVIEW.md` | 222/222 outputs present |
+| 2026-10-06 | Frontend integration map doc validation | PASS | `project-control/FRONTEND_INTEGRATION_MAP.md` | Every route, field, and state verified against `src/api/BackendFacade.cpp`, `BackendApiSchema.cpp`, `SystemMode.h`, `ServiceState.h`, `DataQualityState.h`, `HealthMonitor.cpp`, `Mt5BridgeContract.h`; wire examples captured from a live facade probe. Documentation validation only — not a substitute for runtime tests. |
 
 ## Defects found and fixed during this run
 - `src/api/BackendFacade.cpp`: booleans/numbers were emitted as JSON *strings*;
