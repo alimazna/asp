@@ -1,0 +1,10 @@
+# PY-0001 - AURA MT5 Python bridge runtime dependencies.
+#
+# MetaTrader5 is the official MetaQuotes package. It requires Windows and a
+# running, logged-in MT5 Terminal. numpy is pulled in by MetaTrader5.
+#
+# The bridge service itself (bridge_service.py) uses only the Python standard
+# library so that it can start, handshake, and report MT5 unavailability even
+# when the MetaTrader5 package cannot be imported.
+MetaTrader5>=5.0.45
+numpy>=1.23
