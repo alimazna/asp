@@ -29,9 +29,19 @@ GET  /api/v1/shadow/outcomes
 GET  /api/v1/research/status
 GET  /api/v1/governance/status
 GET  /api/v1/audit/recent
+GET  /api/v1/bridge/status
+POST /api/v1/command
 ```
 
-Human control actions, when later approved, must use explicit versioned command contracts and backend-side authorization/policy checks.
+The concrete transport is a loopback-only HTTP/JSON server
+(`aura::LoopbackApiServer`) on `127.0.0.1:8790`; the Python bridge is a separate
+internal component on `127.0.0.1:8791` that the frontend never contacts.
+
+Human control actions use explicit versioned command contracts and backend-side
+authorization/policy checks. The command surface is an allow-list: only
+`notify` and `request_approval` are accepted; every execution-like command
+(including `live.execute`) is rejected with `403 command_not_permitted`. Every
+command must carry an `actor`. Live execution remains prohibited.
 
 ## State model
 Frontend must distinguish service states from system operating modes.
