@@ -101,4 +101,8 @@ private:
     GuardianPolicy policy_{};
 };
 
+std::unique_ptr<IGuardian> makeGuardian() {
+    return std::make_unique<Guardian>();
+}
+
 }  // namespace aura

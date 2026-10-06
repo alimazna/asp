@@ -54,5 +54,8 @@ foreach(test_src ${AURA_TEST_SOURCES})
   add_executable(${test_name} "${test_src}")
   target_link_libraries(${test_name} PRIVATE aura_core)
   target_include_directories(${test_name} PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+  # Integration tests locate the bundled bridge assets from the source tree.
+  target_compile_definitions(${test_name} PRIVATE
+    AURA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()

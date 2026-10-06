@@ -6,6 +6,7 @@
 #include "guardian/GuardianPolicy.h"
 #include "guardian/GuardianStatus.h"
 
+#include <memory>
 #include <string>
 
 namespace aura {
@@ -58,5 +59,9 @@ public:
     // authority) and the Guardian is not FROZEN.
     virtual bool applyPolicy(const GuardianPolicy& policy) = 0;
 };
+
+// The single construction point for the process-wide Guardian. The concrete
+// type is private to the implementation; callers depend only on IGuardian.
+std::unique_ptr<IGuardian> makeGuardian();
 
 }  // namespace aura

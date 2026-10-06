@@ -36,8 +36,8 @@ tasks:
   - CMake configure succeeds
   - Backend targets are defined
   - Tests are discoverable
-  status: READY
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: BLD-0002
   phase: '0'
   module: Build
@@ -48,8 +48,8 @@ tasks:
   - Build directories excluded
   - Local secrets excluded
   - No source tree is hidden
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0001
   phase: '0'
   module: Foundation
@@ -60,8 +60,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0002
   phase: '0'
   module: Foundation
@@ -72,8 +72,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0003
   phase: '0'
   module: Foundation
@@ -84,8 +84,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0004
   phase: '0'
   module: Foundation
@@ -96,8 +96,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0005
   phase: '0'
   module: Foundation
@@ -108,8 +108,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0006
   phase: '0'
   module: Foundation
@@ -120,8 +120,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0007
   phase: '0'
   module: Foundation
@@ -132,8 +132,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0008
   phase: '0'
   module: Foundation
@@ -144,8 +144,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0009
   phase: '0'
   module: Foundation
@@ -156,8 +156,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0010
   phase: '0'
   module: Foundation
@@ -172,8 +172,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0011
   phase: '0'
   module: Foundation
@@ -185,8 +185,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0012
   phase: '0'
   module: Foundation
@@ -197,8 +197,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0013
   phase: '0'
   module: Foundation
@@ -214,8 +214,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0014
   phase: '0'
   module: Foundation
@@ -226,8 +226,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0015
   phase: '0'
   module: Foundation
@@ -238,8 +238,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0016
   phase: '0'
   module: Foundation
@@ -255,8 +255,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: FND-0017
   phase: '0'
   module: Foundation
@@ -267,8 +267,8 @@ tasks:
   - Header compiles in isolation
   - Semantics match V4 contracts
   - No unrelated types introduced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: CFG-0001
   phase: '0'
   module: Configuration
@@ -279,8 +279,8 @@ tasks:
   - Compiles
   - Version/scope semantics explicit
   - No silent mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: CFG-0002
   phase: '0'
   module: Configuration
@@ -292,8 +292,8 @@ tasks:
   - Compiles
   - Version/scope semantics explicit
   - No silent mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: CFG-0003
   phase: '0'
   module: Configuration
@@ -306,8 +306,8 @@ tasks:
   - Compiles
   - Version/scope semantics explicit
   - No silent mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: CFG-0004
   phase: '0'
   module: Configuration
@@ -318,8 +318,8 @@ tasks:
   - Compiles
   - Version/scope semantics explicit
   - No silent mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: CFG-0005
   phase: '0'
   module: Configuration
@@ -334,8 +334,8 @@ tasks:
   - Compiles
   - Version/scope semantics explicit
   - No silent mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: AUD-0001
   phase: '0'
   module: Audit
@@ -345,8 +345,8 @@ tasks:
   acceptance_criteria:
   - Append-only semantics are explicit
   - Identity/timestamp fields are versioned
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: AUD-0002
   phase: '0'
   module: Audit
@@ -356,8 +356,8 @@ tasks:
   acceptance_criteria:
   - Append-only semantics are explicit
   - Identity/timestamp fields are versioned
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: AUD-0003
   phase: '0'
   module: Audit
@@ -371,8 +371,8 @@ tasks:
   acceptance_criteria:
   - Append-only semantics are explicit
   - Identity/timestamp fields are versioned
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: INT-0001
   phase: '0'
   module: Integrity
@@ -382,8 +382,8 @@ tasks:
   acceptance_criteria:
   - Deterministic digest behavior
   - No hidden mutable state
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: INT-0002
   phase: '0'
   module: Integrity
@@ -395,8 +395,8 @@ tasks:
   acceptance_criteria:
   - Deterministic digest behavior
   - No hidden mutable state
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: INT-0003
   phase: '0'
   module: Integrity
@@ -407,8 +407,8 @@ tasks:
   acceptance_criteria:
   - Deterministic digest behavior
   - No hidden mutable state
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PER-0001
   phase: '0'
   module: Persistence
@@ -418,8 +418,8 @@ tasks:
   acceptance_criteria:
   - Restart-survival semantics are explicit
   - Transaction/idempotency boundaries are explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PER-0002
   phase: '0'
   module: Persistence
@@ -431,8 +431,8 @@ tasks:
   acceptance_criteria:
   - Restart-survival semantics are explicit
   - Transaction/idempotency boundaries are explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PER-0003
   phase: '0'
   module: Persistence
@@ -444,8 +444,8 @@ tasks:
   acceptance_criteria:
   - Restart-survival semantics are explicit
   - Transaction/idempotency boundaries are explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PER-0004
   phase: '0'
   module: Persistence
@@ -457,8 +457,8 @@ tasks:
   acceptance_criteria:
   - Restart-survival semantics are explicit
   - Transaction/idempotency boundaries are explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GDN-0001
   phase: '0'
   module: Guardian
@@ -469,8 +469,8 @@ tasks:
   acceptance_criteria:
   - Guardian authority cannot be self-evolved
   - Safe mode/HALT semantics explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GDN-0002
   phase: '0'
   module: Guardian
@@ -482,8 +482,8 @@ tasks:
   acceptance_criteria:
   - Guardian authority cannot be self-evolved
   - Safe mode/HALT semantics explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GDN-0003
   phase: '0'
   module: Guardian
@@ -495,8 +495,8 @@ tasks:
   acceptance_criteria:
   - Guardian authority cannot be self-evolved
   - Safe mode/HALT semantics explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GDN-0004
   phase: '0'
   module: Guardian
@@ -507,8 +507,8 @@ tasks:
   acceptance_criteria:
   - Guardian authority cannot be self-evolved
   - Safe mode/HALT semantics explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0001
   phase: '0.5'
   module: Resilience Contracts
@@ -521,8 +521,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0002
   phase: '0.5'
   module: Resilience Contracts
@@ -534,8 +534,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0003
   phase: '0.5'
   module: Resilience Contracts
@@ -548,8 +548,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0004
   phase: '0.5'
   module: Resilience Contracts
@@ -561,8 +561,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0005
   phase: '0.5'
   module: Resilience Contracts
@@ -576,8 +576,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0006
   phase: '0.5'
   module: Resilience Contracts
@@ -590,8 +590,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0007
   phase: '0.5'
   module: Resilience Contracts
@@ -603,8 +603,8 @@ tasks:
   - Contract compiles
   - State semantics match V4
   - No capability decision is implicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0010
   phase: '0.5'
   module: Resilience Runtime
@@ -618,8 +618,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0011
   phase: '0.5'
   module: Resilience Runtime
@@ -632,8 +632,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0012
   phase: '0.5'
   module: Resilience Runtime
@@ -647,8 +647,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0013
   phase: '0.5'
   module: Resilience Runtime
@@ -661,8 +661,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0014
   phase: '0.5'
   module: Resilience Runtime
@@ -675,8 +675,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0015
   phase: '0.5'
   module: Resilience Runtime
@@ -689,8 +689,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0016
   phase: '0.5'
   module: Resilience Runtime
@@ -703,8 +703,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0017
   phase: '0.5'
   module: Resilience Runtime
@@ -717,8 +717,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0018
   phase: '0.5'
   module: Resilience Runtime
@@ -731,8 +731,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0019
   phase: '0.5'
   module: Resilience Runtime
@@ -745,8 +745,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0020
   phase: '0.5'
   module: Resilience Runtime
@@ -759,8 +759,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0021
   phase: '0.5'
   module: Resilience Runtime
@@ -773,8 +773,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0022
   phase: '0.5'
   module: Resilience Runtime
@@ -788,8 +788,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0023
   phase: '0.5'
   module: Resilience Runtime
@@ -802,8 +802,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0024
   phase: '0.5'
   module: Resilience Runtime
@@ -816,8 +816,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0025
   phase: '0.5'
   module: Resilience Runtime
@@ -830,8 +830,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0026
   phase: '0.5'
   module: Resilience Runtime
@@ -845,8 +845,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0027
   phase: '0.5'
   module: Resilience Runtime
@@ -859,8 +859,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0028
   phase: '0.5'
   module: Resilience Runtime
@@ -873,8 +873,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0029
   phase: '0.5'
   module: Resilience Runtime
@@ -887,8 +887,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0030
   phase: '0.5'
   module: Resilience Runtime
@@ -901,8 +901,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0031
   phase: '0.5'
   module: Resilience Runtime
@@ -915,8 +915,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0032
   phase: '0.5'
   module: Resilience Runtime
@@ -929,8 +929,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RES-0033
   phase: '0.5'
   module: Resilience Runtime
@@ -943,8 +943,8 @@ tasks:
   - Failure isolation semantics are deterministic
   - Dependent capabilities only are disabled
   - Health state is observable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PY-0001
   phase: '1'
   module: Python MT5 Bridge
@@ -953,8 +953,8 @@ tasks:
   objective: Pin/declare the Python bridge runtime dependencies.
   acceptance_criteria:
   - Installable in packaged runtime
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PY-0002
   phase: '1'
   module: Python MT5 Bridge
@@ -965,8 +965,8 @@ tasks:
   acceptance_criteria:
   - Schema version present
   - No implicit fields
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PY-0003
   phase: '1'
   module: Python MT5 Bridge
@@ -980,7 +980,7 @@ tasks:
   - Closed-bar request semantics
   - Explicit last_error on failures
   - No order placement APIs
-  status: PLANNED
+  status: IMPLEMENTED
   authority: PROJECT DECISION
 - id: PY-0004
   phase: '1'
@@ -994,8 +994,8 @@ tasks:
   - Closed bars only
   - Explicit symbol resolution
   - No fake data
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PY-0005
   phase: '1'
   module: Python MT5 Bridge
@@ -1013,7 +1013,7 @@ tasks:
   - /v1/candles
   - /v1/tick
   - /v1/symbol
-  status: PLANNED
+  status: IMPLEMENTED
   authority: PROJECT DECISION
 - id: PY-0006
   phase: '1'
@@ -1025,8 +1025,8 @@ tasks:
   acceptance_criteria:
   - No manual CMD requirement in product flow
   - Windows deployment documented
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0001
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1041,8 +1041,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0002
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1054,8 +1054,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0003
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1067,8 +1067,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0004
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1080,8 +1080,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0005
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1094,8 +1094,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0006
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1108,8 +1108,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0007
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1121,8 +1121,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0008
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1135,8 +1135,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0009
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1149,8 +1149,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0010
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1162,8 +1162,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0011
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1176,8 +1176,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0012
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1191,8 +1191,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0013
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1204,8 +1204,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0014
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1217,8 +1217,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DAT-0015
   phase: '1'
   module: Data / Runtime Ingestion
@@ -1230,8 +1230,8 @@ tasks:
   - Compiles
   - Deterministic ordering
   - Broker/source identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0001
   phase: '1'
   module: Windows Host / Startup
@@ -1240,8 +1240,8 @@ tasks:
   objective: Resolve executable/install root and all runtime-relative paths.
   acceptance_criteria:
   - Never uses CWD as authority
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0002
   phase: '1'
   module: Windows Host / Startup
@@ -1251,8 +1251,8 @@ tasks:
   objective: Implement Windows-safe executable-root path resolution.
   acceptance_criteria:
   - Double-click path test passes
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0003
   phase: '1'
   module: Windows Host / Startup
@@ -1262,8 +1262,8 @@ tasks:
   objective: Define bundled runtime asset discovery.
   acceptance_criteria:
   - Python runtime and bridge assets located
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0004
   phase: '1'
   module: Windows Host / Startup
@@ -1273,8 +1273,8 @@ tasks:
   objective: Implement bundled asset discovery.
   acceptance_criteria:
   - No global PATH dependency
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0005
   phase: '1'
   module: Windows Host / Startup
@@ -1285,8 +1285,8 @@ tasks:
   objective: Define child-process lifecycle supervision.
   acceptance_criteria:
   - Start/monitor/stop/restart bounded
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0006
   phase: '1'
   module: Windows Host / Startup
@@ -1298,8 +1298,8 @@ tasks:
   acceptance_criteria:
   - Bridge starts automatically
   - Exit/failure detected
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0007
   phase: '1'
   module: Windows Host / Startup
@@ -1311,8 +1311,8 @@ tasks:
   objective: Define startup sequence and state transitions.
   acceptance_criteria:
   - Bridge handshake precedes ONLINE
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0008
   phase: '1'
   module: Windows Host / Startup
@@ -1323,8 +1323,8 @@ tasks:
   acceptance_criteria:
   - No silent armed state
   - Actionable errors
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0009
   phase: '1'
   module: Windows Host / Startup
@@ -1336,8 +1336,8 @@ tasks:
   objective: Define headless AURA runtime composition root.
   acceptance_criteria:
   - Core dependencies explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0010
   phase: '1'
   module: Windows Host / Startup
@@ -1349,8 +1349,8 @@ tasks:
   acceptance_criteria:
   - Graceful shutdown
   - Backend can run headless
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: HOST-0011
   phase: '1'
   module: Windows Host / Startup
@@ -1361,8 +1361,8 @@ tasks:
   acceptance_criteria:
   - Can start by double-click
   - No CMD working directory assumption
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0001
   phase: '1'
   module: Deterministic Decision Chain
@@ -1373,8 +1373,8 @@ tasks:
   acceptance_criteria:
   - Versioned inputs
   - Closed-bar timestamp
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0002
   phase: '1'
   module: Deterministic Decision Chain
@@ -1384,8 +1384,8 @@ tasks:
   objective: Define deterministic feature engine interface.
   acceptance_criteria:
   - No future inputs
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0003
   phase: '1'
   module: Deterministic Decision Chain
@@ -1396,8 +1396,8 @@ tasks:
   acceptance_criteria:
   - Unit-testable
   - No hidden mutable lookahead
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0004
   phase: '1'
   module: Deterministic Decision Chain
@@ -1407,8 +1407,8 @@ tasks:
   objective: Define structure state.
   acceptance_criteria:
   - Causal structure
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0005
   phase: '1'
   module: Deterministic Decision Chain
@@ -1419,8 +1419,8 @@ tasks:
   objective: Define structure engine.
   acceptance_criteria:
   - H4 authority supported
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0006
   phase: '1'
   module: Deterministic Decision Chain
@@ -1430,8 +1430,8 @@ tasks:
   objective: Implement structure engine.
   acceptance_criteria:
   - M15/H4 relationship preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0007
   phase: '1'
   module: Deterministic Decision Chain
@@ -1441,8 +1441,8 @@ tasks:
   objective: Define regime state.
   acceptance_criteria:
   - UNKNOWN is explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0008
   phase: '1'
   module: Deterministic Decision Chain
@@ -1453,8 +1453,8 @@ tasks:
   objective: Define regime engine.
   acceptance_criteria:
   - No signal generation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0009
   phase: '1'
   module: Deterministic Decision Chain
@@ -1464,8 +1464,8 @@ tasks:
   objective: Implement deterministic regime engine.
   acceptance_criteria:
   - Unknown/stale gates respected
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0010
   phase: '1'
   module: Deterministic Decision Chain
@@ -1475,8 +1475,8 @@ tasks:
   objective: Define strategy eligibility contract.
   acceptance_criteria:
   - Regime and eligibility remain separate
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0011
   phase: '1'
   module: Deterministic Decision Chain
@@ -1486,8 +1486,8 @@ tasks:
   objective: Implement eligibility gates.
   acceptance_criteria:
   - No direct execution
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0012
   phase: '1'
   module: Deterministic Decision Chain
@@ -1497,8 +1497,8 @@ tasks:
   objective: Define immutable signal contract.
   acceptance_criteria:
   - Decision ID and closed bar captured
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0013
   phase: '1'
   module: Deterministic Decision Chain
@@ -1508,8 +1508,8 @@ tasks:
   objective: Implement signal publication.
   acceptance_criteria:
   - No repaint
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0014
   phase: '1'
   module: Deterministic Decision Chain
@@ -1519,8 +1519,8 @@ tasks:
   objective: Define score contract.
   acceptance_criteria:
   - Score not probability
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0015
   phase: '1'
   module: Deterministic Decision Chain
@@ -1530,8 +1530,8 @@ tasks:
   objective: Implement deterministic scoring.
   acceptance_criteria:
   - Versioned scoring inputs
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0016
   phase: '1'
   module: Deterministic Decision Chain
@@ -1541,8 +1541,8 @@ tasks:
   objective: Define confidence contract.
   acceptance_criteria:
   - Confidence not guarantee
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0017
   phase: '1'
   module: Deterministic Decision Chain
@@ -1552,8 +1552,8 @@ tasks:
   objective: Implement confidence calculation.
   acceptance_criteria:
   - Input completeness is visible
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0018
   phase: '1'
   module: Deterministic Decision Chain
@@ -1563,8 +1563,8 @@ tasks:
   objective: Define calibrated probability boundary.
   acceptance_criteria:
   - Returns NOT_ESTABLISHED when calibration absent
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0019
   phase: '1'
   module: Deterministic Decision Chain
@@ -1574,8 +1574,8 @@ tasks:
   objective: Implement explicit non-calibrated behavior.
   acceptance_criteria:
   - Never fabricates probability
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0020
   phase: '1'
   module: Deterministic Decision Chain
@@ -1585,8 +1585,8 @@ tasks:
   objective: Define macro/event context contract.
   acceptance_criteria:
   - PIT boundary explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0021
   phase: '1'
   module: Deterministic Decision Chain
@@ -1596,8 +1596,8 @@ tasks:
   objective: Implement macro gate boundary.
   acceptance_criteria:
   - No future event leakage
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0022
   phase: '1'
   module: Deterministic Decision Chain
@@ -1607,8 +1607,8 @@ tasks:
   objective: Define market-quality gate.
   acceptance_criteria:
   - Stale/poor quality explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0023
   phase: '1'
   module: Deterministic Decision Chain
@@ -1618,8 +1618,8 @@ tasks:
   objective: Implement market quality gating.
   acceptance_criteria:
   - Tick freshness respected
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0024
   phase: '1'
   module: Deterministic Decision Chain
@@ -1631,8 +1631,8 @@ tasks:
   objective: Define risk proposal boundary.
   acceptance_criteria:
   - Risk before execution
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0025
   phase: '1'
   module: Deterministic Decision Chain
@@ -1642,8 +1642,8 @@ tasks:
   objective: Implement deterministic risk proposal.
   acceptance_criteria:
   - Hard limits cannot be bypassed
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0026
   phase: '1'
   module: Deterministic Decision Chain
@@ -1653,8 +1653,8 @@ tasks:
   objective: Define portfolio-level risk constraints.
   acceptance_criteria:
   - Unprotected exposure prohibited
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: DEC-0027
   phase: '1'
   module: Deterministic Decision Chain
@@ -1664,8 +1664,8 @@ tasks:
   objective: Implement portfolio risk constraints.
   acceptance_criteria:
   - Idempotent proposals
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0001
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1675,8 +1675,8 @@ tasks:
   objective: Define shadow command.
   acceptance_criteria:
   - No live order authority
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0002
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1687,8 +1687,8 @@ tasks:
   objective: Define shadow execution.
   acceptance_criteria:
   - Simulation only
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0003
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1698,8 +1698,8 @@ tasks:
   objective: Implement simulated execution lifecycle.
   acceptance_criteria:
   - Costs/slippage state explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0004
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1709,8 +1709,8 @@ tasks:
   objective: Define simulated position lifecycle.
   acceptance_criteria:
   - Lifecycle auditable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0005
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1720,8 +1720,8 @@ tasks:
   objective: Implement shadow positions/fills/exits.
   acceptance_criteria:
   - Deterministic position state
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0006
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1732,8 +1732,8 @@ tasks:
   objective: Define shadow reconciliation.
   acceptance_criteria:
   - Mismatch is explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0007
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1743,8 +1743,8 @@ tasks:
   objective: Implement persistence/runtime reconciliation.
   acceptance_criteria:
   - No blind resend semantics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0008
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1754,8 +1754,8 @@ tasks:
   objective: Define outcome contract.
   acceptance_criteria:
   - Links decision to simulated result
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0009
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1765,8 +1765,8 @@ tasks:
   objective: Define outcome engine.
   acceptance_criteria:
   - No mutation of original decision
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0010
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1776,8 +1776,8 @@ tasks:
   objective: Implement outcome generation.
   acceptance_criteria:
   - Historical output immutable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0011
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1788,8 +1788,8 @@ tasks:
   objective: Define prediction ledger.
   acceptance_criteria:
   - Decision identity preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0012
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1799,8 +1799,8 @@ tasks:
   objective: Implement append-oriented prediction history.
   acceptance_criteria:
   - No duplicate decisions
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0013
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1812,8 +1812,8 @@ tasks:
   objective: Define application persistence facade.
   acceptance_criteria:
   - Critical state covered
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0014
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1823,8 +1823,8 @@ tasks:
   objective: Implement persistence lifecycle.
   acceptance_criteria:
   - Restart survival
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0015
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1835,8 +1835,8 @@ tasks:
   objective: Define system health aggregation.
   acceptance_criteria:
   - Subsystem/state distinction
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0016
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1846,8 +1846,8 @@ tasks:
   objective: Implement health aggregation and reporting.
   acceptance_criteria:
   - No health fabrication
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0017
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1858,8 +1858,8 @@ tasks:
   objective: Define bridge/runtime watchdog.
   acceptance_criteria:
   - Bounded recovery
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: SHD-0018
   phase: '2'
   module: Observation / Shadow / Outcomes
@@ -1869,8 +1869,8 @@ tasks:
   objective: Implement watchdog.
   acceptance_criteria:
   - Persistent incident logging
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0001
   phase: 3-4
   module: Self-Learning / Research
@@ -1880,8 +1880,8 @@ tasks:
   objective: Define knowledge persistence.
   acceptance_criteria:
   - History preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0002
   phase: 3-4
   module: Self-Learning / Research
@@ -1891,8 +1891,8 @@ tasks:
   objective: Implement knowledge persistence.
   acceptance_criteria:
   - No history erasure
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0003
   phase: 3-4
   module: Self-Learning / Research
@@ -1902,8 +1902,8 @@ tasks:
   objective: Define knowledge lifecycle.
   acceptance_criteria:
   - Revalidation/decay explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0004
   phase: 3-4
   module: Self-Learning / Research
@@ -1913,8 +1913,8 @@ tasks:
   objective: Implement knowledge lifecycle.
   acceptance_criteria:
   - Status transitions auditable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0005
   phase: 3-4
   module: Self-Learning / Research
@@ -1924,8 +1924,8 @@ tasks:
   objective: Define context learning.
   acceptance_criteria:
   - No production mutation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0006
   phase: 3-4
   module: Self-Learning / Research
@@ -1935,8 +1935,8 @@ tasks:
   objective: Implement bounded context learning.
   acceptance_criteria:
   - Outputs research-only
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0007
   phase: 3-4
   module: Self-Learning / Research
@@ -1946,8 +1946,8 @@ tasks:
   objective: Define contradiction tracking.
   acceptance_criteria:
   - Contradictions remain visible
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0008
   phase: 3-4
   module: Self-Learning / Research
@@ -1957,8 +1957,8 @@ tasks:
   objective: Implement contradiction tracking.
   acceptance_criteria:
   - No silent reconciliation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0009
   phase: 3-4
   module: Self-Learning / Research
@@ -1969,8 +1969,8 @@ tasks:
   objective: Define failure memory.
   acceptance_criteria:
   - Failures preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0010
   phase: 3-4
   module: Self-Learning / Research
@@ -1980,8 +1980,8 @@ tasks:
   objective: Implement failure memory.
   acceptance_criteria:
   - Root-cause linkage retained
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0011
   phase: 3-4
   module: Self-Learning / Research
@@ -1991,8 +1991,8 @@ tasks:
   objective: Define hypothesis generation.
   acceptance_criteria:
   - Bounded inputs
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0012
   phase: 3-4
   module: Self-Learning / Research
@@ -2002,8 +2002,8 @@ tasks:
   objective: Implement hypothesis generation.
   acceptance_criteria:
   - No evaluator modification
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0013
   phase: 3-4
   module: Self-Learning / Research
@@ -2013,8 +2013,8 @@ tasks:
   objective: Define research planning/budgeting.
   acceptance_criteria:
   - Budget bounds explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0014
   phase: 3-4
   module: Self-Learning / Research
@@ -2024,8 +2024,8 @@ tasks:
   objective: Implement bounded planning.
   acceptance_criteria:
   - No self-extension of operating window
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0015
   phase: 3-4
   module: Self-Learning / Research
@@ -2036,8 +2036,8 @@ tasks:
   objective: Define experiment ledger.
   acceptance_criteria:
   - Fingerprint/version metadata
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0016
   phase: 3-4
   module: Self-Learning / Research
@@ -2047,8 +2047,8 @@ tasks:
   objective: Implement experiment history.
   acceptance_criteria:
   - Immutable history
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0017
   phase: 3-4
   module: Self-Learning / Research
@@ -2058,8 +2058,8 @@ tasks:
   objective: Define resource/time budget.
   acceptance_criteria:
   - Human-defined ceiling
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0018
   phase: 3-4
   module: Self-Learning / Research
@@ -2069,8 +2069,8 @@ tasks:
   objective: Define research sandbox boundary.
   acceptance_criteria:
   - Candidate code cannot access evaluator
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0019
   phase: 3-4
   module: Self-Learning / Research
@@ -2081,8 +2081,8 @@ tasks:
   objective: Define deterministic replay.
   acceptance_criteria:
   - Point-in-time replay
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: RSH-0020
   phase: 3-4
   module: Self-Learning / Research
@@ -2092,8 +2092,8 @@ tasks:
   objective: Implement replay.
   acceptance_criteria:
   - Reproducible results
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0001
   phase: '5'
   module: Evolution
@@ -2104,8 +2104,8 @@ tasks:
   objective: Define candidate generation.
   acceptance_criteria:
   - Sandbox-only
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0002
   phase: '5'
   module: Evolution
@@ -2115,8 +2115,8 @@ tasks:
   objective: Implement bounded candidate generation.
   acceptance_criteria:
   - No auto-promotion
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0003
   phase: '5'
   module: Evolution
@@ -2127,8 +2127,8 @@ tasks:
   objective: Define candidate registry/provenance.
   acceptance_criteria:
   - Parent/hash/evidence retained
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0004
   phase: '5'
   module: Evolution
@@ -2138,8 +2138,8 @@ tasks:
   objective: Implement candidate registry.
   acceptance_criteria:
   - Rejected candidates remain visible
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0005
   phase: '5'
   module: Evolution
@@ -2149,8 +2149,8 @@ tasks:
   objective: Define evolution graph.
   acceptance_criteria:
   - History preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0006
   phase: '5'
   module: Evolution
@@ -2160,8 +2160,8 @@ tasks:
   objective: Implement evolution graph.
   acceptance_criteria:
   - No hidden lineage
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0007
   phase: '5'
   module: Evolution
@@ -2172,8 +2172,8 @@ tasks:
   objective: Define control-vs-candidate comparison.
   acceptance_criteria:
   - Same evaluator/data assumptions
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: EVO-0008
   phase: '5'
   module: Evolution
@@ -2183,8 +2183,8 @@ tasks:
   objective: Implement comparisons.
   acceptance_criteria:
   - No single-metric-only acceptance
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0001
   phase: '6'
   module: Validation
@@ -2195,8 +2195,8 @@ tasks:
   objective: Define trusted evaluator boundary.
   acceptance_criteria:
   - Candidate cannot mutate evaluator
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0002
   phase: '6'
   module: Validation
@@ -2206,8 +2206,8 @@ tasks:
   objective: Implement evaluator separation.
   acceptance_criteria:
   - Evaluator immutable during candidate run
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0003
   phase: '6'
   module: Validation
@@ -2217,8 +2217,8 @@ tasks:
   objective: Define out-of-sample validation.
   acceptance_criteria:
   - Locked boundary
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0004
   phase: '6'
   module: Validation
@@ -2228,8 +2228,8 @@ tasks:
   objective: Implement OOS validation.
   acceptance_criteria:
   - No holdout leakage
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0005
   phase: '6'
   module: Validation
@@ -2239,8 +2239,8 @@ tasks:
   objective: Define walk-forward validation.
   acceptance_criteria:
   - Time ordering preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0006
   phase: '6'
   module: Validation
@@ -2250,8 +2250,8 @@ tasks:
   objective: Implement walk-forward validation.
   acceptance_criteria:
   - Causal windows
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0007
   phase: '6'
   module: Validation
@@ -2261,8 +2261,8 @@ tasks:
   objective: Define stress validation.
   acceptance_criteria:
   - Tail behavior captured
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0008
   phase: '6'
   module: Validation
@@ -2272,8 +2272,8 @@ tasks:
   objective: Implement stress validation.
   acceptance_criteria:
   - Assumptions versioned
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0009
   phase: '6'
   module: Validation
@@ -2283,8 +2283,8 @@ tasks:
   objective: Define regression validation.
   acceptance_criteria:
   - Control set preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0010
   phase: '6'
   module: Validation
@@ -2294,8 +2294,8 @@ tasks:
   objective: Implement regression validation.
   acceptance_criteria:
   - Historical baseline preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0011
   phase: '6'
   module: Validation
@@ -2305,8 +2305,8 @@ tasks:
   objective: Define locked holdout service.
   acceptance_criteria:
   - Candidate cannot unlock
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: VAL-0012
   phase: '6'
   module: Validation
@@ -2316,8 +2316,8 @@ tasks:
   objective: Implement holdout protection.
   acceptance_criteria:
   - Unauthorized access blocked
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0001
   phase: '7'
   module: Governance
@@ -2328,8 +2328,8 @@ tasks:
   objective: Define human approval gate.
   acceptance_criteria:
   - Human decision required
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0002
   phase: '7'
   module: Governance
@@ -2339,8 +2339,8 @@ tasks:
   objective: Implement approval gate.
   acceptance_criteria:
   - No silent promotion
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0003
   phase: '7'
   module: Governance
@@ -2351,8 +2351,8 @@ tasks:
   objective: Define change investigation record.
   acceptance_criteria:
   - Evidence traceable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0004
   phase: '7'
   module: Governance
@@ -2364,8 +2364,8 @@ tasks:
   objective: Define promotion gate.
   acceptance_criteria:
   - Shadow requirement enforced
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0005
   phase: '7'
   module: Governance
@@ -2375,8 +2375,8 @@ tasks:
   objective: Implement promotion checks without live activation.
   acceptance_criteria:
   - No auto-promotion
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0006
   phase: '7'
   module: Governance
@@ -2387,8 +2387,8 @@ tasks:
   objective: Define approved known-good registry.
   acceptance_criteria:
   - Approval metadata preserved
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0007
   phase: '7'
   module: Governance
@@ -2399,8 +2399,8 @@ tasks:
   objective: Define rollback to approved known-good states.
   acceptance_criteria:
   - No search during incident
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0008
   phase: '7'
   module: Governance
@@ -2410,8 +2410,8 @@ tasks:
   objective: Implement policy-bounded rollback.
   acceptance_criteria:
   - Logged transition
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0009
   phase: '7'
   module: Governance
@@ -2421,8 +2421,8 @@ tasks:
   objective: Define incident lifecycle.
   acceptance_criteria:
   - Protection before investigation
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: GOV-0010
   phase: '7'
   module: Governance
@@ -2432,8 +2432,8 @@ tasks:
   objective: Define postmortem record.
   acceptance_criteria:
   - Failures remain data
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0001
   phase: '8'
   module: Operating Window / Recovery
@@ -2444,8 +2444,8 @@ tasks:
   acceptance_criteria:
   - 3–8h policy encoded
   - No self-extension
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0002
   phase: '8'
   module: Operating Window / Recovery
@@ -2455,8 +2455,8 @@ tasks:
   objective: Implement schedule enforcement.
   acceptance_criteria:
   - DRAINING state on close
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0003
   phase: '8'
   module: Operating Window / Recovery
@@ -2466,8 +2466,8 @@ tasks:
   objective: Define checkpoint contract.
   acceptance_criteria:
   - Validity/provenance/version retained
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0004
   phase: '8'
   module: Operating Window / Recovery
@@ -2477,8 +2477,8 @@ tasks:
   objective: Implement checkpointing.
   acceptance_criteria:
   - Resumable state auditable
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0005
   phase: '8'
   module: Operating Window / Recovery
@@ -2489,8 +2489,8 @@ tasks:
   objective: Define crash recovery.
   acceptance_criteria:
   - Known valid checkpoint preferred
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0006
   phase: '8'
   module: Operating Window / Recovery
@@ -2500,8 +2500,8 @@ tasks:
   objective: Implement crash recovery.
   acceptance_criteria:
   - No guessing when state unknown
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0007
   phase: '8'
   module: Operating Window / Recovery
@@ -2511,8 +2511,8 @@ tasks:
   objective: Define resource budgets.
   acceptance_criteria:
   - Hard ceilings
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: REC-0008
   phase: '8'
   module: Operating Window / Recovery
@@ -2522,8 +2522,8 @@ tasks:
   objective: Implement resource budget enforcement.
   acceptance_criteria:
   - Escalation prohibited
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TEL-0001
   phase: '10'
   module: Auxiliary Telegram Backend
@@ -2534,8 +2534,8 @@ tasks:
   objective: Define auxiliary Telegram gateway.
   acceptance_criteria:
   - Cannot become source of truth
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TEL-0002
   phase: '10'
   module: Auxiliary Telegram Backend
@@ -2545,8 +2545,8 @@ tasks:
   objective: Implement bounded Telegram notifications/requests.
   acceptance_criteria:
   - Core runs without Telegram
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0001
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2558,8 +2558,8 @@ tasks:
   objective: Define stable frontend-facing backend façade.
   acceptance_criteria:
   - No frontend access to private internals
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0002
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2569,8 +2569,8 @@ tasks:
   objective: Implement frontend-safe query/state façade.
   acceptance_criteria:
   - Uses versioned data contracts
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0003
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2581,8 +2581,8 @@ tasks:
   objective: Define stable API schema/version contracts.
   acceptance_criteria:
   - Schema version explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0004
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2593,8 +2593,8 @@ tasks:
   acceptance_criteria:
   - Relative paths
   - Versions recorded
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0005
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2604,8 +2604,8 @@ tasks:
   objective: Define packaged runtime layout configuration.
   acceptance_criteria:
   - Bundled runtime paths explicit
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: PKG-0006
   phase: '12'
   module: Packaging / Backend-Frontend Contract
@@ -2615,8 +2615,8 @@ tasks:
   objective: Implement package layout resolution.
   acceptance_criteria:
   - Double-click package smoke test
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0001
   phase: '12'
   module: Tests
@@ -2628,8 +2628,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0002
   phase: '12'
   module: Tests
@@ -2641,8 +2641,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0003
   phase: '12'
   module: Tests
@@ -2654,8 +2654,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0004
   phase: '12'
   module: Tests
@@ -2667,8 +2667,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0005
   phase: '12'
   module: Tests
@@ -2680,8 +2680,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0006
   phase: '12'
   module: Tests
@@ -2693,8 +2693,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0007
   phase: '12'
   module: Tests
@@ -2706,8 +2706,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0008
   phase: '12'
   module: Tests
@@ -2720,8 +2720,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0009
   phase: '12'
   module: Tests
@@ -2733,8 +2733,8 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED
 - id: TST-0010
   phase: '12'
   module: Tests
@@ -2746,5 +2746,5 @@ tasks:
   acceptance_criteria:
   - Test passes deterministically
   - Failure produces actionable diagnostics
-  status: PLANNED
-  authority: PROPOSED
+  status: IMPLEMENTED
+  authority: IMPLEMENTED

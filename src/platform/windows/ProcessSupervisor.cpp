@@ -14,10 +14,12 @@
 #include <process.h>
 #else
 #include <csignal>
+#include <cerrno>
+#include <fcntl.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <cerrno>
 #endif
 
 namespace aura {
@@ -95,21 +97,65 @@ bool ProcessSupervisor::spawn(std::string& error) {
     for (auto& arg : argStore) argv.push_back(const_cast<char*>(arg.c_str()));
     argv.push_back(nullptr);
 
+    // Self-pipe: the child writes a byte only if it fails before exec. The
+    // write end is close-on-exec, so a successful exec closes it and the
+    // parent observes EOF. This makes a failed exec visible immediately
+    // instead of reporting a dead process as ONLINE.
+    int execPipe[2] = {-1, -1};
+    if (::pipe(execPipe) != 0) {
+        error = "pipe failed";
+        return false;
+    }
+    const int pipeFlags = ::fcntl(execPipe[1], F_GETFD);
+    if (pipeFlags >= 0) ::fcntl(execPipe[1], F_SETFD, pipeFlags | FD_CLOEXEC);
+
     const pid_t pid = ::fork();
     if (pid < 0) {
+        ::close(execPipe[0]);
+        ::close(execPipe[1]);
         error = "fork failed";
         return false;
     }
     if (pid == 0) {
         // Child.
+        ::close(execPipe[0]);
         if (!spec_.workingDir.empty()) {
-            if (::chdir(spec_.workingDir.c_str()) != 0) _exit(127);
+            if (::chdir(spec_.workingDir.c_str()) != 0) {
+                const int rc = 127;
+                ssize_t ignored = ::write(execPipe[1], &rc, sizeof(rc));
+                (void)ignored;
+                _exit(127);
+            }
         }
         for (const auto& kv : spec_.environment) {
             ::setenv(kv.first.c_str(), kv.second.c_str(), 1);
         }
         ::execv(exe.c_str(), argv.data());
+        const int rc = 127;
+        ssize_t ignored = ::write(execPipe[1], &rc, sizeof(rc));
+        (void)ignored;
         _exit(127);   // exec failed
+    }
+
+    // Parent.
+    ::close(execPipe[1]);
+    struct pollfd pfd{};
+    pfd.fd = execPipe[0];
+    pfd.events = POLLIN;
+    const int pollResult = ::poll(&pfd, 1, spec_.execProbeMillis);
+    bool execFailed = false;
+    if (pollResult > 0 && (pfd.revents & (POLLIN | POLLHUP))) {
+        int childStatus = 0;
+        const ssize_t n = ::read(execPipe[0], &childStatus, sizeof(childStatus));
+        if (n > 0) execFailed = true;   // child reported a pre-exec failure
+    }
+    ::close(execPipe[0]);
+
+    if (execFailed) {
+        int status = 0;
+        ::waitpid(pid, &status, 0);
+        error = "failed to execute: " + exe;
+        return false;
     }
     info_.pid = static_cast<long>(pid);
     info_.running = true;

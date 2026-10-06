@@ -35,3 +35,26 @@ Nine timeframe streams remain canonical. M15 is the primary operational/setup ti
 
 ## DEC-012 — Closed-bar causality
 Decision-grade candle input is closed-bar only. No lookahead, no future information, and no silent repainting.
+
+## DEC-013 — Concrete persistence store
+PER defines only the persistence contract. The runtime implementation is a
+dependency-free, file-backed `FilePersistenceStore` (durable at the record
+boundary, append-only streams, idempotent re-puts). No external database is
+introduced.
+
+## DEC-014 — Guardian construction
+The concrete Guardian type is private to `src/guardian/Guardian.cpp`. The single
+construction point is `makeGuardian()` declared in `IGuardian.h`, so callers
+depend only on the interface and cannot widen Guardian authority.
+
+## DEC-015 — API wire contract typing
+`ApiField` values that are already JSON-encoded (booleans, numbers, nested
+objects/arrays) must be marked `raw`. Emitting them unquoted is required for a
+valid wire contract; the frontend must never receive `"true"`/`"1"` strings in
+place of real JSON types.
+
+## DEC-016 — Bridge exec-failure visibility
+A supervised child that fails before `exec` must be reported as a failed launch
+(`ERROR`), not `ONLINE`. On POSIX this is detected with a close-on-exec
+self-pipe; on Windows a failed `CreateProcess` is already reported directly.
+

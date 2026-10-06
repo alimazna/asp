@@ -18,6 +18,9 @@ struct ProcessLaunchSpec {
     std::vector<std::string> args;             // script + flags
     std::string workingDir;                    // bridge directory
     std::map<std::string, std::string> environment;
+    // How long spawn() waits for the child to reach exec before concluding the
+    // launch succeeded. A child that fails before exec is detected sooner.
+    int execProbeMillis = 1500;
 };
 
 struct ProcessInfo {
