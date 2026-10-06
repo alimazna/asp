@@ -1,0 +1,2750 @@
+project:
+  technical_id: AURA
+  product_brand: ASTRA
+  asset: XAUUSD
+  primary_mode: SHADOW
+  backend_agent: DeepSeek v4.1 Flash via OpenHands
+  frontend_agent: Alpha after backend approval
+  backend_first: true
+  market_data_boundary: bundled Python + MetaTrader5 bridge
+  bridge_process_model: separate supervised child process
+  bridge_transport: loopback JSON API on 127.0.0.1
+  startup: double-click; no CMD requirement
+authority:
+  active_master: docs/AURA_ASTRA_MASTER_UNIFIED_PROJECT_v4.0.md
+  archived_master: docs/archive/XAUUSD_SOVEREIGN_MASTER_UNIFIED_PROJECT_v3.0.original.md
+  archived_python_reference: docs/archive/Python_MetaTrader5_Reference.original.md
+rules:
+  one_task_one_prompt_one_source_file: true
+  blocked_is_valid: true
+  no_lookahead: true
+  no_repaint: true
+  unknown_is_not_neutral: true
+  no_live_trading_initially: true
+  no_mql5_candle_ingestion: true
+  frontend_deferred_until_backend_review: true
+backend_completion_gate: docs/architecture/BACKEND_DONE_DEFINITION.md
+bootstrap_prompt: ai-prompts/TASK-BOOTSTRAP-BACKEND-000.md
+tasks:
+- id: BLD-0001
+  phase: '0'
+  module: Build
+  output_path: CMakeLists.txt
+  dependencies: []
+  objective: Define the clean AURA backend build and test graph without frontend UI dependencies.
+  acceptance_criteria:
+  - CMake configure succeeds
+  - Backend targets are defined
+  - Tests are discoverable
+  status: READY
+  authority: PROPOSED
+- id: BLD-0002
+  phase: '0'
+  module: Build
+  output_path: .gitignore
+  dependencies: []
+  objective: Protect build/output/runtime secrets from source control.
+  acceptance_criteria:
+  - Build directories excluded
+  - Local secrets excluded
+  - No source tree is hidden
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0001
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/EntityId.h
+  dependencies: []
+  objective: Implement frozen foundational contract EntityId.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0002
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/Timestamp.h
+  dependencies: []
+  objective: Implement frozen foundational contract Timestamp.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0003
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/Version.h
+  dependencies: []
+  objective: Implement frozen foundational contract Version.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0004
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/ServiceState.h
+  dependencies: []
+  objective: Implement frozen foundational contract ServiceState.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0005
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/SystemMode.h
+  dependencies: []
+  objective: Implement frozen foundational contract SystemMode.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0006
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/HashDigest.h
+  dependencies: []
+  objective: Implement frozen foundational contract HashDigest.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0007
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/DataQualityState.h
+  dependencies: []
+  objective: Implement frozen foundational contract DataQualityState.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0008
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/ProtocolVersion.h
+  dependencies: []
+  objective: Implement frozen foundational contract ProtocolVersion.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0009
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/SchemaVersion.h
+  dependencies: []
+  objective: Implement frozen foundational contract SchemaVersion.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0010
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/MessageMetadata.h
+  dependencies:
+  - FND-0001
+  - FND-0002
+  - FND-0008
+  - FND-0009
+  objective: Implement frozen foundational contract MessageMetadata.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0011
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/EventId.h
+  dependencies:
+  - FND-0001
+  objective: Implement frozen foundational contract EventId.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0012
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/EventType.h
+  dependencies: []
+  objective: Implement frozen foundational contract EventType.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0013
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/EventMetadata.h
+  dependencies:
+  - FND-0001
+  - FND-0002
+  - FND-0009
+  - FND-0011
+  - FND-0012
+  objective: Implement frozen foundational contract EventMetadata.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0014
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/ErrorSeverity.h
+  dependencies: []
+  objective: Implement frozen foundational contract ErrorSeverity.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0015
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/ErrorCode.h
+  dependencies: []
+  objective: Implement frozen foundational contract ErrorCode.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0016
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/ErrorRecord.h
+  dependencies:
+  - FND-0015
+  - FND-0017
+  - FND-0002
+  - FND-0004
+  - FND-0014
+  objective: Implement frozen foundational contract ErrorRecord.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: FND-0017
+  phase: '0'
+  module: Foundation
+  output_path: src/foundation/RecoveryAction.h
+  dependencies: []
+  objective: Implement frozen foundational contract RecoveryAction.h.
+  acceptance_criteria:
+  - Header compiles in isolation
+  - Semantics match V4 contracts
+  - No unrelated types introduced
+  status: PLANNED
+  authority: PROPOSED
+- id: CFG-0001
+  phase: '0'
+  module: Configuration
+  output_path: src/config/ConfigurationKey.h
+  dependencies: []
+  objective: Implement configuration contract ConfigurationKey.h.
+  acceptance_criteria:
+  - Compiles
+  - Version/scope semantics explicit
+  - No silent mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: CFG-0002
+  phase: '0'
+  module: Configuration
+  output_path: src/config/ConfigurationValue.h
+  dependencies:
+  - CFG-0001
+  objective: Implement configuration contract ConfigurationValue.h.
+  acceptance_criteria:
+  - Compiles
+  - Version/scope semantics explicit
+  - No silent mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: CFG-0003
+  phase: '0'
+  module: Configuration
+  output_path: src/config/ConfigurationSnapshot.h
+  dependencies:
+  - CFG-0001
+  - CFG-0002
+  objective: Implement configuration contract ConfigurationSnapshot.h.
+  acceptance_criteria:
+  - Compiles
+  - Version/scope semantics explicit
+  - No silent mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: CFG-0004
+  phase: '0'
+  module: Configuration
+  output_path: src/config/ConfigurationScope.h
+  dependencies: []
+  objective: Implement configuration contract ConfigurationScope.h.
+  acceptance_criteria:
+  - Compiles
+  - Version/scope semantics explicit
+  - No silent mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: CFG-0005
+  phase: '0'
+  module: Configuration
+  output_path: src/config/ConfigurationChange.h
+  dependencies:
+  - CFG-0001
+  - CFG-0002
+  - FND-0002
+  - FND-0003
+  objective: Implement configuration contract ConfigurationChange.h.
+  acceptance_criteria:
+  - Compiles
+  - Version/scope semantics explicit
+  - No silent mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: AUD-0001
+  phase: '0'
+  module: Audit
+  output_path: src/audit/AuditAction.h
+  dependencies: []
+  objective: Implement audit contract AuditAction.h.
+  acceptance_criteria:
+  - Append-only semantics are explicit
+  - Identity/timestamp fields are versioned
+  status: PLANNED
+  authority: PROPOSED
+- id: AUD-0002
+  phase: '0'
+  module: Audit
+  output_path: src/audit/AuditOutcome.h
+  dependencies: []
+  objective: Implement audit contract AuditOutcome.h.
+  acceptance_criteria:
+  - Append-only semantics are explicit
+  - Identity/timestamp fields are versioned
+  status: PLANNED
+  authority: PROPOSED
+- id: AUD-0003
+  phase: '0'
+  module: Audit
+  output_path: src/audit/AuditRecord.h
+  dependencies:
+  - AUD-0001
+  - AUD-0002
+  - FND-0002
+  - FND-0004
+  objective: Implement audit contract AuditRecord.h.
+  acceptance_criteria:
+  - Append-only semantics are explicit
+  - Identity/timestamp fields are versioned
+  status: PLANNED
+  authority: PROPOSED
+- id: INT-0001
+  phase: '0'
+  module: Integrity
+  output_path: src/integrity/HashAlgorithm.h
+  dependencies: []
+  objective: Implement hashing contract HashAlgorithm.h.
+  acceptance_criteria:
+  - Deterministic digest behavior
+  - No hidden mutable state
+  status: PLANNED
+  authority: PROPOSED
+- id: INT-0002
+  phase: '0'
+  module: Integrity
+  output_path: src/integrity/IHasher.h
+  dependencies:
+  - INT-0001
+  - FND-0006
+  objective: Implement hashing contract IHasher.h.
+  acceptance_criteria:
+  - Deterministic digest behavior
+  - No hidden mutable state
+  status: PLANNED
+  authority: PROPOSED
+- id: INT-0003
+  phase: '0'
+  module: Integrity
+  output_path: src/integrity/Hasher.cpp
+  dependencies:
+  - INT-0002
+  objective: Implement hashing contract Hasher.cpp.
+  acceptance_criteria:
+  - Deterministic digest behavior
+  - No hidden mutable state
+  status: PLANNED
+  authority: PROPOSED
+- id: PER-0001
+  phase: '0'
+  module: Persistence
+  output_path: src/persistence/PersistenceStatus.h
+  dependencies: []
+  objective: Implement persistence foundation contract PersistenceStatus.h.
+  acceptance_criteria:
+  - Restart-survival semantics are explicit
+  - Transaction/idempotency boundaries are explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: PER-0002
+  phase: '0'
+  module: Persistence
+  output_path: src/persistence/PersistenceRecordMetadata.h
+  dependencies:
+  - FND-0002
+  - FND-0003
+  objective: Implement persistence foundation contract PersistenceRecordMetadata.h.
+  acceptance_criteria:
+  - Restart-survival semantics are explicit
+  - Transaction/idempotency boundaries are explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: PER-0003
+  phase: '0'
+  module: Persistence
+  output_path: src/persistence/IPersistenceStore.h
+  dependencies:
+  - PER-0001
+  - PER-0002
+  objective: Implement persistence foundation contract IPersistenceStore.h.
+  acceptance_criteria:
+  - Restart-survival semantics are explicit
+  - Transaction/idempotency boundaries are explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: PER-0004
+  phase: '0'
+  module: Persistence
+  output_path: src/persistence/PersistenceTransaction.h
+  dependencies:
+  - PER-0003
+  - FND-0002
+  objective: Implement persistence foundation contract PersistenceTransaction.h.
+  acceptance_criteria:
+  - Restart-survival semantics are explicit
+  - Transaction/idempotency boundaries are explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: GDN-0001
+  phase: '0'
+  module: Guardian
+  output_path: src/guardian/GuardianStatus.h
+  dependencies:
+  - FND-0004
+  objective: Implement protected Guardian contract GuardianStatus.h.
+  acceptance_criteria:
+  - Guardian authority cannot be self-evolved
+  - Safe mode/HALT semantics explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: GDN-0002
+  phase: '0'
+  module: Guardian
+  output_path: src/guardian/GuardianPolicy.h
+  dependencies:
+  - FND-0005
+  - PER-0001
+  objective: Implement protected Guardian contract GuardianPolicy.h.
+  acceptance_criteria:
+  - Guardian authority cannot be self-evolved
+  - Safe mode/HALT semantics explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: GDN-0003
+  phase: '0'
+  module: Guardian
+  output_path: src/guardian/IGuardian.h
+  dependencies:
+  - GDN-0001
+  - GDN-0002
+  objective: Implement protected Guardian contract IGuardian.h.
+  acceptance_criteria:
+  - Guardian authority cannot be self-evolved
+  - Safe mode/HALT semantics explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: GDN-0004
+  phase: '0'
+  module: Guardian
+  output_path: src/guardian/Guardian.cpp
+  dependencies:
+  - GDN-0003
+  objective: Implement protected Guardian contract Guardian.cpp.
+  acceptance_criteria:
+  - Guardian authority cannot be self-evolved
+  - Safe mode/HALT semantics explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0001
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/ServiceDescriptor.h
+  dependencies:
+  - FND-0001
+  - FND-0003
+  objective: Implement resilience contract ServiceDescriptor.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0002
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/CapabilityId.h
+  dependencies:
+  - FND-0001
+  objective: Implement resilience contract CapabilityId.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0003
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/CapabilityDescriptor.h
+  dependencies:
+  - RES-0002
+  - FND-0004
+  objective: Implement resilience contract CapabilityDescriptor.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0004
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/DependencyDescriptor.h
+  dependencies:
+  - RES-0002
+  objective: Implement resilience contract DependencyDescriptor.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0005
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/HealthSnapshot.h
+  dependencies:
+  - FND-0004
+  - FND-0002
+  - FND-0007
+  objective: Implement resilience contract HealthSnapshot.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0006
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/FreshnessState.h
+  dependencies:
+  - FND-0007
+  - FND-0002
+  objective: Implement resilience contract FreshnessState.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0007
+  phase: '0.5'
+  module: Resilience Contracts
+  output_path: src/resilience/DegradationImpact.h
+  dependencies:
+  - RES-0002
+  objective: Implement resilience contract DegradationImpact.h.
+  acceptance_criteria:
+  - Contract compiles
+  - State semantics match V4
+  - No capability decision is implicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0010
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/SystemSupervisor.h
+  dependencies:
+  - RES-0001
+  - RES-0003
+  objective: Implement resilience runtime component SystemSupervisor.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0011
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/SystemSupervisor.cpp
+  dependencies:
+  - RES-0010
+  objective: Implement resilience runtime component SystemSupervisor.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0012
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/CapabilityRegistry.h
+  dependencies:
+  - RES-0002
+  - RES-0003
+  objective: Implement resilience runtime component CapabilityRegistry.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0013
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/CapabilityRegistry.cpp
+  dependencies:
+  - RES-0012
+  objective: Implement resilience runtime component CapabilityRegistry.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0014
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/DependencyGraph.h
+  dependencies:
+  - RES-0004
+  objective: Implement resilience runtime component DependencyGraph.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0015
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/DependencyGraph.cpp
+  dependencies:
+  - RES-0014
+  objective: Implement resilience runtime component DependencyGraph.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0016
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/HealthStateEngine.h
+  dependencies:
+  - RES-0005
+  objective: Implement resilience runtime component HealthStateEngine.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0017
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/HealthStateEngine.cpp
+  dependencies:
+  - RES-0016
+  objective: Implement resilience runtime component HealthStateEngine.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0018
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/DataFreshnessMonitor.h
+  dependencies:
+  - RES-0006
+  objective: Implement resilience runtime component DataFreshnessMonitor.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0019
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/DataFreshnessMonitor.cpp
+  dependencies:
+  - RES-0018
+  objective: Implement resilience runtime component DataFreshnessMonitor.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0020
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/StaleCandleDetector.h
+  dependencies:
+  - RES-0006
+  objective: Implement resilience runtime component StaleCandleDetector.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0021
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/StaleCandleDetector.cpp
+  dependencies:
+  - RES-0020
+  objective: Implement resilience runtime component StaleCandleDetector.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0022
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/SubsystemIsolationManager.h
+  dependencies:
+  - RES-0002
+  - RES-0007
+  objective: Implement resilience runtime component SubsystemIsolationManager.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0023
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/SubsystemIsolationManager.cpp
+  dependencies:
+  - RES-0022
+  objective: Implement resilience runtime component SubsystemIsolationManager.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0024
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/GracefulDegradationManager.h
+  dependencies:
+  - RES-0007
+  objective: Implement resilience runtime component GracefulDegradationManager.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0025
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/GracefulDegradationManager.cpp
+  dependencies:
+  - RES-0024
+  objective: Implement resilience runtime component GracefulDegradationManager.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0026
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/RecoveryManager.h
+  dependencies:
+  - FND-0017
+  - RES-0001
+  objective: Implement resilience runtime component RecoveryManager.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0027
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/RecoveryManager.cpp
+  dependencies:
+  - RES-0026
+  objective: Implement resilience runtime component RecoveryManager.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0028
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/PauseResumeManager.h
+  dependencies:
+  - FND-0005
+  objective: Implement resilience runtime component PauseResumeManager.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0029
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/PauseResumeManager.cpp
+  dependencies:
+  - RES-0028
+  objective: Implement resilience runtime component PauseResumeManager.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0030
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/CriticalityPolicy.h
+  dependencies:
+  - RES-0002
+  objective: Implement resilience runtime component CriticalityPolicy.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0031
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/CriticalityPolicy.cpp
+  dependencies:
+  - RES-0030
+  objective: Implement resilience runtime component CriticalityPolicy.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0032
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/ImpactResolver.h
+  dependencies:
+  - RES-0007
+  objective: Implement resilience runtime component ImpactResolver.h.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: RES-0033
+  phase: '0.5'
+  module: Resilience Runtime
+  output_path: src/resilience/ImpactResolver.cpp
+  dependencies:
+  - RES-0032
+  objective: Implement resilience runtime component ImpactResolver.cpp.
+  acceptance_criteria:
+  - Compiles
+  - Failure isolation semantics are deterministic
+  - Dependent capabilities only are disabled
+  - Health state is observable
+  status: PLANNED
+  authority: PROPOSED
+- id: PY-0001
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/requirements.txt
+  dependencies: []
+  objective: Pin/declare the Python bridge runtime dependencies.
+  acceptance_criteria:
+  - Installable in packaged runtime
+  status: PLANNED
+  authority: PROPOSED
+- id: PY-0002
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/schemas.py
+  dependencies:
+  - PY-0001
+  objective: Define versioned Python bridge request/response schemas.
+  acceptance_criteria:
+  - Schema version present
+  - No implicit fields
+  status: PLANNED
+  authority: PROPOSED
+- id: PY-0003
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/mt5_client.py
+  dependencies:
+  - PY-0001
+  - PY-0002
+  objective: Implement the thin MetaTrader5 access layer for terminal, symbol, candles, ticks, and symbol specification.
+  acceptance_criteria:
+  - Uses MetaTrader5 package
+  - Closed-bar request semantics
+  - Explicit last_error on failures
+  - No order placement APIs
+  status: PLANNED
+  authority: PROJECT DECISION
+- id: PY-0004
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/read_candles.py
+  dependencies:
+  - PY-0003
+  objective: Adapt the supplied candle-reader logic into a reusable bridge data source for all nine timeframes.
+  acceptance_criteria:
+  - Nine timeframes supported
+  - Closed bars only
+  - Explicit symbol resolution
+  - No fake data
+  status: PLANNED
+  authority: PROPOSED
+- id: PY-0005
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/bridge_service.py
+  dependencies:
+  - PY-0002
+  - PY-0003
+  - PY-0004
+  objective: Implement the loopback JSON bridge service and health/handshake endpoints.
+  acceptance_criteria:
+  - Binds only 127.0.0.1
+  - Versioned handshake
+  - /v1/health
+  - /v1/handshake
+  - /v1/candles
+  - /v1/tick
+  - /v1/symbol
+  status: PLANNED
+  authority: PROJECT DECISION
+- id: PY-0006
+  phase: '1'
+  module: Python MT5 Bridge
+  output_path: bridge/mt5_python/README.md
+  dependencies:
+  - PY-0005
+  objective: Document bridge runtime, packaging, lifecycle, and troubleshooting.
+  acceptance_criteria:
+  - No manual CMD requirement in product flow
+  - Windows deployment documented
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0001
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/mt5/Mt5BridgeContract.h
+  dependencies:
+  - FND-0008
+  - FND-0009
+  - FND-0010
+  - FND-0007
+  objective: Define the C++ contract mapping the loopback bridge to AURA data types.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0002
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/mt5/PythonBridgeClient.h
+  dependencies:
+  - DAT-0001
+  objective: Define stable client interface for the Python bridge.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0003
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/mt5/PythonBridgeClient.cpp
+  dependencies:
+  - DAT-0002
+  objective: Implement localhost JSON transport and schema validation.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0004
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/MarketDataIngestor.h
+  dependencies:
+  - DAT-0002
+  objective: Define ingestion boundary for bars/ticks/symbol spec.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0005
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/MarketDataIngestor.cpp
+  dependencies:
+  - DAT-0004
+  - DAT-0003
+  objective: Ingest bridge data into AURA event/data contracts.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0006
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/BarNormalizer.h
+  dependencies:
+  - FND-0007
+  - FND-0013
+  objective: Define deterministic bar normalization and identity.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0007
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/BarNormalizer.cpp
+  dependencies:
+  - DAT-0006
+  objective: Validate/normalize bar records without hiding source data.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0008
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/DataValidator.h
+  dependencies:
+  - FND-0007
+  - DAT-0006
+  objective: Define data validation firewall.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0009
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/DataValidator.cpp
+  dependencies:
+  - DAT-0008
+  - DAT-0007
+  objective: Implement timestamp/OHLC/duplicate/completeness validation.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0010
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/BarFinalizer.h
+  dependencies:
+  - DAT-0009
+  objective: Define closed-bar finalization.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0011
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/BarFinalizer.cpp
+  dependencies:
+  - DAT-0010
+  - DAT-0009
+  objective: Implement causal closed-bar finalization.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0012
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/DataBus.h
+  dependencies:
+  - FND-0013
+  - DAT-0005
+  - DAT-0011
+  objective: Define deterministic data bus/event publication.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0013
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/DataBus.cpp
+  dependencies:
+  - DAT-0012
+  objective: Implement ordered event publication and idempotency boundaries.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0014
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/TimeframeStateStore.h
+  dependencies:
+  - DAT-0012
+  objective: Define nine-timeframe state store.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DAT-0015
+  phase: '1'
+  module: Data / Runtime Ingestion
+  output_path: src/data/TimeframeStateStore.cpp
+  dependencies:
+  - DAT-0014
+  objective: Implement ordered timeframe state updates and restart metadata.
+  acceptance_criteria:
+  - Compiles
+  - Deterministic ordering
+  - Broker/source identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0001
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/PathResolver.h
+  dependencies: []
+  objective: Resolve executable/install root and all runtime-relative paths.
+  acceptance_criteria:
+  - Never uses CWD as authority
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0002
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/PathResolver.cpp
+  dependencies:
+  - HOST-0001
+  objective: Implement Windows-safe executable-root path resolution.
+  acceptance_criteria:
+  - Double-click path test passes
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0003
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/BundleLocator.h
+  dependencies:
+  - HOST-0001
+  objective: Define bundled runtime asset discovery.
+  acceptance_criteria:
+  - Python runtime and bridge assets located
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0004
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/BundleLocator.cpp
+  dependencies:
+  - HOST-0003
+  objective: Implement bundled asset discovery.
+  acceptance_criteria:
+  - No global PATH dependency
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0005
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/ProcessSupervisor.h
+  dependencies:
+  - FND-0004
+  - FND-0017
+  objective: Define child-process lifecycle supervision.
+  acceptance_criteria:
+  - Start/monitor/stop/restart bounded
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0006
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/ProcessSupervisor.cpp
+  dependencies:
+  - HOST-0005
+  - HOST-0004
+  objective: Launch and supervise Python bridge.
+  acceptance_criteria:
+  - Bridge starts automatically
+  - Exit/failure detected
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0007
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/StartupCoordinator.h
+  dependencies:
+  - HOST-0002
+  - HOST-0006
+  - DAT-0002
+  objective: Define startup sequence and state transitions.
+  acceptance_criteria:
+  - Bridge handshake precedes ONLINE
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0008
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/StartupCoordinator.cpp
+  dependencies:
+  - HOST-0007
+  objective: Implement startup/recovery/shutdown sequencing.
+  acceptance_criteria:
+  - No silent armed state
+  - Actionable errors
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0009
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/runtime/AuraRuntime.h
+  dependencies:
+  - DAT-0013
+  - DAT-0015
+  - HOST-0007
+  objective: Define headless AURA runtime composition root.
+  acceptance_criteria:
+  - Core dependencies explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0010
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/runtime/AuraRuntime.cpp
+  dependencies:
+  - HOST-0009
+  - HOST-0008
+  objective: Implement runtime lifecycle.
+  acceptance_criteria:
+  - Graceful shutdown
+  - Backend can run headless
+  status: PLANNED
+  authority: PROPOSED
+- id: HOST-0011
+  phase: '1'
+  module: Windows Host / Startup
+  output_path: src/platform/windows/AuraBackendHost.cpp
+  dependencies:
+  - HOST-0010
+  objective: Provide backend host executable entry point for packaged operation.
+  acceptance_criteria:
+  - Can start by double-click
+  - No CMD working directory assumption
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0001
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/features/FeatureSnapshot.h
+  dependencies:
+  - DAT-0015
+  objective: Define feature snapshot contract.
+  acceptance_criteria:
+  - Versioned inputs
+  - Closed-bar timestamp
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0002
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/features/FeatureEngine.h
+  dependencies:
+  - DEC-0001
+  objective: Define deterministic feature engine interface.
+  acceptance_criteria:
+  - No future inputs
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0003
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/features/FeatureEngine.cpp
+  dependencies:
+  - DEC-0002
+  objective: Implement deterministic feature calculation.
+  acceptance_criteria:
+  - Unit-testable
+  - No hidden mutable lookahead
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0004
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/structure/StructureSnapshot.h
+  dependencies:
+  - DEC-0001
+  objective: Define structure state.
+  acceptance_criteria:
+  - Causal structure
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0005
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/structure/StructureEngine.h
+  dependencies:
+  - DEC-0004
+  - DEC-0003
+  objective: Define structure engine.
+  acceptance_criteria:
+  - H4 authority supported
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0006
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/structure/StructureEngine.cpp
+  dependencies:
+  - DEC-0005
+  objective: Implement structure engine.
+  acceptance_criteria:
+  - M15/H4 relationship preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0007
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/regime/RegimeState.h
+  dependencies:
+  - DEC-0004
+  objective: Define regime state.
+  acceptance_criteria:
+  - UNKNOWN is explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0008
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/regime/RegimeEngine.h
+  dependencies:
+  - DEC-0007
+  - DEC-0006
+  objective: Define regime engine.
+  acceptance_criteria:
+  - No signal generation
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0009
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/regime/RegimeEngine.cpp
+  dependencies:
+  - DEC-0008
+  objective: Implement deterministic regime engine.
+  acceptance_criteria:
+  - Unknown/stale gates respected
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0010
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/eligibility/EligibilityEngine.h
+  dependencies:
+  - DEC-0008
+  objective: Define strategy eligibility contract.
+  acceptance_criteria:
+  - Regime and eligibility remain separate
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0011
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/eligibility/EligibilityEngine.cpp
+  dependencies:
+  - DEC-0010
+  objective: Implement eligibility gates.
+  acceptance_criteria:
+  - No direct execution
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0012
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/signals/SignalEngine.h
+  dependencies:
+  - DEC-0011
+  objective: Define immutable signal contract.
+  acceptance_criteria:
+  - Decision ID and closed bar captured
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0013
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/signals/SignalEngine.cpp
+  dependencies:
+  - DEC-0012
+  objective: Implement signal publication.
+  acceptance_criteria:
+  - No repaint
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0014
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/scoring/ScoreEngine.h
+  dependencies:
+  - DEC-0012
+  objective: Define score contract.
+  acceptance_criteria:
+  - Score not probability
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0015
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/scoring/ScoreEngine.cpp
+  dependencies:
+  - DEC-0014
+  objective: Implement deterministic scoring.
+  acceptance_criteria:
+  - Versioned scoring inputs
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0016
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/confidence/ConfidenceEngine.h
+  dependencies:
+  - DEC-0015
+  objective: Define confidence contract.
+  acceptance_criteria:
+  - Confidence not guarantee
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0017
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/confidence/ConfidenceEngine.cpp
+  dependencies:
+  - DEC-0016
+  objective: Implement confidence calculation.
+  acceptance_criteria:
+  - Input completeness is visible
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0018
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/probability/ProbabilityEngine.h
+  dependencies:
+  - DEC-0017
+  objective: Define calibrated probability boundary.
+  acceptance_criteria:
+  - Returns NOT_ESTABLISHED when calibration absent
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0019
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/probability/ProbabilityEngine.cpp
+  dependencies:
+  - DEC-0018
+  objective: Implement explicit non-calibrated behavior.
+  acceptance_criteria:
+  - Never fabricates probability
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0020
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/macro/MacroContextEngine.h
+  dependencies:
+  - DEC-0011
+  objective: Define macro/event context contract.
+  acceptance_criteria:
+  - PIT boundary explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0021
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/macro/MacroContextEngine.cpp
+  dependencies:
+  - DEC-0020
+  objective: Implement macro gate boundary.
+  acceptance_criteria:
+  - No future event leakage
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0022
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/market_quality/MarketQualityEngine.h
+  dependencies:
+  - DAT-0013
+  objective: Define market-quality gate.
+  acceptance_criteria:
+  - Stale/poor quality explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0023
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/market_quality/MarketQualityEngine.cpp
+  dependencies:
+  - DEC-0022
+  objective: Implement market quality gating.
+  acceptance_criteria:
+  - Tick freshness respected
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0024
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/risk/RiskEngine.h
+  dependencies:
+  - DEC-0015
+  - DEC-0023
+  - GDN-0003
+  objective: Define risk proposal boundary.
+  acceptance_criteria:
+  - Risk before execution
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0025
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/risk/RiskEngine.cpp
+  dependencies:
+  - DEC-0024
+  objective: Implement deterministic risk proposal.
+  acceptance_criteria:
+  - Hard limits cannot be bypassed
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0026
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/risk/PortfolioRiskEngine.h
+  dependencies:
+  - DEC-0024
+  objective: Define portfolio-level risk constraints.
+  acceptance_criteria:
+  - Unprotected exposure prohibited
+  status: PLANNED
+  authority: PROPOSED
+- id: DEC-0027
+  phase: '1'
+  module: Deterministic Decision Chain
+  output_path: src/risk/PortfolioRiskEngine.cpp
+  dependencies:
+  - DEC-0026
+  objective: Implement portfolio risk constraints.
+  acceptance_criteria:
+  - Idempotent proposals
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0001
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/shadow/ShadowCommand.h
+  dependencies:
+  - DEC-0024
+  objective: Define shadow command.
+  acceptance_criteria:
+  - No live order authority
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0002
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/shadow/ShadowExecutionEngine.h
+  dependencies:
+  - SHD-0001
+  - DEC-0027
+  objective: Define shadow execution.
+  acceptance_criteria:
+  - Simulation only
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0003
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/shadow/ShadowExecutionEngine.cpp
+  dependencies:
+  - SHD-0002
+  objective: Implement simulated execution lifecycle.
+  acceptance_criteria:
+  - Costs/slippage state explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0004
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/shadow/PositionSimulator.h
+  dependencies:
+  - SHD-0003
+  objective: Define simulated position lifecycle.
+  acceptance_criteria:
+  - Lifecycle auditable
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0005
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/shadow/PositionSimulator.cpp
+  dependencies:
+  - SHD-0004
+  objective: Implement shadow positions/fills/exits.
+  acceptance_criteria:
+  - Deterministic position state
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0006
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/reconciliation/ReconciliationEngine.h
+  dependencies:
+  - SHD-0005
+  - PER-0003
+  objective: Define shadow reconciliation.
+  acceptance_criteria:
+  - Mismatch is explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0007
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/reconciliation/ReconciliationEngine.cpp
+  dependencies:
+  - SHD-0006
+  objective: Implement persistence/runtime reconciliation.
+  acceptance_criteria:
+  - No blind resend semantics
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0008
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/outcomes/Outcome.h
+  dependencies:
+  - SHD-0005
+  objective: Define outcome contract.
+  acceptance_criteria:
+  - Links decision to simulated result
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0009
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/outcomes/OutcomeEngine.h
+  dependencies:
+  - SHD-0008
+  objective: Define outcome engine.
+  acceptance_criteria:
+  - No mutation of original decision
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0010
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/outcomes/OutcomeEngine.cpp
+  dependencies:
+  - SHD-0009
+  objective: Implement outcome generation.
+  acceptance_criteria:
+  - Historical output immutable
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0011
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/ledger/PredictionLedger.h
+  dependencies:
+  - DEC-0012
+  - SHD-0008
+  objective: Define prediction ledger.
+  acceptance_criteria:
+  - Decision identity preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0012
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/ledger/PredictionLedger.cpp
+  dependencies:
+  - SHD-0011
+  objective: Implement append-oriented prediction history.
+  acceptance_criteria:
+  - No duplicate decisions
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0013
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/persistence/PersistenceEngine.h
+  dependencies:
+  - PER-0003
+  - SHD-0011
+  - SHD-0010
+  objective: Define application persistence facade.
+  acceptance_criteria:
+  - Critical state covered
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0014
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/persistence/PersistenceEngine.cpp
+  dependencies:
+  - SHD-0013
+  objective: Implement persistence lifecycle.
+  acceptance_criteria:
+  - Restart survival
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0015
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/health/HealthMonitor.h
+  dependencies:
+  - RES-0017
+  - RES-0019
+  objective: Define system health aggregation.
+  acceptance_criteria:
+  - Subsystem/state distinction
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0016
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/health/HealthMonitor.cpp
+  dependencies:
+  - SHD-0015
+  objective: Implement health aggregation and reporting.
+  acceptance_criteria:
+  - No health fabrication
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0017
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/health/Watchdog.h
+  dependencies:
+  - SHD-0015
+  - HOST-0006
+  objective: Define bridge/runtime watchdog.
+  acceptance_criteria:
+  - Bounded recovery
+  status: PLANNED
+  authority: PROPOSED
+- id: SHD-0018
+  phase: '2'
+  module: Observation / Shadow / Outcomes
+  output_path: src/health/Watchdog.cpp
+  dependencies:
+  - SHD-0017
+  objective: Implement watchdog.
+  acceptance_criteria:
+  - Persistent incident logging
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0001
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/KnowledgeStore.h
+  dependencies:
+  - SHD-0014
+  objective: Define knowledge persistence.
+  acceptance_criteria:
+  - History preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0002
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/KnowledgeStore.cpp
+  dependencies:
+  - RSH-0001
+  objective: Implement knowledge persistence.
+  acceptance_criteria:
+  - No history erasure
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0003
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/KnowledgeLifecycle.h
+  dependencies:
+  - RSH-0001
+  objective: Define knowledge lifecycle.
+  acceptance_criteria:
+  - Revalidation/decay explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0004
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/KnowledgeLifecycle.cpp
+  dependencies:
+  - RSH-0003
+  objective: Implement knowledge lifecycle.
+  acceptance_criteria:
+  - Status transitions auditable
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0005
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ContextLearning.h
+  dependencies:
+  - RSH-0002
+  objective: Define context learning.
+  acceptance_criteria:
+  - No production mutation
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0006
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ContextLearning.cpp
+  dependencies:
+  - RSH-0005
+  objective: Implement bounded context learning.
+  acceptance_criteria:
+  - Outputs research-only
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0007
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ContradictionEngine.h
+  dependencies:
+  - RSH-0002
+  objective: Define contradiction tracking.
+  acceptance_criteria:
+  - Contradictions remain visible
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0008
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ContradictionEngine.cpp
+  dependencies:
+  - RSH-0007
+  objective: Implement contradiction tracking.
+  acceptance_criteria:
+  - No silent reconciliation
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0009
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/FailureMemory.h
+  dependencies:
+  - SHD-0016
+  - SHD-0014
+  objective: Define failure memory.
+  acceptance_criteria:
+  - Failures preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0010
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/FailureMemory.cpp
+  dependencies:
+  - RSH-0009
+  objective: Implement failure memory.
+  acceptance_criteria:
+  - Root-cause linkage retained
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0011
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/HypothesisEngine.h
+  dependencies:
+  - RSH-0003
+  objective: Define hypothesis generation.
+  acceptance_criteria:
+  - Bounded inputs
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0012
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/HypothesisEngine.cpp
+  dependencies:
+  - RSH-0011
+  objective: Implement hypothesis generation.
+  acceptance_criteria:
+  - No evaluator modification
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0013
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ResearchPlanner.h
+  dependencies:
+  - RSH-0011
+  objective: Define research planning/budgeting.
+  acceptance_criteria:
+  - Budget bounds explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0014
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ResearchPlanner.cpp
+  dependencies:
+  - RSH-0013
+  objective: Implement bounded planning.
+  acceptance_criteria:
+  - No self-extension of operating window
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0015
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ExperimentLedger.h
+  dependencies:
+  - RSH-0012
+  - SHD-0014
+  objective: Define experiment ledger.
+  acceptance_criteria:
+  - Fingerprint/version metadata
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0016
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ExperimentLedger.cpp
+  dependencies:
+  - RSH-0015
+  objective: Implement experiment history.
+  acceptance_criteria:
+  - Immutable history
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0017
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/ResearchBudget.h
+  dependencies:
+  - RSH-0013
+  objective: Define resource/time budget.
+  acceptance_criteria:
+  - Human-defined ceiling
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0018
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/research/Sandbox.h
+  dependencies:
+  - RSH-0015
+  objective: Define research sandbox boundary.
+  acceptance_criteria:
+  - Candidate code cannot access evaluator
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0019
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/replay/ReplayEngine.h
+  dependencies:
+  - DAT-0014
+  - SHD-0014
+  objective: Define deterministic replay.
+  acceptance_criteria:
+  - Point-in-time replay
+  status: PLANNED
+  authority: PROPOSED
+- id: RSH-0020
+  phase: 3-4
+  module: Self-Learning / Research
+  output_path: src/replay/ReplayEngine.cpp
+  dependencies:
+  - RSH-0019
+  objective: Implement replay.
+  acceptance_criteria:
+  - Reproducible results
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0001
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateGenerator.h
+  dependencies:
+  - RSH-0012
+  - RSH-0018
+  objective: Define candidate generation.
+  acceptance_criteria:
+  - Sandbox-only
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0002
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateGenerator.cpp
+  dependencies:
+  - EVO-0001
+  objective: Implement bounded candidate generation.
+  acceptance_criteria:
+  - No auto-promotion
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0003
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateRegistry.h
+  dependencies:
+  - EVO-0001
+  - SHD-0014
+  objective: Define candidate registry/provenance.
+  acceptance_criteria:
+  - Parent/hash/evidence retained
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0004
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateRegistry.cpp
+  dependencies:
+  - EVO-0003
+  objective: Implement candidate registry.
+  acceptance_criteria:
+  - Rejected candidates remain visible
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0005
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/EvolutionGraph.h
+  dependencies:
+  - EVO-0003
+  objective: Define evolution graph.
+  acceptance_criteria:
+  - History preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0006
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/EvolutionGraph.cpp
+  dependencies:
+  - EVO-0005
+  objective: Implement evolution graph.
+  acceptance_criteria:
+  - No hidden lineage
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0007
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateComparison.h
+  dependencies:
+  - EVO-0003
+  - RSH-0016
+  objective: Define control-vs-candidate comparison.
+  acceptance_criteria:
+  - Same evaluator/data assumptions
+  status: PLANNED
+  authority: PROPOSED
+- id: EVO-0008
+  phase: '5'
+  module: Evolution
+  output_path: src/evolution/CandidateComparison.cpp
+  dependencies:
+  - EVO-0007
+  objective: Implement comparisons.
+  acceptance_criteria:
+  - No single-metric-only acceptance
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0001
+  phase: '6'
+  module: Validation
+  output_path: src/validation/ValidationFirewall.h
+  dependencies:
+  - RSH-0016
+  - EVO-0007
+  objective: Define trusted evaluator boundary.
+  acceptance_criteria:
+  - Candidate cannot mutate evaluator
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0002
+  phase: '6'
+  module: Validation
+  output_path: src/validation/ValidationFirewall.cpp
+  dependencies:
+  - VAL-0001
+  objective: Implement evaluator separation.
+  acceptance_criteria:
+  - Evaluator immutable during candidate run
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0003
+  phase: '6'
+  module: Validation
+  output_path: src/validation/OOSValidator.h
+  dependencies:
+  - VAL-0001
+  objective: Define out-of-sample validation.
+  acceptance_criteria:
+  - Locked boundary
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0004
+  phase: '6'
+  module: Validation
+  output_path: src/validation/OOSValidator.cpp
+  dependencies:
+  - VAL-0003
+  objective: Implement OOS validation.
+  acceptance_criteria:
+  - No holdout leakage
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0005
+  phase: '6'
+  module: Validation
+  output_path: src/validation/WalkForwardValidator.h
+  dependencies:
+  - VAL-0001
+  objective: Define walk-forward validation.
+  acceptance_criteria:
+  - Time ordering preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0006
+  phase: '6'
+  module: Validation
+  output_path: src/validation/WalkForwardValidator.cpp
+  dependencies:
+  - VAL-0005
+  objective: Implement walk-forward validation.
+  acceptance_criteria:
+  - Causal windows
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0007
+  phase: '6'
+  module: Validation
+  output_path: src/validation/StressValidator.h
+  dependencies:
+  - VAL-0001
+  objective: Define stress validation.
+  acceptance_criteria:
+  - Tail behavior captured
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0008
+  phase: '6'
+  module: Validation
+  output_path: src/validation/StressValidator.cpp
+  dependencies:
+  - VAL-0007
+  objective: Implement stress validation.
+  acceptance_criteria:
+  - Assumptions versioned
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0009
+  phase: '6'
+  module: Validation
+  output_path: src/validation/RegressionValidator.h
+  dependencies:
+  - VAL-0001
+  objective: Define regression validation.
+  acceptance_criteria:
+  - Control set preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0010
+  phase: '6'
+  module: Validation
+  output_path: src/validation/RegressionValidator.cpp
+  dependencies:
+  - VAL-0009
+  objective: Implement regression validation.
+  acceptance_criteria:
+  - Historical baseline preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0011
+  phase: '6'
+  module: Validation
+  output_path: src/validation/HoldoutService.h
+  dependencies:
+  - VAL-0001
+  objective: Define locked holdout service.
+  acceptance_criteria:
+  - Candidate cannot unlock
+  status: PLANNED
+  authority: PROPOSED
+- id: VAL-0012
+  phase: '6'
+  module: Validation
+  output_path: src/validation/HoldoutService.cpp
+  dependencies:
+  - VAL-0011
+  objective: Implement holdout protection.
+  acceptance_criteria:
+  - Unauthorized access blocked
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0001
+  phase: '7'
+  module: Governance
+  output_path: src/governance/ApprovalGate.h
+  dependencies:
+  - VAL-0012
+  - GDN-0003
+  objective: Define human approval gate.
+  acceptance_criteria:
+  - Human decision required
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0002
+  phase: '7'
+  module: Governance
+  output_path: src/governance/ApprovalGate.cpp
+  dependencies:
+  - GOV-0001
+  objective: Implement approval gate.
+  acceptance_criteria:
+  - No silent promotion
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0003
+  phase: '7'
+  module: Governance
+  output_path: src/governance/ChangeInvestigationReport.h
+  dependencies:
+  - RSH-0010
+  - EVO-0004
+  objective: Define change investigation record.
+  acceptance_criteria:
+  - Evidence traceable
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0004
+  phase: '7'
+  module: Governance
+  output_path: src/governance/PromotionGate.h
+  dependencies:
+  - GOV-0001
+  - VAL-0010
+  - VAL-0012
+  objective: Define promotion gate.
+  acceptance_criteria:
+  - Shadow requirement enforced
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0005
+  phase: '7'
+  module: Governance
+  output_path: src/governance/PromotionGate.cpp
+  dependencies:
+  - GOV-0004
+  objective: Implement promotion checks without live activation.
+  acceptance_criteria:
+  - No auto-promotion
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0006
+  phase: '7'
+  module: Governance
+  output_path: src/governance/KnownGoodRegistry.h
+  dependencies:
+  - GOV-0001
+  - EVO-0003
+  objective: Define approved known-good registry.
+  acceptance_criteria:
+  - Approval metadata preserved
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0007
+  phase: '7'
+  module: Governance
+  output_path: src/governance/RollbackManager.h
+  dependencies:
+  - GOV-0006
+  - GDN-0003
+  objective: Define rollback to approved known-good states.
+  acceptance_criteria:
+  - No search during incident
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0008
+  phase: '7'
+  module: Governance
+  output_path: src/governance/RollbackManager.cpp
+  dependencies:
+  - GOV-0007
+  objective: Implement policy-bounded rollback.
+  acceptance_criteria:
+  - Logged transition
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0009
+  phase: '7'
+  module: Governance
+  output_path: src/governance/IncidentManager.h
+  dependencies:
+  - SHD-0018
+  objective: Define incident lifecycle.
+  acceptance_criteria:
+  - Protection before investigation
+  status: PLANNED
+  authority: PROPOSED
+- id: GOV-0010
+  phase: '7'
+  module: Governance
+  output_path: src/governance/Postmortem.h
+  dependencies:
+  - GOV-0009
+  objective: Define postmortem record.
+  acceptance_criteria:
+  - Failures remain data
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0001
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/ScheduleManager.h
+  dependencies:
+  - RSH-0017
+  objective: Define bounded operating window.
+  acceptance_criteria:
+  - 3–8h policy encoded
+  - No self-extension
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0002
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/ScheduleManager.cpp
+  dependencies:
+  - REC-0001
+  objective: Implement schedule enforcement.
+  acceptance_criteria:
+  - DRAINING state on close
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0003
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/CheckpointManager.h
+  dependencies:
+  - PER-0003
+  objective: Define checkpoint contract.
+  acceptance_criteria:
+  - Validity/provenance/version retained
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0004
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/CheckpointManager.cpp
+  dependencies:
+  - REC-0003
+  objective: Implement checkpointing.
+  acceptance_criteria:
+  - Resumable state auditable
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0005
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/CrashRecoveryManager.h
+  dependencies:
+  - REC-0004
+  - HOST-0008
+  objective: Define crash recovery.
+  acceptance_criteria:
+  - Known valid checkpoint preferred
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0006
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/CrashRecoveryManager.cpp
+  dependencies:
+  - REC-0005
+  objective: Implement crash recovery.
+  acceptance_criteria:
+  - No guessing when state unknown
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0007
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/ResourceBudgetManager.h
+  dependencies:
+  - RSH-0017
+  objective: Define resource budgets.
+  acceptance_criteria:
+  - Hard ceilings
+  status: PLANNED
+  authority: PROPOSED
+- id: REC-0008
+  phase: '8'
+  module: Operating Window / Recovery
+  output_path: src/recovery/ResourceBudgetManager.cpp
+  dependencies:
+  - REC-0007
+  objective: Implement resource budget enforcement.
+  acceptance_criteria:
+  - Escalation prohibited
+  status: PLANNED
+  authority: PROPOSED
+- id: TEL-0001
+  phase: '10'
+  module: Auxiliary Telegram Backend
+  output_path: src/telegram/TelegramGateway.h
+  dependencies:
+  - SHD-0016
+  - GOV-0009
+  objective: Define auxiliary Telegram gateway.
+  acceptance_criteria:
+  - Cannot become source of truth
+  status: PLANNED
+  authority: PROPOSED
+- id: TEL-0002
+  phase: '10'
+  module: Auxiliary Telegram Backend
+  output_path: src/telegram/TelegramGateway.cpp
+  dependencies:
+  - TEL-0001
+  objective: Implement bounded Telegram notifications/requests.
+  acceptance_criteria:
+  - Core runs without Telegram
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0001
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/api/BackendFacade.h
+  dependencies:
+  - HOST-0009
+  - SHD-0014
+  - GOV-0001
+  objective: Define stable frontend-facing backend façade.
+  acceptance_criteria:
+  - No frontend access to private internals
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0002
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/api/BackendFacade.cpp
+  dependencies:
+  - PKG-0001
+  objective: Implement frontend-safe query/state façade.
+  acceptance_criteria:
+  - Uses versioned data contracts
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0003
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/api/BackendApiSchema.h
+  dependencies:
+  - PKG-0001
+  - FND-0009
+  objective: Define stable API schema/version contracts.
+  acceptance_criteria:
+  - Schema version explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0004
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/api/RuntimeManifest.json
+  dependencies:
+  - PKG-0003
+  objective: Describe packaged backend/bridge runtime components.
+  acceptance_criteria:
+  - Relative paths
+  - Versions recorded
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0005
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/platform/windows/PackagingConfig.h
+  dependencies:
+  - HOST-0004
+  objective: Define packaged runtime layout configuration.
+  acceptance_criteria:
+  - Bundled runtime paths explicit
+  status: PLANNED
+  authority: PROPOSED
+- id: PKG-0006
+  phase: '12'
+  module: Packaging / Backend-Frontend Contract
+  output_path: src/platform/windows/PackagingConfig.cpp
+  dependencies:
+  - PKG-0005
+  objective: Implement package layout resolution.
+  acceptance_criteria:
+  - Double-click package smoke test
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0001
+  phase: '12'
+  module: Tests
+  output_path: tests/PythonBridgeContractTests.cpp
+  dependencies:
+  - PY-0005
+  - DAT-0003
+  objective: Test bridge handshake/schema/error behavior.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0002
+  phase: '12'
+  module: Tests
+  output_path: tests/ClosedBarCausalityTests.cpp
+  dependencies:
+  - DAT-0011
+  - DAT-0009
+  objective: Test current-bar exclusion, ordering, and lookahead prevention.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0003
+  phase: '12'
+  module: Tests
+  output_path: tests/DataQualityPropagationTests.cpp
+  dependencies:
+  - DAT-0009
+  - RES-0033
+  objective: Test stale/invalid/unknown gating.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0004
+  phase: '12'
+  module: Tests
+  output_path: tests/StartupWithoutCmdTests.cpp
+  dependencies:
+  - HOST-0008
+  - HOST-0011
+  objective: Test executable-root startup behavior.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0005
+  phase: '12'
+  module: Tests
+  output_path: tests/BridgeRecoveryTests.cpp
+  dependencies:
+  - SHD-0018
+  - HOST-0006
+  objective: Test bounded bridge recovery and degradation.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0006
+  phase: '12'
+  module: Tests
+  output_path: tests/PersistenceRestartTests.cpp
+  dependencies:
+  - SHD-0014
+  - REC-0005
+  objective: Test restart continuity and idempotency.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0007
+  phase: '12'
+  module: Tests
+  output_path: tests/ShadowLifecycleTests.cpp
+  dependencies:
+  - SHD-0005
+  - SHD-0010
+  objective: Test decision->fill->position->outcome lifecycle.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0008
+  phase: '12'
+  module: Tests
+  output_path: tests/DecisionIdentityTests.cpp
+  dependencies:
+  - DAT-0014
+  - DEC-0013
+  - DEC-0015
+  objective: Test deterministic decision IDs and duplicate prevention.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0009
+  phase: '12'
+  module: Tests
+  output_path: tests/BackendApiContractTests.cpp
+  dependencies:
+  - PKG-0002
+  - PKG-0003
+  objective: Test stable frontend-safe contract.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
+- id: TST-0010
+  phase: '12'
+  module: Tests
+  output_path: tests/PackageSmokeTests.cpp
+  dependencies:
+  - PKG-0006
+  - HOST-0011
+  objective: Test packaged layout and startup prerequisites.
+  acceptance_criteria:
+  - Test passes deterministically
+  - Failure produces actionable diagnostics
+  status: PLANNED
+  authority: PROPOSED
