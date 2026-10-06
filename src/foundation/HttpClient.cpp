@@ -72,9 +72,16 @@ void applyTimeouts(SocketHandle s, int connectMs, int readMs) {
 }  // namespace
 
 HttpResponse httpGet(const HttpRequest& request) {
+    HttpRequest get = request;
+    get.method = "GET";
+    get.body.clear();
+    return httpRequest(get);
+}
+
+HttpResponse httpRequest(const HttpRequest& request) {
     HttpResponse response;
     if (!isLoopbackHost(request.host)) {
-        response.error = "httpGet refuses non-loopback host: " + request.host;
+        response.error = "httpRequest refuses non-loopback host: " + request.host;
         return response;
     }
 
@@ -103,12 +110,19 @@ HttpResponse httpGet(const HttpRequest& request) {
         return response;
     }
 
+    const std::string method =
+        request.method.empty() ? std::string("GET") : request.method;
     std::ostringstream req;
-    req << "GET " << request.path << " HTTP/1.1\r\n"
+    req << method << " " << request.path << " HTTP/1.1\r\n"
         << "Host: " << request.host << ":" << request.port << "\r\n"
-        << "Connection: close\r\n"
-        << request.headers
-        << "\r\n";
+        << "Connection: close\r\n";
+    if (method == "POST") {
+        req << "Content-Type: application/json\r\n"
+            << "Content-Length: " << request.body.size() << "\r\n";
+    }
+    req << request.headers
+        << "\r\n"
+        << request.body;
     const std::string requestText = req.str();
 
     std::size_t sent = 0;

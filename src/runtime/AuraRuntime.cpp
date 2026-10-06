@@ -33,8 +33,15 @@ bool AuraRuntime::start(std::string& error) {
             store_.reset();
         }
     }
+    // Research memory is durable and derived from outcomes/failures only. It
+    // grants no execution authority.
+    experiments_ = ExperimentLedger(store_.get());
+    failures_ = FailureMemory(store_.get());
     pipeline_ = std::make_unique<DecisionPipeline>(
         guardian_.get(), &ledger_, persistence_.get(), &positions_, &outcomes_);
+    pipeline_->setSymbol(startupReport_.resolvedSymbol.empty()
+                             ? startupOptions_.preferredSymbol
+                             : startupReport_.resolvedSymbol);
 
     if (!started) {
         // The runtime is allowed to exist in DEGRADED mode without the bridge;
@@ -124,7 +131,13 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
             runDecisionCycle(*newest, now, report);
         }
         if (positions_.openCount() > 0) {
-            pipeline_->advancePositions(*newest, now, report.issues);
+            std::vector<EntityId> closedOutcomes;
+            pipeline_->advancePositions(*newest, now, report.issues,
+                                        &closedOutcomes);
+            for (const auto& outcomeId : closedOutcomes) {
+                appendAudit(AuditAction::OUTCOME_RECORDED, outcomeId.value(),
+                            "outcome recorded from closed shadow position", now);
+            }
         }
     }
 
@@ -133,6 +146,13 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
     health_.observeTimeframes(timeframeStore_, now);
     if (auto client = bridge()) {
         health_.observeBridge(*client, now);
+        const auto bridgeHealth = client->health();
+        if (bridgeHealth.ok) {
+            lastBridgeHealth_ = bridgeHealth.value;
+            lastBridgeHealthValid_ = true;
+        } else {
+            lastBridgeHealthValid_ = false;
+        }
     }
 
     // Operating mode reflects data availability. M15 is the primary
@@ -162,18 +182,52 @@ void AuraRuntime::runDecisionCycle(const Bar& closedBar, Timestamp now,
         pipeline_->onClosedBar(closedBar, history, now);
     lastDecisionBarOpenSec_[key] = closedBar.openTimeSec;
 
+    if (decision.decisionProduced && !decision.decisions.empty()) {
+        appendAudit(AuditAction::DECISION_PRODUCED,
+                    decision.decisions.front().decisionId.value(),
+                    "decision evaluated on closed bar", now);
+    }
     if (decision.shadowIssued) {
         report.shadowCommandsIssued += 1;
+        if (!decision.decisions.empty()) {
+            appendAudit(AuditAction::SHADOW_COMMAND_ISSUED,
+                        decision.decisions.front().decisionId.value(),
+                        "shadow command issued", now);
+        }
     }
     for (const auto& issue : decision.issues) {
         report.issues.push_back(key + ": " + issue);
     }
 }
 
+void AuraRuntime::appendAudit(AuditAction action, const std::string& subject,
+                              const std::string& details, Timestamp now) {
+    AuditRecord record;
+    record.eventId = EntityId(std::string(toString(action)) + "-" +
+                              std::to_string(audit_.size() + 1));
+    record.action = action;
+    record.outcome = AuditOutcome::SUCCESS;
+    record.serviceState = ServiceState::ONLINE;
+    record.occurredAt = now;
+    record.actor = "aura-runtime";
+    record.subject = subject;
+    record.details = details;
+    audit_.append(record);
+}
+
 void AuraRuntime::stop() {
     startup_.shutdown();
     ready_ = false;
     mode_ = SystemMode::HALTED;
+}
+
+bool AuraRuntime::bridgeHealth(BridgeHealth& out) const {
+    auto client = const_cast<StartupCoordinator&>(startup_).bridgeClient();
+    if (!client) return false;
+    const auto result = client->health();
+    if (!result.ok) return false;
+    out = result.value;
+    return true;
 }
 
 ServiceState AuraRuntime::bridgeState() const noexcept {

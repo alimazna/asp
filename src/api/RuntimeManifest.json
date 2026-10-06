@@ -28,6 +28,14 @@
       "port": 8791,
       "managed_by_application": true,
       "requires_manual_cmd": false
+    },
+    "frontend_api": {
+      "transport": "http_loopback",
+      "host": "127.0.0.1",
+      "port": 8790,
+      "loopback_only": true,
+      "managed_by_application": true,
+      "requires_manual_cmd": false
     }
   },
   "startup": {
@@ -47,7 +55,9 @@
     "GET /api/v1/shadow/outcomes",
     "GET /api/v1/research/status",
     "GET /api/v1/governance/status",
-    "GET /api/v1/audit/recent"
+    "GET /api/v1/bridge/status",
+    "GET /api/v1/audit/recent",
+    "POST /api/v1/command"
   ],
   "invariants": [
     "never fabricate data",

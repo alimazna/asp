@@ -90,6 +90,24 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
     decision.decisionId =
         EntityId(makeDecisionId(timeframe, asOf, candidate.direction));
 
+    // Capture the actual decision inputs for the frontend contract. These are
+    // the values the chain just computed, not re-derived ones.
+    DecisionContext context;
+    context.available = true;
+    context.decisionId = decision.decisionId;
+    context.symbol = symbol_;
+    context.timeframe = timeframe;
+    context.asOfBarOpenSec = asOf;
+    context.direction = candidate.direction;
+    context.dataState = features.quality;
+    context.structure = structure.bias;
+    context.regime = regime.regime;
+    context.eligibility = eligibility.decision;
+    context.strategyVersion = strategyVersion_;
+    context.configurationVersion = configurationVersion_;
+    context.evaluatedAt = now;
+    lastContext_ = context;
+
     // A decision identity is deterministic; a repeat is a duplicate, never a
     // second prediction.
     if (ledger_ != nullptr && ledger_->contains(decision.decisionId)) {
@@ -126,6 +144,11 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
         marketQualityEngine_.evaluate(history, features, features.quality);
     const RiskProposal proposal =
         riskEngine_.propose(candidate, score, marketQuality);
+
+    // The risk proposal is computed (not persisted), so carry it on the
+    // decision context for the API to report truthfully.
+    lastContext_.risk = proposal;
+    lastContext_.riskAvailable = true;
 
     if (proposal.decision == RiskDecision::DENIED || !proposal.valid) {
         decision.reason = "risk denied: " + proposal.reason;
@@ -164,7 +187,8 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
 }
 
 void DecisionPipeline::advancePositions(const Bar& closedBar, Timestamp now,
-                                        std::vector<std::string>& issues) {
+                                        std::vector<std::string>& issues,
+                                        std::vector<EntityId>* outcomesOut) {
     if (positions_ == nullptr) return;
     positions_->advance(closedBar);
 
@@ -178,6 +202,9 @@ void DecisionPipeline::advancePositions(const Bar& closedBar, Timestamp now,
         }
         if (ledger_ != nullptr) {
             ledger_->linkOutcome(outcome.decisionId, outcome);
+        }
+        if (outcomesOut != nullptr) {
+            outcomesOut->push_back(outcome.outcomeId);
         }
     }
 }

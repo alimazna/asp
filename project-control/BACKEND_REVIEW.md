@@ -79,7 +79,7 @@ Automated backend review performed against:
   not executed in this environment.
 
 ### 10. Evidence (§I)
-- 11/11 CTest executables pass; build is warning-clean under `-Wall -Wextra`.
+- 12/12 CTest executables pass; build is warning-clean under `-Wall -Wextra`.
 - The backend host was started for real (Linux): paths resolved, bridge launched
   as a supervised child and reached `ONLINE`, handshake succeeded, and the
   facade served `/api/v1/system/state`. Timeframes reported explicit bridge
@@ -100,6 +100,31 @@ Automated backend review performed against:
 6. `PersistenceEngine` wrote position doubles at default precision, so a
    write/read round-trip did not compare equal and reconciliation reported a
    spurious FIELD_MISMATCH. Fixed with `std::setprecision(17)`.
+
+## Frontend transport and D-gap closure
+The `FRONTEND_INTEGRATION_MAP.md` review surfaced nine discrepancies (D1–D9)
+between the documented frontend contract and the implemented facade. All nine
+were closed inside the approved backend scope:
+
+- D1: `aura::LoopbackApiServer` (`src/api/LoopbackApiServer.{h,cpp}`) publishes
+  the facade over loopback-only HTTP/JSON on `127.0.0.1:8790`; the host starts
+  and stops it. Non-loopback binds are refused. Loopback-only is the approved
+  local boundary from the V4 architecture.
+- D2/D3: `/timeframes` is canonical-ordered and emits `freshness`,
+  `last_successful_update`, and `capability_impact[]`.
+- D4: `/signals/latest` emits symbol, trigger time, decision states, and
+  strategy/configuration versions.
+- D5: `/risk/latest` emits the last `RiskProposal` (gated by
+  `proposal_available`).
+- D6: `/audit/recent` emits the append-only, hash-chained `audit_records`.
+- D7: `/research/status` emits `experiments[]` and `failures[]`;
+  `/governance/status` emits approval `history[]`.
+- D8: `/shadow/positions` and `/shadow/outcomes` emit exit price, P&L/R, close
+  reason, and open/close timestamps.
+- D9: `/bridge/status` emits bridge/broker identity and MT5 readiness.
+
+All values that are genuinely unknown remain explicit (`null`/`UNKNOWN`); none
+are fabricated. Coverage: `tests/FrontendContractD1D9Tests.cpp` (TST-0021).
 
 ## Explicitly not claimed
 - Profitability, calibrated probability, broker validation, live-trading safety,

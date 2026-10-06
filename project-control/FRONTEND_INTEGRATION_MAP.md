@@ -7,7 +7,9 @@ implementation disagree, the discrepancy is recorded in
 [§25 Discrepancies](#25-discrepancies-found-documentation-vs-implementation)
 and the implemented behaviour is documented.
 
-Status: documentation only. No backend or frontend source was modified.
+Status: authoritative. The nine discrepancies (D1–D9) it originally recorded
+were subsequently resolved in the backend; this document reflects the
+implemented behaviour. No frontend source exists or was modified.
 
 - Backend API version: `v1`
 - API schema version: `1.0`
@@ -47,9 +49,10 @@ Actual implemented runtime relationship:
 
 ```text
 ASTRA Frontend (Alpha)
+    ->  LoopbackApiServer (HTTP/JSON, 127.0.0.1:8790 only)
     ->  BackendFacade (v1 API surface, in-process C++ object)
     ->  AURA C++ Runtime (AuraRuntime / DecisionPipeline)
-    ->  PythonBridgeClient (HTTP/JSON, 127.0.0.1 only)
+    ->  PythonBridgeClient (HTTP/JSON, 127.0.0.1:8791 only)
     ->  Python MT5 Bridge (bridge/mt5_python/bridge_service.py)
     ->  MT5 Terminal (Windows, user-installed)
     ->  Broker
@@ -66,15 +69,20 @@ Implemented facts:
   binds `127.0.0.1` only.
 - The bridge transport (HTTP JSON on port `8791`) is used by the **backend**
   (`PythonBridgeClient`), not by the frontend.
+- The frontend transport is `aura::LoopbackApiServer`
+  (`src/api/LoopbackApiServer.h/.cpp`), a loopback-only HTTP/JSON server the
+  host starts over the facade on port `8790`. Alpha polls
+  `http://127.0.0.1:8790/api/v1/*` and never touches the bridge.
 
-> **D1 — transport boundary.** The facade is an in-process C++ API. There is
-> **no implemented C++ HTTP/IPC/socket server** exposing `/api/v1/*` to an
-> external process (the only socket code in the backend is the *client*
-> `src/foundation/HttpClient.cpp`). `BACKEND_FRONTEND_API_V1.md` permits
-> "a local application API, in-process façade, or approved transport" and
-> states the transport is a backend concern. The route table and JSON schema
-> below are implemented and tested; the concrete process-to-process transport
-> for Alpha is **not yet implemented**. Alpha must not invent one — see §19.
+> **D1 — transport boundary (RESOLVED).** The facade remains an in-process C++
+> API, and it is now published to the frontend by a loopback-only HTTP/JSON
+> server, `aura::LoopbackApiServer` (`src/api/LoopbackApiServer.h/.cpp`,
+> PKG-0007/0008). It binds `127.0.0.1` only (a non-loopback host is refused),
+> defaults to port `8790` (the Python bridge uses `8791`), and is started and
+> stopped by the backend host (`src/platform/windows/AuraBackendHost.cpp`).
+> Routes are exactly the facade contract; the server owns no state and reaches
+> no runtime internals. `POST /api/v1/command` carries the same allow-listed,
+> actor-attributed command contract as the in-process facade.
 
 ---
 
@@ -142,21 +150,23 @@ Standard error object (HTTP 4xx/5xx):
 {"error":true,"code":"...","message":"..."}
 ```
 
-Read routes are **GET only**; any other method returns `405`.
+Read routes are **GET only**; any other method returns `405`. All routes are
+served over loopback HTTP at `http://127.0.0.1:8790/api/v1/*` (D1 resolved).
 
 | # | Method | Path | Purpose | Request params | Response `data` type | Important fields | Success | Error | Refresh | Availability requirement |
 |---|--------|------|---------|----------------|----------------------|-------------------|---------|-------|---------|--------------------------|
-| 1 | GET | `/api/v1/system/state` | Operating mode + readiness | none | object | `mode`, `shadow_only`, `ready`, `bridge_state`, `api`, `schema` | 200 | 503 `dependency_unavailable` | Poll; state changes on tick | `runtime` dependency |
+| 1 | GET | `/api/v1/system/state` | Operating mode + readiness | none | object | `mode`, `shadow_only`, `ready`, `bridge_state`, `startup_stage`, `api`, `schema` | 200 | 503 `dependency_unavailable` | Poll; state changes on tick | `runtime` dependency |
 | 2 | GET | `/api/v1/health` | Aggregate health | none | object | `aggregate`, `decision_grade_data`, `degraded_reasons[]`, `observed_at`, `unknown_is_not_safe` | 200 | 503 `dependency_unavailable` | Poll | `health` monitor |
-| 3 | GET | `/api/v1/timeframes` | Per-stream quality summary | none | array of objects | `timeframe`, `has_closed_bar`, `quality`, `decision_grade`, `last_closed_bar_open`, `sequence` | 200 (array may be empty) | 503 | Poll | `runtime` |
-| 4 | GET | `/api/v1/timeframes/{TF}/snapshot` | One stream snapshot | `TF` ∈ M1,M5,M15,M30,H1,H4,D1,W1,MN1 | object | `timeframe`, `has_closed_bar`, `observed`, `quality` (string when unobserved; object when observed), `sequence`, `open`, `high`, `low`, `close`, `open_time` | 200 | 400 `unknown_timeframe`; 503 | Poll | `runtime` |
-| 5 | GET | `/api/v1/signals/latest` | Latest decision | none | object | `available`, `decision_id`, `trigger_timeframe`, `closed_bar_id`, `signal`, `score`, `score_is_probability`, `confidence`, `probability`, `probability_calibrated`, `reference_price`, `system_mode`, `has_outcome` (or `available:false`,`reason`) | 200 | 503 | Poll | `ledger` |
-| 6 | GET | `/api/v1/risk/latest` | Portfolio risk view | none | object | `available`, `open_positions`, `aggregate_open_risk_fraction`, `risk_bounded_by_guardian` | 200 | 503 | Poll | `positions` |
-| 7 | GET | `/api/v1/shadow/positions` | Simulated positions | none | array of objects | `position_id`, `decision_id`, `direction`, `state`, `entry_price`, `stop_price`, `target_price`, `lots`, `realized_r`, `shadow_only` | 200 (array may be empty) | 503 | Poll | `positions` |
-| 8 | GET | `/api/v1/shadow/outcomes` | Completed outcomes | none | array of objects | `decision_id`, `outcome_id`, `realized_r`, `outcome_class` | 200 (array may be empty) | 503 | Poll | `ledger` |
-| 9 | GET | `/api/v1/research/status` | Research status | none | object | `available`, `mode`, `note` | 200 | — | Poll | none |
-| 10 | GET | `/api/v1/governance/status` | Approval state | none | object | `pending_count`, `pending[]` (`request_id`,`kind`,`subject_id`,`requested_at`), `live_trading_authorised` | 200 | 503 | Poll | `approvals` |
-| 11 | GET | `/api/v1/audit/recent` | Recent audit context | none | object | `active_incidents[]` (`incident_id`,`severity`,`state`,`title`), `count` | 200 | 503 | Poll | `incidents` |
+| 3 | GET | `/api/v1/timeframes` | Per-stream quality summary | none | array of objects (canonical M1..MN1 order) | `timeframe`, `observed`, `has_closed_bar`, `quality` (`{state,decision_grade}`), `decision_grade`, `freshness` (`{state,is_fresh,last_update,age_millis,max_age_millis}`), `last_successful_update`, `last_closed_bar_open`, `sequence`, `capability_impact[]` (`capability`,`impact`,`reason`) | 200 (all 9 streams always present) | 503 | Poll | `runtime` |
+| 4 | GET | `/api/v1/timeframes/{TF}/snapshot` | One stream snapshot | `TF` ∈ M1,M5,M15,M30,H1,H4,D1,W1,MN1 | object | `timeframe`, `has_closed_bar`, `observed`, `quality` (string when unobserved; object when observed), `freshness`, `last_successful_update`, `sequence`, `open`, `high`, `low`, `close`, `open_time`, `capability_impact[]` | 200 | 400 `unknown_timeframe`; 503 | Poll | `runtime` |
+| 5 | GET | `/api/v1/signals/latest` | Latest decision | none | object | `available`, `decision_id`, `trigger_timeframe`, `closed_bar_id`, `signal`, `score`, `score_is_probability`, `confidence`, `probability`, `probability_calibrated`, `reference_price`, `system_mode`, `has_outcome`, `symbol`, `trigger_time`, `data_state`, `structure_state`, `regime_state`, `eligibility_state`, `strategy_version`, `configuration_version` (decision fields `UNKNOWN`/`null` when no live decision context) | 200 | 503 | Poll | `ledger` |
+| 6 | GET | `/api/v1/risk/latest` | Portfolio risk + per-decision proposal | none | object | `available`, `open_positions`, `aggregate_open_risk_fraction`, `risk_bounded_by_guardian`, `proposal_available`, `proposal` (null unless a decision has been evaluated; otherwise `decision_id`,`direction`,`entry_price`,`stop_price`,`target_price`,`risk_fraction`,`risk_amount`,`position_size_lots`,`reward_risk_ratio`,`decision`,`reason`,`valid`) | 200 | 503 | Poll | `positions` |
+| 7 | GET | `/api/v1/shadow/positions` | Simulated positions | none | array of objects | `position_id`, `decision_id`, `direction`, `state`, `entry_price`, `stop_price`, `target_price`, `lots`, `risk_fraction`, `timeframe`, `opened_at`, `opened_bar_open`, `exit_price`, `realized_pnl`, `realized_r`, `close_reason`, `closed_at`, `closed_bar_open`, `shadow_only` | 200 (array may be empty) | 503 | Poll | `positions` |
+| 8 | GET | `/api/v1/shadow/outcomes` | Completed outcomes | none | array of objects | `outcome_id`, `position_id`, `decision_id`, `direction`, `timeframe`, `exit_state`, `entry_price`, `exit_price`, `lots`, `realized_pnl`, `realized_r`, `risk_fraction`, `bars_held`, `outcome_class`, `recorded_at`, `note`, `shadow_only` | 200 (array may be empty) | 503 | Poll | `runtime` (outcome engine); `ledger` fallback |
+| 9 | GET | `/api/v1/research/status` | Research status + history | none | object | `available`, `mode`, `note`, `experiment_count`, `experiments[]` (`experiment_id`,`hypothesis_id`,`method`,`outcome`,`sample_size`,`result_metric`,`started_at`), `failure_count`, `failures[]` (`failure_id`,`category`,`summary`,`occurrences`,`resolved`,`last_seen`) | 200 | — | Poll | `runtime` (optional) |
+| 10 | GET | `/api/v1/governance/status` | Approval state + history | none | object | `pending_count`, `pending[]` (`request_id`,`kind`,`subject_id`,`requested_at`), `history[]` (`request_id`,`kind`,`status`,`requested_by`,`requested_at`,`decided_at`), `live_trading_authorised` | 200 | 503 | Poll | `approvals` |
+| 11 | GET | `/api/v1/bridge/status` | Python MT5 bridge identity/health | none | object | `bridge_process_state`, `startup_stage`, `handshake_ok`, `mt5_ready`, `resolved_symbol`, `transport`, `host`, `loopback_only`, `managed_by_application`, `requires_manual_cmd`, `observed`, `package_available`, `initialized`, `mt5_ready_live`, `broker`, `server`, `bridge_symbol`, `process_state`, `last_error`, `last_successful_request` (broker/server `null` until observed) | 200 | 503 | Poll | `runtime` |
+| 12 | GET | `/api/v1/audit/recent` | Append-only audit stream + incidents | none | object | `audit_stream_size`, `audit_records[]` (`sequence`,`event_id`,`action`,`outcome`,`service_state`,`occurred_at`,`actor`,`subject`,`details`,`previous_hash`,`record_hash`; newest first, ≤200), `active_incidents[]` (`incident_id`,`severity`,`state`,`title`), `count` | 200 | 503 | Poll | `incidents` (+ `runtime` for the stream) |
 
 Commands (not GET routes; invoked through the command contract, §14):
 
@@ -240,12 +250,14 @@ surfaced at `/api/v1/health`.
   exposed as a route.
 - **Error visibility:** structured error objects (see §14).
 
-> **D3 — freshness not exposed.** `TimeframeState` carries a `FreshnessInfo`
-> (`state`, `lastUpdate`, `ageMillis`, `maxAgeMillis`) but neither
-> `/api/v1/timeframes` nor `/api/v1/timeframes/{TF}/snapshot` emits it. The
-> `BACKEND_FRONTEND_API_V1.md` "last successful update" field is therefore
-> **BACKEND DATA NOT EXPOSED**. Alpha must derive freshness only from
-> `quality`/`has_closed_bar`, and must not compute freshness itself.
+> **D3 — freshness now exposed (RESOLVED).** Both `/api/v1/timeframes` and
+> `/api/v1/timeframes/{TF}/snapshot` emit `freshness`
+> (`{state,is_fresh,last_update,age_millis,max_age_millis}`),
+> `last_successful_update`, and a per-timeframe `capability_impact[]`
+> (`{capability,impact,reason}`). `FreshnessState` is `FRESH | STALE |
+> UNKNOWN`; only `FRESH` is current, and an unobserved stream reports
+> `freshness:null` rather than a fabricated value. Alpha renders these fields
+> directly and still must not compute freshness itself.
 
 ---
 
@@ -278,14 +290,16 @@ Distinctions the frontend must preserve:
 > current bar. No such data is provided, and no client-side candle
 > construction is permitted.
 
-> **D2 — timeframe list shape and order.** `/api/v1/timeframes` returns an
-> **array** whose `quality` is a **bare string**, whereas
-> `/api/v1/timeframes/{TF}/snapshot` returns an **object** with
-> `quality:{state,decision_grade}` when observed. The array is emitted in
-> `std::map` key order (lexicographic on the timeframe string, e.g.
-> `D1,H4,M1,M15,...`), **not** the canonical order. Alpha must not rely on
-> array order; it should key by the `timeframe` field and render in its own
-> canonical order.
+> **D2 — timeframe list shape and order (RESOLVED).** `/api/v1/timeframes` now
+> returns an **array in canonical M1, M5, M15, M30, H1, H4, D1, W1, MN1
+> order**, and every element (observed or not) carries the same shape:
+> `observed`, `has_closed_bar`, `quality` (`{state,decision_grade}`),
+> `decision_grade`, `freshness`, `last_successful_update`,
+> `last_closed_bar_open`, `sequence`, `capability_impact[]`. All nine streams
+> are always present. `/api/v1/timeframes/{TF}/snapshot` uses the same
+> observed shape plus OHLC. (An unobserved snapshot keeps a bare-string
+> `quality:"UNKNOWN"` for backward compatibility.) Alpha may rely on array
+> order but should still key by the `timeframe` field.
 
 ---
 
@@ -342,13 +356,13 @@ uncalibrated. The backend emits `probability: null` and
 probability. Alpha must render probability as "N/A (uncalibrated)" and must
 never display the score as a probability.
 
-> **D4 — decision display contract partially exposed.**
-> `BACKEND_FRONTEND_API_V1.md` lists `symbol`, `trigger_time`, `data_state`,
+> **D4 — decision display contract fully exposed (RESOLVED).**
+> `/api/v1/signals/latest` now emits `symbol`, `trigger_time`, `data_state`,
 > `structure_state`, `regime_state`, `eligibility_state`, `strategy_version`,
-> and `configuration_version` as part of the decision display contract. These
-> are **not emitted** by `/api/v1/signals/latest`. They are
-> **BACKEND DATA NOT EXPOSED**. The engine computes structure/regime/
-> eligibility internally but does not surface them through the API.
+> and `configuration_version`, taken from the live `DecisionContext` captured
+> by the decision chain. When the process holds no live decision context (for
+> example a ledger recovered after restart), these fields are emitted as
+> explicit `UNKNOWN`/`null`, never guessed.
 
 ---
 
@@ -368,12 +382,14 @@ Exposed fields:
 Risk is backend-owned. The frontend must not compute position size, risk
 fraction, stop distance, or portfolio limits.
 
-> **D5 — no per-decision risk proposal exposed.** `RiskProposal`
-> (`entry`, `stop`, `target`, `positionSizeLots`, `riskFraction`,
-> `rewardRiskRatio`, `decision`) is computed by `RiskEngine` but the facade
-> does not emit it. Per-decision risk detail is **BACKEND DATA NOT EXPOSED**.
-> The nearest exposed values are per-position `entry_price`, `stop_price`,
-> `target_price`, `lots` in `/api/v1/shadow/positions`.
+> **D5 — per-decision risk proposal exposed (RESOLVED).** `/api/v1/risk/latest`
+> now emits the last `RiskProposal` computed by `RiskEngine`
+> (`decision_id`, `direction`, `entry_price`, `stop_price`, `target_price`,
+> `risk_fraction`, `risk_amount`, `position_size_lots`, `reward_risk_ratio`,
+> `decision`, `reason`, `valid`) under `proposal`, gated by
+> `proposal_available`. Until a decision has been evaluated in the process,
+> `proposal_available` is `false` and `proposal` is `null`. Portfolio-level
+> fields are unchanged.
 
 ---
 
@@ -393,8 +409,10 @@ Frontend-visible shadow information and its sources:
 | Reconciliation | No | `ReconciliationEngine` internal; not exposed |
 
 Shadow position fields: `position_id`, `decision_id`, `direction`, `state`,
-`entry_price`, `stop_price`, `target_price`, `lots`, `realized_r`,
-`shadow_only` (always `true`).
+`entry_price`, `stop_price`, `target_price`, `lots`, `risk_fraction`,
+`timeframe`, `opened_at`, `opened_bar_open`, `exit_price`, `realized_pnl`,
+`realized_r`, `close_reason`, `closed_at`, `closed_bar_open` (null while
+open), `shadow_only` (always `true`).
 
 `PositionState`: `OPEN, CLOSED_TARGET, CLOSED_STOP, CLOSED_MANUAL,
 CLOSED_EXPIRED`.
@@ -404,10 +422,13 @@ fills are simulated deterministically by the backend against closed bars
 (conservatively: stop takes precedence when a bar touches both stop and
 target).
 
-> **D8 — shadow position detail incomplete.** `realized_pnl`, `exit_price`,
-> `close_reason`, `opened_at`, `opened_bar_open_sec`, `closed_at`, and
-> `closed_bar_open_sec` exist on `SimulatedPosition` but are not emitted.
-> They are **BACKEND DATA NOT EXPOSED**.
+> **D8 — shadow position detail exposed (RESOLVED).** `/api/v1/shadow/positions`
+> now emits `realized_pnl`, `exit_price`, `close_reason`, `opened_at`,
+> `opened_bar_open`, `closed_at`, `closed_bar_open`, `risk_fraction`, and
+> `timeframe`. `/api/v1/shadow/outcomes` is sourced from the outcome engine
+> (`OutcomeEngine`) and includes `position_id`, `direction`, `timeframe`,
+> `exit_state`, `entry_price`, `exit_price`, `lots`, `realized_pnl`,
+> `realized_r`, `risk_fraction`, `bars_held`, `recorded_at`, and `note`.
 
 ---
 
@@ -426,9 +447,11 @@ Only decisions with a linked outcome are returned (`has_outcome == true`).
 The array is empty until a simulated position closes and an outcome is
 recorded.
 
-> **D6 — audit vs outcomes.** `/api/v1/audit/recent` returns **active
-> incidents**, not an append-only audit stream. The append-only audit log
-> lives in the persistence layer and is not exposed to the frontend.
+> **D6 — append-only audit stream exposed (RESOLVED).** `/api/v1/audit/recent`
+> now returns the authoritative append-only, hash-chained audit stream under
+> `audit_records` (newest first, bounded to 200) plus `audit_stream_size`, and
+> keeps `active_incidents` as a separate, clearly named view. Audit records and
+> incidents are distinct and are no longer conflated.
 
 ---
 
@@ -437,18 +460,20 @@ recorded.
 | Area | Exposed | Notes |
 |------|---------|-------|
 | Persistence status | No | File-backed store is internal; no status route |
-| Audit | Partial | `/api/v1/audit/recent` → active incidents only |
-| Research status | Minimal | `/api/v1/research/status` → static `available`, `mode`, `note` |
-| Experiment information | No | Not exposed |
-| Failures | Partial | Via health `degraded_reasons` and incidents |
-| Recovery | No | Not exposed as a route |
-| History | No | No history/timeline route |
+| Audit | Yes | `/api/v1/audit/recent` → `audit_records[]` + `active_incidents[]` |
+| Research status | Yes | `/api/v1/research/status` → `available`, `mode`, `note`, `experiments[]`, `failures[]` |
+| Experiment information | Yes | `experiments[]` (`experiment_id`,`hypothesis_id`,`method`,`outcome`,`sample_size`,`result_metric`,`started_at`) |
+| Failures | Yes | `failures[]` (`failure_id`,`category`,`summary`,`occurrences`,`resolved`,`last_seen`) plus health `degraded_reasons` |
+| Recovery | Partial | Surfaced through failure memory (`resolved`, `occurrences`); no dedicated route |
+| History | Yes | Approval `history[]`; audit stream; experiment/failure history |
 
-> **D7 — research/governance detail is minimal.** The backend contains
-> knowledge, experiment, hypothesis, evolution, and governance subsystems
-> (`src/research`, `src/evolution`, `src/governance`), but the facade exposes
-> only the static research status and the pending-approval list. Everything
-> else is **BACKEND DATA NOT EXPOSED**.
+> **D7 — research/governance history exposed (RESOLVED).** `/api/v1/research/status`
+> now emits `experiments[]` and `failures[]` from the runtime's
+> `ExperimentLedger` and `FailureMemory`. `/api/v1/governance/status` adds a
+> full `history[]` of approval requests (pending, approved, rejected,
+> withdrawn) alongside the pending queue. Research output still grants no
+> execution authority. Dedicated recovery-timeline and evolution routes remain
+> out of the v1 contract.
 
 ---
 
@@ -513,18 +538,20 @@ What the frontend needs to know:
 - **MT5 availability:** a bridge that is up but with MT5 not ready is
   `DEGRADED`; data is then not decision-grade.
 - **Timeframe availability:** via `/api/v1/timeframes` and snapshots.
-- **Broker/source identity:** the bridge handshake/health carry
-  `broker`, `server`, and `resolved_symbol`, but the **facade does not expose
-  them** (see D9).
+- **Broker/source identity:** exposed at `/api/v1/bridge/status`
+  (`broker`, `server`, `bridge_symbol`, `last_error`,
+  `last_successful_request`); `null` until the bridge is observed.
 - **Degraded state:** any MT5-unavailable condition must be shown explicitly,
   never as an empty-but-fine dashboard.
 
-> **D9 — bridge/broker identity not exposed.** `HandshakeInfo`
-> (`resolvedSymbol`, `mt5Ready`, `primaryOperationalTimeframe`,
-> `primaryStructuralTimeframe`, `loopbackOnly`) and `BridgeHealth`
-> (`broker`, `server`, `mt5Ready`, `lastError`, `lastSuccessfulRequest`) are
-> not emitted by any facade route. Broker/source identity and MT5 readiness
-> detail are **BACKEND DATA NOT EXPOSED** to the frontend.
+> **D9 — bridge/broker identity exposed (RESOLVED).** `/api/v1/bridge/status`
+> emits the bridge process state, startup stage, handshake/MT5 readiness,
+> resolved symbol, transport (`http_loopback`), loopback-only and
+> managed-by-application flags, `requires_manual_cmd:false`, and — when the
+> bridge has been observed — `package_available`, `initialized`, `broker`,
+> `server`, `bridge_symbol`, `process_state`, `last_error`, and
+> `last_successful_request`. Before observation these are explicit `null`/
+> `false`, never fabricated.
 
 ---
 
@@ -533,8 +560,8 @@ What the frontend needs to know:
 ### Alpha MUST implement
 
 - Desktop shell, navigation, theming per `ASTRA_VISUAL_IDENTITY.md`.
-- Backend connection via the approved facade contract (§2; pending transport,
-  D1).
+- Backend connection via the approved facade contract over the loopback HTTP
+  transport at `http://127.0.0.1:8790/api/v1/*` (§2; D1 resolved).
 - Rendering of system mode, service health, and the distinction between them.
 - Market-data display for the nine streams, with explicit quality/freshness
   labels and no fabricated values.
@@ -567,17 +594,18 @@ What the frontend needs to know:
 | Dashboard | Runtime + health | `/api/v1/system/state`, `/api/v1/health` | `mode`, `ready`, `bridge_state`, `aggregate`, `decision_grade_data` | Poll | Show STARTING/DEGRADED/EMERGENCY banner; no fake data |
 | Market Status | Timeframe store | `/api/v1/timeframes` | `timeframe`, `quality`, `decision_grade`, `has_closed_bar` | Poll | Non-VALID = not healthy; show STALE/UNKNOWN explicitly |
 | Price | Timeframe store | `/api/v1/timeframes/{TF}/snapshot` | `open`,`high`,`low`,`close`,`open_time` | Poll | `observed:false` → no price shown |
-| Timeframes | Timeframe store | `/api/v1/timeframes` | per-stream quality + last closed bar | Poll | Render in canonical order; do not trust array order (D2) |
-| Signal | Prediction ledger | `/api/v1/signals/latest` | `signal`, `decision_id`, `trigger_timeframe`, `closed_bar_id` | Poll | `available:false` → "no decision yet" |
+| Timeframes | Timeframe store | `/api/v1/timeframes` | per-stream quality, `freshness`, `last_successful_update`, `capability_impact` | Poll | Canonical order is guaranteed |
+| Signal | Prediction ledger + decision context | `/api/v1/signals/latest` | `signal`, `decision_id`, `trigger_timeframe`, `closed_bar_id`, `symbol`, `trigger_time`, `data_state`, `structure_state`, `regime_state`, `eligibility_state`, `strategy_version`, `configuration_version` | Poll | `available:false` → "no decision yet"; decision states `UNKNOWN` without a live cycle |
 | Score | Prediction ledger | `/api/v1/signals/latest` | `score`, `score_is_probability:false` | Poll | Never present as probability |
 | Confidence | Prediction ledger | `/api/v1/signals/latest` | `confidence` | Poll | Show as meta-measure, not probability |
-| Risk | Position simulator | `/api/v1/risk/latest` | `open_positions`, `aggregate_open_risk_fraction`, `risk_bounded_by_guardian` | Poll | Per-decision proposal NOT EXPOSED (D5) |
-| Shadow Position | Position simulator | `/api/v1/shadow/positions` | `state`, `entry_price`, `stop_price`, `target_price`, `lots`, `realized_r`, `shadow_only` | Poll | Label SIMULATED; exit detail partial (D8) |
-| Outcome | Ledger outcomes | `/api/v1/shadow/outcomes` | `outcome_class`, `realized_r` | Poll | Empty until an outcome exists |
+| Risk | Position simulator + decision context | `/api/v1/risk/latest` | `open_positions`, `aggregate_open_risk_fraction`, `risk_bounded_by_guardian`, `proposal_available`, `proposal` | Poll | `proposal:null` until a decision is evaluated |
+| Shadow Position | Position simulator | `/api/v1/shadow/positions` | `state`, `entry_price`, `stop_price`, `target_price`, `lots`, `risk_fraction`, `exit_price`, `realized_pnl`, `realized_r`, `close_reason`, `opened_at`, `closed_at`, `shadow_only` | Poll | Label SIMULATED |
+| Outcome | Outcome engine | `/api/v1/shadow/outcomes` | `outcome_class`, `realized_r`, `realized_pnl`, `exit_state`, `bars_held` | Poll | Empty until an outcome exists |
 | Health | Health monitor | `/api/v1/health` | `aggregate`, `degraded_reasons` | Poll | `unknown_is_not_safe` always true |
-| Alerts | Incident manager | `/api/v1/audit/recent` | `active_incidents`, `severity`, `state`, `title` | Poll | Full audit stream NOT EXPOSED (D6) |
-| System State | Runtime | `/api/v1/system/state` | `mode`, `ready`, `bridge_state` | Poll | Distinguish from service state |
-| Audit/Research status | Incident manager / research | `/api/v1/audit/recent`, `/api/v1/research/status` | incidents, `available`, `mode`, `note` | Poll | Minimal detail (D7) |
+| Bridge | Runtime + bridge client | `/api/v1/bridge/status` | `bridge_process_state`, `mt5_ready`, `handshake_ok`, `broker`, `server`, `last_error` | Poll | `broker`/`server` `null` until observed |
+| Alerts | Incident manager + audit log | `/api/v1/audit/recent` | `active_incidents`, `audit_records`, `audit_stream_size` | Poll | `audit_records:[]` until events occur |
+| System State | Runtime | `/api/v1/system/state` | `mode`, `ready`, `bridge_state`, `startup_stage` | Poll | Distinguish from service state |
+| Audit/Research status | Audit log / research / governance | `/api/v1/audit/recent`, `/api/v1/research/status`, `/api/v1/governance/status` | `audit_records`, `experiments`, `failures`, `history` | Poll | Arrays empty until events occur |
 
 ---
 
@@ -590,18 +618,28 @@ is not exposed by the backend, mark it:
 
 rather than creating a frontend-side calculation or a new endpoint.
 
-Currently **BACKEND DATA NOT EXPOSED**:
+All D-gaps previously listed here are now exposed by the backend:
 
-- concrete frontend↔backend transport (D1);
-- per-timeframe freshness / last successful update / capability impact (D3);
+- concrete frontend↔backend transport (D1) → `LoopbackApiServer`, loopback
+  HTTP/JSON on `127.0.0.1:8790`;
+- per-timeframe freshness / last successful update / capability impact (D3) →
+  `/api/v1/timeframes` and `/api/v1/timeframes/{tf}/snapshot`;
 - decision `symbol`, `trigger_time`, `data_state`, `structure_state`,
   `regime_state`, `eligibility_state`, `strategy_version`,
-  `configuration_version` (D4);
-- per-decision risk proposal (D5);
-- full append-only audit stream (D6);
-- research/experiment/failure/recovery/history detail (D7);
-- shadow exit price, realized P&L, close reason, open/close timestamps (D8);
-- bridge/broker identity and MT5 readiness detail (D9).
+  `configuration_version` (D4) → `/api/v1/signals/latest`;
+- per-decision risk proposal (D5) → `/api/v1/risk/latest`;
+- full append-only audit stream (D6) → `/api/v1/audit/recent`
+  (`audit_records` + `audit_stream_size`);
+- research/experiment/failure history (D7) → `/api/v1/research/status`;
+- shadow exit price, realized P&L, close reason, open/close timestamps (D8) →
+  `/api/v1/shadow/positions` and `/api/v1/shadow/outcomes`;
+- bridge/broker identity and MT5 readiness detail (D9) →
+  `/api/v1/bridge/status`.
+
+Where a value is genuinely not yet known (no decision evaluated in this
+process, bridge not observed, timeframe never seen), the backend emits an
+explicit `null` or `UNKNOWN`, never a fabricated value. Alpha still must not
+invent data.
 
 ---
 
@@ -662,8 +700,8 @@ decisions, decisions before shadow).
 - [ ] M15 is presented as the operational/setup timeframe; H4 as structural.
 - [ ] Startup UX requires no manual Python/CMD step.
 - [ ] Errors are visible and classified (retry / disable / policy).
-- [ ] All `BACKEND DATA NOT EXPOSED` items are surfaced as unavailable, not
-      invented.
+- [ ] No former D-gap remains marked `BACKEND DATA NOT EXPOSED`; where the
+      backend reports `null`/`UNKNOWN`, render it as unavailable, never invented.
 
 ---
 
@@ -687,18 +725,19 @@ MT5-unavailable and degraded paths.
 
 | ID | Discrepancy | Implemented reality | Frontend consequence |
 |----|-------------|---------------------|----------------------|
-| D1 | Docs describe a "local application API / in-process façade / approved transport"; no concrete frontend transport is implemented | `BackendFacade::handle` is an in-process C++ API; the only socket code is the backend's HTTP **client** to the bridge | Alpha cannot connect to an external process yet; resolve with backend owner before implementation |
-| D2 | Docs imply a uniform timeframe contract | `/timeframes` returns an array with bare-string `quality` plus extra `sequence`; ordering is lexicographic map order | Key by `timeframe`; ignore array order |
-| D3 | Docs list freshness / last successful update / capability impact | `FreshnessInfo` exists internally but is not emitted | Freshness is BACKEND DATA NOT EXPOSED |
-| D4 | Decision display contract lists symbol/time/state/versions | Only a subset is emitted by `/signals/latest` | Several decision fields are BACKEND DATA NOT EXPOSED |
-| D5 | Docs imply risk proposal visibility | Only portfolio-level risk is emitted | Per-decision risk proposal BACKEND DATA NOT EXPOSED |
-| D6 | "Audit" implies an append-only audit stream | `/audit/recent` returns active incidents | Full audit stream BACKEND DATA NOT EXPOSED |
-| D7 | Docs imply research/governance visibility | Only static research status + pending approvals | Research/experiment/recovery history BACKEND DATA NOT EXPOSED |
-| D8 | Shadow lifecycle implies full detail | Position view omits exit/P&L/timestamps | Exit detail BACKEND DATA NOT EXPOSED |
-| D9 | Bridge identity/MT5 readiness implied visible | Not emitted by any route | Broker/MT5 detail BACKEND DATA NOT EXPOSED |
+| D1 | Docs describe a "local application API / in-process façade / approved transport"; no concrete frontend transport was implemented | RESOLVED: `aura::LoopbackApiServer` publishes the facade over loopback HTTP/JSON on `127.0.0.1:8790`; started/stopped by the host; non-loopback binds refused | Alpha connects to `http://127.0.0.1:8790/api/v1/*`; commands via `POST /api/v1/command` |
+| D2 | Docs imply a uniform timeframe contract | `/timeframes` now returns the array in canonical M1..MN1 order; `quality` is a `{state, decision_grade}` object plus `freshness`, `last_successful_update`, `capability_impact` | Key by `timeframe`; order is stable |
+| D3 | Docs list freshness / last successful update / capability impact | RESOLVED: emitted per timeframe in `/timeframes` and `/timeframes/{tf}/snapshot` | Available |
+| D4 | Decision display contract lists symbol/time/state/versions | RESOLVED: `/signals/latest` emits symbol, trigger_time, data/structure/regime/eligibility state, strategy/configuration versions (explicit `UNKNOWN`/`null` when no live decision context) | Available |
+| D5 | Docs imply risk proposal visibility | RESOLVED: `/risk/latest` emits portfolio risk plus the last per-decision `proposal` (`proposal_available` gates it) | Available |
+| D6 | "Audit" implies an append-only audit stream | RESOLVED: `/audit/recent` emits `audit_records` (hash-chained, newest first) + `audit_stream_size`, alongside `active_incidents` | Available |
+| D7 | Docs imply research/governance visibility | RESOLVED: `/research/status` emits `experiments` + `failures`; `/governance/status` emits `history` | Available |
+| D8 | Shadow lifecycle implies full detail | RESOLVED: `/shadow/positions` emits exit price, realized P&L/R, close reason, open/close timestamps; `/shadow/outcomes` uses the outcome engine | Available |
+| D9 | Bridge identity/MT5 readiness implied visible | RESOLVED: `/bridge/status` emits transport, loopback flag, managed-by-application, handshake, MT5 readiness, broker/server/symbol (explicit unknown when unobserved) | Available |
 
-None of these were "fixed" in code; they are documented as implemented
-behaviour per the task scope (documentation only).
+All nine discrepancies were closed in the backend (transport + facade
+endpoints). The corresponding contract tests live in
+`tests/FrontendContractD1D9Tests.cpp` (TST-0021).
 
 ---
 

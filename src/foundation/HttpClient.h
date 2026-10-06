@@ -13,6 +13,8 @@ struct HttpRequest {
     std::string host = "127.0.0.1";
     std::uint16_t port = 0;
     std::string path = "/";
+    std::string method = "GET";
+    std::string body;      // request body (POST)
     std::string headers;   // extra "Key: Value\r\n" lines (optional)
     int connectTimeoutMillis = 2000;
     int readTimeoutMillis = 5000;
@@ -28,6 +30,10 @@ struct HttpResponse {
 };
 
 bool isLoopbackHost(const std::string& host) noexcept;
+
+// Send a request. `request.method` selects GET or POST; POST carries the body
+// with an application/json content type. Refuses non-loopback hosts.
+HttpResponse httpRequest(const HttpRequest& request);
 
 HttpResponse httpGet(const HttpRequest& request);
 

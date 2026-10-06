@@ -5,6 +5,7 @@
 // runtime loop. The user is never asked to open a terminal or run Python.
 
 #include "api/BackendFacade.h"
+#include "api/LoopbackApiServer.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "platform/windows/PathResolver.h"
@@ -23,6 +24,19 @@ namespace {
 volatile std::sig_atomic_t g_stopRequested = 0;
 
 void handleSignal(int) { g_stopRequested = 1; }
+
+int parseApiPort(int argc, char** argv) {
+    for (int i = 1; i + 1 < argc; ++i) {
+        if (std::string(argv[i]) == "--api-port") {
+            try {
+                const int port = std::stoi(argv[i + 1]);
+                if (port > 0 && port < 65536) return port;
+            } catch (...) {
+            }
+        }
+    }
+    return 8790;   // frontend-facing loopback API (bridge uses 8791)
+}
 
 int parseIntervalMillis(int argc, char** argv) {
     for (int i = 1; i + 1 < argc; ++i) {
@@ -86,14 +100,30 @@ int main(int argc, char** argv) {
     const bool oneShot = wantsOneShot(argc, argv);
 
     // The in-process facade is the backend API surface the frontend talks to.
-    // The transport (local API, IPC) is a separate concern; the contract is
-    // identical either way.
+    // It is published to the ASTRA frontend through the loopback HTTP transport
+    // started below (see PKG-0007).
     aura::IncidentManager incidents;
     aura::ApprovalGate approvals(runtime.guardian());
     aura::TelegramGateway telegram;
     aura::BackendFacade facade(aura::FacadeDependencies{
         &runtime, &runtime.health(), &runtime.ledger(), &runtime.positions(),
         &incidents, &approvals, &telegram});
+
+    // The frontend-facing transport: a loopback-only HTTP/JSON server over the
+    // facade. It is started by the host so the ASTRA frontend connects to a
+    // running backend without the user starting anything manually. A bind
+    // failure is reported but never fatal: the runtime keeps running.
+    aura::LoopbackApiServerConfig apiConfig;
+    apiConfig.host = "127.0.0.1";
+    apiConfig.port = static_cast<std::uint16_t>(parseApiPort(argc, argv));
+    aura::LoopbackApiServer apiServer(&facade, apiConfig);
+    std::string apiError;
+    if (apiServer.start(apiError)) {
+        std::cout << "  frontend api: http://" << apiServer.bindAddress() << ":"
+                  << apiServer.port() << "/api/v1\n";
+    } else {
+        std::cerr << "  frontend api unavailable: " << apiError << "\n";
+    }
 
     // Development/ops surface: expose the current state summary once at start.
     const aura::ApiResponse systemState = facade.handle("GET", "/api/v1/system/state");
@@ -113,6 +143,7 @@ int main(int argc, char** argv) {
     } while (!g_stopRequested);
 
     std::cout << "AURA backend host shutting down\n";
+    apiServer.stop();
     runtime.stop();
     return started ? 0 : 1;
 }

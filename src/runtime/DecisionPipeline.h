@@ -33,9 +33,20 @@
 
 namespace aura {
 
+// Identity of the implemented decision-chain strategy. This is a truthful
+// identifier for the code that produced the decision, not a market-data value.
+inline constexpr const char* kStrategyVersion = "decision-chain-1";
+
 struct DecisionPipelineConfig {
     Timeframe operationalTimeframe = Timeframe::M15;
     std::size_t historyBars = 200;   // closed bars visible to the chain
+
+    // Deterministic identity of this configuration, so a decision can be tied
+    // to the exact config that produced it.
+    std::string versionString() const {
+        return std::string("op=") + toString(operationalTimeframe) + ",hist=" +
+               std::to_string(historyBars);
+    }
 };
 
 // One evaluated decision, whether or not a shadow command followed.
@@ -56,6 +67,31 @@ struct PipelineCycleReport {
     bool shadowIssued = false;
     std::vector<std::string> issues;
     std::vector<PipelineDecision> decisions;
+    // Outcome identities recorded during position advancement this cycle.
+    std::vector<EntityId> outcomesRecorded;
+};
+
+// Per-decision metadata that the frontend contract exposes but which is not
+// stored in the prediction ledger (structure/regime/eligibility and the risk
+// proposal are computed, not persisted). Captured for the most recent
+// evaluated decision so the API can report the actual decision inputs without
+// recomputing or fabricating them.
+struct DecisionContext {
+    bool available = false;
+    EntityId decisionId;
+    std::string symbol;
+    Timeframe timeframe = Timeframe::M15;
+    std::int64_t asOfBarOpenSec = 0;
+    SignalDirection direction = SignalDirection::NONE;
+    DataQualityState dataState = DataQualityState::UNKNOWN;
+    StructureBias structure = StructureBias::UNKNOWN;
+    RegimeType regime = RegimeType::UNKNOWN;
+    EligibilityDecision eligibility = EligibilityDecision::UNKNOWN;
+    RiskProposal risk;             // valid only when riskAvailable
+    bool riskAvailable = false;
+    std::string strategyVersion;
+    std::string configurationVersion;
+    Timestamp evaluatedAt;
 };
 
 class DecisionPipeline {
@@ -75,10 +111,19 @@ public:
     // outcomes that became known. Non-critical: a failure here is reported,
     // not fatal.
     void advancePositions(const Bar& closedBar, Timestamp now,
-                          std::vector<std::string>& issues);
+                          std::vector<std::string>& issues,
+                          std::vector<EntityId>* outcomesOut = nullptr);
 
     MacroContextEngine& macro() noexcept { return macro_; }
     const DecisionPipelineConfig& config() const noexcept { return config_; }
+
+    // Metadata for the most recently evaluated decision (available == false
+    // until a decision is produced). Read-only view for the API layer.
+    const DecisionContext& lastDecisionContext() const noexcept {
+        return lastContext_;
+    }
+
+    void setSymbol(std::string symbol) { symbol_ = std::move(symbol); }
 
 private:
     DecisionPipelineConfig config_;
@@ -100,6 +145,11 @@ private:
     PersistenceEngine* persistence_;
     PositionSimulator* positions_;
     OutcomeEngine* outcomes_;
+
+    DecisionContext lastContext_;
+    std::string symbol_;
+    std::string strategyVersion_ = kStrategyVersion;
+    std::string configurationVersion_ = config_.versionString();
 };
 
 }  // namespace aura

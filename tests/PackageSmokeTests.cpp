@@ -99,6 +99,25 @@ TEST_CASE(runtime_manifest_is_valid_and_declares_no_manual_cmd) {
     const JsonValue& bridge = root["components"]["python_bridge"];
     CHECK_EQ(bridge["requires_manual_cmd"].asBool(), false);
     CHECK_EQ(bridge["managed_by_application"].asBool(), true);
+
+    // The frontend transport is declared and app-managed (D1).
+    const JsonValue& api = root["components"]["frontend_api"];
+    CHECK_EQ(api["transport"].asString(), std::string("http_loopback"));
+    CHECK_EQ(api["host"].asString(), std::string("127.0.0.1"));
+    CHECK_EQ(api["loopback_only"].asBool(), true);
+    CHECK_EQ(api["requires_manual_cmd"].asBool(), false);
+
+    // The bridge status and command routes are part of the v1 surface (D9).
+    bool hasBridgeStatus = false;
+    bool hasCommand = false;
+    const JsonValue& routes = root["routes"];
+    for (std::size_t i = 0; i < routes.size(); ++i) {
+        const std::string route = routes.at(i).asString();
+        if (route == "GET /api/v1/bridge/status") hasBridgeStatus = true;
+        if (route == "POST /api/v1/command") hasCommand = true;
+    }
+    CHECK(hasBridgeStatus);
+    CHECK(hasCommand);
 }
 
 TEST_CASE(json_schema_never_emits_invalid_numbers) {

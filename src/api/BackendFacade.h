@@ -53,6 +53,7 @@ public:
     ApiResponse shadowOutcomes() const;
     ApiResponse researchStatus() const;
     ApiResponse governanceStatus() const;
+    ApiResponse bridgeStatus() const;
     ApiResponse recentAudit() const;
 
     // Route table: method + path dispatch. Returns 404 for unknown paths and

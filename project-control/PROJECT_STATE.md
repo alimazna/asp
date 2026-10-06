@@ -14,6 +14,7 @@ market_data_path: Python_MetaTrader5_Bridge
 bridge_distribution: BUNDLED_WITH_APP
 bridge_process: SEPARATE_CHILD_PROCESS
 bridge_transport: LOOPBACK_JSON_API
+frontend_transport: LOOPBACK_HTTP_JSON_127_0_0_1_8790
 startup_requirement: DOUBLE_CLICK_NO_CMD
 live_automation: NOT_INITIAL_OBJECTIVE
 profitability: UNPROVEN
@@ -36,14 +37,24 @@ against the control-plane documents was performed (see
 evidence limitations.
 
 ## Frontend integration map
-The final frontend integration map has been generated:
-`project-control/FRONTEND_INTEGRATION_MAP.md` (documentation only). It records
-the implemented v1 API surface (11 GET routes + 2 allow-listed commands), the
+The frontend integration map lives at
+`project-control/FRONTEND_INTEGRATION_MAP.md`. It records the implemented v1
+API surface (12 GET routes + the allow-listed command contract), the
 system/service/health states, market-data and timeframe-authority model, and
-nine documentation-vs-implementation discrepancies (D1–D9), each marked
-`BACKEND DATA NOT EXPOSED` where the backend does not emit the documented
-field. Notably, no concrete frontend↔backend transport is implemented yet
-(D1); this must be resolved before Alpha codes against a transport.
+nine documentation-vs-implementation discrepancies (D1–D9). All nine
+discrepancies were subsequently **closed in the backend**:
+
+- D1: the facade is now published over a loopback-only HTTP/JSON transport,
+  `aura::LoopbackApiServer` (`src/api/LoopbackApiServer.h/.cpp`), started and
+  stopped by the host on `127.0.0.1:8790` (non-loopback binds are refused).
+- D2–D9: freshness/capability-impact (D3), decision states + versions (D4),
+  per-decision risk proposal (D5), append-only audit stream (D6),
+  research/failure/governance history (D7), shadow exit detail (D8), and
+  bridge/broker identity (D9) are all emitted, with explicit `null`/`UNKNOWN`
+  where a value is genuinely not yet known.
+
+The D-gap contracts are covered by `tests/FrontendContractD1D9Tests.cpp`
+(TST-0021), including a real loopback round-trip against the running server.
 
 ## Scope boundary
 - Backend only. No ASTRA frontend/UI work has begun; Alpha remains deferred.

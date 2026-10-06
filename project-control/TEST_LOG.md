@@ -15,10 +15,12 @@
 | 2026-10-06 | TST-0009 backend API contract | PASS | `build/BackendApiContractTests` | Versioned v1 envelope, unknown-not-safe, command allow-list |
 | 2026-10-06 | TST-0010 package smoke | PASS | `build/PackageSmokeTests` | RuntimeManifest parses, packaging coherent, error envelope structured |
 | 2026-10-06 | TST-0011 live decision pipeline integration | PASS | `build/DecisionPipelineIntegrationTests` | closed bar -> decision -> shadow -> position -> persistence; duplicate bar is a no-op; short history yields no decision |
-| 2026-10-06 | Full CTest run | PASS | `ctest --test-dir build` | 11/11 tests, 0 failures |
+| 2026-10-06 | TST-0021 frontend contract D1–D9 | PASS | `build/FrontendContractD1D9Tests` | LoopbackApiServer serves the facade over 127.0.0.1 (GET + policy-checked POST command, 405 on wrong method, non-loopback bind refused); timeframes canonical-ordered with freshness + capability impact; decision states/versions; risk proposal gating; append-only audit stream; research/failure/governance history; shadow exit detail; bridge identity explicit when unobserved |
+| 2026-10-06 | Full CTest run | PASS | `ctest --test-dir build` | 12/12 tests, 0 failures |
 | 2026-10-06 | Backend host live start | PASS (degraded data) | `./build/aura_backend_host --once --dev-system-python` | startup READY, bridge ONLINE, facade serves system/state; 9/9 timeframes report explicit bridge errors because MetaTrader5 is absent |
 | 2026-10-06 | Backend review gate | PASS (with documented limitations) | `project-control/BACKEND_REVIEW.md` | 222/222 outputs present |
 | 2026-10-06 | Frontend integration map doc validation | PASS | `project-control/FRONTEND_INTEGRATION_MAP.md` | Every route, field, and state verified against `src/api/BackendFacade.cpp`, `BackendApiSchema.cpp`, `SystemMode.h`, `ServiceState.h`, `DataQualityState.h`, `HealthMonitor.cpp`, `Mt5BridgeContract.h`; wire examples captured from a live facade probe. Documentation validation only â€” not a substitute for runtime tests. |
+| 2026-10-06 | Live frontend transport probe | PASS (degraded data) | `aura_backend_host --api-port 18791` + `curl http://127.0.0.1:18791/api/v1/*` | Host served `system/state`, `bridge/status`, `timeframes`, `audit/recent` over loopback HTTP; UNKNOWN quality/freshness and unobserved broker reported explicitly (no fabrication). MetaTrader5 absent. |
 
 ## Defects found and fixed during this run
 - `src/api/BackendFacade.cpp`: booleans/numbers were emitted as JSON *strings*;
@@ -47,7 +49,7 @@
 
 ## Required evidence categories before frontend handoff
 - static analysis: PASS (build with `-Wall -Wextra`, zero warnings)
-- unit tests: PASS (11/11)
+- unit tests: PASS (12/12)
 - integration tests: PASS (real loopback bridge boot + contract + live decision chain)
 - Windows build: NOT RUN (Linux toolchain used; Windows path compiled but not executed)
 - bridge startup/handshake: PASS

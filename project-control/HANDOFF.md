@@ -33,8 +33,12 @@ Frontend handoff is allowed only after:
 
 > The authoritative connection map for Alpha is
 > `project-control/FRONTEND_INTEGRATION_MAP.md`. It records the implemented
-> API surface, states, and the documentation-vs-implementation discrepancies
-> (notably: no concrete frontend↔backend transport is implemented yet).
+> API surface, states, and the documentation-vs-implementation discrepancies.
+> All nine discrepancies (D1–D9) are **resolved in the backend**: the facade
+> is published over a loopback-only HTTP/JSON transport on `127.0.0.1:8790`,
+> and the previously unexposed freshness, decision, risk-proposal, audit,
+> research, shadow-exit, and bridge-identity data are now emitted (with
+> explicit `null`/`UNKNOWN` where a value is genuinely unknown).
 
 ## 1. Backend architecture
 - C++17 runtime core built as one static library `aura_core`; the only executable
@@ -69,10 +73,12 @@ Frontend handoff is allowed only after:
 
 ## 4. APIs / contracts (frontend-facing, v1)
 Facade: `src/api/BackendFacade.{h,cpp}`; schema helpers:
-`src/api/BackendApiSchema.{h,cpp}`. Every response is wrapped as
-`{"api":"v1","schema":"1.0","data":{...}}`; errors are
+`src/api/BackendApiSchema.{h,cpp}`. Transport: `aura::LoopbackApiServer`
+(`src/api/LoopbackApiServer.{h,cpp}`), loopback-only HTTP/JSON on
+`http://127.0.0.1:8790/api/v1/*`, started/stopped by the host. Every response
+is wrapped as `{"api":"v1","schema":"1.0","data":{...}}`; errors are
 `{"error":true,"code","message"}` with a matching HTTP status.
-Routes (`handle(method, path)`, GET only for reads):
+Routes (GET only for reads):
 - `GET /api/v1/system/state`
 - `GET /api/v1/health`
 - `GET /api/v1/timeframes`
@@ -83,10 +89,11 @@ Routes (`handle(method, path)`, GET only for reads):
 - `GET /api/v1/shadow/outcomes`
 - `GET /api/v1/research/status`
 - `GET /api/v1/governance/status`
+- `GET /api/v1/bridge/status`
 - `GET /api/v1/audit/recent`
 Commands (versioned, policy-checked, allow-list): `notify`,
-`request_approval` via `BackendFacade::command`. Live-execution commands are
-rejected with 403.
+`request_approval` via `POST /api/v1/command` (or `BackendFacade::command`).
+Live-execution commands are rejected with 403.
 
 ## 5. Data schemas
 - `PredictionRecord`, `Outcome`, `SimulatedPosition`, `ShadowCommand`,
@@ -98,12 +105,18 @@ rejected with 403.
 - Modes: `STARTING, SHADOW, DEGRADED, EMERGENCY, HALTED`.
 
 ## 6. Available states / health information
-- `system/state`: mode, ready, bridge state, api/schema versions.
+- `system/state`: mode, ready, bridge state, startup stage, api/schema versions.
 - `health`: aggregate state, decision-grade flag, degraded reasons,
   `unknown_is_not_safe: true`.
-- `timeframes`: per-stream quality + decision-grade flag.
+- `timeframes`: per-stream quality, decision-grade flag, `freshness`
+  (`FRESH|STALE|UNKNOWN`), `last_successful_update`, and `capability_impact[]`,
+  in canonical M1..MN1 order.
 - `timeframes/{TF}/snapshot`: explicit `observed:false` + `quality:"UNKNOWN"`
-  when a stream has not been seen.
+  when a stream has not been seen; `freshness`/`capability_impact` always present.
+- `bridge/status`: bridge process/startup state, handshake/MT5 readiness,
+  transport and loopback flags, and broker/server/symbol once observed.
+- `audit/recent`: append-only hash-chained `audit_records` plus
+  `active_incidents`.
 
 ## 7. Error model
 - 400 unknown_timeframe / actor_required; 403 command_not_permitted;
@@ -154,7 +167,7 @@ ctest --test-dir build --output-on-failure
 - `docs/architecture/MT5_PYTHON_BRIDGE_V1.md`
 - `docs/brand/ASTRA_VISUAL_IDENTITY.md`
 - `src/api/BackendFacade.h`, `src/api/BackendApiSchema.h`,
-  `src/api/RuntimeManifest.json`
+  `src/api/LoopbackApiServer.h`, `src/api/RuntimeManifest.json`
 - `src/foundation/DataQualityState.h`, `src/foundation/ServiceState.h`,
   `src/foundation/SystemMode.h`
 - `project-control/BACKEND_REVIEW.md`, `project-control/TEST_LOG.md`

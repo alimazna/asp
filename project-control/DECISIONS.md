@@ -75,3 +75,25 @@ impossible by construction.
 Position and outcome doubles persisted through `PersistenceEngine` are encoded
 with 17 significant digits (`std::setprecision(17)`) so a write/read round-trip
 is bit-faithful and reconciliation cannot report a spurious FIELD_MISMATCH.
+
+## DEC-019 — Frontend transport is loopback-only HTTP/JSON
+The ASTRA frontend reaches the backend through a loopback-only HTTP/JSON
+server, `aura::LoopbackApiServer` (`src/api/LoopbackApiServer.{h,cpp}`),
+binding `127.0.0.1` on port `8790` (the Python bridge uses `8791`). The server
+exposes exactly the `BackendFacade` route table, owns no state, and reaches no
+runtime internals. A non-loopback bind is refused. This is the approved "local
+application API / approved transport" of `BACKEND_FRONTEND_API_V1.md` and the
+V4 local-boundary model. The host starts and stops the server; the operator
+never launches it manually. Read routes are GET-only; commands use
+`POST /api/v1/command` with the same allow-listed, actor-attributed,
+policy-checked contract as the in-process facade.
+
+## DEC-020 — Frontend-contract D-gaps closed in the backend
+The D1–D9 discrepancies recorded by the frontend integration review are closed
+in the backend: freshness/last-successful-update/capability-impact (D3),
+decision symbol/time/states/versions (D4), per-decision risk proposal (D5),
+append-only audit stream (D6), research/failure/governance history (D7), shadow
+exit detail (D8), and bridge/broker identity (D9) are all emitted. Values that
+are genuinely not yet known are emitted as explicit `null`/`UNKNOWN` and are
+never fabricated. This preserves the "UNKNOWN is not SAFE / STALE is not FRESH"
+invariant on the wire.
