@@ -1,0 +1,60 @@
+{
+  "api": "v1",
+  "schema": "1.0",
+  "product": "ASTRA",
+  "project": "AURA",
+  "asset": "XAUUSD",
+  "mode": "SHADOW",
+  "live_trading_authorised": false,
+  "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"],
+  "timeframe_roles": {
+    "M15": "primary_operational",
+    "H4": "primary_structural",
+    "M5": "execution_context",
+    "M1": "execution_context",
+    "TICK": "microstructure_context"
+  },
+  "components": {
+    "backend_host": {
+      "entrypoint": "aura_backend_host",
+      "platform": "windows",
+      "owns_bridge_lifecycle": true
+    },
+    "python_bridge": {
+      "package": "bridge/mt5_python",
+      "entrypoint": "bridge_service.py",
+      "transport": "http_loopback",
+      "host": "127.0.0.1",
+      "port": 8791,
+      "managed_by_application": true,
+      "requires_manual_cmd": false
+    }
+  },
+  "startup": {
+    "resolves_paths_deterministically": true,
+    "depends_on_working_directory": false,
+    "bridge_startup_managed": true,
+    "bridge_failure_visible": true
+  },
+  "routes": [
+    "GET /api/v1/system/state",
+    "GET /api/v1/health",
+    "GET /api/v1/timeframes",
+    "GET /api/v1/timeframes/{tf}/snapshot",
+    "GET /api/v1/signals/latest",
+    "GET /api/v1/risk/latest",
+    "GET /api/v1/shadow/positions",
+    "GET /api/v1/shadow/outcomes",
+    "GET /api/v1/research/status",
+    "GET /api/v1/governance/status",
+    "GET /api/v1/audit/recent"
+  ],
+  "invariants": [
+    "never fabricate data",
+    "never infer a missing value as zero or safe",
+    "never call the Python bridge directly from the frontend",
+    "never write persistence records directly from the frontend",
+    "never bypass backend policy",
+    "never place live orders"
+  ]
+}
