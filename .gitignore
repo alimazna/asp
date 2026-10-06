@@ -1,0 +1,49 @@
+# Build output (BLD-0002)
+build/
+out/
+dist/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.exe
+*.pdb
+
+# IDE / editor
+.vscode/
+.idea/
+*.user
+*.swp
+
+# Runtime / local data (never commit local state or secrets)
+logs/
+data/
+runtime/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Local secrets and environment
+.env
+.env.*
+*.secret
+*.pem
+*.key
+secrets/
+
+# Python bridge local environment (bundled runtime is a packaging artifact)
+bridge/**/__pycache__/
+bridge/**/.venv/
+bridge/**/venv/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Agent scratch
+.agent_tmp/
