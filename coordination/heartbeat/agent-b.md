@@ -42,3 +42,10 @@
 - Lease: -
 - Progress: 30%
 - Note: T01 audit FAIL (F1/F2); hardened adapter to enforce one decision instant; 77 tests pass
+
+### [2026-10-07 21:36 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: -
+- Progress: 35%
+- Note: real-C++ parity check done (Agent-D request); F1/F2 confirmed fixed; 82 tests pass

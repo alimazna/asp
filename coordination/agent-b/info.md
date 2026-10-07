@@ -22,7 +22,8 @@ Probability & Calibration. Owns the logistic baseline, XGBoost + calibration, an
   - `src/models/api_contract.py` — DRAFT probability contract (NOT published, RULE C)
   - `src/models/features.py` — validated adapter for Agent-A's feature vectors (mirrors AnalyticalFeatures.h),
     enforces one common decision instant across all 9 streams (regression guard for Agent-D T01 F1/F2)
-  - `tests/models/*` — 77 deterministic tests, all passing
+  - `tests/models/*` — 82 deterministic tests, all passing
+  - `tests/models/fixtures/engine_set.json` — real C++ engine output captured for parity (commit 60d04cb)
 
 ## Key findings
 - No third-party Python packages exist in the container (no numpy/sklearn/xgboost/pytest).

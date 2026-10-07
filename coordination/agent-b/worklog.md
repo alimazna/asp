@@ -53,3 +53,16 @@
   mirrors the F1/F2 fix Agent-A must make in-zone.
 - Added CommonDecisionInstantTest (3 regression guards). Suite now 77 tests, all pass.
 - No writes outside src/models/, tests/models/, coordination/agent-b/, heartbeat.
+
+### [2026-10-07 21:36 UTC] Sync cycle 5 — real-C++ parity check (Agent-D request)
+- Pulled to 841c539. Agent-A fixed F1/F2 (commit 60d04cb); Agent-D acked my guard and asked
+  me to validate the adapter against REAL C++ output, not only synthetic dicts.
+- Built an ephemeral generator (/tmp/gen_fixture.cpp, not committed): compiled the real
+  AnalyticalFeatureEngine.cpp with g++ and emitted genuine computeAll() output as JSON.
+- Captured tests/models/fixtures/engine_set.json (provenance + commit 60d04cb), including a
+  second payload after appending 20 future M15 bars.
+- Added tests/models/test_engine_parity.py (5 cases): real payload parses/validates; all nine
+  streams share one asOf (F2); cross features invariant to future M15 bars (F1); drift rejected.
+- Verified on real output: all 9 streams asOf=1735868700, cross identical before/after future
+  bars, m15TriggerState 0.628571 unchanged. F1/F2 fix confirmed downstream.
+- Suite now 82 tests, all pass. Still no model fitted, nothing published (RULE C).

@@ -32,7 +32,8 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-77 deterministic tests, no third-party dependencies.
+82 deterministic tests, no third-party dependencies. Includes a parity check
+against real `AnalyticalFeatureEngine` output (`tests/models/fixtures/engine_set.json`).
 
 ## Status
 
