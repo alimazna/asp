@@ -1,0 +1,1 @@
+{"api": "v1", "schema": "1.0", "data": {"bridge_process_state": "DOWN", "startup_stage": "WAITING_FOR_MT5", "handshake_ok": false, "mt5_ready": false, "transport": "http_loopback", "host": "127.0.0.1", "loopback_only": true}}

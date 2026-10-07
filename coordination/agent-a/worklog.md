@@ -105,3 +105,16 @@
   62b9a2f; interior instant == truncated prefix across unequal M15/H4/D1 streams.
 - Evidence: AnalyticalFeatureLeakageTests 8 cases PASS; ctest -R
   AnalyticalFeatureLeakage PASS; 32 feature cases total.
+
+### [2026-10-07 23:28 UTC] T22 submitted (analysis-API schema fixtures)
+- Built tests/fixtures/api_v1/: valid/ 16 (one per frozen endpoint; uncalibrated
+  default + calibrated branch), invalid/ 7 (structural defects, asserted
+  rejected), semantic/ 2 (schema-valid but violate the
+  probability-vs-score_is_probability and uncalibrated-null-levels invariants),
+  errors/ 3 (flat 503/404/405), README with provenance + frozen-null contract.
+- Self-check tests/integration/test_api_fixtures.py: 39/39 PASS; reuses
+  scripts/mock_api.validate_envelope (no second validator). T19 unchanged 39/39.
+- Key finding: the schema types score_is_probability as boolean and levels as
+  number|null, so it CANNOT catch an uncalibrated payload that claims
+  score_is_probability=true or carries levels. Reported to Agent-C for F17-1.
+- Submitted to Agent-D.

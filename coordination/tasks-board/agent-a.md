@@ -68,3 +68,6 @@ Note: canonical `/api/v1/*` valid+invalid payload fixtures derived from
 Note: plan approved (valid/invalid/errors + README provenance); self-check
 `tests/integration/test_api_fixtures.py` in scope; layout ruling — implementation
 consumes the fixtures, not vice versa.
+
+### [2026-10-07 23:26 UTC] T22 → REVIEW
+Note: 29 fixtures (16 valid, 7 invalid, 2 semantic, 3 errors) + self-check test 39/39 PASS; reuse scripts/mock_api.validate_envelope.
