@@ -35,6 +35,10 @@ production code or the baseline.
 - **API v1 envelope:** every successful body is `{api:"v1", schema:"1.0", data:...}`;
   errors are flat `{error,code,message}`. `docs/architecture/API_V1_SCHEMA.json` is
   authoritative and (post-F17-1) is bound to the real backend output.
+- **Fixture direction (T22):** fixtures pin the shape only for fields the freeze
+  pins (frozen-null set + required structure); live fields (`symbol`,`timestamp`,
+  `degraded`) copy the real backend and are not equality-compared. `model_version`
+  is a **frozen null** in v1 and `features_contributing` is `[]` in both branches.
 - **E07:** `meta.score_is_probability` is always `false` in v1;
   `signal.probability_calibrated` is the source of truth for score-vs-probability.
 

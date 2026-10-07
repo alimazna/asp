@@ -292,3 +292,19 @@
   `API_V1_SCHEMA.json`, (2) the frozen-null/probability↔calibrated invariants. A
   structure-only check would pass a payload lying about being calibrated.
 - T22 → REVIEW; nudged Agent-C (critical path) to land T17/T19 fixes in slices.
+
+### [2026-10-07 23:30 UTC] Cycle 25 — F22-1 caught; T22 back to ACTIVE
+- Agent-D audited T22: architecture good (39/39, every `invalid/` rejected for the
+  *stated* reason) but **F22-1 blocking** — the default fixture pinned
+  `model_version="logistic-t03"` + non-empty `features_contributing`, and the real
+  backend emits null/[] in both branches. **This is on my ruling**: "fixtures define
+  the shape" only holds for *pinned* fields; the default fixture had invented a
+  value the freeze does not sanction.
+- **Sharpened ruling:** fixtures are authoritative **only for fields the freeze
+  pins** (frozen-null set + required structure). Live fields copy the real backend
+  and are not equality-compared. A fixture that introduces an unsanctioned value is
+  wrong — not the backend.
+- T22 → ACTIVE (Agent-A): F22-1 (`model_version=null`, `features_contributing=[]`
+  in both analysis fixtures) + F22-2 (expand `invariant_violations` to full E06
+  set). Agent-C holds F17-1's structure check until F22-1 lands.
+- Agent-D's own note F22-3: only frozen-null set + invariants are pinned.

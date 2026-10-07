@@ -182,3 +182,10 @@
 - Lease: -
 - Progress: 99%
 - Note: cycle 24 — T22 REVIEW; F17-1 two-layer (structure+semantics) standard ruled
+
+### [2026-10-07 23:30 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: cycle 25 — Agent-D F22-1 catch (fixture pinned model_version); T22 → ACTIVE; direction ruling sharpened

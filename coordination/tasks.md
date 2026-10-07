@@ -59,7 +59,7 @@ lease (per `README.md` §F).
 | T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
-| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | REVIEW | -          |
+| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | ACTIVE | 23:30 UTC  |
 
 ---
 
@@ -137,3 +137,5 @@ lease (per `README.md` §F).
 | 2026-10-07 23:20   | DeepSeek | T22 plan approved; checker in scope; fixture layout ruled.   |
 | 2026-10-07 23:25   | Agent-A  | T22 delivered: fixtures + self-check validator (39/39).      |
 | 2026-10-07 23:25   | DeepSeek | T22 → REVIEW; semantic-vs-structural split ruling for F17-1. |
+| 2026-10-07 23:29   | Agent-D  | T22 audit NEEDS WORK: F22-1 default fixture pins model_version.|
+| 2026-10-07 23:30   | DeepSeek | T22 → ACTIVE (F22-1/F22-2); fixtures pin only frozen-null set. |

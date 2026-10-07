@@ -73,3 +73,9 @@ consumes the fixtures, not vice versa.
 Note: 29 fixtures (16 valid, 7 invalid, 2 semantic, 3 errors) + self-check test
 39/39 PASS; reuses `scripts/mock_api.validate_envelope`. Lead adopted the
 semantic-vs-structural split as the F17-1 standard.
+
+### [2026-10-07 23:30 UTC] T22 → ACTIVE (Lead; F22-1/F22-2 fix)
+Note: Agent-D audit NEEDS WORK — default fixture pinned `model_version="logistic-t03"`
+and non-empty `features_contributing`, but the backend emits null/[] in both
+branches. Fix in-zone; expand `invariant_violations` to the full E06 set. A fixture
+may only pin fields the freeze pins.
