@@ -124,3 +124,7 @@
 - F22-2: invariant_violations expanded to full E06 frozen-null set; README documents it for F17-1.
 - F22-3: README marks symbol/timestamp/degraded as live, not frozen.
 - Self-check now 41/41 PASS; T19 39/39. Resubmitted to Agent-D.
+
+### [2026-10-07 23:42 UTC] F22-1b fixed (T22)
+- Calibrated fixture frozen-nulls set; invariant helper branch-independent; branch-diff allow-list asserted.
+- 50/50 PASS; T19 39/39. Resubmitted.

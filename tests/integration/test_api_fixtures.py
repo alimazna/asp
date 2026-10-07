@@ -106,25 +106,35 @@ def main() -> int:
             check(f"semantic/{name} is structurally schema-valid", False, str(exc))
 
     def invariant_violations(data):
-        """Full frozen-null invariant set (E06): the schema cannot express
-        these conditional requirements, so they live here. Agent-C's F17-1
-        check should consume this helper rather than re-implement it."""
+        """Full frozen-null invariant set (E06). The schema cannot express these
+        conditional requirements, so they live here. Agent-C's F17-1 check should
+        consume this helper rather than re-implement it.
+
+        Two classes:
+          * unconditional frozen nulls — null this release regardless of
+            calibration (horizon, confidence_lo/hi, model_version, every
+            levels.*, meta.data_freshness_sec, context.mtf_agreement);
+          * conditional — score_is_probability is always false, and a non-null
+            probability requires probability_calibrated:true.
+        """
         out = []
         sig, meta, lv, ctx = (data["signal"], data["meta"], data["levels"],
                               data["context"])
+        for key in ("horizon", "confidence_lo", "confidence_hi", "model_version"):
+            if sig.get(key) is not None:
+                out.append(f"signal.{key} is non-null (frozen null this release)")
+        for key, val in lv.items():
+            if val is not None:
+                out.append(f"levels.{key} is non-null (frozen null this release)")
+        if meta.get("data_freshness_sec") is not None:
+            out.append("meta.data_freshness_sec is non-null (frozen null this release)")
+        if ctx.get("mtf_agreement") is not None:
+            out.append("context.mtf_agreement is non-null (frozen null this release)")
+        if meta.get("score_is_probability") is not False:
+            out.append("score_is_probability is not false (E07)")
         if sig["probability"] is None:
-            if meta["score_is_probability"]:
-                out.append("score_is_probability=true while probability is null (E07)")
-            for key in ("horizon", "confidence_lo", "confidence_hi", "model_version"):
-                if sig.get(key) is not None:
-                    out.append(f"signal.{key} non-null while uncalibrated")
-            for key, val in lv.items():
-                if val is not None:
-                    out.append(f"levels.{key} non-null while uncalibrated")
-            if meta.get("data_freshness_sec") is not None:
-                out.append("meta.data_freshness_sec non-null while uncalibrated")
-            if ctx.get("mtf_agreement") is not None:
-                out.append("context.mtf_agreement non-null while uncalibrated")
+            if sig["probability_calibrated"] is not False:
+                out.append("probability null but probability_calibrated is not false")
         else:
             if sig["probability_calibrated"] is not True:
                 out.append("non-null probability without probability_calibrated:true")
@@ -172,6 +182,48 @@ def main() -> int:
           cal["signal"]["probability_calibrated"] is True)
     check("calibrated: score_is_probability still false (E07)",
           cal["meta"]["score_is_probability"] is False)
+    # F22-1b: the calibrated branch must trip NO invariant either — the frozen
+    # nulls hold regardless of calibration.
+    check("calibrated: trips no invariant (F22-1b)",
+          invariant_violations(cal) == [])
+    # and the frozen-null fields must be identical between the two branches
+    frozen_paths = [
+        ("signal", "horizon"), ("signal", "confidence_lo"),
+        ("signal", "confidence_hi"), ("signal", "model_version"),
+        ("meta", "data_freshness_sec"), ("context", "mtf_agreement"),
+    ]
+    for a, b in frozen_paths:
+        check(f"frozen-null {a}.{b} identical across branches",
+              uncal[a][b] == cal[a][b] is None)
+    check("levels identical (all null) across branches",
+          uncal["levels"] == cal["levels"])
+
+    # The two fixtures are two snapshots of the same shape. Everything outside
+    # the frozen-null set and the calibration-sanctioned fields must match, so a
+    # drift in either file is caught. Allowed differences, each justified:
+    #   - calibration itself: probability, probability_calibrated, coverage_tier
+    #   - live snapshot state: timestamp, context.{regime,h4_bias,m15_trigger,
+    #     volatility_state}, signal.{direction,score}, meta.{degraded,disclaimer}
+    allowed = {
+        ("signal", "probability"), ("signal", "probability_calibrated"),
+        ("meta", "coverage_tier"),
+        ("timestamp",), ("signal", "direction"), ("signal", "score"),
+        ("meta", "degraded"), ("meta", "disclaimer"),
+    }
+    allowed_ctx = {"regime", "h4_bias", "m15_trigger", "volatility_state"}
+
+    def leaf_paths(obj, prefix=()):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                yield from leaf_paths(v, prefix + (k,))
+        else:
+            yield prefix, obj
+
+    changed = {p for p, v in leaf_paths(uncal)
+               if dict(leaf_paths(cal)).get(p) != v}
+    unexpected = changed - allowed - {("context", k) for k in allowed_ctx}
+    check("branch diff is only calibration + documented live fields",
+          not unexpected, f"unexpected differing fields: {sorted(unexpected)}")
 
     failed = _results.count(False)
     print(f"\n{len(_results)} check(s), {failed} failed")

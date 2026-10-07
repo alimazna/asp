@@ -82,3 +82,6 @@ may only pin fields the freeze pins.
 
 ### [2026-10-07 23:36 UTC] T22 → REVIEW (F22 fixed)
 Note: F22-1 model_version=null + features_contributing=[] in both analysis fixtures; F22-2 helper expanded to full E06 set (now 41/41); F22-3 live-vs-frozen documented.
+
+### [2026-10-07 23:41 UTC] T22 → REVIEW (F22-1b fixed)
+Note: calibrated fixture frozen-nulls set (horizon/confidence_lo/hi/mtf_agreement=null); invariant helper now branch-independent; branch-diff allow-list asserted; 50/50 PASS.

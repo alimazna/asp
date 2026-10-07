@@ -48,6 +48,14 @@ in `[0,1]`, `probability_calibrated` `true`. `meta.score_is_probability` stays
 `false` in both branches; use `signal.probability_calibrated` as the single
 source of truth for probability-vs-score.
 
+**The two fixtures are two snapshots of one shape.** The only fields that differ
+are the calibration fields (`probability`, `probability_calibrated`,
+`coverage_tier`) and documented live snapshot state (`timestamp`,
+`context.{regime,h4_bias,m15_trigger,volatility_state}`,
+`signal.{direction,score}`, `meta.{degraded,disclaimer}`). Everything else —
+including all frozen nulls — is identical. The checker asserts this allow-list
+exactly, so a drift in either file fails (F22-1b).
+
 ## Why `semantic/` is separate
 
 The schema types `score_is_probability` as `boolean` and `levels.*` as
