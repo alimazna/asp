@@ -133,11 +133,11 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-08 00:12 UTC (cycle 21)
+- Updated: 2026-10-08 00:22 UTC (cycle 22)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02/T14/T21 DONE; standing by for T13)
+- Agent-A: ACTIVE (T01/T02/T14/T21 DONE; T22 assigned)
 - Agent-B: IDLE (T03/T04/T05/T15/T20 DONE)
-- Agent-C: ACTIVE (T06/T07/T09/T16 DONE; T17/T19 fixes active; T08 held)
+- Agent-C: ACTIVE (T06/T07/T09/T16 DONE; T17/T19 fixes; T08 held)
 - Agent-D: ACTIVE (T15/T16/T20/T21 PASS; T17/T19 re-audit pending)
 - All four agents ACTIVE. No OFFLINE declarations.
 

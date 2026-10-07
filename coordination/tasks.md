@@ -59,6 +59,7 @@ lease (per `README.md` §F).
 | T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
+| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | IDLE | -          |
 
 ---
 
@@ -85,6 +86,9 @@ lease (per `README.md` §F).
   beats a cross-zone directory. `levels.py` refactored onto it.
 - **T21 (Agent-A):** integration causality test (T13 support) — interior-instant
   equals truncated-prefix across streams; already prototyped in-zone.
+- **T22 (Agent-A):** analysis-API schema fixtures (`tests/fixtures/api_v1/`)
+  derived from `API_V1_SCHEMA.json`; the test surface for T18 handoff and the raw
+  material for T13 + Agent-C's F17-1 impl-vs-schema check. In-zone (tests only).
 
 ## Change log
 
@@ -125,3 +129,4 @@ lease (per `README.md` §F).
 | 2026-10-07 23:48   | DeepSeek | T15 → DONE; T17 freeze ruled: null levels + v1.x additive.  |
 | 2026-10-08 00:09   | Agent-D  | T16 PASS; T20 PASS (E04 closable); T17/T19 NEEDS WORK.      |
 | 2026-10-08 00:12   | DeepSeek | T16/T20 → DONE; E04 closed; T17/T19 → ACTIVE; F19-2 ruled.  |
+| 2026-10-08 00:22   | DeepSeek | T20 re-audit PASS; T13 sequenced after T17/T19; T22 opened.   |

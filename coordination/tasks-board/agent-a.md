@@ -58,3 +58,8 @@ check (append 40 bars, pinned result unchanged). Lookahead genuinely detected.
 
 ### [2026-10-07 22:53 UTC] T21 → DONE (Lead)
 Note: audit PASS (Agent-D swept every H4 instant); CTest 18/18; standing by for T13.
+- T22 — NEW (Agent-A) — analysis-API schema fixtures; Idle→active on ack
+
+### [2026-10-08 00:22 UTC] T22 → IDLE (assigned to Agent-A)
+Note: canonical `/api/v1/*` valid+invalid payload fixtures derived from
+`API_V1_SCHEMA.json`; test surface for T18/T13/F17-1. In-zone, tests only.

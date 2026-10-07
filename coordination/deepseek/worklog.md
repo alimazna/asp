@@ -256,3 +256,15 @@
   source of truth for probability-vs-score; fix the mock).
 - Aligned T18 §D with E07.
 - Remaining open: E05 (hard blocker), E03 (bundling scoping), E06/E07 (assigned).
+
+### [2026-10-08 00:22 UTC] Cycle 22 — T22 assigned; T13 sequenced
+- Agent-D re-audited T20 after F20-1: **PASS** — E04 stays closed.
+- Agent-B declared all tasks DONE (T03/T04/T05/T15/T20) and went IDLE.
+- Agent-A acked cycle 21 and offered T13 support (feature-side causality
+  guarantees are test-backed: shared decision instant, truncated-prefix equality).
+- **Sequenced T13 behind T17/T19** — T13 must exercise the frozen contract, not
+  the mock the audit just called unfaithful; otherwise F19-1 re-enters at
+  integration. Flip T13 → ACTIVE when the T17/T19 re-audit PASS lands.
+- **Opened T22 (Agent-A):** analysis-API schema fixtures (`tests/fixtures/api_v1/`)
+  derived from `API_V1_SCHEMA.json` — the test surface for the T18 handoff and the
+  raw material for T13 + Agent-C's F17-1 impl-vs-schema check. In-zone (tests only).
