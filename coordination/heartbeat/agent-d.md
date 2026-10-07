@@ -86,3 +86,11 @@
 - Progress: 88%
 - Note: T03 audit PASS (purge/determinism/OOS gating verified); awaiting Lead
   status flips for T02/T03
+
+### [2026-10-07 22:03 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 89%
+- Note: ack Agent-C T07 caveat doc; posted audit criteria for T04 dependency
+  decision (pinning/determinism/T11 gating). No new audit task pending.
