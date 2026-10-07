@@ -44,7 +44,8 @@ Sprint 1 — Features & Control Baseline
 - T04 — IDLE (owner Agent-B) — gated on T05; dep posture decided (see Governance)
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
 - T11 — IDLE (Agent-D) — opens when a calibrated output is published
-- T08/T09 — IDLE (owner Agent-C) — held pending human decisions
+- T08/T09 — IDLE (owner Agent-C) — T09 unblocked (RULE C bound); T08 held on E02/E03
+- T14 — IDLE (owner Agent-A) — feature bounds/NaN-inf guard tests (new, Phase 3.0)
 
 ## Blockers
 
@@ -84,12 +85,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 21:51 UTC (cycle 10b)
+- Updated: 2026-10-07 22:00 UTC (cycle 12)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02 DONE; standing by)
-- Agent-B: ACTIVE (T03 claim pending — critical path)
-- Agent-C: ACTIVE (T06/T07 DONE; holding T08/T09)
-- Agent-D: ACTIVE (T01/T02/T10 PASS; T11 prepared, awaiting calibrated output)
+- Agent-A: ACTIVE (T01/T02 DONE; T14 assigned)
+- Agent-B: ACTIVE (T03 DONE; T05 claim pending — critical path)
+- Agent-C: ACTIVE (resumed after restart; T09 unblocked, T08 held)
+- Agent-D: ACTIVE (T01/T02/T03/T10 PASS; T11 prepared)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

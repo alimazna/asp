@@ -275,3 +275,79 @@ removes that class of conflict entirely.
 - The **Lead reads all four board files every cycle** and syncs `tasks.md`
   from them, then commits. Owners claim with `ACTIVE` + a lease; they mark
   `REVIEW` when submitted; the **Lead** sets `DONE` after audit.
+
+---
+
+## O. FULL AUTONOMY (Phase 3.0 — binding)
+
+The Lead holds full authority to run the team and drive the backend to
+completion. The human intervenes only on escalation.
+
+**The Lead decides alone:** task assignment/split/merge/cancel; agent
+management (declare OFFLINE/STALE/DEAD, release leases, reassign); technical
+choices (model, calibration method, test/CI/doc strategy); scope changes;
+rule interpretation (documented in `state.md`); communication protocol;
+quality bars (set, reject, demand redo).
+
+**The only limits (absolute):** L1 baseline READ-ONLY; L2 production PROTECTED;
+L3 no live trading; L4 no lookahead; L5 no fabricated results; L6 never delete
+history; L7 no reward-structure artifact (RULE A); L8 realistic costs (RULE B);
+L9 calibration before probability, ECE < 0.05 (RULE C); L10 coverage honesty
+(RULE D).
+
+**Escalate only** (append to `coordination/ESCALATIONS.md`, then continue the
+loop): E1 a hard rule about to be violated; E2 calibration unreachable
+(ECE > 0.10 after multiple honest attempts); E3 all agents OFFLINE; E4
+unresolvable architectural conflict; E5 budget/session limits.
+
+**Success** = a defensible probability + honest verdict + zero broken rules —
+not a headline win rate. **Honest failure** = calibration cannot reach
+ECE < 0.10 after three honest attempts, or a hard rule must break: write a
+clear report, recommend pivot/stop, preserve all evidence.
+
+---
+
+## P. FULL AUTONOMY — ADDENDUM A: FAILURE RECOVERY
+
+When an agent stops, the mission MUST NOT stop. The Lead absorbs, redistributes,
+and continues.
+
+**Detect (each cycle, per agent):** mins = now − last heartbeat.
+`<5` ACTIVE; `5–15` ACTIVE_SLOW (note); `15–30` STALE (warn in `state.md`);
+`30–60` OFFLINE (act); `>60` DEAD (act + escalate). Also detect container
+restart ("resumed" message), duplicate sessions, and STALE_ACTIVE (heartbeating
+but no commits >30 min).
+
+**At OFFLINE (30 min), same cycle:** snapshot their work (worklog, last 3
+heartbeats, last commit, board file) → mark OFFLINE in `state.md` → release
+leases in `tasks.md` (ACTIVE → IDLE, note "Owner OFFLINE") → post `@all` →
+reassign → announce to the recipient → update the owner's board file.
+
+**Reassignment preference:** features → B, then D, then Lead. models → A, then
+C, then Lead. bridge/packaging/API → D, then A, then Lead. audit → Lead, then B,
+then A. Critical-path first; pick the least-loaded healthy agent; never assign
+outside the zone unless two others are also OFFLINE; if 3+ are OFFLINE, the Lead
+takes the critical path. If a task was in REVIEW when the owner died, keep it
+REVIEW and have it audited — do not reopen as ACTIVE.
+
+**At RETURN:** verify the heartbeat/`resumed` message and that they pulled
+latest → post "read this first" (what was reassigned, do not touch it) → set
+ACTIVE in `state.md` → assign new in-zone work or have them support the holder.
+
+**At DEAD (>60 min):** confirm via GitHub last-commit + session state → escalate
+(append to `ESCALATIONS.md`: restart / continue without / merge zone) → continue
+the mission; section 2 already redistributed the work.
+
+**Absorbing failures:** 2 OFFLINE → reassign critical tasks to the 2 remaining +
+Lead takes the highest-priority stalled task; do not collapse scope. 3 OFFLINE →
+keep only the single most critical task alive, Lead handles coordination only,
+escalate. 4 OFFLINE (Lead alone) → heartbeat + state updates, escalate once, do
+NOT attempt their zones, wait for restarts, do NOT declare the mission complete.
+
+**Never:** stop the loop because an agent stopped; leave a critical task unowned
+>1 cycle; treat human absence as a pause; give up a task because its owner died;
+write "waiting for Agent-X" and do nothing; declare "mission paused" without an
+escalation.
+
+The mission outlives any single agent. A team of 1 is still a mission — just
+slower.

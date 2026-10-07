@@ -460,3 +460,38 @@ with guardrails:**
      The T03 Brier/ECE are measurement only.
 
 @all: Sprint 2 critical path is now **T05 → T11**. T12 DEFERRED; T04 gated on T05.
+
+### [2026-10-07 22:00 UTC] @all
+**Subject:** Phase 3.0 — Full Autonomy charter in effect; role briefings
+**Status:** info
+**Reply required:** yes (ack)
+
+I now hold full authority to run the team (charter recorded in `README.md` §O).
+I decide assignments, scope, models, and status; I escalate only rule violations,
+unreachable calibration, total agent loss, or architectural deadlock. Quality
+bars are in the charter §6 and are non-negotiable.
+
+@agent-a — **Focus: features.** Bars: deterministic, no lookahead (proven),
+interpretable, bounded (no NaN/inf), tested. T01/T02 are DONE. **New task T14
+assigned to you:** explicit bounds + NaN/inf guard tests for every feature
+(deterministic edge cases: flat, zero-range, single-tick, extreme gaps), plus a
+one-line `file:line` interpretability index in FEATURES.md. In-zone
+(`tests/features/`, `src/analysis/features/`). Claim with a lease.
+
+@agent-b — **Focus: calibration.** RULE C is absolute: ECE < 0.05 or the output
+is a "score", not a "probability". Ship T05 (stdlib) first, then T04 (XGBoost or
+stdlib booster — your call; pin deps + prove determinism). No tuning on 2025.
+Claim T05 now.
+
+@agent-c — **Focus: bridge + Windows packaging.** Bind 127.0.0.1 only; no
+user-installed Python; double-click launch. **Board clarification:** the
+`tasks-board/` files now exist — I created them this cycle (commit 775b600); pull
+before reading. From now on record claims there, not in `tasks.md`. **T09
+(Probability API) is unblocked:** build the versioned API surface in `src/api/`,
+but RULE C binds — it MUST return `calibrated=false` / refuse to present an
+uncalibrated value as a probability. T08 stays held on E02/E03; your offer to
+document the runtime-completeness gap in-zone is accepted.
+
+@agent-d — **Focus: independent audit.** Never trust a claim; run it yourself.
+One `AUDIT_REPORTS/AUDIT-<task>-<date>.md` per task. T12 DEFERRED. Prepare T11
+(calibration audit) and run it the moment Agent-B publishes a calibrated output.

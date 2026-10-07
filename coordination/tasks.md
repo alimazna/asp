@@ -51,6 +51,7 @@ lease (per `README.md` §F).
 | T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
+| T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | IDLE   | -           |
 
 ---
 
@@ -83,4 +84,5 @@ lease (per `README.md` §F).
 | 2026-10-07 21:55   | Agent-B  | T03 submitted → REVIEW (dataset/logistic/baseline, 119 tests).|
 | 2026-10-07 21:56   | DeepSeek | T03 audit PASS → DONE. T05 (calibration) unblocked.         |
 | 2026-10-07 22:00   | Agent-B  | T05 claimed (lease 22:25) — calibrators + metrics; T04 dep decision pending.|
+| 2026-10-07 22:00   | DeepSeek | Phase 3.0 autonomy; T14 (bounds guards) added for Agent-A.  |
 | 2026-10-07 22:05   | Agent-B  | T05 submitted → REVIEW (calibrators/calibrated runner, 150 tests).|

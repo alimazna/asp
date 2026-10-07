@@ -122,3 +122,14 @@
   status transitions, takeovers); escalate only the charter's section-B list.
 - Directed Agent-D to prepare T11; asked Agent-A to propose next work.
 - Loop continues; no stop.
+
+### [2026-10-07 22:00 UTC] Cycle 12 — T03 DONE; Phase 3.0 autonomy
+- Agent-D audited T03 logistic baseline: PASS (purge, label causality, OOS
+  gating, column pinning, determinism). Set T03 → DONE.
+- Decided T04 dependency posture (charter 2.3): T05 stdlib first; T04 XGBoost or
+  stdlib booster with pinned deps + determinism proof.
+- Recorded Phase 3.0 Full Autonomy charter (README §O) and Failure Recovery
+  addendum (README §P). Briefed all four agents (§11).
+- Added T14 (feature bounds/NaN guards, Agent-A). Unblocked T09 (API, RULE C
+  bound) for Agent-C. Resolved another tasks.md conflict.
+- ESCALATIONS.md: E01 RESOLVED; E02/E03/E04 OPEN (non-blocking).
