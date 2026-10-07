@@ -4,3 +4,28 @@
 ### [2026-10-07 20:34 UTC] Initialized
 - Folder created by Lead (DeepSeek) in Phase 1.
 - Awaiting mission acknowledgement; no work started.
+
+### [2026-10-07 21:25 UTC] T06 MT5 bridge hardening — verification + fixes
+- Session start: cloned repo at e778e97, identity agent-c configured.
+- Verified bridge empirically (booted real service on 127.0.0.1:8791, probed with curl):
+  1. bind: LISTEN on 127.0.0.1 only (/proc/net/tcp state 0A); --host 0.0.0.0 refused (exit 2). PASS
+  2. 9 timeframes: handshake lists M1..MN1 canonical, M15 operational / H4 structural. PASS
+  3. closed bars: start_pos=1 when closed_only=true; default closed_only=true. PASS (code + stub test)
+  4. health: 200, structured payload. PASS
+  5. version handshake: protocol/schema mismatch -> 400 with code; 1.x accepted. PASS
+  6. structured errors: MT5_TERMINAL_UNAVAILABLE / SYMBOL / BAD_REQUEST / NOT_FOUND present. PASS
+  7. SIGTERM: exits 0.020s, exit code 143, port released. PASS (earlier "still running" was a ps/pidfile test artifact)
+- Defects found (gaps vs T06 spec):
+  D-1 No staleness detection; QUALITY_STALE defined but unused.
+  D-2 No INSUFFICIENT_HISTORY error code; a short window could masquerade as a full sample.
+  D-3 When MT5 imports but initialize() fails, /v1/candles returned generic MARKET_DATA_MISSING
+      instead of actionable MT5_TERMINAL_UNAVAILABLE.
+- Fixes applied (bridge/ = my zone, additive, no production src/ touched):
+  * schemas.py: added ERR_MARKET_DATA_STALE, ERR_INSUFFICIENT_HISTORY.
+  * mt5_client.py: freshness (FRESH/STALE/UNKNOWN) + newest_closed_time + age_seconds in candle payload.
+  * bridge_service.py: min_count -> INSUFFICIENT_HISTORY; STALE -> MARKET_DATA_STALE;
+    bootstrap error surfaced verbatim on data requests.
+- Evidence:
+  * tests/integration/test_bridge_t06.py + fake_mt5 stub: 25/25 checks pass.
+  * C++ regression: 12/12 CTest pass (incl. PythonBridgeContractTests real-bridge handshake).
+- Limitation (honest): no real MetaTrader5/broker in this container; real candle retrieval not claimed.

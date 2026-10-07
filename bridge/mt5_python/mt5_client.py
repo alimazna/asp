@@ -10,10 +10,30 @@ Causality: candle retrieval always skips the currently forming bar using
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from schemas import TIMEFRAMES
+
+# Nominal bar duration in seconds per canonical timeframe. Used only to judge
+# whether the newest closed bar is stale; MN1 is a 30-day approximation.
+_TIMEFRAME_SECONDS = {
+    "M1": 60,
+    "M5": 5 * 60,
+    "M15": 15 * 60,
+    "M30": 30 * 60,
+    "H1": 60 * 60,
+    "H4": 4 * 60 * 60,
+    "D1": 24 * 60 * 60,
+    "W1": 7 * 24 * 60 * 60,
+    "MN1": 30 * 24 * 60 * 60,
+}
+
+# A stream is STALE when the newest closed bar is older than this multiple of
+# the timeframe's nominal duration. The multiplier tolerates weekends and short
+# market closures without masking a genuinely dead feed.
+_STALE_INTERVAL_MULTIPLIER = 3
 
 try:  # The package is Windows-only; absence must be reportable, not fatal.
     import MetaTrader5 as _mt5  # type: ignore
@@ -238,11 +258,29 @@ class Mt5Client:
                 spread=int(r["spread"]) if "spread" in names else 0,
                 real_volume=int(r["real_volume"]) if "real_volume" in names else 0,
             ))
+
+        # Staleness: the newest *closed* bar should not be older than a few
+        # nominal bar intervals. Without a clock we cannot judge, so we report
+        # UNKNOWN rather than pretending the feed is fresh.
+        now = int(time.time())
+        interval = _TIMEFRAME_SECONDS.get(timeframe, 0)
+        newest_closed = candles[-1].time
+        age_seconds = now - newest_closed
+        if interval <= 0:
+            freshness = "UNKNOWN"
+        elif age_seconds > interval * _STALE_INTERVAL_MULTIPLIER:
+            freshness = "STALE"
+        else:
+            freshness = "FRESH"
+
         return ClientResult(ok=True, data={
             "symbol": symbol,
             "timeframe": timeframe,
             "closed_only": closed_only,
             "count": len(candles),
+            "newest_closed_time": newest_closed,
+            "age_seconds": age_seconds,
+            "freshness": freshness,
             "candles": [c.to_dict() for c in candles],
         })
 

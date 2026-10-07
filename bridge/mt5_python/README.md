@@ -43,6 +43,14 @@ GET /v1/candles?symbol=XAUUSD&timeframe=M15&count=500&closed_only=true
 GET /v1/tick?symbol=XAUUSD
 ```
 
+`/v1/candles` accepts two optional decision-grade guards:
+
+- `min_count=N` — fail with `INSUFFICIENT_HISTORY` when fewer than `N` closed
+  bars are available, so a short window never masquerades as a full sample.
+- freshness — the response carries `freshness` (`FRESH|STALE|UNKNOWN`),
+  `newest_closed_time`, and `age_seconds`. A feed whose newest closed bar is
+  older than three nominal bar intervals is rejected with `MARKET_DATA_STALE`.
+
 ## Guarantees
 
 - **Loopback only.** `create_server` rejects any host other than `127.0.0.1`.
@@ -50,12 +58,27 @@ GET /v1/tick?symbol=XAUUSD
   (`start_pos=1`); the current bar is never a decision bar.
 - **No fabrication.** If MT5 is unavailable the bridge returns a structured
   error (`MT5_TERMINAL_UNAVAILABLE`) and never invents candles.
+- **Structured errors.** `MT5_TERMINAL_UNAVAILABLE`, `MT5_SYMBOL_UNRESOLVED`,
+  `MARKET_DATA_MISSING`, `MARKET_DATA_INVALID`, `MARKET_DATA_STALE`,
+  `INSUFFICIENT_HISTORY`, `BRIDGE_PROTOCOL_MISMATCH`, `BRIDGE_SCHEMA_MISMATCH`,
+  `BAD_REQUEST`, `NOT_FOUND`, `INTERNAL_ERROR` — each with code/state/message/
+  context/recovery.
 - **Versioned.** Every response carries `protocol_version` and
   `schema_version`; mismatched client versions are rejected.
 - **Explicit symbol resolution.** Exact `XAUUSD`, then `XAUUSD*`, then any
   `XAU*`; the resolved name is recorded and reported.
 - **Graceful degradation.** The service imports and handshakes even when the
   Windows-only MetaTrader5 package is absent, so health is always observable.
+
+## Testing
+
+`tests/integration/test_bridge_t06.py` boots the real service with a stub
+MetaTrader5 module (`tests/integration/fake_mt5/`) and exercises the closed-bar,
+freshness, error, version, bind, and SIGTERM contracts without a broker:
+
+```text
+python3 tests/integration/test_bridge_t06.py
+```
 
 ## Environment
 

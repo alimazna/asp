@@ -43,7 +43,7 @@ lease (per `README.md` §F).
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | IDLE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | IDLE   | -           |
-| T06 | MT5 bridge              | Agent-C  | Agent-D  | IDLE   | -           |
+| T06 | MT5 bridge              | Agent-C  | Agent-D  | REVIEW | -           |
 | T07 | Python bundling         | Agent-C  | Agent-D  | IDLE   | -           |
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |

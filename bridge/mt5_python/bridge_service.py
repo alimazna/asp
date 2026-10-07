@@ -48,6 +48,8 @@ from schemas import (
     ERR_BRIDGE_SCHEMA_MISMATCH,
     ERR_MT5_SYMBOL_UNRESOLVED,
     ERR_MT5_TERMINAL_UNAVAILABLE,
+    ERR_MARKET_DATA_STALE,
+    ERR_INSUFFICIENT_HISTORY,
     ERR_NOT_FOUND,
     ERR_INTERNAL,
     QUALITY_UNKNOWN,
@@ -74,21 +76,32 @@ class BridgeState:
         self.last_error: str = ""
         self.resolved_symbol: str = ""
         self.mt5_ready = False
+        # Structured reason the terminal never came ready, surfaced verbatim on
+        # data requests so a caller sees MT5_TERMINAL_UNAVAILABLE (or a symbol
+        # failure) instead of a generic downstream error.
+        self.bootstrap_error_code: str = ""
+        self.bootstrap_error_message: str = ""
 
     def bootstrap(self) -> None:
         """Attempt MT5 init + symbol resolution. Failure is recorded, not fatal."""
         init = self.client.initialize()
         if not init.ok:
             self.mt5_ready = False
+            self.bootstrap_error_code = init.error_code
+            self.bootstrap_error_message = init.message
             self.last_error = f"{init.error_code}: {init.message}"
             return
         resolved = self.client.resolve_symbol(self.preferred_symbol)
         if not resolved.ok:
             self.mt5_ready = False
+            self.bootstrap_error_code = resolved.error_code
+            self.bootstrap_error_message = resolved.message
             self.last_error = f"{resolved.error_code}: {resolved.message}"
             return
         self.resolved_symbol = resolved.data.get("symbol", self.preferred_symbol)
         self.mt5_ready = True
+        self.bootstrap_error_code = ""
+        self.bootstrap_error_message = ""
 
     def shutdown(self) -> None:
         self.client.shutdown()
@@ -270,6 +283,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         timeframe = (query.get("timeframe") or [PRIMARY_OPERATIONAL_TIMEFRAME])[0]
         count_raw = (query.get("count") or ["500"])[0]
         closed_raw = (query.get("closed_only") or ["true"])[0].lower()
+        min_raw = (query.get("min_count") or [None])[0]
 
         if timeframe not in TIMEFRAMES:
             self._error(ErrorInfo(code=ERR_BAD_REQUEST,
@@ -288,13 +302,65 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
         closed_only = closed_raw in ("true", "1", "yes")
 
+        min_count: Optional[int] = None
+        if min_raw is not None:
+            try:
+                min_count = int(min_raw)
+            except ValueError:
+                self._error(ErrorInfo(code=ERR_BAD_REQUEST,
+                                      message="min_count is not an integer"))
+                return
+            if min_count <= 0:
+                self._error(ErrorInfo(code=ERR_BAD_REQUEST,
+                                      message="min_count must be positive"))
+                return
+
         result = state.client.read_candles(symbol, timeframe, count, closed_only)
         if not result.ok:
             state.mark_error(result.message)
-            self._error(ErrorInfo(code=result.error_code, message=result.message,
+            # If the terminal never came ready, the actionable reason is the
+            # bootstrap failure, not the generic downstream data error.
+            code = result.error_code
+            message = result.message
+            if not state.mt5_ready and state.bootstrap_error_code:
+                code = state.bootstrap_error_code
+                message = state.bootstrap_error_message
+            self._error(ErrorInfo(code=code, message=message,
                                   context={"symbol": symbol, "timeframe": timeframe},
                                   recovery="verify MT5 terminal, symbol, and data availability"))
             return
+
+        returned = int(result.data.get("count", 0))
+        # Insufficient history: the caller asked for a decision-grade minimum
+        # and the closed-bar window is too short. Report it explicitly rather
+        # than letting a short window masquerade as a full sample.
+        if min_count is not None and returned < min_count:
+            state.mark_error("insufficient closed-bar history")
+            self._error(ErrorInfo(
+                code=ERR_INSUFFICIENT_HISTORY,
+                state=QUALITY_UNKNOWN,
+                message=(f"{returned} closed bars available but min_count={min_count} "
+                         f"required for {symbol} {timeframe}"),
+                context={"symbol": symbol, "timeframe": timeframe,
+                         "available": returned, "required": min_count},
+                recovery="request a shorter min_count or wait for more history"))
+            return
+
+        # Staleness: the feed may be alive but not current. Surface it as an
+        # explicit STALE quality rather than a silently VALID response.
+        freshness = result.data.get("freshness", "UNKNOWN")
+        if freshness == "STALE":
+            state.mark_error("stale market data")
+            self._error(ErrorInfo(
+                code=ERR_MARKET_DATA_STALE,
+                state=QUALITY_UNKNOWN,
+                message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
+                context={"symbol": symbol, "timeframe": timeframe,
+                         "newest_closed_time": result.data.get("newest_closed_time"),
+                         "age_seconds": result.data.get("age_seconds")},
+                recovery="verify the MT5 terminal feed is live and the market is open"))
+            return
+
         state.mark_success()
         self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
                                     source=SOURCE_NAME, broker=state.client.broker,
