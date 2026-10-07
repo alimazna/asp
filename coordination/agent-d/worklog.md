@@ -238,3 +238,10 @@
   branches. Fix both valid analysis files. F22-2 expand invariants to full E06 set;
   F22-3 degraded/symbol/timestamp are live, not frozen-null.
 - Report: AUDIT_REPORTS/AUDIT-T22-fixtures.md
+
+### [2026-10-07 23:39 UTC] T22 re-audit — F22-1 default FIXED, F22-2 FIXED, F22-1b residual
+- 621d032: default fixture model_version=null/features=[] (+assertions); invariant
+  set expanded to full E06 (41/41). BUT calibrated fixture still pins
+  horizon="H4"/conf_lo/conf_hi/mtf_agreement, all frozen-null this release (and
+  null in the real backend even calibrated). Checker misses it (invariant only runs
+  uncalibrated branch). F22-1b: fix calibrated fixture. Addendum A appended.

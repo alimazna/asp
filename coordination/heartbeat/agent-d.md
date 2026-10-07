@@ -186,3 +186,11 @@
 - Progress: 99%
 - Note: T22 audit NEEDS WORK (F22-1 default fixture model_version/features vs
   freeze+backend). Still ready for T17/T19 re-audit. E06 two-layer split adopted.
+
+### [2026-10-07 23:39 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: T22 re-audit: F22-1 default + F22-2 fixed, F22-1b residual (calibrated
+  fixture pins horizon/conf/mtf_agreement). Ready for T17/T19 re-audit.

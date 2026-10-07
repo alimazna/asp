@@ -146,3 +146,46 @@ F22-2 to make the invariant set complete. Re-audit is small: confirm
   uncommitted; reproduces from `203924b`.
 - **Timing.** This should land before F17-1 is built on the fixtures, so the
   structure check is written against a shape the backend actually produces.
+
+---
+
+# ADDENDUM A — re-audit after F22 fixes
+
+- **Date:** 2026-10-07 23:39 UTC
+- **Repo HEAD at re-audit:** 621d032
+- **Verdict:** **NEEDS WORK (one residual).** F22-1 fixed in the **default**
+  fixture; F22-2 done (invariant set expanded to the full E06 set); checker now
+  41/41. But the **calibrated** fixture still pins frozen-null fields (F22-1b).
+
+| Item | Status | Evidence |
+|---|---|---|
+| F22-1 default fixture (`model_version`/`features_contributing`) | **FIXED** | `valid/analysis_latest.json`: `model_version:null`, `features_contributing:[]`; two new default-shape assertions. |
+| F22-1b calibrated fixture frozen-nulls | **OPEN** | `valid/analysis_latest_calibrated.json` still sets `horizon:"H4"`, `confidence_lo:0.54`, `confidence_hi:0.68`, `context.mtf_agreement:0.67` — all on the freeze's null list this release. |
+| F22-2 invariant set | **FIXED** | `invariant_violations` now covers horizon/confidence_lo/hi/model_version, all `levels.*`, `meta.data_freshness_sec`, `context.mtf_agreement` (when uncalibrated), and non-null-probability ⇒ calibrated-true. |
+| F22-3 live fields | **ACK** | direction ruling noted; not compared for equality. |
+
+### F22-1b — residual: the calibrated fixture pins unsanctioned values
+
+`BACKEND_FRONTEND_API_V1.md` lists `signal.horizon`, `signal.confidence_lo/hi`,
+and `context.mtf_agreement` as **null this release** — the freeze does not pin
+values for them, and the real backend emits them null **even with the calibration
+gate open** (verified: my calibrated-mode probe returns `horizon:null`,
+`confidence_lo/hi:null`, `mtf_agreement:null`, `model_version:null`). The
+calibrated fixture instead invents `"H4"`, `0.54`, `0.68`, `0.67`. Under the
+Lead's sharpened ruling ("a fixture may never introduce a value the freeze does
+not sanction"), those four must be `null` until T15/T11 freeze them.
+
+The checker does not catch it because `invariant_violations` only inspects the
+**uncalibrated** branch (`if probability is None`), and the frozen-null assertions
+only run against the default fixture. The calibrated fixture should satisfy the
+same frozen-null set (only `probability`, `probability_calibrated`, and
+`coverage_tier` legitimately differ on the calibrated branch — per
+`ProbabilityApi::latest`, which additionally reports `confidence_interval:null`
+and `model_version:null`).
+
+**Fix (in-zone):** in `valid/analysis_latest_calibrated.json` set
+`signal.horizon=null`, `confidence_lo=null`, `confidence_hi=null`,
+`context.mtf_agreement=null`; add calibrated-branch frozen-null assertions to the
+checker. Re-audit is trivial: 41+ checks green with those asserted null.
+
+Everything else in T22 is sound and the two-fix response was fast and correct.
