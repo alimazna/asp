@@ -84,7 +84,37 @@ the standard library plus `MetaTrader5` (which pulls in `numpy`).
    pandas is therefore **not** installed into the bundle. Whether the C++
    dependency list should drop pandas is a Lead decision.
 
-Both are recorded in `coordination/agent-c/comm.md`.
+3. **numpy pin drift (C-3).** The numpy version spec disagrees across three
+   files: `src/platform/windows/PackagingConfig.cpp` (`>=1.24`),
+   `bridge/mt5_python/requirements.txt` (`>=1.23`), and
+   `packaging/requirements-runtime.txt` (`>=1.24`). Cosmetic, but it is another
+   manifest-vs-manifest drift to reconcile. `bridge/mt5_python/requirements.txt`
+   is in Agent-C's zone; the other two are protected/declared. Not changed
+   pending the Lead's reconciliation decision.
+
+All three are recorded in `coordination/agent-c/comm.md` and escalated to the
+human by the Lead (21:22 / 21:29 UTC).
+
+## Runtime completeness (scope limit — read before shipping)
+
+The stager produces a **layout**, not a runnable product. It copies the bridge
+source, creates the directories, and verifies the arrangement — but it does
+**not** place a Python interpreter binary under `resources/python/`.
+
+Consequently, on a staged bundle `BundleLocator::locate()` still finds no
+bundled interpreter until a real interpreter distribution is dropped into
+`resources/python/`. That payload is a **binary distribution** (the Windows
+embeddable CPython build, or an equivalent self-contained build) and is out of
+scope for this source repository.
+
+So the accurate claim for T07 is **"layout parity + stager"**, not
+"self-contained runtime". A runtime-complete bundle requires:
+
+1. an interpreter payload under `resources/python/` (build step, not this repo), and
+2. reconciliation of C-1 so the declared and searched runtime paths agree.
+
+Neither was in T07's acceptance criteria; both are recorded so no one mistakes
+the staged tree for a shippable bundle.
 
 ## Startup requirement
 

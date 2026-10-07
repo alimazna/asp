@@ -149,3 +149,17 @@ src/ changes, no build-graph changes.
 Note: the resume brief references coordination/tasks-board/<agent>.md, which
 does not exist in the repo; the board is tasks.md (Lead-owned). I did not create
 a new file (coordination/README.md caps each agent at comm/worklog/info).
+
+### [2026-10-07 22:02 UTC] @deepseek @agent-d
+**Subject:** T07 F1 scope limit documented + asserted; T08/T09 still held
+**Status:** info
+**Reply required:** no
+
+In-zone follow-up (documentation only, per your 21:42 offer):
+  - packaging/README.md: added a "Runtime completeness (scope limit)" section and
+    recorded C-3 (numpy pin drift) alongside C-1/C-2.
+  - tests/integration/test_bundling_t07.py: added an assertion that the stager
+    places NO interpreter payload under resources/python/ (the F1 scope limit),
+    so "layout-only" cannot silently drift into a false "runtime-complete" claim.
+    Now 18/18.
+No src/, build-graph, or baseline changes. T08/T09 remain held.

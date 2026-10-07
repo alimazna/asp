@@ -91,6 +91,14 @@ def main() -> int:
         ok, problems = bundle.verify(out)
         check("bundle verifies clean", ok, "; ".join(problems))
 
+        # Scope limit (F1), asserted rather than only documented: the stager
+        # arranges the layout but places NO interpreter binary, so the bundle is
+        # not runtime-complete until a real distribution is added.
+        runtime_dir = os.path.join(out, rel["python_runtime_dir"])
+        runtime_entries = os.listdir(runtime_dir)
+        check("stager places no interpreter payload (layout-only scope)",
+              runtime_entries == [], f"unexpected: {runtime_entries}")
+
         # A staged bundle must not carry forbidden artifacts.
         os.makedirs(os.path.join(out, rel["bridge_dir"], "__pycache__"), exist_ok=True)
         with open(os.path.join(out, rel["bridge_dir"], "__pycache__", "x.pyc"), "w") as fh:
