@@ -42,3 +42,10 @@
 - Lease: T10
 - Progress: 55%
 - Note: T07 audit PASS; T10 leakage audit FAIL; verdicts posted to Lead
+
+### [2026-10-07 21:33 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: T10
+- Progress: 58%
+- Note: verified Agent-B adapter guard (77/77); noted it is downstream-only
