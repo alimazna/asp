@@ -48,7 +48,7 @@ lease (per `README.md` §F).
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
 | T09 | Probability API         | Agent-C  | Agent-D  | DONE   | -           |
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
-| T11 | Calibration audit       | Agent-D  | Lead     | ACTIVE | 23:30 UTC   |
+| T11 | Calibration audit       | Agent-D  | Lead     | DONE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
@@ -57,6 +57,8 @@ lease (per `README.md` §F).
 | T17 | Freeze API v1           | Agent-C  | Agent-D  | IDLE   | -           |
 | T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:10 UTC   |
 | T19 | Mock data generator     | Agent-C  | Agent-D  | IDLE   | -           |
+| T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | IDLE   | -           |
+| T21 | Integration causality test | Agent-A | Agent-D | IDLE  | -           |
 
 ---
 
@@ -76,6 +78,10 @@ lease (per `README.md` §F).
   justified and tested. Deliverable `docs/architecture/DECISION_MODEL.md`.
 - **T16/T17/T19 (Agent-C):** analysis API endpoints, API v1 freeze, mock generator.
 - **T18 (Lead, Agent-C input):** frontend handoff guide.
+- **T20 (Agent-B):** 3-cost-tier model (RULE B) — spread 0.30 + commission, plus
+  slippage; required for any decision-grade result. Deliverable: `src/costs/`.
+- **T21 (Agent-A):** integration causality test (T13 support) — interior-instant
+  equals truncated-prefix across streams; already prototyped in-zone.
 
 ## Change log
 
@@ -102,3 +108,5 @@ lease (per `README.md` §F).
 | 2026-10-07 22:16   | DeepSeek | T05 PASS; T11 ACTIVE. Phase 4.0: T15–T19 added (T14 taken). |
 | 2026-10-07 22:22   | Agent-D  | T14 audit PASS; T09 audit PASS (caveat C-1).                |
 | 2026-10-07 22:24   | DeepSeek | T05/T09/T14 → DONE; T11 go/no-go granted.                   |
+| 2026-10-07 22:30   | Agent-D  | T11 audit PASS (methodology); publication gated on real data.|
+| 2026-10-07 22:36   | DeepSeek | T11 → DONE; T20 (cost tiers) + T21 (T13 causality) added.   |

@@ -43,17 +43,25 @@ Sprint 1 — Features & Control Baseline
 - T05 — **DONE** (Agent-B) — Agent-D re-audit PASS (F1 fixed, 162 tests)
 - T04 — IDLE (owner Agent-B) — gated on T05 DONE; dep posture: stdlib booster
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
-- T11 — ACTIVE (Agent-D) — calibration audit on T05 head (go/no-go granted)
+- T11 — **DONE** (Agent-D) — calibration audit PASS (methodology); publication
+  gated on real data + cost tiers
 - T09 — **DONE** (Agent-C) — Agent-D PASS; caveat C-1 (audit-gate source) to wire
 - T08 — IDLE (owner Agent-C) — held on E02/E03
 - T14 — **DONE** (Agent-A) — Agent-D PASS (bounds guards + interpretability index)
 - T15 — ACTIVE (Lead+Agent-B) — decision model (horizon + SL/TP); draft written
 - T16/T17/T19 — IDLE (owner Agent-C) — analysis API, freeze v1, mock generator
 - T18 — ACTIVE (Lead) — frontend handoff guide; draft written
+- T20 — IDLE (owner Agent-B) — 3-cost-tier model (RULE B), unblocked by T05
+- T21 — IDLE (owner Agent-A) — integration causality test (T13 support)
 
 ## Blockers
 
-- None active. (T12 resolved — see Deferred.)
+- **E05 (real data) — HARD BLOCKER for publication.** No real XAUUSD data exists;
+  the calibration is validated on synthetic data only. The backend can be built and
+  frozen, but no probability may be published and "complete" cannot be claimed in
+  the evidential sense until real data lands. Escalated to the human.
+- T12 resolved (see Deferred). E02 resolved (test glob fixed). E03/E04 non-blocking
+  (E04 now has an owner via T20).
 
 ## Deferred (human decision, 2026-10-07 21:52 UTC)
 
@@ -98,6 +106,19 @@ Sprint 1 — Features & Control Baseline
   FLAT dead-band; contingent on Agent-B's calibration evidence (switch to H1 if it
   calibrates materially better). SL `atr_1.5x`; TP `rr_2x`; `prob_scaled` TP
   rejected as primary (RULE A).
+- **E02 (test glob) → RESOLVED by Lead (22:36 UTC):** Lead authorized the
+  one-line `GLOB → GLOB_RECURSE` fix in `CMakeLists.txt`; executed via a
+  serialized, isolated commit so the production diff is exactly one line, and
+  reverted immediately if CTest regresses. Rationale: non-recursive glob silently
+  drops the four feature suites from CI (a test-coverage hole that violates the
+  evidence discipline); the change alters no runtime path and is trivially
+  reversible. Chose this over a C++ `tests/runner.cpp` shim (an invented
+  architecture) and over `add_subdirectory` (more invasive).
+- **T20 added (RULE B):** 3-cost-tier model owned by Agent-B (unblocked by T05).
+  **T21 added:** integration causality test owned by Agent-A (T13 support).
+- **No real XAUUSD data (Q2):** verified absent from the tree, history, and
+  remotes. Calibration methodology is PASS but **publication is not authorised**
+  until reproduced on real data — the mission's hard blocker, escalated (E05).
 
 ## Last heartbeat summary
 

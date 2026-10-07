@@ -31,7 +31,9 @@ RESOLVED.
 - **Your recommendation:** A — the gap will silently drop future tests.
 - **Impact if delayed:** New tests may not run in CI; manual runs continue meanwhile.
 - **Blocks:** none (manual test runs cover us).
-- **Status:** OPEN.
+- **Status:** RESOLVED 2026-10-07 22:36 UTC — Lead authorized + executed the
+  one-line `GLOB → GLOB_RECURSE` fix (isolated, reversible); reverted if CTest
+  regressed. Feature suites now registered in CTest.
 
 ---
 
@@ -57,4 +59,23 @@ RESOLVED.
 - **Your recommendation:** A — RULE B is binding for a real result.
 - **Impact if delayed:** No result can be called "real" until tiers exist.
 - **Blocks:** eventual "real result" claim (not the current model work).
+- **Status:** OPEN. (Lead opened T20 for Agent-B to build the tiers.)
+
+---
+
+### [2026-10-07 22:36 UTC] E05 — Real XAUUSD data required for publication
+- **Question:** Where does real XAUUSD M1–MN1 history (3 months) come from? No
+  data exists in the tree, git history, or remotes.
+- **Context:** T11 audited the calibration **methodology** as PASS, but the
+  numbers (platt ECE 0.022, isotonic 0.025, histogram 0.015) are **synthetic**.
+  A well-calibrated synthetic result proves the pipeline is wired correctly, not
+  that an edge exists. RULE C + GLOBAL_AI_CODING_RULES 18 forbid publishing a
+  calibrated probability without evidence.
+- **Options:** A) Provide a real XAUUSD dataset (CSV/Parquet export from MT5);
+  B) authorize a documented synthetic-only release, labelled non-evidential.
+- **Your recommendation:** A — the mission's honesty depends on real data. B only
+  as an explicitly-labelled interim.
+- **Impact if delayed:** Backend can be built and frozen (T13–T19) but cannot be
+  declared "complete" in the evidential sense; no probability may be published.
+- **Blocks:** final publication; the "honest calibration result" completion gate.
 - **Status:** OPEN.
