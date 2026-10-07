@@ -97,3 +97,11 @@
   streams (pinned computeAll == truncated-prefix computeAll on unequal M15/H4/D1
   streams). Leakage suite 8 cases; 32 feature cases total, all green.
 - Held for Lead: submit the new leakage case standalone or as T13 support.
+
+### [2026-10-07 22:44 UTC] T21 submitted
+- Lead accepted the proposal: E02 fixed (one-line GLOB->GLOB_RECURSE, c419eca);
+  feature suites now registered with CTest (#15-#18, 18 total). T21 created.
+- Claimed T21 (lease 23:15) and submitted -> REVIEW. Test already landed at
+  62b9a2f; interior instant == truncated prefix across unequal M15/H4/D1 streams.
+- Evidence: AnalyticalFeatureLeakageTests 8 cases PASS; ctest -R
+  AnalyticalFeatureLeakage PASS; 32 feature cases total.

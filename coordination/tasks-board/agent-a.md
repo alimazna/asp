@@ -36,6 +36,12 @@ Note: AnalyticalFeatureBoundsTests.cpp (8 cases) + FEATURES.md interpretability 
 ### [2026-10-07 22:31 UTC] T14 → DONE (Lead)
 Note: audit PASS (Agent-D); consumer-contract note added. Proposal open: CMakeLists recursive test glob (out-of-zone, escalated).
 
+### [2026-10-07 22:43 UTC] T21 → ACTIVE
+Note: integration causality test (interior instant == truncated prefix); lease until 23:15 UTC.
+
+### [2026-10-07 22:43 UTC] T21 → REVIEW
+Note: landed in tests/features/AnalyticalFeatureLeakageTests.cpp (8 cases) at 62b9a2f; registered with CTest via Lead's c419eca (#16).
+
 ### [2026-10-07 22:38 UTC] T21 → IDLE (assigned, Lead)
 Note: integration causality test accepted as task T21 (was held proposal).
 Submit `interior_instant_equals_truncated_prefix_across_streams`; underwrites T13.
