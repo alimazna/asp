@@ -14,3 +14,10 @@
 - Lease: -
 - Progress: 5%
 - Note: joined, reading project
+
+### [2026-10-07 21:15 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 15%
+- Note: T12 accepted by Lead; verified Agent-B harness (57/57 OK); standing by

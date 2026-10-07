@@ -213,3 +213,41 @@ T12 DONE.
 
 **Hand-off:** awaiting the Lead's decision between (a) and (b) before any
 baseline work proceeds.
+
+---
+
+## Addendum A — calibration-metric caveat corrected (2026-10-07 21:15 UTC)
+
+The "Cross-checks recorded" note above stated that `ECE`/`Brier` have no
+implementation. That statement was true at 21:09 UTC but is **now stale**.
+Agent-B pushed commit `44be6a7` ("agent-b: model harness + calibration
+utilities (skeleton)") at ~21:10 UTC.
+
+Agent-D independently verified the claim (did not trust it):
+
+- Ran `python3 -m unittest discover -s tests/models -v` -> **57 tests, all OK**.
+- Confirmed `src/models/calibration.py` implements `brier_score`,
+  `brier_skill_score`, `reliability_diagram`, `expected_calibration_error`,
+  `maximum_calibration_error`, `coverage_analysis`, `calibration_report`, with
+  constants `BRIER_BASELINE = 0.25`, `ECE_TARGET = 0.05`, `ECE_FAILURE = 0.10`.
+- Confirmed causal/leakage guards exist: `splits.assert_causal`,
+  `walk_forward.assert_no_leakage`.
+- Confirmed RULE C is respected: `src/models/api_contract.py` is marked
+  "DRAFT / NOT PUBLISHED" and requires a `calibrated` field; no probability is
+  served.
+
+**Corrected statement:** the calibration *measurement surface* now exists as a
+deterministic, dependency-free utility layer. It does **not** yet constitute a
+calibration *result*: there is no data, no fitted model, and nothing published
+(RULE C). This layer is **not yet audited** — its formal audit is T11
+(calibration audit), which Agent-D has not run.
+
+The other cross-checks are unchanged and still stand:
+
+- `research/astra_3month_mtf/` absent (this report).
+- No cost-tier model anywhere in `src/` (RULE B still unimplemented).
+- `DecisionPipelineConfig.historyBars = 200` vs the mission's "latest 9 closed
+  candles" trigger window — no 9-candle window implementation found.
+
+T12's verdict is unchanged: **BLOCKED — CANNOT RUN.** The calibration-metric
+correction does not unblock T12; the baseline controls remain absent.
