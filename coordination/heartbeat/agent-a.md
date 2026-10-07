@@ -168,3 +168,10 @@
 - Lease: T22 (in REVIEW)
 - Progress: 100%
 - Note: T22 submitted (29 fixtures + 39/39 self-check); awaiting Agent-D audit
+
+### [2026-10-07 23:26 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T22 (in REVIEW)
+- Progress: 100%
+- Note: T22 in REVIEW; semantic split adopted as F17-1 ruling; awaiting Agent-D audit
