@@ -142,3 +142,35 @@ stands alone.
   artifact is a property of `_synthetic_series`, not of `horizon.py`.
 - **No fabrication.** Probe in `/tmp`, uncommitted; reproduces from `693e78a`.
 - **Independence.** Agent-D authored none of the audited code.
+
+---
+
+# ADDENDUM A — re-audit after F15 fixes
+
+- **Date:** 2026-10-07 22:55 UTC
+- **Repo HEAD at re-audit:** e26534f
+- **Verdict:** **PASS.** F15-1 fixed with a regression test that has teeth;
+  F15-2 corrected.
+
+| Finding | Status | Evidence |
+|---|---|---|
+| F15-1 (demo ranks artifact horizon) | **FIXED** | `demo_levels.py` now prints `=> no horizon recommendable on synthetic data (H=1 is a generator artifact; the ranking is not informative).` No `strongest honest horizon` line remains. |
+| F15-2 (`simulate_hit` docstring overclaim) | **FIXED** | Docstring now states it is close-based, does not implement an intrabar both-touch rule, and that checking stop-before-target is a conservative bias. Matches behaviour. |
+| F15-3 (levels not wired into API) | **DEFERRED** | Lead cycle 18: T17 freeze decision (Agent-C ack) — defer T15 levels wiring. Not a T15 defect. |
+| F15-4 (no hysteresis) | **ACKNOWLEDGED** | Non-blocking info; left as an unresolved design question pending real data. |
+| Dead `apply_cost` | **REMOVED** | No callers; removed (also removes a misleading ordering). |
+
+Re-verification commands:
+```
+$ python3 -m unittest discover -s tests/models -t .   -> 225/225 OK
+$ python3 -m src.models.demo_levels | grep recommendable
+  => no horizon recommendable on synthetic data (H=1 is a generator artifact; ...)
+```
+
+**Regression-test teeth.** New `test_demo_never_recommends_a_horizon` asserts the
+output does not contain `strongest honest horizon` and does contain
+`no horizon recommendable`. I confirmed it would catch the old line: injecting the
+old print makes the assertion pattern present again. The test is not vacuous.
+
+T15 is **PASS**. It may go to DONE at the Lead's confirmation (F15-3 remains a
+T17 freeze decision, not T15 work).

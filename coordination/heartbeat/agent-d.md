@@ -152,3 +152,11 @@
 - Note: E02 re-verified (CTest 18/18, no regression); T21 audit PASS; T15 audit
   NEEDS WORK (F15-1 demo artifact-horizon contradiction, one-line fix). Awaiting
   T04 status flip and T15 re-audit. Next: T16/T17/T18/T19/T20 as they land.
+
+### [2026-10-07 22:55 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: T15 re-audit PASS (F15-1/2 fixed, test has teeth). T04/T21 DONE. Next:
+  T16/T17/T18/T19/T20 audits as they land.

@@ -206,3 +206,10 @@
   closes only (returns TP in a both-touch bar). F15-3: T15 levels not wired into
   AnalysisApi (nulls); apply_cost uncalled. F15-4: no label hysteresis.
 - Report: AUDIT_REPORTS/AUDIT-T15-decision-model.md
+
+### [2026-10-07 22:55 UTC] T15 re-audit (F15 fixes) — PASS
+- HEAD e26534f. F15-1 FIXED: demo prints "no horizon recommendable..." (no
+  "strongest honest horizon"); regression test has teeth (injecting old line fails
+  it). F15-2 FIXED (docstring matches close-based behaviour). Dead apply_cost
+  removed. 225/225. F15-3 deferred to T17 freeze; F15-4 open design question.
+- Addendum A appended. Verdict T15 PASS.

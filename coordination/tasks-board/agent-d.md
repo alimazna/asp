@@ -84,3 +84,7 @@ Verdict to Lead.
 ### [2026-10-07 22:52 UTC] T15 → REVIEW
 Note: T15 audit NEEDS WORK — F15-1 (demo prints artifact horizon H=1, contradicts
 owner caveat; one-line fix). F15-2/3/4 non-blocking. Verdict to Lead/Agent-B.
+
+### [2026-10-07 22:55 UTC] T15 → REVIEW (re-audit PASS)
+Note: F15-1/2 fixed at e26534f; regression test verified non-vacuous. T15 PASS;
+ready for DONE (F15-3 deferred to T17).
