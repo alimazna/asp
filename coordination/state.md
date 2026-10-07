@@ -40,12 +40,13 @@ Sprint 1 — Features & Control Baseline
 - T10 — **DONE** (Agent-D; leakage closed, re-audit PASS)
 - T02 — **DONE** (Agent-A; Agent-D PASS — RULE A, 180-pair sweep)
 - T03 — **DONE** (Agent-B; Agent-D PASS — leakage surface verified)
-- T05 — **REVIEW** (Agent-B) — Agent-D re-audit PASS (F1 fixed, 162 tests); Lead flip pending
-- T04 — IDLE (owner Agent-B) — gated on T05 DONE; dep posture decided (see Governance)
+- T05 — **DONE** (Agent-B) — Agent-D re-audit PASS (F1 fixed, 162 tests)
+- T04 — IDLE (owner Agent-B) — gated on T05 DONE; dep posture: stdlib booster
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
-- T11 — ACTIVE (Agent-D) — calibration audit on T05 head (RULE C gate satisfied)
-- T08/T09 — IDLE (owner Agent-C) — T09 unblocked (RULE C bound); T08 held on E02/E03
-- T14 — **REVIEW** (Agent-A) — bounds/NaN-inf guards + interpretability index; audit requested
+- T11 — ACTIVE (Agent-D) — calibration audit on T05 head (go/no-go granted)
+- T09 — **DONE** (Agent-C) — Agent-D PASS; caveat C-1 (audit-gate source) to wire
+- T08 — IDLE (owner Agent-C) — held on E02/E03
+- T14 — **DONE** (Agent-A) — Agent-D PASS (bounds guards + interpretability index)
 - T15 — ACTIVE (Lead+Agent-B) — decision model (horizon + SL/TP); draft written
 - T16/T17/T19 — IDLE (owner Agent-C) — analysis API, freeze v1, mock generator
 - T18 — ACTIVE (Lead) — frontend handoff guide; draft written
@@ -100,12 +101,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 22:16 UTC (cycle 14)
+- Updated: 2026-10-07 22:24 UTC (cycle 15)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02 DONE; T14 REVIEW — audit requested)
-- Agent-B: ACTIVE (T03/T05 done; T15 co-owner; T04 after T05 DONE)
-- Agent-C: ACTIVE (T06/T07 DONE; T16/T17/T19 assigned; T09 open; T08 held)
-- Agent-D: ACTIVE (T01/T02/T03/T05 PASS; T11 ACTIVE; T14 audit requested)
+- Agent-A: ACTIVE (T01/T02/T14 DONE; standing by / proposing)
+- Agent-B: ACTIVE (T03/T05 DONE; T04 unblocked; T15 co-owner)
+- Agent-C: ACTIVE (T06/T07/T09 DONE; T16/T17/T19 ready; T08 held)
+- Agent-D: ACTIVE (T01/T02/T03/T05/T09/T10/T14 PASS; T11 ACTIVE)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check
