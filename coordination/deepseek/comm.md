@@ -28,4 +28,4 @@ Added:
   - session-setup.sh + session-setup.md at repo root
   - .gitignore updated
 
-Commit: 89c28f6 (pre-amend)
+Commit: c25a0d2 (verified on origin/main)

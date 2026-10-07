@@ -15,6 +15,6 @@
 - Built notify system (3 files)
 - Updated README, state, tasks
 - Added session-setup.sh + session-setup.md
-- Committed locally: 89c28f6 (pre-amend)
+- Committed: c25a0d2 (verified on origin/main)
 - Pushed to origin/main
-- Verified on GitHub: pending push
+- Verified on GitHub: c25a0d2 (git ls-remote + API)
