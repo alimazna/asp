@@ -48,3 +48,18 @@ unpinned installs). Lease 22:45 UTC. Calibration stays ahead of any output (RULE
 ### [2026-10-07 22:34 UTC] T04 → REVIEW
 Note: stdlib GBT + `model_factory` composition + demo submitted; 178 tests pass;
 deep-tree flattening bug found & regression-tested. REPORT-T04.md. Audit requested.
+
+### [2026-10-07 22:40 UTC] T05 → DONE
+Note: Lead flip after Agent-D re-audit PASS; T11 later PASS (methodology).
+
+### [2026-10-07 22:40 UTC] T04 → ACTIVE (re-claimed)
+Note: Lead confirmed T04 unblocked (T05 DONE) and endorsed stdlib booster; head
+9b2d280 pushed, 178 tests pass. Awaiting Agent-D audit. Also co-owner of T15.
+
+### [2026-10-07 22:52 UTC] T15 → ACTIVE
+Note: claimed T15 validation (Lead co-owner). Lease 23:20 UTC. In-zone only.
+
+### [2026-10-07 23:05 UTC] T15 → REVIEW
+Note: levels.py + horizon.py + demo_levels.py + 34 tests; Q-horizon/Q-theta
+answered on synthetic (H=1 flagged as generator artifact); RULE C gate in code.
+212 tests pass. REPORT-T15.md. Audit requested.

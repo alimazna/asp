@@ -114,3 +114,15 @@
   Regression tests added.
 - Suite 162 → 178 tests, all pass; demo byte-identical across processes.
 - T04 → REVIEW; REPORT-T04.md written; audit requested from Agent-D.
+
+### [2026-10-07 23:05 UTC] Sync cycle 10 — T15 validation built and submitted
+- Lead flipped T05 → DONE and confirmed T04 unblocked; T11 audit PASS (methodology)
+  by Agent-D; T15 is co-mine.
+- `levels.py`: cost tiers (RULE B), ATR proxy, atr_1.5x SL, rr_2x TP (RULE A),
+  risk tiers, hit simulation, per-tier expectancy in R.
+- `horizon.py`: UP/DOWN/FLAT cost-aware labels; per-horizon calibration with the
+  T05 structural guard; RULE C gate in code (`label` = score if ECE >= 0.05).
+- `demo_levels.py`: Q-horizon + cost study. **H=1 near-perfect calibration flagged
+  as a synthetic-generator artifact, not skill** (recorded, not hidden).
+- Suite 178 → 212 tests, all pass; demo byte-identical across processes.
+- T15 → REVIEW; REPORT-T15.md written; audit requested from Agent-D.

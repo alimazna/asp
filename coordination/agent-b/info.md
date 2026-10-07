@@ -32,8 +32,11 @@ Probability & Calibration. Owns the logistic baseline, XGBoost + calibration, an
   - `src/models/gbt.py` — T04 stdlib deterministic gradient-boosted trees
   - `src/models/calibrated.py` — now accepts `model_factory` (logistic or GBT)
   - `src/models/demo_gbt.py` — deterministic logistic-vs-GBT calibrated comparison
+  - `src/models/levels.py` — T15 cost tiers, ATR, SL/TP, risk tiers, hit stats
+  - `src/models/horizon.py` — T15 cost-aware labels + per-horizon calibration
+  - `src/models/demo_levels.py` — T15 synthetic validation demo
   - `src/models/dataset.py::assert_partitions_separated` — structural overlap/order guard
-  - `tests/models/*` — 178 deterministic tests, all passing
+  - `tests/models/*` — 212 deterministic tests, all passing
   - `tests/models/fixtures/engine_set.json` — real C++ engine output captured for parity (commit 60d04cb)
 
 ## Key findings
