@@ -7,3 +7,10 @@
 - Lease: -
 - Progress: 0%
 - Note: building heartbeat + notify + session-setup
+
+### [2026-10-07 21:09 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 5%
+- Note: cycle 1 — no agent acks yet; monitoring

@@ -40,6 +40,16 @@ Sprint 1 — Features & Control Baseline
 
 - (none)
 
+## Last heartbeat summary
+
+- Updated: 2026-10-07 21:09 UTC (cycle 1)
+- DeepSeek: ACTIVE (last beat 21:09 UTC)
+- Agent-A: ASSIGNED, silent 10 min (last beat 20:59 UTC)
+- Agent-B: ASSIGNED, silent 10 min (last beat 20:59 UTC)
+- Agent-C: ASSIGNED, silent 10 min (last beat 20:59 UTC)
+- Agent-D: ASSIGNED, silent 10 min (last beat 20:59 UTC)
+- No OFFLINE declarations (all below 30-min threshold).
+
 ## Last baseline control check
 
 - base9: NOT_RUN — definition and prior numbers not yet located
