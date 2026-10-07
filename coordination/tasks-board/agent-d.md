@@ -60,3 +60,7 @@ Note: T14 audit PASS (bounds/NaN guards + index accurate); verdict to Lead.
 ### [2026-10-07 22:22 UTC] T09 → REVIEW
 Note: T09 audit PASS (RULE C gate; tier boundary == producer); caveat C-1
 (in-process gate) recorded. Verdict to Lead.
+
+### [2026-10-07 22:30 UTC] T11 → REVIEW
+Note: T11 calibration audit PASS (methodology) on T05 head 6e8bd15; publication
+NOT authorised (synthetic only, no real data); RULE B absent. Verdict to Lead.

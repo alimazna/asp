@@ -125,3 +125,12 @@
 - Progress: 97%
 - Note: T14 audit PASS, T09 audit PASS (RULE C gate; caveat C-1). Verdicts sent;
   awaiting Lead status flips. T11 still READY on 6e8bd15.
+
+### [2026-10-07 22:30 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: T11 (audit) — closed this cycle
+- Progress: 99%
+- Note: T11 calibration audit PASS (methodology, 1e-12 reproduction); publication
+  NOT authorised (synthetic only); RULE B absent. Awaiting Lead flips for
+  T05/T09/T11/T14.

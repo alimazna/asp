@@ -154,3 +154,15 @@
 - Caveat C-1: audit gate is an in-process bool, not bound to a persisted T11
   artifact. Non-blocking; recorded for T11/T13.
 - Verdict T09 PASS. Report: AUDIT_REPORTS/AUDIT-T09-probability-api.md
+
+### [2026-10-07 22:30 UTC] T11 calibration audit — PASS (methodology); publication gated
+- Audited T05 head 6e8bd15. Re-derived Brier/ECE from scratch (no import of
+  src.models.calibration): match < 1e-12, all three calibrators. 162/162 OK.
+- Verified: OOS provably out-of-sample (removing OOS leaves val byte-identical);
+  chronological 2021-22/2023-24/2025; no tuning on 2025; coverage per tier (RULE
+  D); dev raw-only; structural overlap guard (from T05 re-audit).
+- Numbers (SYNTHETIC, OOS n=399): platt ece=0.0222 brier=0.0342 skill=+0.863;
+  isotonic ece=0.0246; histogram ece=0.0145. All meet ECE<0.05.
+- Verdict: PASS methodology. Publication NOT authorised — no real XAUUSD data;
+  synthetic only. RULE B (cost tiers) absent, flagged (E04 OPEN).
+- Report: AUDIT_REPORTS/AUDIT-T11-calibration.md; template consumed.
