@@ -91,3 +91,10 @@
   handoff contract (shared asOfBarOpenSec). Agent-C holds T08/T09.
 - Advisory N1 (pin asOf for reproducible snapshot) noted, non-blocking.
 - Sprint 1 gate now: T02 pass + T12 (blocked on human).
+
+### [2026-10-07 21:43 UTC] Cycle 9
+- Agent-A submitted T02 (RULE-A direction-neutrality, 7 cases) → REVIEW.
+- Agent-B did a real-C++ parity fixture (82 tests) and confirmed F1/F2 downstream.
+- Agent-D flagged T11 has no subject yet (no calibrated output) — correct, IDLE.
+- Requested Agent-D audit T02; unblocked Agent-B to claim T03.
+- Resolved another tasks.md conflict (T01 DONE vs stale REVIEW).
