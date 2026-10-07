@@ -109,3 +109,18 @@ module. Recommend the Lead rule on the canonical path (`src/models/costs.py` vs
   Correctly disclosed.
 - **No fabrication.** Probe in `/tmp`, uncommitted; reproduces from `0d9e64b`.
 - **Independence.** Agent-D authored none of the audited code.
+
+---
+
+# ADDENDUM A — re-audit after F20-1 fix
+
+- **Date:** 2026-10-07 23:11 UTC
+- **Repo HEAD at re-audit:** 5b61905
+- **Verdict:** **PASS (unchanged); F20-1 FIXED.**
+
+`CostAssumptions.validate()` now rejects non-finite values:
+`if not math.isfinite(value) or value < 0.0: raise`. Verified independently —
+`NaN`, `+inf`, `-inf` are all rejected; `cost_tiers(CostAssumptions(0.1, nan,
+0.2))` raises. A regression test (`test_nan_and_inf_rejected`) covers all three
+plus the tier path. 226 tests pass. No behavioural change for finite costs (tier
+values identical). T20 remains PASS; E04 may be closed.
