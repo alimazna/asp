@@ -2,13 +2,27 @@
 
 > **Owner:** DeepSeek (Lead). Updated frequently. Agents read this first after `git pull`.
 
+## Team Topology
+
+5 separate chats, 5 containers, Git-only.
+
+| Agent    | Role        | Heartbeat file          |
+|----------|-------------|-------------------------|
+| DeepSeek | Lead        | heartbeat/deepseek.md   |
+| Agent-A  | Features    | heartbeat/agent-a.md    |
+| Agent-B  | Probability | heartbeat/agent-b.md    |
+| Agent-C  | Backend     | heartbeat/agent-c.md    |
+| Agent-D  | Audit       | heartbeat/agent-d.md    |
+
+Polling: 10 min. Heartbeat: 5 min. OFFLINE: 30 min.
+
 ## Agents
 
-- DeepSeek: **ACTIVE** (Lead) — structure built, awaiting specialists
-- Agent-A: **NOT_JOINED** (Features & Analytics)
-- Agent-B: **NOT_JOINED** (Probability & Calibration)
-- Agent-C: **NOT_JOINED** (Backend & Live Integration)
-- Agent-D: **NOT_JOINED** (Verification & Audit)
+- DeepSeek: **ACTIVE** (Lead) — communication environment built and pushed
+- Agent-A: **IN_ORIENTATION** (Features & Analytics) — read-only, no role assigned
+- Agent-B: **IN_ORIENTATION** (Probability & Calibration) — read-only, no role assigned
+- Agent-C: **IN_ORIENTATION** (Backend & Live Integration) — read-only, no role assigned
+- Agent-D: **IN_ORIENTATION** (Verification & Audit) — read-only, no role assigned
 
 ## Active tasks
 

@@ -22,6 +22,8 @@ modelling begins.
   the three mandatory cost tiers (spread / commission / slippage assumptions)?
 - Q3: What is the canonical `base9` / `baseold` definition and its exact prior
   control numbers?
+- Q5: Discord webhook configured? (yes/no)
+- Q6: Which remote branch is canonical? (main)
 
 ## Blocked items
 

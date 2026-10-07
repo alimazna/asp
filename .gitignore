@@ -50,3 +50,7 @@ Thumbs.db
 # Agent scratch
 .agent_tmp/
 build/
+
+# Coordination notify config (secret webhook URL — never commit)
+coordination/notify/config
+__pycache__/

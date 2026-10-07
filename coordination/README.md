@@ -7,6 +7,52 @@
 
 ---
 
+## Distributed Setup
+
+This project runs as 5 separate agents, in 5 separate chats, on 5 separate containers:
+
+    Chat 1: DeepSeek      Lead / Commander
+    Chat 2: Agent-A       Features & Analytics
+    Chat 3: Agent-B       Probability & Calibration
+    Chat 4: Agent-C       Backend & Live Integration
+    Chat 5: Agent-D       Verification & Audit
+
+Git is the only channel. There is NO shared screen, NO direct chat, NO shared memory.
+
+Communication layers:
+  1. coordination/<agent>/comm.md       messages (append-only)
+  2. coordination/<agent>/worklog.md    actions (append-only)
+  3. coordination/<agent>/info.md       distilled knowledge (updated)
+  4. coordination/heartbeat/<agent>.md  liveness (append-only)
+  5. coordination/notify/               real-time alerts (optional)
+
+Polling: every 10 minutes. Heartbeat: every 5 minutes. OFFLINE threshold: 30 minutes.
+
+**Container isolation warning:** containers do NOT persist between sessions. Each new
+session starts with an empty filesystem — the local repo and any uncommitted work are
+gone. Every session must clone the repo and configure git identity before working.
+See **Container Bootstrap** below.
+
+## Container Bootstrap
+
+Run this at the start of every session, before any other work:
+
+    cd /workspace
+    rm -rf asp
+    git clone https://${GITHUB_TOKEN}@github.com/alimazna/asp.git asp
+    cd asp
+    git config user.email "<agent>@openhands"
+    git config user.name "<agent>"
+
+Or use the helper script at the repo root:
+
+    bash session-setup.sh <agent-name>
+
+`GITHUB_TOKEN` must be available in the environment. If the clone or push fails,
+STOP and report — do not work around it.
+
+---
+
 ## A. AGENT ROSTER
 
 | Agent    | Role                          | Zone                                    |
