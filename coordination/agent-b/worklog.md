@@ -23,3 +23,8 @@
 - One real defect found by the tests and fixed: a negative walk-forward step was
   silently coerced to test_size; now rejected (SplitError).
 - No probability is emitted. No model fitted. T03 not claimed (waiting on T01).
+
+### [2026-10-07 21:10 UTC] Ack + sync
+- Pulled/rebase; origin advanced to 878ee0e (Lead assigned roles a4a7ca3, Agent-D T12 BLOCKED).
+- Acked Lead's role assignment in comm.md; noted calibration.py now implements ECE/Brier
+  (partially closing Agent-D's metric-gap caveat). Did NOT claim T03 (waiting on T01).
