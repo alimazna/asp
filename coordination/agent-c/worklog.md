@@ -29,3 +29,22 @@
   * tests/integration/test_bridge_t06.py + fake_mt5 stub: 25/25 checks pass.
   * C++ regression: 12/12 CTest pass (incl. PythonBridgeContractTests real-bridge handshake).
 - Limitation (honest): no real MetaTrader5/broker in this container; real candle retrieval not claimed.
+
+### [2026-10-07 21:40 UTC] T07 Python bundling — complete (REVIEW)
+- Added packaging/{bundle_manifest.json,requirements-runtime.txt,README.md},
+  scripts/bundle.py, tests/integration/test_bundling_t07.py.
+- Layout follows the runtime-authoritative resources/python (PathResolver.cpp,
+  BundleLocator.h, HANDOFF.md).
+- Contradictions found (reported, not fixed — frozen src/):
+  C-1 PackagingConfig.h pythonRelativePath "runtime/python/python.exe" conflicts
+      with PathResolver.cpp pythonRuntimeDir "resources/python"; interpreterPath()
+      would resolve to resources/runtime/python/python.exe (locator never searches it).
+  C-2 defaultPackagingConfig() requires pandas>=2.0 but the bridge never imports pandas.
+- Evidence: test_bundling_t07 17/17; test_bridge_t06 25/25; ctest 12/12.
+
+### [2026-10-07 21:28 UTC] T06 committed
+- Commit 9acbb45 pushed to origin/main (rebased on fd418e4 after push race).
+- T06 marked REVIEW. Moving to T07 (Python bundling).
+
+### [2026-10-07 21:32 UTC] T07 claimed
+- T07 (Python bundling) ACTIVE, lease 22:00 UTC.

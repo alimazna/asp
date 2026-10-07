@@ -1,0 +1,13 @@
+# T07 - Runtime dependencies installed into the BUNDLED interpreter.
+#
+# These mirror bridge/mt5_python/requirements.txt, which is the actual runtime
+# consumer (bridge_service.py + mt5_client.py import only the standard library
+# plus MetaTrader5; numpy is pulled in by MetaTrader5).
+#
+# NOTE (discrepancy, reported not resolved here): the C++ side declares an
+# additional pandas>=2.0 dependency in defaultPackagingConfig()
+# (src/platform/windows/PackagingConfig.cpp). The bridge does not import pandas.
+# Whether pandas is required is a Lead decision; this file reflects the bridge's
+# real imports so the bundle stays minimal and truthful.
+MetaTrader5>=5.0.45
+numpy>=1.24

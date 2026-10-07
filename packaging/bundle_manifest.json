@@ -1,0 +1,53 @@
+{
+  "bundle_schema": "1.0",
+  "product": "ASTRA",
+  "project": "AURA",
+  "description": "Installed desktop layout for the AURA backend + bundled Python MT5 bridge. This mirrors src/platform/windows/PackagingConfig.{h,cpp} and src/platform/windows/PathResolver.{h,cpp}; the runtime resolves every path from the executable location, never the CWD.",
+  "app_root_relative": {
+    "bridge_dir": "resources/bridge/mt5_python",
+    "bridge_script": "resources/bridge/mt5_python/bridge_service.py",
+    "python_runtime_dir": "resources/python",
+    "resource_dir": "resources",
+    "config_dir": "config",
+    "data_dir": "data",
+    "log_dir": "logs"
+  },
+  "bridge_files": [
+    "bridge_service.py",
+    "mt5_client.py",
+    "read_candles.py",
+    "schemas.py",
+    "requirements.txt",
+    "README.md"
+  ],
+  "runtime": {
+    "bundled_by_default": true,
+    "allow_system_python": false,
+    "interpreter_names": {
+      "windows": "python.exe",
+      "posix": "python3"
+    },
+    "note": "A release bundle ships a self-contained interpreter distribution (Windows embeddable build or equivalent). A system interpreter is a development-only fallback and must be requested explicitly. The authoritative bundled location is resources/python/ (PathResolver.cpp, BundleLocator.h, HANDOFF.md); PackagingConfig.h declares 'runtime/python/python.exe', which is a known contradiction recorded in coordination/agent-c/comm.md."
+  },
+  "excluded_from_bundle": [
+    "__pycache__",
+    ".venv",
+    "venv",
+    "tests",
+    "*.pyc",
+    ".git"
+  ],
+  "startup": {
+    "requires_manual_cmd": false,
+    "depends_on_working_directory": false,
+    "managed_by_application": true
+  },
+  "ports": {
+    "bridge": 8791,
+    "frontend_api": 8790
+  },
+  "dependencies": {
+    "requirements_file": "bridge/mt5_python/requirements.txt",
+    "runtime_requirements_file": "packaging/requirements-runtime.txt"
+  }
+}
