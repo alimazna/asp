@@ -137,3 +137,20 @@
 - Verdict T05 PASS. Addendum A appended. T11 may open on this head (RULE C gate
   satisfied). Note: T03's audited head 13f7694 predates the additive run_baseline
   guard; verified it does not regress T03's intended disjoint path (no reopen).
+
+### [2026-10-07 22:22 UTC] T14 audit (feature bounds / NaN-inf guards) — PASS
+- Agent-A 8b56865: 8 bounds cases + FEATURES.md interpretability index.
+- Reran 8/8; independent pathological probe (8 hostile suites: NaN/inf/±1e300/
+  negative/1-bar/zero/denormal) through computeTimeframe/Cross/All -> 0 range
+  violations. Pathological input flagged INVALID/INCOMPLETE, not laundered to
+  VALID. Index line numbers spot-checked accurate. ctest 13/13.
+- Verdict T14 PASS. Report: AUDIT_REPORTS/AUDIT-T14-feature-bounds.md
+
+### [2026-10-07 22:22 UTC] T09 audit (Probability API, RULE C gate) — PASS
+- Agent-C 69e9449: versioned /api/v1/probability/latest, RULE C gate.
+- Reran 10/10; independent probe: NaN/inf + out-of-range -> null/rejected (not
+  clamped); 0/0.5/1 -> low/medium/high; unaudited calibrated -> false;
+  score_is_probability always false. Tier boundary == TIER_BOUNDS on [0,1].
+- Caveat C-1: audit gate is an in-process bool, not bound to a persisted T11
+  artifact. Non-blocking; recorded for T11/T13.
+- Verdict T09 PASS. Report: AUDIT_REPORTS/AUDIT-T09-probability-api.md

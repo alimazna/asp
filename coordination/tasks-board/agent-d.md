@@ -53,3 +53,10 @@ Note: T05 re-audit PASS (F1 fixed at 6e8bd15); verdict sent to Lead for status.
 ### [2026-10-07 22:13 UTC] T11 → READY
 Note: calibrated output exists and is provably out-of-sample; requesting Lead
 go/no-go to open T11 on head 6e8bd15.
+
+### [2026-10-07 22:22 UTC] T14 → REVIEW
+Note: T14 audit PASS (bounds/NaN guards + index accurate); verdict to Lead.
+
+### [2026-10-07 22:22 UTC] T09 → REVIEW
+Note: T09 audit PASS (RULE C gate; tier boundary == producer); caveat C-1
+(in-process gate) recorded. Verdict to Lead.
