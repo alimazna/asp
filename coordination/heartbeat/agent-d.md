@@ -102,3 +102,11 @@
 - Progress: 92%
 - Note: T05 audit FAIL (F1: runner accepts overlapping/inverted partitions;
   docstring overclaims). Awaiting Agent-B fix; T11 stays closed.
+
+### [2026-10-07 22:11 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 93%
+- Note: Lead adopted T05 F1; charter + board protocol acked. T11 prepared and
+  gated on Agent-B's fix. Standing by for T05 resubmit.
