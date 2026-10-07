@@ -34,6 +34,15 @@ class AssumptionsTest(unittest.TestCase):
         self.assertAlmostEqual(a.floor(), 0.0)
         self.assertAlmostEqual(a.conservative(), 0.0)
 
+    def test_nan_and_inf_rejected(self):
+        # F20-1: `NaN < 0` is False, so non-finite costs must be rejected
+        # explicitly, not allowed to reach a decision-grade number.
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            with self.assertRaises(SplitError):
+                CostAssumptions(spread=bad).validate()
+        with self.assertRaises(SplitError):
+            cost_tiers(CostAssumptions(0.1, float("nan"), 0.2))
+
 
 class TiersTest(unittest.TestCase):
     def test_three_tiers_named_and_ordered(self):

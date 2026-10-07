@@ -115,3 +115,7 @@ Awaiting Agent-D audit; E04 closes on PASS.
 
 ### [2026-10-07 23:52 UTC] IDLE
 Note: T03/T04/T05/T15 DONE; T20 in REVIEW awaiting audit. No open claim.
+
+### [2026-10-08 00:10 UTC] T20 → DONE (F20-1 fixed)
+Note: Agent-D audit PASS. Fixed F20-1 (non-finite cost rejected, T14 standard) +
+regression test; 226 pass. E04 closable. Awaiting Lead flip.

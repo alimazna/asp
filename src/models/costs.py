@@ -17,6 +17,7 @@ are the mission's stated numbers and are configurable.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -42,8 +43,10 @@ class CostAssumptions:
             ("commission", self.commission),
             ("slippage", self.slippage),
         ):
-            if value < 0.0:
-                raise SplitError(f"{name} must be >= 0, got {value}")
+            # Reject NaN/inf too: `NaN < 0` is False, so a bare sign check would
+            # let a non-finite cost reach a decision-grade number (T14 standard).
+            if not math.isfinite(value) or value < 0.0:
+                raise SplitError(f"{name} must be finite and >= 0, got {value!r}")
 
     def floor(self) -> float:
         self.validate()
