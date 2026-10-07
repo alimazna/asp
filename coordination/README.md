@@ -1,4 +1,4 @@
-# AURA / ASTRA — 5-Agent Coordination Protocol
+# AURA / ASTRA â€” 5-Agent Coordination Protocol
 
 > **Authority:** `coordination/MISSION.md` (mission, scope, success/failure, hard rules).
 > **This file:** how agents communicate, lease, heartbeat, stop, and audit.
@@ -29,7 +29,7 @@ Communication layers:
 Polling: every 10 minutes. Heartbeat: every 5 minutes. OFFLINE threshold: 30 minutes.
 
 **Container isolation warning:** containers do NOT persist between sessions. Each new
-session starts with an empty filesystem — the local repo and any uncommitted work are
+session starts with an empty filesystem â€” the local repo and any uncommitted work are
 gone. Every session must clone the repo and configure git identity before working.
 See **Container Bootstrap** below.
 
@@ -49,7 +49,7 @@ Or use the helper script at the repo root:
     bash session-setup.sh <agent-name>
 
 `GITHUB_TOKEN` must be available in the environment. If the clone or push fails,
-STOP and report — do not work around it.
+STOP and report â€” do not work around it.
 
 ---
 
@@ -74,7 +74,7 @@ protocol violation and must be reported by Agent-D.
 Every agent maintains exactly **3 files** in its folder. No other files may be added
 without a Lead decision recorded in `comm.md`.
 
-### `comm.md` — Append-only. Messages to other agents.
+### `comm.md` â€” Append-only. Messages to other agents.
 
 ```
 ### [YYYY-MM-DD HH:MM UTC] @recipient
@@ -88,13 +88,13 @@ without a Lead decision recorded in `comm.md`.
 - `Status: request` or `blocked` with `Reply required: yes` must be answered.
 - **Never edit or delete a previous entry.** Append only.
 
-### `worklog.md` — Append-only. Everything the agent did.
+### `worklog.md` â€” Append-only. Everything the agent did.
 
 Entries to log: session start/end, commits (with hash), questions asked, answers
 received, heartbeats, leases taken/renewed/released, STOP events, takeovers.
 Newest at the bottom. **Never delete entries.**
 
-### `info.md` — Living document (updated, not append-only).
+### `info.md` â€” Living document (updated, not append-only).
 
 Distilled knowledge: features built, findings, open questions, owned files,
 forbidden files. This is the fast-read surface for the other agents. Keep it short
@@ -130,8 +130,9 @@ git push
 ```
 
 **Zero merge conflicts by construction:** no two agents ever write the same file.
-`state.md` is owned by the Lead; `tasks.md` is edited by agents only in the `Owner`,
-`Status`, and `Lease until` columns of rows they own or are claiming.
+`state.md` and `tasks.md` are owned by the **Lead** and edited only by the Lead.
+Agents never edit `tasks.md`; they record claims and status changes in their own
+`coordination/tasks-board/<agent>.md` file (see Â§N).
 
 ---
 
@@ -180,7 +181,7 @@ If `git pull` **or** `git push` fails for **> 15 minutes**:
 4. **Retry every 5 minutes.**
 5. Do **NOT** start new work until sync is restored.
 
-Rationale: on a shared Git bus, unsynced work is invisible work — and diverging
+Rationale: on a shared Git bus, unsynced work is invisible work â€” and diverging
 local commits are how parallel agents destroy each other's history.
 
 ---
@@ -238,14 +239,39 @@ append-only like the files they replace.
 
 ---
 
-## M. MISSION RULES (binding — full text in `MISSION.md`)
+## M. MISSION RULES (binding â€” full text in `MISSION.md`)
 
 1. Baseline is **READ-ONLY**.
 2. Production is **PROTECTED**.
 3. No live trading.
 4. No lookahead.
-5. RULE A — no reward-structure artifact.
-6. RULE B — 3 cost tiers mandatory.
-7. RULE C — calibration before probability.
-8. RULE D — coverage honesty.
-9. RULE E — never delete history.
+5. RULE A â€” no reward-structure artifact.
+6. RULE B â€” 3 cost tiers mandatory.
+7. RULE C â€” calibration before probability.
+8. RULE D â€” coverage honesty.
+9. RULE E â€” never delete history.
+
+---
+
+## N. TASK BOARD PROTOCOL
+
+The task board keeps status updates conflict-free. Two agents editing `tasks.md`
+in the same cycle is what produced repeated rebase conflicts; this protocol
+removes that class of conflict entirely.
+
+- `coordination/tasks.md` is the **OFFICIAL state**. **Only the Lead edits it.**
+- **Agents NEVER edit `tasks.md`.**
+- Agents write claims and status updates in their own file:
+  `coordination/tasks-board/<agent>.md` (one file per agent — no shared file,
+  so no conflicts).
+- Entry format (append-only):
+
+  ```
+  ### [YYYY-MM-DD HH:MM UTC] T<id> → <STATUS>
+  Note: <one line>
+  ```
+
+  Valid `STATUS`: `IDLE`, `ACTIVE`, `REVIEW`, `DONE`, `BLOCKED`.
+- The **Lead reads all four board files every cycle** and syncs `tasks.md`
+  from them, then commits. Owners claim with `ACTIVE` + a lease; they mark
+  `REVIEW` when submitted; the **Lead** sets `DONE` after audit.

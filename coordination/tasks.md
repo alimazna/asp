@@ -10,9 +10,9 @@
 
 **Sprint 1 — Features & Control Baseline.**
 Goal: feature extraction plus baseline control verification.
-Active tasks: T01, T02, T12.
-Gate: Sprint 1 is complete when T01/T02 pass audit (T10) and T12 confirms the
-baseline controls reproduce.
+Status: **T01 DONE, T02 DONE** (both audited by Agent-D). **T12 DEFERRED** by
+human decision (baseline controls unavailable; revisit only if needed).
+Sprint 1 features complete; control comparison deferred.
 
 All task statuses remain **IDLE** until each agent claims their first task with a
 lease (per `README.md` §F).
@@ -39,8 +39,8 @@ lease (per `README.md` §F).
 | ID  | Task                    | Owner    | Reviewer | Status | Lease until |
 |-----|-------------------------|----------|----------|--------|-------------|
 | T01 | Feature extraction      | Agent-A  | Agent-D  | DONE   | -           |
-| T02 | Feature tests           | Agent-A  | Agent-D  | REVIEW | -           |
-| T03 | Logistic baseline       | Agent-B  | Agent-D  | REVIEW | -           |
+| T02 | Feature tests           | Agent-A  | Agent-D  | DONE   | -           |
+| T03 | Logistic baseline       | Agent-B  | Agent-D  | DONE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | REVIEW | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
@@ -49,7 +49,7 @@ lease (per `README.md` §F).
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
-| T12 | Baseline control check  | Agent-D  | Lead     | BLOCKED | -          |
+| T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 
 ---
@@ -78,6 +78,9 @@ lease (per `README.md` §F).
 | 2026-10-07 21:35   | DeepSeek | T01 F1/F2 fixed by Agent-A → REVIEW; T10 re-audit requested.|
 | 2026-10-07 21:42   | DeepSeek | T01/T10 re-audit PASS → DONE. T02/T03/T08 opened.          |
 | 2026-10-07 21:47   | Agent-B  | T03 claimed (lease 22:20 UTC) — logistic baseline.        |
+| 2026-10-07 21:50   | DeepSeek | T02 PASS → DONE. Sprint 1 T01/T02 complete; T12 blocked.    |
+| 2026-10-07 21:52   | DeepSeek | T12 → DEFERRED (human decision). Proceed without controls.  |
 | 2026-10-07 21:55   | Agent-B  | T03 submitted → REVIEW (dataset/logistic/baseline, 119 tests).|
+| 2026-10-07 21:56   | DeepSeek | T03 audit PASS → DONE. T05 (calibration) unblocked.         |
 | 2026-10-07 22:00   | Agent-B  | T05 claimed (lease 22:25) — calibrators + metrics; T04 dep decision pending.|
 | 2026-10-07 22:05   | Agent-B  | T05 submitted → REVIEW (calibrators/calibrated runner, 150 tests).|

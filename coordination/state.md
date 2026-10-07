@@ -38,32 +38,28 @@ Sprint 1 — Features & Control Baseline
 - T07 — **DONE** (Agent-C; Agent-D PASS, 17/17; scope caveat F1 recorded)
 - T01 — **DONE** (Agent-A; Agent-D PASS — causality fix verified)
 - T10 — **DONE** (Agent-D; leakage closed, re-audit PASS)
-- T02 — REVIEW (owner Agent-A) — RULE-A direction-neutrality tests; audit requested
-- T03 — IDLE (owner Agent-B) — logistic baseline; unblocked, claim pending
-- T12 — BLOCKED (owner Agent-D) — awaiting @human decision
-- T04/T05 — IDLE (owner Agent-B)
-- T11 — IDLE (Agent-D) — no calibrated output yet; opens after T03/T04/T05
+- T02 — **DONE** (Agent-A; Agent-D PASS — RULE A, 180-pair sweep)
+- T03 — **DONE** (Agent-B; Agent-D PASS — leakage surface verified)
+- T05 — IDLE (owner Agent-B) — calibration; **critical path**, stdlib-only
+- T04 — IDLE (owner Agent-B) — gated on T05; dep posture decided (see Governance)
+- T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
+- T11 — IDLE (Agent-D) — opens when a calibrated output is published
 - T08/T09 — IDLE (owner Agent-C) — held pending human decisions
 
 ## Blockers
 
-- **T12 (baseline control check) — BLOCKED.** `base9`/`baseold` and
-  `research/astra_3month_mtf/` are absent from the tree, history, and remotes.
-  Independently confirmed by Agent-D (`AUDIT_REPORTS/AUDIT-T12-baseline-control.md`).
-  Escalated to @human 21:10 UTC — decision required: (a) rebuild controls or
-  (b) document the gap. No rebuild authorized until the human decides.
-- Coupled gap flagged by Agent-D: no cost-tier model (RULE B), no calibration
-  in `src/`, no 9-closed-candle window. To be treated as one gap.
+- None active. (T12 resolved — see Deferred.)
 
-## Last heartbeat summary
+## Deferred (human decision, 2026-10-07 21:52 UTC)
 
-- Updated: 2026-10-07 21:26 UTC (cycle 3)
-- DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01 built + REVIEW)
-- Agent-B: ACTIVE (harness verified 57/57; waiting on T01)
-- Agent-C: ACTIVE (T06 hardened + REVIEW)
-- Agent-D: ACTIVE (T12 accepted; ready to audit T01/T06)
-- All four agents ACTIVE. No OFFLINE declarations.
+- **T12 (baseline control check) — DEFERRED.** Baseline controls (`base9`/
+  `baseold`, `research/astra_3month_mtf/`) are unavailable. Human decision:
+  proceed without them; the calibrated-probability mission is independent of
+  the controls. Revisit only if a specific comparison requires them. Not
+  BLOCKED — no further escalation.
+- Coupled gap (informational): no cost-tier model (RULE B), no calibration
+  in `src/`, no 9-closed-candle window. One gap; RULE B cost tiers escalated
+  separately.
 
 ## Open items (non-blocking)
 
@@ -77,21 +73,29 @@ Sprint 1 — Features & Control Baseline
 
 - **F1 ratified 21:20 UTC:** Agent-C granted `tests/integration/` for bridge
   integration tests (additive, correct). Now within scope.
+- **Task Board Protocol (21:51 UTC):** `tasks.md` is Lead-only. Agents record
+  claims/status in `coordination/tasks-board/<agent>.md`. See `README.md` §N.
+  Ends the repeated `tasks.md` rebase conflicts.
+- **T04 dependency posture (21:56 UTC):** Agent-B may choose real XGBoost (a) or
+  a stdlib deterministic booster (b); if any dependency is installed it must be
+  pinned in an in-zone lockfile with determinism evidence. T05 (stdlib) lands
+  first. Rationale: preserve the project's byte-identical determinism and avoid
+  an unpinned supply-chain surface.
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 21:20 UTC (cycle 4)
+- Updated: 2026-10-07 21:51 UTC (cycle 10b)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01 in review; T02 next)
-- Agent-B: ACTIVE (harness verified; waiting on T01)
-- Agent-C: ACTIVE (T06 DONE; holding T07/T08/T09)
-- Agent-D: ACTIVE (T06 PASS; auditing T01)
+- Agent-A: ACTIVE (T01/T02 DONE; standing by)
+- Agent-B: ACTIVE (T03 claim pending — critical path)
+- Agent-C: ACTIVE (T06/T07 DONE; holding T08/T09)
+- Agent-D: ACTIVE (T01/T02/T10 PASS; T11 prepared, awaiting calibrated output)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check
 
-- base9: NOT_RUN — definition and prior numbers not yet located
-- baseold: NOT_RUN — definition and prior numbers not yet located
+- DEFERRED by human decision (21:52 UTC). Controls unavailable; mission
+  proceeds without them. No further escalation.
 
 ## Notes
 

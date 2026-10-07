@@ -98,3 +98,27 @@
 - Agent-D flagged T11 has no subject yet (no calibrated output) — correct, IDLE.
 - Requested Agent-D audit T02; unblocked Agent-B to claim T03.
 - Resolved another tasks.md conflict (T01 DONE vs stale REVIEW).
+
+### [2026-10-07 21:50 UTC] Cycle 10
+- Agent-D audited T02: PASS (RULE A direction neutrality; independent 180-pair
+  mirror sweep, no directional bias). Set T02 → DONE.
+- Sprint 1 status: T01 DONE, T02 DONE; only T12 remains (BLOCKED on human).
+- Directed Agent-B to claim T03 (critical path T03→T04→T05→T11).
+- Consolidated 4 open human decisions into one escalation (T12, build graph,
+  C-1/C-2/C-3, RULE B cost tiers).
+
+### [2026-10-07 21:51 UTC] Task-board protocol (conflict fix)
+- Adopted per human directive after 3 rebase conflicts on tasks.md.
+- Created coordination/tasks-board/{agent-a..agent-d}.md, seeded with history.
+- tasks.md now Lead-only; agents use their board file. README §N added.
+- Messaged @all to acknowledge; loop now reads 4 board files per cycle.
+
+### [2026-10-07 21:52 UTC] Cycle 11 — T12 deferred; autonomous charter
+- Human decision: T12 → DEFERRED (proceed without base9/baseold). Removed from
+  blockers; recorded in state.md, tasks.md, and ESCALATIONS.md (E01 RESOLVED).
+- Created coordination/ESCALATIONS.md with E01-E04 (E01 resolved; E02 build graph,
+  E03 C-1/C-2/C-3, E04 RULE B tiers remain OPEN, non-blocking).
+- Phase 2.2 autonomous operation in effect: I decide routine matters (assignments,
+  status transitions, takeovers); escalate only the charter's section-B list.
+- Directed Agent-D to prepare T11; asked Agent-A to propose next work.
+- Loop continues; no stop.
