@@ -105,3 +105,10 @@
 - Lease: T20 until 23:35 UTC
 - Progress: 85%
 - Note: T04 audit PASS; T20 costs.py submitted → REVIEW; zone escalation to Lead; 224 tests pass
+
+### [2026-10-07 23:32 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T15/T20 in REVIEW
+- Progress: 90%
+- Note: F15-1/2/4 fixed; demo honesty regression test added; 225 tests pass; re-audit + T20 path decision pending

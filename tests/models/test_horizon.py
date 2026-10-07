@@ -86,5 +86,22 @@ class EvaluateHorizonTest(unittest.TestCase):
             evaluate_horizon(features, closes, horizon=1, theta=100.0)
 
 
+class DemoHonestyTest(unittest.TestCase):
+    """F15-1 regression: the demo must never print a horizon recommendation."""
+
+    def test_demo_never_recommends_a_horizon(self):
+        import io
+        from contextlib import redirect_stdout
+
+        from src.models import demo_levels
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            demo_levels.main(n=1500)
+        out = buffer.getvalue()
+        self.assertNotIn("strongest honest horizon", out)
+        self.assertIn("no horizon recommendable", out)
+
+
 if __name__ == "__main__":
     unittest.main()

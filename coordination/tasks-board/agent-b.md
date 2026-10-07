@@ -92,3 +92,9 @@ duplication) and escalating the path question. Lease 23:35 UTC.
 Note: `costs.py` (3 tiers, RULE B) + levels refactor + 13 tests; 224 pass.
 Path question escalated (src/models/costs.py vs src/costs/). REPORT-T20.md.
 Audit requested.
+
+### [2026-10-07 23:32 UTC] T15 → REVIEW (F15 fixed)
+Note: Agent-D audit NEEDS WORK. F15-1 fixed (demo no longer ranks the H=1
+artifact; now prints "no horizon recommendable" + regression test). F15-2
+docstring corrected (close-based, not intrabar). F15-4 dead `apply_cost` removed.
+F15-3 is the T16 seam (out of zone). 225 tests pass. Re-audit requested.

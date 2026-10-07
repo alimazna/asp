@@ -127,8 +127,12 @@ def simulate_hit(
 ) -> str:
     """Walk forward from `entry_index` and report the first level touched.
 
-    Conservative on ambiguity: within a single bar, if both levels are touched,
-    the STOP is counted first. Returns 'TP', 'SL', or 'TIMEOUT'.
+    Close-based: only closes are available at this layer, so this cannot see a
+    bar's intrabar high/low and does not implement an intrabar both-touch rule.
+    It compares each forward close against the levels; because the stop is
+    checked before the target at each step, an ambiguous same-close case resolves
+    to SL. That is a *conservative* bias, not a true intrabar rule. Returns
+    'TP', 'SL', or 'TIMEOUT'.
     """
     if direction not in ("UP", "DOWN"):
         raise SplitError(f"cannot simulate direction {direction!r}")
@@ -177,21 +181,6 @@ def summarize_hits(outcomes: Sequence[str], tier_name: str) -> HitStats:
     sl = sum(1 for o in outcomes if o == "SL")
     timeout = sum(1 for o in outcomes if o == "TIMEOUT")
     return HitStats(tier_name, len(outcomes), tp, sl, timeout)
-
-
-def apply_cost(entry: float, direction: str, tier: CostTier) -> Tuple[float, float]:
-    """Return the cost-adjusted (entry, exit) prices for a round trip.
-
-    Buying at the ask and selling at the bid costs the spread; commission and
-    slippage are folded into the same price offset so levels can be compared
-    fairly across tiers.
-    """
-    if direction not in ("UP", "DOWN"):
-        raise SplitError(f"cannot cost direction {direction!r}")
-    half = tier.round_trip / 2.0
-    if direction == "UP":
-        return entry + half, entry - half
-    return entry - half, entry + half
 
 
 @dataclass(frozen=True)

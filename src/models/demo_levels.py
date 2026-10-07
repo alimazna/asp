@@ -21,8 +21,7 @@ from src.models.levels import (
 )
 
 
-def main() -> int:
-    n = 3000
+def main(n: int = 3000) -> int:
     features, closes = _synthetic_series(n)
 
     print(SYNTHETIC_BANNER)
@@ -42,9 +41,10 @@ def main() -> int:
             f"n={r.n} brier={r.brier:.4f} ece={r.ece:.4f} "
             f"skill={r.brier_skill:+.3f} -> {r.label.upper()}"
         )
-    best = max(results, key=lambda r: (r.meets_target, r.brier_skill))
-    print(f"  => strongest honest horizon on synthetic data: H={best.horizon} "
-          f"({best.label})")
+    print(
+        "  => no horizon recommendable on synthetic data (H=1 is a generator "
+        "artifact; the ranking is not informative)."
+    )
     print()
 
     # --- Q-theta / RULE B: SL/TP and cost-tier expectancy on a sample of setups. ---
