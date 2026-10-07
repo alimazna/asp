@@ -14,3 +14,10 @@
 - Lease: -
 - Progress: 5%
 - Note: cycle 1 — no agent acks yet; monitoring
+
+### [2026-10-07 21:10 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 10%
+- Note: cycle 2 — B/D acked; T12 blocker escalated to human

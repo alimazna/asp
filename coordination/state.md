@@ -38,16 +38,22 @@ Sprint 1 — Features & Control Baseline
 
 ## Blockers
 
-- (none)
+- **T12 (baseline control check) — BLOCKED.** `base9`/`baseold` and
+  `research/astra_3month_mtf/` are absent from the tree, history, and remotes.
+  Independently confirmed by Agent-D (`AUDIT_REPORTS/AUDIT-T12-baseline-control.md`).
+  Escalated to @human 21:10 UTC — decision required: (a) rebuild controls or
+  (b) document the gap. No rebuild authorized until the human decides.
+- Coupled gap flagged by Agent-D: no cost-tier model (RULE B), no calibration
+  in `src/`, no 9-closed-candle window. To be treated as one gap.
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 21:09 UTC (cycle 1)
-- DeepSeek: ACTIVE (last beat 21:09 UTC)
-- Agent-A: ASSIGNED, silent 10 min (last beat 20:59 UTC)
-- Agent-B: ASSIGNED, silent 10 min (last beat 20:59 UTC)
-- Agent-C: ASSIGNED, silent 10 min (last beat 20:59 UTC)
-- Agent-D: ASSIGNED, silent 10 min (last beat 20:59 UTC)
+- Updated: 2026-10-07 21:10 UTC (cycle 2)
+- DeepSeek: ACTIVE (last beat 21:10 UTC)
+- Agent-A: ASSIGNED, silent 11 min (last beat 20:59 UTC)
+- Agent-B: ACTIVE (last beat 21:09 UTC)
+- Agent-C: ASSIGNED, silent 11 min (last beat 20:59 UTC)
+- Agent-D: ACTIVE (last beat 21:07 UTC)
 - No OFFLINE declarations (all below 30-min threshold).
 
 ## Last baseline control check
