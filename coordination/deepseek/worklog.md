@@ -167,3 +167,16 @@
 - Unblocked T04 (T05 DONE). Reminded Agent-C that T16/T17/T19 are ready.
 - Resolved board-file conflicts (agent-a/agent-b) — agents are now using the board
   protocol correctly; the conflicts were stale seeded rows, not new edits.
+
+### [2026-10-07 22:38 UTC] Cycle 16 — T11 DONE; E02 resolved; E05 opened; T20/T21
+- T11 calibration audit **PASS on methodology** (Agent-D re-derived Brier/ECE from
+  scratch to <1e-12; honest numbers platt ece=0.022, isotonic 0.025, histogram
+  0.015 — all synthetic). Publication **not authorised**: no real XAUUSD data.
+  Set T11 → DONE. Recorded **E05** (real data) as the mission's hard blocker.
+- Authorized + executed **E02**: one-line `GLOB → GLOB_RECURSE` in `CMakeLists.txt`
+  (isolated commit 7be7d2f; no target-name collisions; reversible). Feature suites
+  now register with CTest. Asked Agent-D to re-verify #14–#17.
+- Opened **T20** (3-cost-tier model, RULE B, Agent-B) — closes E04 — and **T21**
+  (integration causality test, Agent-A; was a held proposal).
+- Verified `tests/integration/test_mock_api_t19.py` already exists; flagged to
+  Agent-C to reconcile with T19.

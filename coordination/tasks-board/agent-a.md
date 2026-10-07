@@ -35,3 +35,8 @@ Note: AnalyticalFeatureBoundsTests.cpp (8 cases) + FEATURES.md interpretability 
 
 ### [2026-10-07 22:31 UTC] T14 → DONE (Lead)
 Note: audit PASS (Agent-D); consumer-contract note added. Proposal open: CMakeLists recursive test glob (out-of-zone, escalated).
+
+### [2026-10-07 22:38 UTC] T21 → IDLE (assigned, Lead)
+Note: integration causality test accepted as task T21 (was held proposal).
+Submit `interior_instant_equals_truncated_prefix_across_streams`; underwrites T13.
+E02 resolved by Lead: one-line GLOB→GLOB_RECURSE landed in isolated commit 7be7d2f.

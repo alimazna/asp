@@ -41,6 +41,16 @@ Note: F1 fixed (structural separation guard); Agent-D re-audit PASS; 162 tests.
 Note: dep posture set — stdlib deterministic booster unless XGBoost is provably
 better; pin + prove determinism either way. Gated on T05 DONE.
 
+### [2026-10-07 22:38 UTC] T05 → DONE (Lead)
+Note: Agent-D re-audit PASS; T11 calibration audit PASS on methodology
+(publication gated on real data, E05).
+
+### [2026-10-07 22:38 UTC] T20 → IDLE (assigned, Lead)
+Note: 3-cost-tier model (RULE B) — spread 0.30 + commission + slippage; src/costs/.
+Unblocked by T05. Closes E04 when landed.
+T04 unblocked (T05 DONE) — proceed stdlib deterministic booster.
+T15 co-owner: validate horizon + SL/TP design in docs/architecture/DECISION_MODEL.md.
+
 ### [2026-10-07 22:18 UTC] T04 → ACTIVE
 Note: claiming boosted model (stdlib deterministic GBT — Lead delegated a/b; no
 unpinned installs). Lease 22:45 UTC. Calibration stays ahead of any output (RULE C).
