@@ -45,51 +45,60 @@ HTTP error code; the API returns `code = "not_found"` only for unknown routes.
 Base: `http://127.0.0.1:8790/api/v1/` — **loopback only**, JSON only, no auth in
 v1 (local process only). Additive changes only within v1.
 
+**Every successful response is enveloped.** The body is always
+`{"api":"v1","schema":"1.0","data": ...}`. All payloads below show the **`data`
+object only**; wrap it in the envelope. Error responses are **not** enveloped
+(see "Error schema"). `API_V1_SCHEMA.json` is authoritative for both.
+
 ### `GET /api/v1/analysis/latest`
 
-> The example below shows the **calibrated** branch (`probability_calibrated: true`).
-> In the default (uncalibrated) shape, `signal.probability` is `null`,
-> `signal.probability_calibrated` is `false`, and `meta.score_is_probability` is
-> `false` — the value lives in `signal.score`.
+> The `data` object shown below is the **calibrated** branch
+> (`probability_calibrated: true`). In the default (uncalibrated) shape,
+> `signal.probability` is `null`, `signal.probability_calibrated` is `false`, and
+> `meta.score_is_probability` is `false` — the value lives in `signal.score`.
 
 ```json
 {
-  "timestamp": "2026-10-08T14:30:00Z",
-  "symbol": "XAUUSD",
-  "context": {
-    "regime": "RANGE",
-    "h4_bias": "UP",
-    "m15_trigger": "LONG",
-    "mtf_agreement": 0.72,
-    "volatility_state": "NORMAL"
-  },
-  "signal": {
-    "direction": "UP",
-    "horizon": "next_4xM15",
-    "probability": 0.63,
-    "probability_calibrated": true,
-    "confidence_lo": 0.57,
-    "confidence_hi": 0.69,
-    "model_version": "v1.0",
-    "features_contributing": [
-      {"name": "h4_bias_up", "weight": 0.12}
-    ]
-  },
-  "levels": {
-    "entry": 2650.30,
-    "stop_loss": 2646.10,
-    "take_profit": 2658.70,
-    "reward_risk": 2.05,
-    "suggested_risk_pct": 0.5,
-    "sl_method": "atr_1.5x",
-    "tp_method": "rr_2x"
-  },
-  "meta": {
-    "coverage_tier": "high",
-    "data_freshness_sec": 3,
-    "degraded": false,
-    "score_is_probability": true,
-    "disclaimer": "Decision support only. Not financial advice."
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "timestamp": "2026-10-08T14:30:00Z",
+    "symbol": "XAUUSD",
+    "context": {
+      "regime": "RANGE",
+      "h4_bias": "UP",
+      "m15_trigger": "LONG",
+      "mtf_agreement": 0.72,
+      "volatility_state": "NORMAL"
+    },
+    "signal": {
+      "direction": "UP",
+      "horizon": "next_4xM15",
+      "probability": 0.63,
+      "probability_calibrated": true,
+      "confidence_lo": 0.57,
+      "confidence_hi": 0.69,
+      "model_version": "v1.0",
+      "features_contributing": [
+        {"name": "h4_bias_up", "weight": 0.12}
+      ]
+    },
+    "levels": {
+      "entry": 2650.30,
+      "stop_loss": 2646.10,
+      "take_profit": 2658.70,
+      "reward_risk": 2.05,
+      "suggested_risk_pct": 0.5,
+      "sl_method": "atr_1.5x",
+      "tp_method": "rr_2x"
+    },
+    "meta": {
+      "coverage_tier": "high",
+      "data_freshness_sec": 3,
+      "degraded": false,
+      "score_is_probability": true,
+      "disclaimer": "Decision support only. Not financial advice."
+    }
   }
 }
 ```
@@ -197,7 +206,8 @@ from there. **Do not invent new branding.**
   schema `1.0`, tag `api-v1.0`.
 - **Authoritative machine-readable contract:** `docs/architecture/API_V1_SCHEMA.json`.
   If the prose here and the schema ever disagree, **the schema wins**; report the
-  drift so the prose is corrected.
+  drift so the prose is corrected. Both successful-response envelopes
+  (`{api,schema,data}`) and the flat error object are defined there.
 - **Mock:** `scripts/mock_api.py` serves the frozen contract with realistic
   synthetic data (loopback only, stdlib only). Default is the **uncalibrated**
   shape (`probability: null`, `score` present); `--calibrated` exercises the

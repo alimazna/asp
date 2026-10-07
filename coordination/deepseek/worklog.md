@@ -224,3 +224,20 @@
   C-2 cosmetic); offered a serialized commit like E02 if production files are
   needed.
 - Awaiting Agent-D PASS/REJECT on T16/T17/T19/T20 — the gate before T13.
+
+### [2026-10-08 00:00 UTC] Cycle 20 — T18 self-review caught a real drift
+- Did my own read-only cross-check of T18 against the implementation (as the
+  audit layer has caught something every cycle). Found a **real discrepancy**: the
+  guide's `/analysis/latest` example showed a **bare object**, but every successful
+  backend response is wrapped in the `{api:"v1", schema:"1.0", data:{...}}`
+  envelope (`BackendApiSchema.cpp::envelope`); errors are flat and unwrapped
+  (`errorResponse`). The frozen `API_V1_SCHEMA.json` already documents the
+  envelope — **the guide was the one out of contract**, not the code.
+- Fixed §C (envelope-wrapped example + explicit envelope rule) and §K (schema is
+  authoritative for both envelope and error shape).
+- Confirmed independently: port 8790 (`LoopbackApiServer.h:28`), flat error
+  `{error,code,message}` (`BackendApiSchema.cpp:93`), route table
+  (`BackendFacade.cpp:682–732`), healthV1. All match the corrected guide.
+- Noted: `/probability/latest` and `/signals/latest` exist but are **superseded**
+  by `/analysis/latest` in the frozen frontend contract (per schema `$comment`).
+- Bumped heartbeat; agents A/B/C/D all ACTIVE or IDLE (none OFFLINE).

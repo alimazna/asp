@@ -147,3 +147,10 @@
 - Lease: -
 - Progress: 96%
 - Note: cycle 19 — T15 DONE (re-audit PASS); T17 freeze ruled (null levels + v1.x additive)
+
+### [2026-10-08 00:00 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 97%
+- Note: cycle 20 — T18 self-review caught bare-object vs {api,schema,data} envelope drift; guide corrected
