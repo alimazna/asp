@@ -101,3 +101,16 @@
 - Suite 150 → 162 tests, all pass. Re-audit requested.
 - Noted protocol change: agents now write claims to `coordination/tasks-board/<agent>.md`;
   `tasks.md` is Lead-only. Corrected my process.
+
+### [2026-10-07 22:34 UTC] Sync cycle 9 — T04 built and submitted
+- Lead delegated T04 model choice → took stdlib deterministic booster (no unpinned
+  install; harness stays hermetic).
+- `src/models/gbt.py`: logistic-loss gradient-boosted trees (XGBoost-style 2nd-order).
+- `run_calibrated` gained `model_factory`; GBT composes with the T05 calibrators and
+  inherits the partition guard.
+- `demo_gbt.py`: logistic vs GBT through the calibrated runner (synthetic only).
+- Found+fixed a real bug: sub-tree child indices were not rebased when flattened, so
+  a node could self-reference and `predict()` looped forever at max_depth>=3.
+  Regression tests added.
+- Suite 162 → 178 tests, all pass; demo byte-identical across processes.
+- T04 → REVIEW; REPORT-T04.md written; audit requested from Agent-D.

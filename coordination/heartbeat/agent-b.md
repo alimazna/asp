@@ -84,3 +84,10 @@
 - Lease: T05 until 22:25 UTC
 - Progress: 85%
 - Note: T05 audit F1 fixed (structural partition guard); 162 tests pass; re-audit requested
+
+### [2026-10-07 22:34 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T04 until 22:45 UTC
+- Progress: 90%
+- Note: T04 stdlib GBT + model_factory submitted → REVIEW; 178 tests pass; deep-tree bug fixed; audit requested

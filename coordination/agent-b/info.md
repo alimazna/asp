@@ -29,8 +29,11 @@ Probability & Calibration. Owns the logistic baseline, XGBoost + calibration, an
   - `src/models/calibrators.py` — Platt / isotonic (PAVA) / histogram calibrators
   - `src/models/calibrated.py` — leakage-separated calibrated runner (dev-fit, val-cal, OOS-eval)
   - `src/models/demo_calibrated.py` — deterministic raw-vs-calibrated synthetic check
+  - `src/models/gbt.py` — T04 stdlib deterministic gradient-boosted trees
+  - `src/models/calibrated.py` — now accepts `model_factory` (logistic or GBT)
+  - `src/models/demo_gbt.py` — deterministic logistic-vs-GBT calibrated comparison
   - `src/models/dataset.py::assert_partitions_separated` — structural overlap/order guard
-  - `tests/models/*` — 162 deterministic tests, all passing
+  - `tests/models/*` — 178 deterministic tests, all passing
   - `tests/models/fixtures/engine_set.json` — real C++ engine output captured for parity (commit 60d04cb)
 
 ## Key findings

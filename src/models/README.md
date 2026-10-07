@@ -20,8 +20,10 @@ probability until calibration is measured and audited (Agent-D T11).
 | `baseline.py` | T03 runner: fit on development, measure dev/validation, OOS only on request. |
 | `demo_baseline.py` | Deterministic end-to-end demo on SYNTHETIC data (pipeline check, not a result). |
 | `calibrators.py` | T05 fitting: Platt, isotonic (PAVA), histogram. Turn raw scores into calibrated probabilities. |
-| `calibrated.py` | T05 runner: fit base on dev, fit calibrator on val, evaluate OOS. Leakage-separated by construction. |
+| `calibrated.py` | T05 runner: fit base on dev, fit calibrator on val, evaluate OOS. Leakage-separated by construction. `model_factory` selects the base estimator. |
 | `demo_calibrated.py` | Deterministic raw-vs-calibrated demo on SYNTHETIC data. |
+| `gbt.py` | T04: deterministic logistic-loss gradient-boosted trees (stdlib, XGBoost-style). No xgboost/numpy. |
+| `demo_gbt.py` | Deterministic logistic-vs-GBT comparison through the calibrated runner. |
 
 ## Design constraints
 
@@ -39,8 +41,18 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-150 deterministic tests, no third-party dependencies. Includes a parity check
+178 deterministic tests, no third-party dependencies. Includes a parity check
 against real `AnalyticalFeatureEngine` output (`tests/models/fixtures/engine_set.json`).
+
+## T04 status
+
+Stdlib gradient-boosted trees (`gbt.py`), composed with the T05 calibrators via
+`run_calibrated(..., model_factory=...)`. No third-party dependency was added, so
+the harness stays hermetic. Uncalibrated/unpublished until the T11 audit (RULE C).
+
+```bash
+python3 -m src.models.demo_gbt
+```
 
 ## T05 status
 

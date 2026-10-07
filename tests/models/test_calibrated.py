@@ -102,6 +102,19 @@ class CalibratedRunnerTest(unittest.TestCase):
         with self.assertRaises(SplitError):
             run_calibrated(partition(0, 60), partition(1000, 60), method="nope")
 
+    def test_gbt_model_factory_accepted(self):
+        from src.models.gbt import fit_gbt
+
+        def factory(x, y):
+            return fit_gbt(x, y, n_estimators=10, max_depth=2)
+
+        report = run_calibrated(
+            partition(0, 80), partition(1000, 80), partition(2000, 80),
+            method="platt", model_factory=factory,
+        )
+        self.assertIn("oos", report.calibrated)
+        self.assertTrue(0.0 <= report.calibrated["oos"].calibration.brier <= 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

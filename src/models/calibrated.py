@@ -74,11 +74,16 @@ def run_calibrated(
     validation: Sequence[LabeledExample],
     oos: Sequence[LabeledExample] = None,  # type: ignore[assignment]
     method: str = "platt",
+    model_factory=None,
 ) -> CalibratedReport:
     """Fit base model on development, calibrator on validation, evaluate all.
 
     `oos` is optional and, when present, is scored with the validation-fitted
     calibrator — never used to fit anything.
+
+    `model_factory(x, y) -> model` selects the base estimator (default: the
+    logistic model). T04 passes the stdlib GBT factory; the model must expose
+    `decision_function(row)` and `predict_proba_batch(rows)`.
     """
     if not development:
         raise SplitError("development partition is empty")
@@ -97,7 +102,10 @@ def run_calibrated(
             raise SplitError(f"partition '{name}' has different feature columns")
 
     x_dev, y_dev = to_matrix(development, columns)
-    model = fit_logistic(x_dev, y_dev)
+    if model_factory is None:
+        model = fit_logistic(x_dev, y_dev)
+    else:
+        model = model_factory(x_dev, y_dev)
 
     x_val, y_val = to_matrix(validation, columns)
     raw_val = _raw_scores(model, x_val)

@@ -40,3 +40,11 @@ Note: F1 fixed (structural separation guard); Agent-D re-audit PASS; 162 tests.
 ### [2026-10-07 22:16 UTC] T04 → IDLE
 Note: dep posture set — stdlib deterministic booster unless XGBoost is provably
 better; pin + prove determinism either way. Gated on T05 DONE.
+
+### [2026-10-07 22:18 UTC] T04 → ACTIVE
+Note: claiming boosted model (stdlib deterministic GBT — Lead delegated a/b; no
+unpinned installs). Lease 22:45 UTC. Calibration stays ahead of any output (RULE C).
+
+### [2026-10-07 22:34 UTC] T04 → REVIEW
+Note: stdlib GBT + `model_factory` composition + demo submitted; 178 tests pass;
+deep-tree flattening bug found & regression-tested. REPORT-T04.md. Audit requested.
