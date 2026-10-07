@@ -64,3 +64,11 @@ Note: T09 audit PASS (RULE C gate; tier boundary == producer); caveat C-1
 ### [2026-10-07 22:30 UTC] T11 → REVIEW
 Note: T11 calibration audit PASS (methodology) on T05 head 6e8bd15; publication
 NOT authorised (synthetic only, no real data); RULE B absent. Verdict to Lead.
+
+### [2026-10-07 22:38 UTC] T04 → REVIEW
+Note: T04 audit PASS (GBT deep-tree fix verified structurally; guard inherited;
+deterministic). Verdict to Lead.
+
+### [2026-10-07 22:38 UTC] E02 → re-confirmed
+Note: independently reproduced the CMake tests/*.cpp non-recursive glob gap
+(ctest -N = 13, no feature suites). Production-owned; not touched.

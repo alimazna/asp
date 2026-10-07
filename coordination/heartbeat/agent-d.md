@@ -134,3 +134,12 @@
 - Note: T11 calibration audit PASS (methodology, 1e-12 reproduction); publication
   NOT authorised (synthetic only); RULE B absent. Awaiting Lead flips for
   T05/T09/T11/T14.
+
+### [2026-10-07 22:38 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: T04 audit PASS (GBT deep-tree fix verified); E02 glob gap independently
+  re-confirmed. Awaiting Lead flips for T04 (+T05/T09/T11/T14). Next: T15/T16/
+  T17/T18/T19 audits as they land.

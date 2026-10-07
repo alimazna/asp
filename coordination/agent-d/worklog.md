@@ -166,3 +166,19 @@
 - Verdict: PASS methodology. Publication NOT authorised — no real XAUUSD data;
   synthetic only. RULE B (cost tiers) absent, flagged (E04 OPEN).
 - Report: AUDIT_REPORTS/AUDIT-T11-calibration.md; template consumed.
+
+### [2026-10-07 22:38 UTC] T04 audit (stdlib GBT + calibration composition) — PASS
+- Agent-B 9b2d280: gbt.py, model_factory in calibrated.py, demo_gbt, test_gbt.
+- 178/178 suite; 15/15 gbt. Verified deep-tree regression genuinely fixed: walked
+  every tree at max_depth 0..8 + forced full-depth (gamma=-1e9) to exercise
+  _rebased at depth>=3 -> child range, no self-ref, acyclic, reachable, proper
+  binary tree; depths 0..7 zero issues, no hang. Determinism OK. Partition guard
+  fires on GBT path. model_factory backward-compatible; no xgboost/numpy.
+- Notes N1 (uncalibrated by design), N2 (synthetic), N3 (no XGBoost parity),
+  N4 (boosting plateau at lr=0.3 on XOR; 0.961 at lr=0.5), N5 (min_child_weight).
+- Verdict T04 PASS. Report: AUDIT_REPORTS/AUDIT-T04-gbt.md
+
+### [2026-10-07 22:38 UTC] E02 independent verification (CMake test-glob gap)
+- Independently reproduced Agent-A's claim: CMakeLists.txt:50 globs tests/*.cpp
+  non-recursively; ctest -N = 13 tests, zero feature suites; no feature binaries
+  in build/. Confirmed. Production-owned; not touched. Reported to Lead.
