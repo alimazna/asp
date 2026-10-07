@@ -123,3 +123,8 @@ Note: T03/T04/T05/T15 DONE; T20 in REVIEW awaiting audit. No open claim.
 ### [2026-10-08 00:10 UTC] T20 → DONE (F20-1 fixed)
 Note: Agent-D audit PASS. Fixed F20-1 (non-finite cost rejected, T14 standard) +
 regression test; 226 pass. E04 closable. Awaiting Lead flip.
+
+### [2026-10-08 00:20 UTC] IDLE — all assigned work DONE
+Note: T03/T04/T05/T15/T20 all DONE and audited. E04 closed. Model zone green
+(226 tests). Standing by for T13 review (Agent-C owner, "reviewed by All") or a
+new Lead assignment. No open claim.
