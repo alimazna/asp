@@ -85,6 +85,19 @@ class CalibratedRunnerTest(unittest.TestCase):
         with self.assertRaises(SplitError):
             run_calibrated(partition(0, 60), bad)
 
+    def test_overlapping_dev_val_rejected(self):
+        # F1 (T05 audit): the runner must not fit and score on the same rows.
+        with self.assertRaises(SplitError):
+            run_calibrated(partition(0, 60), partition(0, 60))
+
+    def test_validation_equal_to_oos_rejected(self):
+        with self.assertRaises(SplitError):
+            run_calibrated(partition(0, 60), partition(1000, 60), partition(1000, 60))
+
+    def test_chronological_inversion_rejected(self):
+        with self.assertRaises(SplitError):
+            run_calibrated(partition(0, 60), partition(2000, 60), partition(1000, 60))
+
     def test_unknown_method_rejected(self):
         with self.assertRaises(SplitError):
             run_calibrated(partition(0, 60), partition(1000, 60), method="nope")

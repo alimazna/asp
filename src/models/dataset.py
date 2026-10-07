@@ -131,6 +131,44 @@ class PurgedSplit:
         }
 
 
+def assert_partitions_separated(named_partitions) -> None:
+    """Structural guard: named partitions must be pairwise disjoint by timestamp
+    and supplied in strictly increasing chronological order.
+
+    `named_partitions` is a sequence of `(name, rows)`. Empty partitions are
+    skipped. Raises `SplitError` on overlap or inversion.
+
+    This is what makes "fit on one partition, score another" trustworthy: a
+    caller who accidentally passes the same rows twice, or passes a later
+    partition before an earlier one, is rejected rather than handed a
+    tautological near-zero error. Callers that want the check to be real must
+    invoke it — the runners below do.
+    """
+    seen: dict = {}
+    previous_max = None
+    previous_name = None
+    for name, rows in named_partitions:
+        if not rows:
+            continue
+        stamps = [row.timestamp for row in rows]
+        if stamps != sorted(stamps):
+            raise SplitError(f"partition '{name}' is not in chronological order")
+        for ts in stamps:
+            owner = seen.get(ts)
+            if owner is not None:
+                raise SplitError(
+                    f"timestamp {ts} appears in both '{owner}' and '{name}'"
+                )
+            seen[ts] = name
+        if previous_max is not None and stamps[0] <= previous_max:
+            raise SplitError(
+                f"partition '{name}' does not start after '{previous_name}' "
+                f"(first {stamps[0]} <= {previous_max})"
+            )
+        previous_max = stamps[-1]
+        previous_name = name
+
+
 def purge_split(
     examples: Sequence[LabeledExample],
     development_years: Sequence[int] = None,

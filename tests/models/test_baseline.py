@@ -31,6 +31,10 @@ def val_set():
     return [example(100 + i, 1 if i > 5 else 0, float(i)) for i in range(12)]
 
 
+def oos_set():
+    return [example(200 + i, 1 if i > 5 else 0, float(i)) for i in range(12)]
+
+
 class BaselineRunnerTest(unittest.TestCase):
     def test_fits_and_reports(self):
         report = run_baseline(dev_set(), val_set())
@@ -51,9 +55,23 @@ class BaselineRunnerTest(unittest.TestCase):
         self.assertEqual(a.development.calibration, b.development.calibration)
 
     def test_oos_only_when_provided(self):
-        report = run_baseline(dev_set(), val_set(), oos=val_set())
+        report = run_baseline(dev_set(), val_set(), oos=oos_set())
         self.assertIsNotNone(report.oos)
         self.assertEqual(report.oos.name, "oos")
+
+    def test_overlapping_partitions_rejected(self):
+        # F1 (T05 audit): a runner must not train and score on the same rows.
+        with self.assertRaises(SplitError):
+            run_baseline(dev_set(), dev_set())
+
+    def test_validation_equal_to_oos_rejected(self):
+        with self.assertRaises(SplitError):
+            run_baseline(dev_set(), val_set(), oos=val_set())
+
+    def test_chronological_inversion_rejected(self):
+        # validation after oos in time is an inversion and must be rejected.
+        with self.assertRaises(SplitError):
+            run_baseline(dev_set(), oos_set(), oos=val_set())
 
     def test_columns_fixed_from_development(self):
         report = run_baseline(dev_set(), val_set())

@@ -21,7 +21,7 @@ fit and the evaluation on disjoint data.
 | `src/models/calibrated.py` | Fit base on dev → fit calibrator on val → evaluate OOS once. |
 | `src/models/demo_calibrated.py` | Deterministic raw-vs-calibrated comparison on synthetic data. |
 | `tests/models/test_calibrators.py` | 22 cases — monotonicity, determinism, ranges, rejection. |
-| `tests/models/test_calibrated.py` | 10 cases — leakage separation, OOS gating, methods. |
+| `tests/models/test_calibrated.py` | 13 cases — leakage separation, OOS gating, methods. |
 
 ## Leakage discipline (the important part)
 
@@ -35,6 +35,33 @@ enforced structurally, not by convention:
   because that number would be tautological.
 - `LeakageDisciplineTest` documents the tautology explicitly so a future reader
   cannot mistake in-sample ECE for evidence.
+
+### Fix addendum — F1 (T05 audit, 22:08 UTC)
+
+Agent-D found that the runner did NOT enforce the disjoint/ordered guarantee its
+docstring claimed: `run_calibrated(dev, dev)` and `run_calibrated(P, P, P)` were
+accepted, producing a tautological OOS ECE ~4e-06. The docstring overclaimed; the
+guard was missing. Fixed in-zone:
+
+- Added `dataset.assert_partitions_separated` — pairwise-disjoint-by-timestamp +
+  strictly increasing chronological order; raises `SplitError` on overlap or
+  inversion.
+- Applied it in BOTH `run_calibrated` and `run_baseline` (the same missing guard
+  existed in the T03 runner).
+- Corrected the docstring to describe the enforcement that now actually exists.
+- Added regression tests: `SeparationGuardTest` (6), plus overlap/equality/
+  inversion cases in `test_baseline` and `test_calibrated`.
+
+Adversarial cases now rejected (previously accepted):
+
+```
+dev==val            -> SplitError (timestamp appears in both)
+val==oos            -> SplitError (timestamp appears in both)
+inversion val>oos   -> SplitError (does not start after validation)
+all identical       -> SplitError
+```
+
+Suite: 150 → **162/162 OK**. Resubmitted for re-audit of F1.
 
 ## Determinism
 

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from src.models.dataset import (
     LabeledExample,
+    assert_partitions_separated,
     build_labeled_examples,
     feature_columns,
     purge_split,
@@ -99,6 +100,50 @@ class ColumnsTest(unittest.TestCase):
         self.assertEqual(len(x), len(examples))
         self.assertEqual(len(x[0]), len(cols))
         self.assertEqual(len(y), len(examples))
+
+
+class SeparationGuardTest(unittest.TestCase):
+    """Unit tests for the structural partition guard (T05 audit F1)."""
+
+    def _rows(self, start, n):
+        return [
+            LabeledExample(start + i, {"a": 1.0}, 1, start + i + 1)
+            for i in range(n)
+        ]
+
+    def test_disjoint_ordered_partitions_pass(self):
+        assert_partitions_separated(
+            (("development", self._rows(0, 5)),
+             ("validation", self._rows(100, 5)),
+             ("oos", self._rows(200, 5)))
+        )
+
+    def test_overlap_rejected(self):
+        rows = self._rows(0, 5)
+        with self.assertRaises(SplitError):
+            assert_partitions_separated((("a", rows), ("b", rows)))
+
+    def test_partial_overlap_rejected(self):
+        with self.assertRaises(SplitError):
+            assert_partitions_separated(
+                (("a", self._rows(0, 5)), ("b", self._rows(4, 5)))
+            )
+
+    def test_chronological_inversion_rejected(self):
+        with self.assertRaises(SplitError):
+            assert_partitions_separated(
+                (("a", self._rows(200, 5)), ("b", self._rows(0, 5)))
+            )
+
+    def test_unsorted_partition_rejected(self):
+        rows = self._rows(0, 5)
+        with self.assertRaises(SplitError):
+            assert_partitions_separated((("a", list(reversed(rows))),))
+
+    def test_empty_partitions_skipped(self):
+        assert_partitions_separated(
+            (("development", self._rows(0, 5)), ("validation", []), ("oos", self._rows(200, 5)))
+        )
 
 
 class PurgeSplitTest(unittest.TestCase):

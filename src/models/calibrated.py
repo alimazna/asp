@@ -7,8 +7,10 @@ Flow, with the leakage discipline enforced structurally:
     oos          -> evaluate the calibrated probabilities ONCE
 
 The calibrator is never fit on the rows it is scored against. `run_calibrated`
-refuses to fit and evaluate the calibrator on the same partition, because that
-number is tautological and is not evidence.
+enforces this structurally: it rejects partitions that are not pairwise disjoint
+and chronologically ordered (see `assert_partitions_separated`), so overlapping
+or inverted partitions raise `SplitError` instead of returning a tautological
+near-zero error.
 
 Everything here is uncalibrated-and-unpublished in the RULE C sense: it produces
 the *measurement* of calibration, and the published-probability decision waits on
@@ -23,7 +25,12 @@ from typing import List, Sequence, Tuple
 from src.models.baseline import PartitionMetrics
 from src.models.calibration import CalibrationReport, calibration_report
 from src.models.calibrators import fit_calibrator
-from src.models.dataset import LabeledExample, feature_columns, to_matrix
+from src.models.dataset import (
+    LabeledExample,
+    assert_partitions_separated,
+    feature_columns,
+    to_matrix,
+)
 from src.models.logistic import fit_logistic
 from src.models.splits import SplitError
 
@@ -77,6 +84,12 @@ def run_calibrated(
         raise SplitError("development partition is empty")
     if not validation:
         raise SplitError("validation partition is required to fit the calibrator")
+
+    # Structural leakage guard: reject overlap or chronological inversion before
+    # any fitting happens, so a tautological near-zero error cannot be produced.
+    assert_partitions_separated(
+        (("development", development), ("validation", validation), ("oos", oos))
+    )
 
     columns = feature_columns(development)
     for name, part in (("validation", validation), ("oos", oos)):

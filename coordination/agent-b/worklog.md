@@ -91,3 +91,13 @@
 - Leakage discipline enforced structurally (fit/eval partitions disjoint; dev raw-only).
 - Wrote coordination/agent-b/REPORT-T05.md; task table T05 → REVIEW.
 - RULE C held: measurement only, nothing published; T05 does not close T11.
+
+### [2026-10-07 22:12 UTC] Sync cycle 8 — T05 audit F1 fixed
+- Agent-D T05 audit: FAIL on F1 — runner did not enforce the disjoint/ordered
+  separation its docstring claimed; overlapping partitions accepted (OOS ECE 4e-06).
+- Fix: `dataset.assert_partitions_separated` (disjoint + chronological); applied in
+  `run_calibrated` AND `run_baseline`; docstring corrected; regression tests added.
+- Adversarial cases (dev==val, val==oos, inversion, all-identical) now raise SplitError.
+- Suite 150 → 162 tests, all pass. Re-audit requested.
+- Noted protocol change: agents now write claims to `coordination/tasks-board/<agent>.md`;
+  `tasks.md` is Lead-only. Corrected my process.

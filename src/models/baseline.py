@@ -21,7 +21,12 @@ from dataclasses import dataclass
 from typing import List, Sequence, Tuple
 
 from src.models.calibration import CalibrationReport, calibration_report
-from src.models.dataset import LabeledExample, feature_columns, to_matrix
+from src.models.dataset import (
+    LabeledExample,
+    assert_partitions_separated,
+    feature_columns,
+    to_matrix,
+)
 from src.models.logistic import LogisticModel, accuracy, fit_logistic
 from src.models.splits import SplitError
 
@@ -88,6 +93,11 @@ def run_baseline(
     """
     if not development:
         raise SplitError("development partition is empty")
+    # Same structural guard as the calibrated runner: reject overlap or inversion
+    # so a partition cannot be trained and scored on itself.
+    assert_partitions_separated(
+        (("development", development), ("validation", validation), ("oos", oos))
+    )
     columns = feature_columns(development)
     # Enforce identical columns across partitions.
     for name, part in (("validation", validation), ("oos", oos)):

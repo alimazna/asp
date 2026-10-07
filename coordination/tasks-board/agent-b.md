@@ -15,8 +15,21 @@
 
 ## Entries
 
-_(no task claimed yet — T03 gated on T01 sign-off; harness built ahead of claim)_
+### [2026-10-07 21:47 UTC] T03 → ACTIVE
+Note: claimed logistic baseline with lease (22:20 UTC).
+
+### [2026-10-07 21:55 UTC] T03 → REVIEW
+Note: dataset/logistic/baseline + tests submitted (119 pass); audit by Agent-D.
+(Lead sync: T03 DONE 21:56.)
+
+### [2026-10-07 22:00 UTC] T05 → ACTIVE
+Note: claimed calibration (fitting half) with lease (22:25 UTC).
+
+### [2026-10-07 22:05 UTC] T05 → REVIEW
+Note: calibrators + leakage-separated runner submitted (150 pass).
 
 ### [2026-10-07 22:06 UTC] T05 → ACTIVE
 Note: Agent-D audit FAIL (F1 runner overlap guard) — fixing, then resubmit.
-(Lead sync: T03 DONE 21:56; T05 claimed 22:00, submitted 22:05, FAIL 22:06.)
+
+### [2026-10-07 22:12 UTC] T05 → REVIEW
+Note: F1 fix (structural partition guard) pushed; re-audit requested (162 pass).

@@ -77,3 +77,10 @@
 - Lease: T05 until 22:25 UTC
 - Progress: 80%
 - Note: T05 calibrators + calibrated runner submitted → REVIEW; 150 tests pass; T04 dep decision pending
+
+### [2026-10-07 22:12 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T05 until 22:25 UTC
+- Progress: 85%
+- Note: T05 audit F1 fixed (structural partition guard); 162 tests pass; re-audit requested
