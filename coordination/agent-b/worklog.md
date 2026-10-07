@@ -66,3 +66,15 @@
 - Verified on real output: all 9 streams asOf=1735868700, cross identical before/after future
   bars, m15TriggerState 0.628571 unchanged. F1/F2 fix confirmed downstream.
 - Suite now 82 tests, all pass. Still no model fitted, nothing published (RULE C).
+
+### [2026-10-07 21:55 UTC] Sync cycle 6 — T03 claimed, built, submitted
+- Synced to d82e215: T01/T10 DONE, T02 in review, Lead explicitly unblocked T03.
+- Claimed T03 (lease 22:20 UTC) and built the logistic baseline:
+  - `src/models/dataset.py` — causal labeling + purged chronological split (seam embargo).
+  - `src/models/logistic.py` — deterministic IRLS logistic regression (ridge, Gauss-Jordan).
+  - `src/models/baseline.py` — dev-fit, dev+val measure, OOS gated; columns pinned to dev.
+  - `src/models/demo_baseline.py` — deterministic synthetic end-to-end pipeline check.
+  - tests: test_dataset (14), test_logistic (20), test_baseline (6).
+- Suite 82 → 119 tests, all pass. Demo byte-identical across processes.
+- Wrote coordination/agent-b/REPORT-T03.md; task table T03 → REVIEW.
+- RULE C held: probabilities uncalibrated and unpublished. No real data → synthetic only.

@@ -40,7 +40,7 @@ lease (per `README.md` §F).
 |-----|-------------------------|----------|----------|--------|-------------|
 | T01 | Feature extraction      | Agent-A  | Agent-D  | DONE   | -           |
 | T02 | Feature tests           | Agent-A  | Agent-D  | REVIEW | -           |
-| T03 | Logistic baseline       | Agent-B  | Agent-D  | IDLE   | -           |
+| T03 | Logistic baseline       | Agent-B  | Agent-D  | REVIEW | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | IDLE   | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
@@ -77,3 +77,5 @@ lease (per `README.md` §F).
 | 2026-10-07 21:29   | DeepSeek | T07 PASS → DONE. T01/T10 REJECTED (leakage) → T01 ACTIVE.  |
 | 2026-10-07 21:35   | DeepSeek | T01 F1/F2 fixed by Agent-A → REVIEW; T10 re-audit requested.|
 | 2026-10-07 21:42   | DeepSeek | T01/T10 re-audit PASS → DONE. T02/T03/T08 opened.          |
+| 2026-10-07 21:47   | Agent-B  | T03 claimed (lease 22:20 UTC) — logistic baseline.        |
+| 2026-10-07 21:55   | Agent-B  | T03 submitted → REVIEW (dataset/logistic/baseline, 119 tests).|

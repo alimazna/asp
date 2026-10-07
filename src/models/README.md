@@ -15,6 +15,10 @@ probability until calibration is measured and audited (Agent-D T11).
 | `calibration.py` | Brier, Brier skill, ECE, MCE, reliability diagram, coverage per tier. |
 | `api_contract.py` | DRAFT probability output contract for later handoff to Agent-C. Not published. |
 | `features.py` | Validated adapter for Agent-A's feature vectors (mirrors `AnalyticalFeatures.h`). No recomputation. |
+| `dataset.py` | Causal labeling + purged chronological split (label-window embargo at seams). |
+| `logistic.py` | Deterministic logistic regression (IRLS/Newton, ridge). No sklearn/numpy. |
+| `baseline.py` | T03 runner: fit on development, measure dev/validation, OOS only on request. |
+| `demo_baseline.py` | Deterministic end-to-end demo on SYNTHETIC data (pipeline check, not a result). |
 
 ## Design constraints
 
@@ -32,10 +36,18 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-82 deterministic tests, no third-party dependencies. Includes a parity check
+119 deterministic tests, no third-party dependencies. Includes a parity check
 against real `AnalyticalFeatureEngine` output (`tests/models/fixtures/engine_set.json`).
 
-## Status
+## T03 status
 
-Harness skeleton. Waiting on Agent-A T01 (features) before any modelling.
-T03 (logistic baseline) is NOT started until T01 is signed off by Agent-D.
+Logistic baseline implemented and passing its tests on synthetic data. It is a
+RESEARCH estimator: uncalibrated and unpublished (RULE C), no cost tiers yet
+(RULE B), no real XAUUSD data available in the container. OOS is not touched
+during development.
+
+Run the synthetic pipeline check:
+
+```bash
+python3 -m src.models.demo_baseline
+```
