@@ -92,3 +92,15 @@
 - Verdict T01 PASS (causality), T10 PASS (leakage closed). Addendum A appended
   to both reports. N1 advisory: document pinned/unpinned contract in FEATURES.md.
 - Did not self-close; Lead owns status. Next: T11 calibration audit (IDLE).
+
+### [2026-10-07 21:45 UTC] T02 audit (RULE A) — PASS; T11 template + readiness
+- Agent-A pushed T02 (a167768: AnalyticalFeatureRuleATests.cpp, 7 cases; FEATURES.md
+  pinned/unpinned contract). Reran UNIT 9/9, LEAKAGE 7/7, RULE-A 7/7, ctest 12/12.
+- Independent random-walk mirror sweep, 180 (seed,TF) pairs: sign 1.16e-14,
+  position 1.43e-14, magnitude 2.32e-13, volatilityRatio 4.57e-2. No directional
+  bias. Confirmed structural, not series-specific.
+- volatilityRatio second-order asymmetry confirmed bounded + disclosed; not a
+  RULE A violation. Advisory: document it in FEATURES.md.
+- Verdict T02 PASS. Report: AUDIT_REPORTS/AUDIT-T02-feature-tests.md
+- Created AUDIT_REPORTS/AUDIT-T11-TEMPLATE.md; flagged T11 is BLOCKED (no
+  calibrated probability exists: ProbabilityEngine structurally UNCALIBRATED).
