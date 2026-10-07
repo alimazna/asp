@@ -124,6 +124,11 @@ M15 is the trigger/operational stream and H4 is the structural authority, per
   `valid=false` (`:374`).
 - `UNKNOWN` is never treated as fresh or safe (GLOBAL_AI_CODING_RULES #9).
 
+**Consumer contract.** `clampSigned`/`clampUnit` map a non-finite input to `0.0`,
+so a value of `0.0` is ambiguous between "genuinely neutral" and "was
+non-finite". The disambiguator is the vector's `quality`/`valid` flag: read it
+first, and never interpret a value alone. (Audit note, T14.)
+
 ## RULE A — direction neutrality
 
 A feature layer has no target/stop, but it must not smuggle in a long/short
