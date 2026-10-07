@@ -40,7 +40,7 @@ Sprint 1 — Features & Control Baseline
 - T10 — **DONE** (Agent-D; leakage closed, re-audit PASS)
 - T02 — **DONE** (Agent-A; Agent-D PASS — RULE A, 180-pair sweep)
 - T03 — **DONE** (Agent-B; Agent-D PASS — leakage surface verified)
-- T05 — IDLE (owner Agent-B) — calibration; **critical path**, stdlib-only
+- T05 — ACTIVE (owner Agent-B) — F1 fix: enforce partition disjointness/order
 - T04 — IDLE (owner Agent-B) — gated on T05; dep posture decided (see Governance)
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
 - T11 — IDLE (Agent-D) — opens when a calibrated output is published
@@ -85,12 +85,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 22:00 UTC (cycle 12)
+- Updated: 2026-10-07 22:07 UTC (cycle 13)
 - DeepSeek: ACTIVE
 - Agent-A: ACTIVE (T01/T02 DONE; T14 assigned)
-- Agent-B: ACTIVE (T03 DONE; T05 claim pending — critical path)
-- Agent-C: ACTIVE (resumed after restart; T09 unblocked, T08 held)
-- Agent-D: ACTIVE (T01/T02/T03/T10 PASS; T11 prepared)
+- Agent-B: ACTIVE (T03 DONE; T05 F1 fix in progress — critical path)
+- Agent-C: ACTIVE (T06/T07 DONE; T09 unblocked, T08 held)
+- Agent-D: ACTIVE (T01/T02/T03/T10 PASS; T05 FAIL returned; T11 prepared)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

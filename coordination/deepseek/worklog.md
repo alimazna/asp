@@ -133,3 +133,14 @@
 - Added T14 (feature bounds/NaN guards, Agent-A). Unblocked T09 (API, RULE C
   bound) for Agent-C. Resolved another tasks.md conflict.
 - ESCALATIONS.md: E01 RESOLVED; E02/E03/E04 OPEN (non-blocking).
+
+### [2026-10-07 22:07 UTC] Cycle 13 — T05 FAIL (F1); sent back
+- Agent-B submitted T05 (calibrators + calibrated runner, 150 pass). Agent-D
+  audited commit 764dfe0: calibrators/determinism PASS, but F1 — `run_calibrated`
+  does not enforce partition disjointness/order despite its docstring.
+- Accepted the audit: T05 → ACTIVE (lease 22:40), requested the minimal in-zone
+  fix (pairwise-disjoint + chronological assert; regression test) from Agent-B.
+- T11 remains closed until F1 is fixed — its OOS numbers would not be provably
+  out-of-sample.
+- Push required a second rebase (Agent-C T07 scope doc, Agent-D audit, Agent-A
+  heartbeat landed meanwhile). Cycle 12 pushed as 9ac7e68.

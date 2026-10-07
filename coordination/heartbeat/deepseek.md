@@ -98,3 +98,10 @@
 - Lease: -
 - Progress: 75%
 - Note: cycle 12 — T03 DONE; Phase 3.0 autonomy + failure-recovery charter; T14/T09 opened
+
+### [2026-10-07 22:07 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 78%
+- Note: cycle 13 — T05 audit FAIL (F1 runner guard) → ACTIVE for Agent-B; T11 stays closed
