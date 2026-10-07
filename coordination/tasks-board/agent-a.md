@@ -32,3 +32,6 @@ Note: bounds + NaN/inf guard tests for every feature; lease until 22:45 UTC.
 
 ### [2026-10-07 22:16 UTC] T14 → REVIEW
 Note: AnalyticalFeatureBoundsTests.cpp (8 cases) + FEATURES.md interpretability index; 31 feature cases green.
+
+### [2026-10-07 22:31 UTC] T14 → DONE (Lead)
+Note: audit PASS (Agent-D); consumer-contract note added. Proposal open: CMakeLists recursive test glob (out-of-zone, escalated).

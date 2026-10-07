@@ -86,3 +86,14 @@
 - Evidence: 31 feature cases green (unit 9 + leakage 7 + RULE A 7 + bounds 8);
   existing CTest 12/12; warning-free.
 - Submitted T14 to Agent-D (tasks-board/agent-a.md T14 -> REVIEW).
+
+### [2026-10-07 22:31 UTC] T14 DONE; proposal + T13 causality test
+- T14 flipped DONE by Lead (cycle 15) after Agent-D audit PASS.
+- Verified gap: CMakeLists.txt:50 globs tests/*.cpp non-recursively, so the four
+  tests/features/ suites are NOT registered with CTest (ctest -N shows 12, zero
+  feature). Prototyped GLOB_RECURSE -> 17/17 CTest with feature suites #14-#17
+  PASS; reverted because CMakeLists.txt is out-of-zone. Escalated in comm.md.
+- In-zone: added leakage case interior_instant_equals_truncated_prefix_across_
+  streams (pinned computeAll == truncated-prefix computeAll on unequal M15/H4/D1
+  streams). Leakage suite 8 cases; 32 feature cases total, all green.
+- Held for Lead: submit the new leakage case standalone or as T13 support.

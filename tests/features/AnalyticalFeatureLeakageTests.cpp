@@ -47,6 +47,34 @@ bool sameFeatures(const TimeframeFeatures& a, const TimeframeFeatures& b) {
            a.valid == b.valid && a.quality == b.quality;
 }
 
+bool sameCross(const CrossTimeframeFeatures& a, const CrossTimeframeFeatures& b) {
+    return a.asOfBarOpenSec == b.asOfBarOpenSec &&
+           a.h4M15Agreement == b.h4M15Agreement &&
+           a.h4D1Agreement == b.h4D1Agreement &&
+           a.mtfConflictScore == b.mtfConflictScore &&
+           a.h4StructuralAuthority == b.h4StructuralAuthority &&
+           a.m15TriggerState == b.m15TriggerState &&
+           a.m15Available == b.m15Available && a.h4Available == b.h4Available &&
+           a.d1Available == b.d1Available && a.valid == b.valid &&
+           a.quality == b.quality;
+}
+
+// Truncate every stream to the common decision instant's prefix; the cross
+// features must be identical. This is the equivalence T13 (integration) relies
+// on: "as-of the instant" == "computed over data up to that instant".
+std::map<Timeframe, std::vector<Bar>> truncateAt(
+    const std::map<Timeframe, std::vector<Bar>>& src, std::int64_t instant) {
+    std::map<Timeframe, std::vector<Bar>> out;
+    for (const auto& e : src) {
+        std::vector<Bar> kept;
+        for (const Bar& b : e.second) {
+            if (b.openTimeSec <= instant) kept.push_back(b);
+        }
+        out[e.first] = kept;
+    }
+    return out;
+}
+
 }  // namespace
 
 TEST_CASE(future_bars_do_not_change_features) {
@@ -217,6 +245,30 @@ TEST_CASE(compute_all_shares_one_decision_instant) {
         engine.computeAll(all, oldInstant);
     CHECK_EQ(after.asOfBarOpenSec, oldInstant);
     CHECK_EQ(after.cross.m15TriggerState, set.cross.m15TriggerState);
+}
+
+// T13-relevant: an interior instant on unequal-length streams. Pinning is
+// exactly equivalent to truncating every stream to that instant's prefix.
+TEST_CASE(interior_instant_equals_truncated_prefix_across_streams) {
+    const AnalyticalFeatureEngine engine;
+    std::map<Timeframe, std::vector<Bar>> all;
+    all[Timeframe::M15] = series(Timeframe::M15, 48, 1900.0, 0.6);
+    all[Timeframe::H4] = series(Timeframe::H4, 44, 1900.0, 1.9);
+    all[Timeframe::D1] = series(Timeframe::D1, 40, 1900.0, 5.0);
+
+    // Choose an instant that is interior for every stream (H4 bar index 30).
+    const std::int64_t instant = all[Timeframe::H4][30].openTimeSec;
+
+    const AnalyticalFeatureSet pinned = engine.computeAll(all, instant);
+    const AnalyticalFeatureSet truncated =
+        engine.computeAll(truncateAt(all, instant), instant);
+
+    CHECK_EQ(pinned.asOfBarOpenSec, instant);
+    CHECK_EQ(truncated.asOfBarOpenSec, instant);
+    CHECK(sameCross(pinned.cross, truncated.cross));
+    for (std::size_t i = 0; i < pinned.perTimeframe.size(); ++i) {
+        CHECK(sameFeatures(pinned.perTimeframe[i], truncated.perTimeframe[i]));
+    }
 }
 
 TEST_CASE(decision_bar_is_the_last_read_bar) {
