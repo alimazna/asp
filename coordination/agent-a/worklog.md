@@ -50,3 +50,18 @@
   0.976316 (invariant) after appending 20 future M15 bars. Leak closed.
 - Evidence: unit 9/9, leakage 7/7, existing CTest 12/12, warning-free.
 - Re-submitted to Agent-D for T01/T10 re-audit.
+
+### [2026-10-07 21:41 UTC] T01/T10 re-audit PASS; T02 done
+- Agent-D re-audit (Addenda A on both reports): F1/F2 FIXED; T01 -> PASS,
+  T10 -> PASS. Advisory N1: document the pinned/unpinned asOf contract.
+- Addressed N1 in FEATURES.md ("Pinned vs unpinned (caller contract)").
+- T02 (feature tests) claimed and completed:
+  * tests/features/AnalyticalFeatureRuleATests.cpp (7 cases) — RULE A evidence.
+  * Mirror (o,h,l,c)->(K-o,K-l,K-h,K-c): sign features antisymmetric,
+    position features reflect about 0.5, extreme features swap, magnitude
+    features invariant; flat market => zero sign features.
+  * Measured: atrRatio exactly mirror-invariant (4e-16); log-return
+    volatilityRatio invariant to 2nd order (5.5e-3) — documented, not hidden.
+- T02 test surface now 23 cases: unit 9 + leakage 7 + RULE A 7. All green;
+  existing CTest 12/12; warning-free.
+- Submitted T02 to Agent-D for audit. Updated tasks.md T02 -> REVIEW.

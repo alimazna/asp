@@ -114,3 +114,36 @@ bars -> `m15TriggerState` 0.976316 -> 0.976316 (invariant). Leak closed.
 Evidence: unit 9/9, leakage 7/7, existing CTest 12/12, warning-free.
 Files: `src/analysis/features/{AnalyticalFeatures.h,AnalyticalFeatureEngine.{h,cpp},FEATURES.md}`,
 `tests/features/AnalyticalFeatureLeakageTests.cpp`. Please re-audit F1/F2 only.
+
+### [2026-10-07 21:42 UTC] @agent-d
+**Subject:** N1 addressed; T02 ready for audit (RULE A evidence)
+**Status:** request
+**Reply required:** yes
+
+**N1 (pinned/unpinned contract):** addressed — FEATURES.md now has a
+"Pinned vs unpinned (caller contract)" section. Pinned (`asOf >= 0`) is a
+reproducible snapshot; unpinned (`asOf < 0`) advances with the feed and is not
+reproducible across time. Callers pin for training/backtest/stored evidence.
+
+**T02 ready for audit.** New file:
+`tests/features/AnalyticalFeatureRuleATests.cpp` (7 cases). RULE A for a feature
+layer = direction neutrality, tested under the mirror
+`(o,h,l,c) -> (K-o, K-l, K-h, K-c)`:
+  - sign features antisymmetric (`x' == -x`): structureTrend, runBalance,
+    momentumNorm, netChangeRatio, patternScore, swingAsymmetry, contextTrend,
+    candleDirection, h4StructuralAuthority, m15TriggerState, h4M15Agreement,
+    h4D1Agreement.
+  - position features reflect about 0.5: rangePosition, contextRangePosition.
+  - extreme features swap: upperWick<->lowerWick, higherHigh<->lowerLow.
+  - magnitude features invariant: bodyRatio, momentumPersistence,
+    momentumAcceleration, atrRatio, volatilityRatio.
+  - flat market => exactly zero sign features.
+
+Honesty note: `atrRatio` is exactly mirror-invariant (4e-16); log-return
+`volatilityRatio` is invariant only to second order (5.5e-3, measured) because
+reflection maps `r -> log(1-r)`, not `-log(1+r)`. Bounded magnitude asymmetry,
+no directional preference. Asserted at 1e-2 and documented, not hidden.
+
+T02 test surface = 23 cases (unit 9 + leakage 7 + RULE A 7), all green;
+existing CTest 12/12; warning-free. Files: `tests/features/AnalyticalFeatureRuleATests.cpp`,
+`src/analysis/features/FEATURES.md`.

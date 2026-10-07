@@ -87,6 +87,35 @@ M15 is the trigger/operational stream and H4 is the structural authority, per
   `valid=false` (`:374`).
 - `UNKNOWN` is never treated as fresh or safe (GLOBAL_AI_CODING_RULES #9).
 
+## RULE A — direction neutrality
+
+A feature layer has no target/stop, but it must not smuggle in a long/short
+bias. The engine is direction-neutral under the mirror
+`(o,h,l,c) -> (K-o, K-l, K-h, K-c)`, proven in
+`tests/features/AnalyticalFeatureRuleATests.cpp`:
+
+- sign features are **antisymmetric** (`x' == -x`): `structureTrend`,
+  `runBalance`, `momentumNorm`, `netChangeRatio`, `patternScore`,
+  `swingAsymmetry`, `contextTrend`, `candleDirection`, and the cross features
+  `h4StructuralAuthority`, `m15TriggerState`, `h4M15Agreement`, `h4D1Agreement`;
+- position features **reflect about 0.5** (`x' == 1 - x`): `rangePosition`,
+  `contextRangePosition`;
+- extreme features **swap**: `upperWick' == lowerWick`, `higherHigh' == lowerLow`;
+- magnitude features are **invariant**: `bodyRatio`, `momentumPersistence`,
+  `momentumAcceleration`, `atrRatio`, `volatilityRatio` (the log-return share is
+  invariant to second order — reflection maps `r` to `log(1-r)`, not
+  `-log(1+r)`, a bounded magnitude asymmetry, not a directional preference);
+- a flat market yields exactly zero for every sign feature.
+
+## Pinned vs unpinned (caller contract)
+
+- **Pinned** (`asOf >= 0`): a reproducible snapshot. Recomputing the same bars
+  at the same instant is invariant to bars appended afterwards. Use this for
+  training rows, backtests, and any stored evidence.
+- **Unpinned** (`asOf < 0`): the instant advances to the latest observed bar as
+  the feed grows. Convenient for a live loop, but not reproducible across time —
+  pin the instant when recording a result.
+
 ## Determinism
 
 No randomness, no wall-clock reads, no iteration over unordered containers. The

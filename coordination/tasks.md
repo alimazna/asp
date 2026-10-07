@@ -39,7 +39,7 @@ lease (per `README.md` §F).
 | ID  | Task                    | Owner    | Reviewer | Status | Lease until |
 |-----|-------------------------|----------|----------|--------|-------------|
 | T01 | Feature extraction      | Agent-A  | Agent-D  | REVIEW | -           |
-| T02 | Feature tests           | Agent-A  | Agent-D  | IDLE   | -           |
+| T02 | Feature tests           | Agent-A  | Agent-D  | REVIEW | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | IDLE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | IDLE   | -           |
