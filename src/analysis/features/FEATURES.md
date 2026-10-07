@@ -7,18 +7,32 @@ probability system. Implementation:
 
 ## Causality contract
 
-The engine reads only closed bars. `computeTimeframe` accepts an explicit
-`asOfBarOpenSec` decision bar and drops every bar with a later open time before
-computing anything (`AnalyticalFeatureEngine.cpp:103`). `asOfBarOpenSec` in the
-result is the open time of the last closed bar used. No bar with a later close
-time is read, so no future information can enter a feature — this is directly
-provable by passing a decision bar in the middle of a series (see
-`tests/features/AnalyticalFeatureLeakageTests.cpp`).
+The engine reads only closed bars and computes every feature as of a single
+explicit decision instant `asOfBarOpenSec`:
+
+- `computeTimeframe(bars, tf, asOf)` drops every bar with
+  `openTimeSec > asOf` before computing anything
+  (`AnalyticalFeatureEngine.cpp:131`).
+- `computeCross(byTimeframe, asOf)` and `computeAll(byTimeframe, asOf)` thread
+  the **same** instant to every stream, so M15/H4/D1 (and all nine timeframes)
+  describe one moment (`:285`, `:357`).
+- When `asOf < 0`, the engine defaults to the latest closed-bar open time across
+  the supplied streams (`latestOpenAcross`, `:99`) — the max of observed bars,
+  never a wall-clock "now". This default is causal: no stream reads a bar after
+  it.
+- `asOfBarOpenSec` on every result (`TimeframeFeatures`, `CrossTimeframeFeatures`,
+  `AnalyticalFeatureSet`) is that decision instant.
+
+No bar with a later open time is read, so no future information can enter a
+feature. This is provable: appending or mutating M15/H4/D1 future bars does not
+change a feature set recomputed at the old instant, and every per-timeframe
+vector reports the set's common instant — see
+`tests/features/AnalyticalFeatureLeakageTests.cpp`.
 
 ## Windows
 
 - **Trigger window** — the latest `kTriggerWindow = 9` closed candles
-  (`AnalyticalFeatures.h:31`, used at `AnalyticalFeatureEngine.cpp:125`).
+  (`AnalyticalFeatures.h:31`, used at `AnalyticalFeatureEngine.cpp:147`).
 - **Context window** — up to `contextBars = 200` closed candles supplied as the
   "3-month" history for that stream (`AnalyticalFeatureConfig.contextBars`).
 
@@ -26,38 +40,38 @@ provable by passing a decision bar in the middle of a series (see
 
 | Feature | Range | Formula | Impl |
 |---|---|---|---|
-| `bodyRatio` | [0,1] | `|close-open| / (high-low)` of last closed bar | `AnalyticalFeatureEngine.cpp:148` |
-| `upperWickRatio` | [0,1] | `(high - max(open,close)) / (high-low)` | `:149` |
-| `lowerWickRatio` | [0,1] | `(min(open,close) - low) / (high-low)` | `:151` |
-| `candleDirection` | {-1,0,1} | `sign(close-open)` | `:154` |
-| `higherHighShare` | [0,1] | `count(high[i]>high[i-1]) / (n-1)` over window | `:164` |
-| `lowerLowShare` | [0,1] | `count(low[i]<low[i-1]) / (n-1)` over window | `:165` |
-| `structureTrend` | [-1,1] | `(upTransitions - downTransitions) / (2*(n-1))`, up = higher high **or** higher low | `:166`, `:75` |
-| `rangePosition` | [0,1] | `(close - windowLow) / (windowHigh - windowLow)` | `:169` |
-| `swingAsymmetry` | [-1,1] | `(idx(lastHigh) - idx(lastLow)) / (n-1)`; +ve = high more recent | `:179` |
-| `runBalance` | [-1,1] | signed length of trailing same-direction candle run `/ (n-1)` | `:197` |
-| `momentumNorm` | [-1,1] | `netMove / (n-1) / meanAbsStep`, netMove = `close[last]-close[first]` | `:206` |
-| `momentumPersistence` | [0,1] | `|netMove| / Σ|close[i]-close[i-1]|` | `:207` |
-| `momentumAcceleration` | [-1,1] | `(recentSpeed - earlierSpeed) / (recentSpeed + earlierSpeed)` | `:217` |
-| `volatilityRatio` | [0,1] | `shortVol / (shortVol + longVol)`, stdev of log returns (window vs context) | `:225`, `:38` |
-| `atrRatio` | [0,1] | `windowATR / (windowATR + contextATR)` | `:230`, `:57` |
-| `netChangeRatio` | [-1,1] | `netMove / (windowHigh - windowLow)` | `:233` |
-| `patternScore` | [-1,1] | `0.5*structureTrend + 0.3*netChangeRatio + 0.2*runBalance` | `:234` |
-| `contextTrend` | [-1,1] | `structureTrendOf(contextWindow)` | `:239` |
-| `contextVolatility` | [0,1] | `clampUnit(stdev(log returns over context))` | `:240` |
-| `contextRangePosition` | [0,1] | `(close - contextLow) / (contextHigh - contextLow)` | `:248` |
+| `bodyRatio` | [0,1] | `|close-open| / (high-low)` of last closed bar | `:170` |
+| `upperWickRatio` | [0,1] | `(high - max(open,close)) / (high-low)` | `:171` |
+| `lowerWickRatio` | [0,1] | `(min(open,close) - low) / (high-low)` | `:173` |
+| `candleDirection` | {-1,0,1} | `sign(close-open)` | `:176` |
+| `higherHighShare` | [0,1] | `count(high[i]>high[i-1]) / (n-1)` over window | `:186` |
+| `lowerLowShare` | [0,1] | `count(low[i]<low[i-1]) / (n-1)` over window | `:187` |
+| `structureTrend` | [-1,1] | `(upTransitions - downTransitions) / (2*(n-1))`, up = higher high **or** higher low | `:188`, `:75` |
+| `rangePosition` | [0,1] | `(close - windowLow) / (windowHigh - windowLow)` | `:191` |
+| `swingAsymmetry` | [-1,1] | `(idx(lastHigh) - idx(lastLow)) / (n-1)`; +ve = high more recent | `:201` |
+| `runBalance` | [-1,1] | signed length of trailing same-direction candle run `/ (n-1)` | `:219` |
+| `momentumNorm` | [-1,1] | `netMove / (n-1) / meanAbsStep`, netMove = `close[last]-close[first]` | `:228` |
+| `momentumPersistence` | [0,1] | `|netMove| / Σ|close[i]-close[i-1]|` | `:229` |
+| `momentumAcceleration` | [-1,1] | `(recentSpeed - earlierSpeed) / (recentSpeed + earlierSpeed)` | `:239` |
+| `volatilityRatio` | [0,1] | `shortVol / (shortVol + longVol)`, stdev of log returns (window vs context) | `:247`, `:38` |
+| `atrRatio` | [0,1] | `windowATR / (windowATR + contextATR)` | `:252`, `:57` |
+| `netChangeRatio` | [-1,1] | `netMove / (windowHigh - windowLow)` | `:255` |
+| `patternScore` | [-1,1] | `0.5*structureTrend + 0.3*netChangeRatio + 0.2*runBalance` | `:256` |
+| `contextTrend` | [-1,1] | `structureTrendOf(contextWindow)` | `:261` |
+| `contextVolatility` | [0,1] | `clampUnit(stdev(log returns over context))` | `:262` |
+| `contextRangePosition` | [0,1] | `(close - contextLow) / (contextHigh - contextLow)` | `:270` |
 
 ## Cross-timeframe features
 
-Computed at `AnalyticalFeatureEngine.cpp:264-322`.
+Computed at `AnalyticalFeatureEngine.cpp:285-355`.
 
 | Feature | Range | Meaning | Impl |
 |---|---|---|---|
-| `h4M15Agreement` | {-1,0,1} | sign of `structureTrend` where M15 and H4 agree; else 0 | `:287` |
-| `h4D1Agreement` | {-1,0,1} | sign where H4 and D1 agree; else 0 | `:290` |
-| `mtfConflictScore` | [0,1] | share of available {M15,H4,D1} pairs whose `structureTrend` signs differ | `:306` |
-| `h4StructuralAuthority` | [-1,1] | H4 `structureTrend` (the structural-authority state) | `:308` |
-| `m15TriggerState` | [-1,1] | `0.5*M15.structureTrend + 0.5*M15.patternScore` (the operational trigger) | `:309` |
+| `h4M15Agreement` | {-1,0,1} | sign of `structureTrend` where M15 and H4 agree; else 0 | `:319` |
+| `h4D1Agreement` | {-1,0,1} | sign where H4 and D1 agree; else 0 | `:322` |
+| `mtfConflictScore` | [0,1] | share of available {M15,H4,D1} pairs whose `structureTrend` signs differ | `:338` |
+| `h4StructuralAuthority` | [-1,1] | H4 `structureTrend` (the structural-authority state) | `:340` |
+| `m15TriggerState` | [-1,1] | `0.5*M15.structureTrend + 0.5*M15.patternScore` (the operational trigger) | `:341` |
 
 M15 is the trigger/operational stream and H4 is the structural authority, per
 `docs/AURA_ASTRA_MASTER_UNIFIED_PROJECT_v4.0.md` V4-04 and `DEC-011`.
@@ -66,11 +80,11 @@ M15 is the trigger/operational stream and H4 is the structural authority, per
 
 - A per-timeframe vector is `valid` only with `>= minTriggerBars (3)` bars and a
   non-zero window range; otherwise `quality` is `INCOMPLETE`/`INVALID` and
-  `detail` says why (`:117`, `:130`, `:253`).
+  `detail` says why (`:140`, `:152`, `:275`).
 - A cross vector is `valid` only when both M15 and H4 are valid; a missing D1
-  yields `DEGRADED` (not fabricated) (`:312`, `:320`).
+  yields `DEGRADED` (not fabricated) (`:344`, `:352`).
 - An absent stream in `computeAll` is emitted with `UNKNOWN` quality and
-  `valid=false` (`:335`).
+  `valid=false` (`:374`).
 - `UNKNOWN` is never treated as fresh or safe (GLOBAL_AI_CODING_RULES #9).
 
 ## Determinism

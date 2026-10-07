@@ -97,6 +97,7 @@ struct CrossTimeframeFeatures {
 
 // The full analytical feature set for one decision instant.
 struct AnalyticalFeatureSet {
+    std::int64_t asOfBarOpenSec = 0;              // common decision instant
     std::vector<TimeframeFeatures> perTimeframe;  // canonical M1..MN1 order
     CrossTimeframeFeatures cross;
     DataQualityState quality = DataQualityState::UNKNOWN;

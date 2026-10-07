@@ -92,6 +92,21 @@ std::vector<Bar> lastN(const std::vector<Bar>& bars, std::size_t n) {
                             bars.end());
 }
 
+// The latest closed-bar open time across every supplied stream. Used as the
+// common decision instant when the caller does not pin one, so no stream reads
+// a bar after the others. Causal by construction: it is the max of observed
+// bars, never a wall-clock "now".
+std::int64_t latestOpenAcross(
+    const std::map<Timeframe, std::vector<Bar>>& byTimeframe) {
+    std::int64_t latest = -1;
+    for (const auto& entry : byTimeframe) {
+        if (!entry.second.empty()) {
+            latest = std::max(latest, entry.second.back().openTimeSec);
+        }
+    }
+    return latest;
+}
+
 }  // namespace
 
 TimeframeFeatures AnalyticalFeatureEngine::computeTimeframe(
@@ -100,8 +115,16 @@ TimeframeFeatures AnalyticalFeatureEngine::computeTimeframe(
     TimeframeFeatures f;
     f.timeframe = timeframe;
 
-    // Causality: drop any bar whose open time is after the decision bar. Bars
-    // arrive in ascending open time, so a cutoff keeps the causal prefix only.
+    // The decision instant this feature is computed as of. Pinned by the
+    // caller for multi-timeframe alignment; otherwise the stream's last bar.
+    const std::int64_t decisionInstant =
+        asOfBarOpenSec >= 0
+            ? asOfBarOpenSec
+            : (bars.empty() ? -1 : bars.back().openTimeSec);
+    f.asOfBarOpenSec = decisionInstant;
+
+    // Causality: drop any bar whose open time is after the decision instant.
+    // Bars arrive in ascending open time, so a cutoff keeps the causal prefix.
     std::vector<Bar> causal = bars;
     if (asOfBarOpenSec >= 0) {
         causal.erase(
@@ -115,12 +138,11 @@ TimeframeFeatures AnalyticalFeatureEngine::computeTimeframe(
 
     if (causal.empty()) {
         f.quality = DataQualityState::INCOMPLETE;
-        f.detail = "no closed bars at or before the decision bar";
+        f.detail = "no closed bars at or before the decision instant";
         return f;
     }
 
     const Bar& lastBar = causal.back();
-    f.asOfBarOpenSec = lastBar.openTimeSec;
 
     const std::vector<Bar> window = lastN(causal, kTriggerWindow);
     const std::size_t n = window.size();
@@ -261,8 +283,15 @@ TimeframeFeatures AnalyticalFeatureEngine::computeTimeframe(
 }
 
 CrossTimeframeFeatures AnalyticalFeatureEngine::computeCross(
-    const std::map<Timeframe, std::vector<Bar>>& byTimeframe) const {
+    const std::map<Timeframe, std::vector<Bar>>& byTimeframe,
+    std::int64_t asOfBarOpenSec) const {
     CrossTimeframeFeatures c;
+
+    // One decision instant for every stream. When not pinned, use the latest
+    // closed bar seen across the supplied streams (never a per-stream tail).
+    const std::int64_t asOf = asOfBarOpenSec >= 0
+                                  ? asOfBarOpenSec
+                                  : latestOpenAcross(byTimeframe);
 
     const auto itM15 = byTimeframe.find(Timeframe::M15);
     const auto itH4 = byTimeframe.find(Timeframe::H4);
@@ -271,14 +300,17 @@ CrossTimeframeFeatures AnalyticalFeatureEngine::computeCross(
     TimeframeFeatures m15;
     TimeframeFeatures h4;
     TimeframeFeatures d1;
-    if (itM15 != byTimeframe.end()) m15 = computeTimeframe(itM15->second, Timeframe::M15);
-    if (itH4 != byTimeframe.end()) h4 = computeTimeframe(itH4->second, Timeframe::H4);
-    if (itD1 != byTimeframe.end()) d1 = computeTimeframe(itD1->second, Timeframe::D1);
+    if (itM15 != byTimeframe.end())
+        m15 = computeTimeframe(itM15->second, Timeframe::M15, asOf);
+    if (itH4 != byTimeframe.end())
+        h4 = computeTimeframe(itH4->second, Timeframe::H4, asOf);
+    if (itD1 != byTimeframe.end())
+        d1 = computeTimeframe(itD1->second, Timeframe::D1, asOf);
 
     c.m15Available = m15.valid;
     c.h4Available = h4.valid;
     c.d1Available = d1.valid;
-    c.asOfBarOpenSec = m15.asOfBarOpenSec;
+    c.asOfBarOpenSec = asOf;
 
     const int m15Sign = signOf(m15.structureTrend);
     const int h4Sign = signOf(h4.structureTrend);
@@ -323,10 +355,17 @@ CrossTimeframeFeatures AnalyticalFeatureEngine::computeCross(
 }
 
 AnalyticalFeatureSet AnalyticalFeatureEngine::computeAll(
-    const std::map<Timeframe, std::vector<Bar>>& byTimeframe) const {
+    const std::map<Timeframe, std::vector<Bar>>& byTimeframe,
+    std::int64_t asOfBarOpenSec) const {
     AnalyticalFeatureSet set;
-    std::size_t validStreams = 0;
 
+    // One decision instant for the whole set (see computeCross).
+    const std::int64_t asOf = asOfBarOpenSec >= 0
+                                  ? asOfBarOpenSec
+                                  : latestOpenAcross(byTimeframe);
+    set.asOfBarOpenSec = asOf;
+
+    std::size_t validStreams = 0;
     for (Timeframe tf : allTimeframes()) {
         const auto it = byTimeframe.find(tf);
         if (it == byTimeframe.end()) {
@@ -337,12 +376,12 @@ AnalyticalFeatureSet AnalyticalFeatureEngine::computeAll(
             set.perTimeframe.push_back(std::move(f));
             continue;
         }
-        TimeframeFeatures f = computeTimeframe(it->second, tf);
+        TimeframeFeatures f = computeTimeframe(it->second, tf, asOf);
         if (f.valid) ++validStreams;
         set.perTimeframe.push_back(std::move(f));
     }
 
-    set.cross = computeCross(byTimeframe);
+    set.cross = computeCross(byTimeframe, asOf);
 
     const bool corePresent = set.cross.m15Available && set.cross.h4Available;
     set.valid = corePresent && validStreams == kTimeframeCount;

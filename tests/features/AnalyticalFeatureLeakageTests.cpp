@@ -8,6 +8,7 @@
 
 #include "analysis/features/AnalyticalFeatureEngine.h"
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -110,29 +111,112 @@ TEST_CASE(mutating_future_bars_is_irrelevant) {
     CHECK(sameFeatures(base, mutated));
 }
 
-TEST_CASE(cross_timeframe_is_causal) {
+// L1 fix: computeCross must not advance to the future when M15/H4 bars are
+// appended. Pinned to a decision instant, future bars are irrelevant.
+TEST_CASE(cross_future_m15_h4_bars_do_not_leak) {
     const AnalyticalFeatureEngine engine;
+    const std::int64_t asOf = 29 * (intervalMillis(Timeframe::M15) / 1000);
 
     std::map<Timeframe, std::vector<Bar>> all;
     all[Timeframe::M15] = series(Timeframe::M15, 40, 1900.0, 0.6);
     all[Timeframe::H4] = series(Timeframe::H4, 40, 1900.0, 1.9);
     all[Timeframe::D1] = series(Timeframe::D1, 40, 1900.0, 4.0);
 
-    // computeCross uses the M15 tail; the wild D1 future must not leak into
-    // the M15/H4 agreement signals.
-    const CrossTimeframeFeatures before = engine.computeCross(all);
+    const CrossTimeframeFeatures before = engine.computeCross(all, asOf);
 
-    for (auto& b : all[Timeframe::D1]) {
-        b.close = 9999.0;
-        b.high = 10000.0;
+    // Append wild FUTURE M15 and H4 bars: this is the exact probe that caught
+    // the original defect (m15TriggerState/asOf moved). With a pinned asOf it
+    // must be a no-op.
+    const std::int64_t m15iv = intervalMillis(Timeframe::M15) / 1000;
+    const std::int64_t h4iv = intervalMillis(Timeframe::H4) / 1000;
+    for (std::size_t i = 40; i < 60; ++i) {
+        const double mbase = 5000.0 + 100.0 * static_cast<double>(i);
+        all[Timeframe::M15].push_back(test::makeBar(
+            Timeframe::M15, static_cast<std::int64_t>(i) * m15iv, mbase,
+            mbase + 500.0, mbase - 500.0, mbase + 400.0));
+        const double hbase = 8000.0 + 200.0 * static_cast<double>(i);
+        all[Timeframe::H4].push_back(test::makeBar(
+            Timeframe::H4, static_cast<std::int64_t>(i) * h4iv, hbase,
+            hbase + 900.0, hbase - 900.0, hbase + 700.0));
     }
-    const CrossTimeframeFeatures after = engine.computeCross(all);
 
-    // H4/M15 agreement is unchanged by D1 mutation; conflict share changes
-    // only through the legitimately-supplied D1 stream, never through M15/H4.
-    CHECK_EQ(before.h4M15Agreement, after.h4M15Agreement);
-    CHECK_EQ(before.h4StructuralAuthority, after.h4StructuralAuthority);
+    const CrossTimeframeFeatures after = engine.computeCross(all, asOf);
+
+    CHECK_EQ(before.asOfBarOpenSec, after.asOfBarOpenSec);
     CHECK_EQ(before.m15TriggerState, after.m15TriggerState);
+    CHECK_EQ(before.h4StructuralAuthority, after.h4StructuralAuthority);
+    CHECK_EQ(before.h4M15Agreement, after.h4M15Agreement);
+    CHECK_EQ(before.h4D1Agreement, after.h4D1Agreement);
+    CHECK_EQ(before.mtfConflictScore, after.mtfConflictScore);
+}
+
+// L1 fix: with no explicit asOf, computeCross pins to the latest observed bar
+// across the streams (a real closed bar), never a per-stream tail.
+TEST_CASE(cross_default_asof_is_causal_common_instant) {
+    const AnalyticalFeatureEngine engine;
+    std::map<Timeframe, std::vector<Bar>> all;
+    all[Timeframe::M15] = series(Timeframe::M15, 40, 1900.0, 0.6);
+    all[Timeframe::H4] = series(Timeframe::H4, 40, 1900.0, 1.9);
+
+    const CrossTimeframeFeatures before = engine.computeCross(all);
+    const std::int64_t expected =
+        std::max(all[Timeframe::M15].back().openTimeSec,
+                 all[Timeframe::H4].back().openTimeSec);
+    CHECK_EQ(before.asOfBarOpenSec, expected);
+
+    // Appending FUTURE bars moves the default instant forward (that is a new
+    // decision moment), but recomputing at the OLD instant is unchanged.
+    const std::int64_t oldInstant = before.asOfBarOpenSec;
+    const std::int64_t m15iv = intervalMillis(Timeframe::M15) / 1000;
+    for (std::size_t j = 0; j < 15; ++j) {
+        const std::int64_t open =
+            oldInstant + static_cast<std::int64_t>(j + 1) * m15iv;
+        const double base = 5000.0 + 100.0 * static_cast<double>(j);
+        all[Timeframe::M15].push_back(
+            test::makeBar(Timeframe::M15, open, base, base + 500.0,
+                          base - 500.0, base + 400.0));
+    }
+    const CrossTimeframeFeatures pinned =
+        engine.computeCross(all, oldInstant);
+    CHECK_EQ(pinned.m15TriggerState, before.m15TriggerState);
+    CHECK_EQ(pinned.asOfBarOpenSec, oldInstant);
+}
+
+// L2 fix: all nine per-timeframe vectors share one common decision instant.
+TEST_CASE(compute_all_shares_one_decision_instant) {
+    const AnalyticalFeatureEngine engine;
+    std::map<Timeframe, std::vector<Bar>> all;
+    // Deliberately unequal lengths (as in the audit probe).
+    const std::size_t lens[9] = {40, 41, 42, 43, 44, 45, 46, 47, 48};
+    std::size_t i = 0;
+    for (Timeframe tf : allTimeframes()) {
+        all[tf] = series(tf, lens[i++], 1900.0, 0.6);
+    }
+
+    const AnalyticalFeatureSet set = engine.computeAll(all);
+    CHECK(set.valid);
+    // Every per-timeframe vector reports the set's common instant.
+    for (const auto& f : set.perTimeframe) {
+        CHECK_EQ(f.asOfBarOpenSec, set.asOfBarOpenSec);
+    }
+    CHECK_EQ(set.cross.asOfBarOpenSec, set.asOfBarOpenSec);
+
+    // Appending future bars to one stream must not change the set recomputed
+    // at the old instant.
+    const std::int64_t oldInstant = set.asOfBarOpenSec;
+    const std::int64_t iv = intervalMillis(Timeframe::M15) / 1000;
+    for (std::size_t j = 0; j < 20; ++j) {
+        const std::int64_t open =
+            oldInstant + static_cast<std::int64_t>(j + 1) * iv;
+        const double base = 5000.0 + 100.0 * static_cast<double>(j);
+        all[Timeframe::M15].push_back(
+            test::makeBar(Timeframe::M15, open, base, base + 500.0,
+                          base - 500.0, base + 400.0));
+    }
+    const AnalyticalFeatureSet after =
+        engine.computeAll(all, oldInstant);
+    CHECK_EQ(after.asOfBarOpenSec, oldInstant);
+    CHECK_EQ(after.cross.m15TriggerState, set.cross.m15TriggerState);
 }
 
 TEST_CASE(decision_bar_is_the_last_read_bar) {

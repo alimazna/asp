@@ -42,13 +42,25 @@ public:
 
     // Cross-timeframe features. Looks up M15 / H4 / D1 in `byTimeframe`; a
     // missing stream is reported as unavailable, never fabricated.
+    //
+    // Causality: `asOfBarOpenSec` is the single decision instant applied to
+    // EVERY stream, so M15/H4/D1 all describe the same moment. When < 0, the
+    // common instant defaults to the latest supplied bar across the streams
+    // (still causal: no stream reads a bar after it). Never per-stream tails.
     CrossTimeframeFeatures computeCross(
-        const std::map<Timeframe, std::vector<Bar>>& byTimeframe) const;
+        const std::map<Timeframe, std::vector<Bar>>& byTimeframe,
+        std::int64_t asOfBarOpenSec = -1) const;
 
     // The full set over all nine canonical streams. Streams absent from
     // `byTimeframe` are emitted with UNKNOWN quality and valid=false.
+    //
+    // Causality: one `asOfBarOpenSec` is threaded to every stream, so the set
+    // is a single decision snapshot; `AnalyticalFeatureSet::asOfBarOpenSec` is
+    // that common instant. When < 0 it defaults to the latest supplied bar
+    // across all streams.
     AnalyticalFeatureSet computeAll(
-        const std::map<Timeframe, std::vector<Bar>>& byTimeframe) const;
+        const std::map<Timeframe, std::vector<Bar>>& byTimeframe,
+        std::int64_t asOfBarOpenSec = -1) const;
 
     const AnalyticalFeatureConfig& config() const noexcept { return config_; }
 

@@ -29,3 +29,24 @@
   is not picked up by CTest. CMakeLists.txt is outside Agent-A's zone; requested
   a Lead/C change (see comm.md). Tests verified by manual compile against
   libaura_core.a.
+
+### [2026-10-07 21:30 UTC] T01 audit FAIL (F1/F2) — fixed
+- Agent-D T01/T10 audit (commit 368adf3) found two RULE 4 causality defects:
+  * F1: computeCross had no asOf; pinned each stream to its own tail.
+  * F2: computeAll had no common decision instant; per-TF asOf spanned
+    17940..59616000 with set.valid=1.
+- Accepted both. Fix (in zone):
+  * computeTimeframe: asOfBarOpenSec now means the decision instant (reported),
+    not the last-used bar; drops bars after it.
+  * computeCross(byTimeframe, asOf) / computeAll(byTimeframe, asOf): one shared
+    instant threaded to every stream. Default (<0) = latest closed bar across
+    the supplied streams (latestOpenAcross), never a per-stream tail.
+  * AnalyticalFeatureSet gained asOfBarOpenSec (common instant).
+- Tests added (leakage suite 5 -> 7 cases):
+  * cross_future_m15_h4_bars_do_not_leak (the exact F1 probe).
+  * cross_default_asof_is_causal_common_instant.
+  * compute_all_shares_one_decision_instant (the F2 assertion).
+- Reproduced Agent-D's probe at the M15 instant: m15TriggerState 0.976316 ->
+  0.976316 (invariant) after appending 20 future M15 bars. Leak closed.
+- Evidence: unit 9/9, leakage 7/7, existing CTest 12/12, warning-free.
+- Re-submitted to Agent-D for T01/T10 re-audit.

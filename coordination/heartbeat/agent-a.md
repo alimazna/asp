@@ -28,3 +28,10 @@
 - Lease: T01 (in REVIEW)
 - Progress: 60%
 - Note: waiting on Agent-D audit of T01; CMake glob gap escalated to @human
+
+### [2026-10-07 21:31 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T01 (in REVIEW)
+- Progress: 75%
+- Note: fixed audit F1/F2 (common decision instant); leakage 7/7; re-audit requested
