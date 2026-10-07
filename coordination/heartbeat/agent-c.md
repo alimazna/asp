@@ -56,3 +56,10 @@
 - Lease: C-1 follow-up (-> REVIEW); T16/T17/T19 delivered
 - Progress: 100%
 - Note: durable calibration audit gate landed; awaiting Agent-D re-audit
+
+### [2026-10-07 23:10 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: standing by for T13 hardening (Lead)
+- Progress: n/a
+- Note: T17 freeze decision on F15-3 sent (do not wire T15 levels yet)
