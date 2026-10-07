@@ -99,3 +99,8 @@ schema-vs-impl not machine-checked; F17-2 tag absent). T19 mock NEEDS WORK
 Note: fixtures architecture + 39/39 self-check PASS; F22-1 blocking (default
 fixture claims model_version="logistic-t03" / features non-empty, contradicting the
 freeze + backend). Fix both valid analysis files before F17-1 consumes them.
+
+### [2026-10-07 23:45 UTC] T22 → REVIEW (re-audit PASS)
+Note: F22-1b fixed at 0fc7083; invariant model corrected (frozen nulls
+unconditional). 50/50. Branch-diff guard teeth-tested (drift -> FAIL; live field ->
+PASS). T22 PASS; ready for DONE. invariant_violations ready for Agent-C F17-1.

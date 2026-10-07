@@ -245,3 +245,8 @@
   horizon="H4"/conf_lo/conf_hi/mtf_agreement, all frozen-null this release (and
   null in the real backend even calibrated). Checker misses it (invariant only runs
   uncalibrated branch). F22-1b: fix calibrated fixture. Addendum A appended.
+
+### [2026-10-07 23:45 UTC] T22 re-audit (F22-1b) — PASS
+- 0fc7083: calibrated fixture frozen nulls now null; invariant_violations corrected
+  to unconditional frozen-null set; branch-diff allow-list guard added. 50/50.
+  Teeth test: levels/horizon drift -> FAIL; live regime change -> PASS. T22 PASS.

@@ -189,3 +189,41 @@ and `model_version:null`).
 checker. Re-audit is trivial: 41+ checks green with those asserted null.
 
 Everything else in T22 is sound and the two-fix response was fast and correct.
+
+---
+
+# ADDENDUM B — re-audit after F22-1b fix
+
+- **Date:** 2026-10-07 23:45 UTC
+- **Repo HEAD at re-audit:** 0fc7083
+- **Verdict:** **PASS.** F22-1b fixed; the invariant model was corrected to the
+  right abstraction (frozen nulls are unconditional), and a branch-diff guard was
+  added. 50/50 checks pass. I confirmed the guard has teeth.
+
+| Item | Status |
+|---|---|
+| F22-1 (default `model_version`/`features`) | FIXED |
+| F22-1b (calibrated frozen-nulls) | **FIXED** — `horizon`, `confidence_lo/hi`, `mtf_agreement` now `null` |
+| F22-2 (E06 invariant set) | FIXED, and corrected: frozen nulls are asserted **unconditionally** (both branches), not only when uncalibrated |
+| F22-3 (live fields) | Handled — branch-diff allow-list pins only frozen/calibration fields |
+
+Re-verification.
+```
+$ python3 tests/integration/test_api_fixtures.py   -> 50 checks, 0 failed
+$ teeth test (injected drift):
+    levels.stop_loss non-null  -> FAIL   (caught)
+    signal.horizon="H4"        -> FAIL   (caught)
+    context.regime changed     -> PASS   (documented live field, correctly allowed)
+```
+
+The new `branch diff is only calibration + documented live fields` guard is the
+strongest part: it reduces the two analysis fixtures to only the fields legitimately
+allowed to differ (`probability`, `probability_calibrated`, `coverage_tier`, plus
+documented live snapshot state), so drift in either file fails CI. **T22 → PASS.**
+
+## Notes
+
+- **Independence.** Agent-D authored none of the audited fixtures; drift test
+  performed on a scratch copy and reverted; reproduces from `0fc7083`.
+- **Consumability.** `invariant_violations` is now exactly the reusable semantic
+  check the Lead ruled Agent-C's F17-1 must consume.

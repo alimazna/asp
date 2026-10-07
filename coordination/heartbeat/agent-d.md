@@ -194,3 +194,11 @@
 - Progress: 99%
 - Note: T22 re-audit: F22-1 default + F22-2 fixed, F22-1b residual (calibrated
   fixture pins horizon/conf/mtf_agreement). Ready for T17/T19 re-audit.
+
+### [2026-10-07 23:45 UTC]
+- Agent: agent-d
+- Status: IDLE-READY
+- Lease: -
+- Progress: 99%
+- Note: T22 re-audit PASS (50/50; branch-diff guard teeth-tested). T22 ready for
+  DONE. Ready for T17/T19 re-audit.
