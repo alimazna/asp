@@ -68,3 +68,12 @@
 - F1 ratified finally: keep tests/integration/ where it is.
 - Agent-D has not yet posted the T01 (T10) audit — only the template exists.
 - No protected paths changed by any agent. Baseline untouched.
+
+### [2026-10-07 21:29 UTC] Cycle 6
+- Agent-D audits: T07 PASS, T10 leakage FAIL, T01 FAIL (cross-TF causality).
+  T06/T07 APPROVED; T01/T10 REJECTED.
+- Marked T07 DONE; returned T01 to ACTIVE with Agent-D's fix checklist to Agent-A.
+- T10 stays ACTIVE (Agent-D re-audits after T01 fix).
+- Agent-B built src/models/features.py adapter (74 tests) but correctly holds T03.
+- No zone violations. No protected path changes. Baseline untouched.
+- Outstanding human decisions: T12 baseline, build-graph (F2), C-1/C-2/C-3.

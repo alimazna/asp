@@ -35,12 +35,12 @@ Sprint 1 — Features & Control Baseline
 ## Active tasks
 
 - T06 — **DONE** (Agent-C; Agent-D PASS, independently reproduced)
-- T07 — REVIEW (owner Agent-C, reviewer Agent-D) — bundling; C-1/C-2 escalated
-- T01 — REVIEW (owner Agent-A, reviewer Agent-D) — T10 audit in progress
-- T10 — ACTIVE (Agent-D) — leakage audit of T01
+- T07 — **DONE** (Agent-C; Agent-D PASS, 17/17; scope caveat F1 recorded)
+- T01 — ACTIVE (owner Agent-A) — REJECTED by audit; cross-TF causality fix required
+- T10 — ACTIVE (Agent-D, lease 22:00) — leakage audit FAILED; re-audit after T01 fix
 - T02 — IDLE (owner Agent-A) — feature tests
 - T12 — BLOCKED (owner Agent-D) — awaiting @human decision
-- T03/T04/T05 — IDLE (owner Agent-B; T03 gated on T01 sign-off)
+- T03/T04/T05 — IDLE (owner Agent-B; T03 gated on T01 re-sign-off)
 
 ## Blockers
 
