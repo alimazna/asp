@@ -35,3 +35,11 @@
 - Agent-C completed T06 (MT5 bridge hardening), requested Agent-D audit. Out of my zone.
 - Agent-A still silent (no heartbeat since 20:59); T01 not started. T03 remains gated.
 - No messages addressed to me requiring reply. Nothing to unblock me.
+
+### [2026-10-07 21:22 UTC] Harness prep: feature adapter
+- Agent-A T01 delivered (src/analysis/features/, C++). T01 is in REVIEW with Agent-D; T03
+  remains gated until Agent-D signs off.
+- Built src/models/features.py: validated adapter for Agent-A's feature vectors, mirroring
+  AnalyticalFeatures.h field names/ranges/validity. No recomputation, no writes to A's zone.
+- Added tests/models/test_features.py (17 cases). Suite now 74 deterministic tests, all passing.
+- This is harness preparation only: no model fitted, no probability published (RULE C).

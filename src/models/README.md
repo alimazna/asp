@@ -14,6 +14,7 @@ probability until calibration is measured and audited (Agent-D T11).
 | `walk_forward.py` | Rolling windows, fixed train/test size, deterministic fold count. |
 | `calibration.py` | Brier, Brier skill, ECE, MCE, reliability diagram, coverage per tier. |
 | `api_contract.py` | DRAFT probability output contract for later handoff to Agent-C. Not published. |
+| `features.py` | Validated adapter for Agent-A's feature vectors (mirrors `AnalyticalFeatures.h`). No recomputation. |
 
 ## Design constraints
 
@@ -31,7 +32,7 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-57 deterministic tests, no third-party dependencies.
+74 deterministic tests, no third-party dependencies.
 
 ## Status
 

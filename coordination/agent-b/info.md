@@ -20,7 +20,8 @@ Probability & Calibration. Owns the logistic baseline, XGBoost + calibration, an
   - `src/models/walk_forward.py` — deterministic rolling windows, fixed train/test, leakage guard
   - `src/models/calibration.py` — Brier, Brier skill, ECE, MCE, reliability diagram, coverage tiers
   - `src/models/api_contract.py` — DRAFT probability contract (NOT published, RULE C)
-  - `tests/models/*` — 57 deterministic tests, all passing
+  - `src/models/features.py` — validated adapter for Agent-A's feature vectors (mirrors AnalyticalFeatures.h)
+  - `tests/models/*` — 74 deterministic tests, all passing
 
 ## Key findings
 - No third-party Python packages exist in the container (no numpy/sklearn/xgboost/pytest).
