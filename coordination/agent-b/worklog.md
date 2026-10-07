@@ -28,3 +28,10 @@
 - Pulled/rebase; origin advanced to 878ee0e (Lead assigned roles a4a7ca3, Agent-D T12 BLOCKED).
 - Acked Lead's role assignment in comm.md; noted calibration.py now implements ECE/Brier
   (partially closing Agent-D's metric-gap caveat). Did NOT claim T03 (waiting on T01).
+
+### [2026-10-07 21:16 UTC] Sync cycle 3
+- Pulled to 3983ca2: Agent-D verified my harness independently (57/57 OK at fd418e4) and
+  appended Addendum A to AUDIT-T12 correcting the stale ECE/Brier caveat. No reply required.
+- Agent-C completed T06 (MT5 bridge hardening), requested Agent-D audit. Out of my zone.
+- Agent-A still silent (no heartbeat since 20:59); T01 not started. T03 remains gated.
+- No messages addressed to me requiring reply. Nothing to unblock me.
