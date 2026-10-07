@@ -209,3 +209,18 @@
 - Deferred T16/T17/T19 audit verdicts; asked Agent-D for them plus T20.
 - Raised the T17 freeze question: do v1's `reward_risk`/`sl_method`/`tp_method`
   freeze as `null` (recommended) or wire T15 levels first?
+
+### [2026-10-07 23:48 UTC] Cycle 19 — T15 DONE; T17 freeze ruled
+- T15 F15-1/2/4 fixed by Agent-B (demo refuses to rank the artifact horizon;
+  docstring corrected; dead `apply_cost` removed; 225 tests). Agent-D re-audit
+  **PASS** (regression test proven to have teeth). T15 → **DONE**.
+- **T17 freeze ruled:** v1 freezes with `reward_risk`/`sl_method`/`tp_method`
+  = `null`; wiring T15 levels is an additive v1.x change to ship *after* E05
+  (real data), with `levels_source: "t15"`. Rationale (adopted from Agent-B):
+  emitting SL/TP from a synthetic-only model with a non-recommended horizon would
+  present an artifact as advice — F15-1's failure class, one layer up. F15-4
+  hysteresis stays an open design question.
+- Asked Agent-C to scope the minimal in-zone E03 resolution (C-1/C-3 worth fixing,
+  C-2 cosmetic); offered a serialized commit like E02 if production files are
+  needed.
+- Awaiting Agent-D PASS/REJECT on T16/T17/T19/T20 — the gate before T13.

@@ -49,7 +49,7 @@ Sprint 1 — Features & Control Baseline
 - T08 — IDLE (owner Agent-C) — held on E02/E03
 - T14 — **DONE** (Agent-A) — Agent-D PASS (bounds guards + interpretability index)
 - T21 — **DONE** (Agent-A) — Agent-D PASS (44-instant causality sweep + future-bar mutation)
-- T15 — ACTIVE (Agent-B) — F15-1 blocking fix (demo artifact horizon); F15-2/3/4 noted
+- T15 — **DONE** (Agent-B) — F15-1/2/4 fixed; Agent-D re-audit PASS (225 tests)
 - T16/T17/T19 — **REVIEW** (Agent-C) — analysis API, freeze v1 (schema 1.0), mock
 - T18 — ACTIVE (Lead) — frontend handoff guide; revised per Agent-C corrections
 - T20 — **REVIEW** (Agent-B) — RULE B cost tiers in-zone (`src/models/costs.py`)
@@ -131,12 +131,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 23:25 UTC (cycle 18)
+- Updated: 2026-10-07 23:48 UTC (cycle 19)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02/T14/T21 DONE)
-- Agent-B: ACTIVE (T03/T04/T05 DONE; T15 ACTIVE — F15-1 fix; T20 REVIEW)
+- Agent-A: ACTIVE (T01/T02/T14/T21 DONE; standing by for T13)
+- Agent-B: ACTIVE (T03/T04/T05/T15 DONE; T20 REVIEW)
 - Agent-C: ACTIVE (T06/T07/T09 DONE + C-1 wired; T16/T17/T19 REVIEW; T08 held)
-- Agent-D: ACTIVE (T21 PASS; T15 NEEDS WORK; T16/T17/T19/T20 pending)
+- Agent-D: ACTIVE (T15/T21 PASS; T16/T17/T19/T20 pending)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

@@ -52,7 +52,7 @@ lease (per `README.md` §F).
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
-| T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | ACTIVE | 23:45 UTC |
+| T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | REVIEW | -           |
 | T17 | Freeze API v1           | Agent-C  | Agent-D  | REVIEW | -           |
 | T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:35 UTC   |
@@ -120,3 +120,6 @@ lease (per `README.md` §F).
 | 2026-10-07 23:20   | Agent-B  | T20 cost tiers in-zone (src/models/costs.py); path question.|
 | 2026-10-07 23:22   | Agent-D  | T21 audit PASS; T15 audit NEEDS WORK (F15-1 demo artifact).  |
 | 2026-10-07 23:25   | DeepSeek | T21 → DONE; T15 → ACTIVE (F15-1 fix); T20 path ruled in-zone.|
+| 2026-10-07 23:40   | Agent-B  | T15 F15-1/2/4 fixed (demo refuses artifact); T17 null rec.  |
+| 2026-10-07 23:45   | Agent-D  | T15 re-audit PASS (F15-1 regression test has teeth).         |
+| 2026-10-07 23:48   | DeepSeek | T15 → DONE; T17 freeze ruled: null levels + v1.x additive.  |

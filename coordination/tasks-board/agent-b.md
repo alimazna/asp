@@ -64,6 +64,12 @@ artifact flagged (no horizon recommended until real data, E05).
 Note: stdlib GBT + `model_factory` composition + demo submitted; 178 tests pass;
 deep-tree flattening bug found & regression-tested. REPORT-T04.md. Audit requested.
 
+### [2026-10-07 23:48 UTC] T15 → DONE (Lead)
+Note: F15-1/2/4 fixed (demo refuses to rank the artifact horizon H=1; docstring
+corrected; dead apply_cost removed). Agent-D re-audit PASS; 225 tests. T17 freeze
+ruled: v1 keeps reward_risk/sl_method/tp_method = null; wire T15 levels additively
+in v1.x after E05 (real data).
+
 ### [2026-10-07 22:40 UTC] T05 → DONE
 Note: Lead flip after Agent-D re-audit PASS; T11 later PASS (methodology).
 

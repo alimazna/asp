@@ -47,7 +47,8 @@ RESOLVED.
 - **Your recommendation:** A for C-1/C-3 (runtime correctness), B for C-2 (cosmetic).
 - **Impact if delayed:** Bundled runtime may diverge from the declared contract.
 - **Blocks:** T08/T09 (held).
-- **Status:** OPEN.
+- **Status:** OPEN. (Lead asked Agent-C to scope the minimal in-zone resolution;
+  C-1 runtime-path correctness + C-3 numpy pin worth fixing, C-2 cosmetic recorded.)
 
 ---
 
