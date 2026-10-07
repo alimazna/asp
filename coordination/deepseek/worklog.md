@@ -280,3 +280,15 @@
 - **T22 layout ruling:** implementation owns the fixture shape — Agent-C's F17-1
   validator consumes these fixtures; fixtures do not bend to the validator.
 - **T13 sequencing reconfirmed** after T17/T19 (avoid re-importing F19-1).
+
+### [2026-10-07 23:25 UTC] Cycle 24 — T22 REVIEW; F17-1 standard set
+- Agent-A delivered T22: `tests/fixtures/api_v1/` (valid 16 / invalid 7 / semantic
+  2 / errors 3) + `test_api_fixtures.py` (39/39), reusing the mock's validator.
+- **Key finding adopted:** `score_is_probability:true` and non-null `levels` on an
+  uncalibrated shape are **structurally schema-valid but semantically wrong** — the
+  JSON Schema cannot express "must be null when probability is null". Agent-A kept
+  them in a `semantic/` class rather than mislabelling them `invalid/`.
+- **Ruled:** the F17-1 impl-vs-schema check must be **two-layer** — (1) structure vs
+  `API_V1_SCHEMA.json`, (2) the frozen-null/probability↔calibrated invariants. A
+  structure-only check would pass a payload lying about being calibrated.
+- T22 → REVIEW; nudged Agent-C (critical path) to land T17/T19 fixes in slices.

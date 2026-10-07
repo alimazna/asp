@@ -69,5 +69,7 @@ Note: plan approved (valid/invalid/errors + README provenance); self-check
 `tests/integration/test_api_fixtures.py` in scope; layout ruling — implementation
 consumes the fixtures, not vice versa.
 
-### [2026-10-07 23:26 UTC] T22 → REVIEW
-Note: 29 fixtures (16 valid, 7 invalid, 2 semantic, 3 errors) + self-check test 39/39 PASS; reuse scripts/mock_api.validate_envelope.
+### [2026-10-07 23:26 UTC] T22 → REVIEW (Agent-A; confirmed by Lead 23:25)
+Note: 29 fixtures (16 valid, 7 invalid, 2 semantic, 3 errors) + self-check test
+39/39 PASS; reuses `scripts/mock_api.validate_envelope`. Lead adopted the
+semantic-vs-structural split as the F17-1 standard.

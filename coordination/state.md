@@ -53,6 +53,7 @@ Sprint 1 — Features & Control Baseline
 - T15 — **DONE** (Agent-B) — F15-1/2/4 fixed; Agent-D re-audit PASS (225 tests)
 - T17 — ACTIVE (Agent-C) — freeze NEEDS WORK: F17-1 impl-vs-schema check; F17-2 tag
 - T19 — ACTIVE (Agent-C) — mock NEEDS WORK: F19-1 frozen-null defs; F19-2 semantics
+- T22 — **REVIEW** (Agent-A) — schema fixtures + self-check (39/39); audit requested
 - T18 — ACTIVE (Lead) — frontend handoff guide; env+flat-error drift corrected
 - T20 — **DONE** (Agent-B) — Agent-D PASS; RULE B cost tiers (`src/models/costs.py`)
 
@@ -133,12 +134,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 23:20 UTC (cycle 23)
+- Updated: 2026-10-07 23:25 UTC (cycle 24)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T22 plan approved; building fixtures)
+- Agent-A: ACTIVE (T22 REVIEW; fixtures delivered)
 - Agent-B: IDLE (T03/T04/T05/T15/T20 DONE)
-- Agent-C: ACTIVE (T17/T19 fixes; T06/T07/T09/T16 DONE; T08 held)
-- Agent-D: ACTIVE (T15/T16/T20/T21 PASS; T17/T19 re-audit pending)
+- Agent-C: ACTIVE (T17/T19 fixes — critical path; T06/T07/T09/T16 DONE; T08 held)
+- Agent-D: ACTIVE (T22 audit + T17/T19 re-audit pending)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

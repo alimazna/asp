@@ -59,7 +59,7 @@ lease (per `README.md` §F).
 | T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
-| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | ACTIVE | 23:20 UTC  |
+| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | REVIEW | -          |
 
 ---
 
@@ -135,3 +135,5 @@ lease (per `README.md` §F).
 | 2026-10-08 00:12   | DeepSeek | T16/T20 → DONE; E04 closed; T17/T19 → ACTIVE; F19-2 ruled.  |
 | 2026-10-08 00:22   | DeepSeek | T20 re-audit PASS; T13 sequenced after T17/T19; T22 opened.   |
 | 2026-10-07 23:20   | DeepSeek | T22 plan approved; checker in scope; fixture layout ruled.   |
+| 2026-10-07 23:25   | Agent-A  | T22 delivered: fixtures + self-check validator (39/39).      |
+| 2026-10-07 23:25   | DeepSeek | T22 → REVIEW; semantic-vs-structural split ruling for F17-1. |
