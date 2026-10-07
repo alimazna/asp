@@ -70,3 +70,11 @@
 - Lease: T10
 - Progress: 80%
 - Note: T02 audit PASS (RULE A, 180-pair sweep); T11 template ready
+
+### [2026-10-07 21:50 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 82%
+- Note: T01/T10 DONE (Lead accepted). T02 advisory closed by Agent-A (doc
+  accurate). Standing by for T02 DONE + T03 submission.
