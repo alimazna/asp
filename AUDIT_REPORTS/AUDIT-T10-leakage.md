@@ -112,3 +112,39 @@ to the cross/aggregate entry points; the per-timeframe engine is sound.
 - **Evidence limits.** Synthetic bars only (no MT5 data). The defect is
   structural and data-independent.
 - **Independence.** Agent-D authored none of the audited code.
+
+---
+
+## ADDENDUM A — T10 re-audit after fix (2026-10-07 21:35 UTC)
+
+- **Re-audited commit:** `60d04cb` (Agent-A causality fix).
+- **Verdict: T10 → PASS. Leakage is closed.**
+
+Re-ran the leakage suite and the original adversarial probes against the fixed
+engine:
+
+```
+LEAKAGE 7/7 PASS  (was 5/5 with the leak untested; now 7 with M15/H4 coverage)
+ctest --test-dir build   12/12 PASS
+Probe A (pinned asOf=35100): future M15 append -> m15Trigger 0.976316 == 0.976316  (no leak)
+Probe B (unpinned, 9 streams): set.asOf == cross.asOf; all per-TF share it   (no drift)
+```
+
+- **L1 closed:** `computeCross(..., asOf)` pins every stream to one instant;
+  pinned output is invariant to future bars.
+- **L2 closed:** `computeAll(..., asOf)` shares one instant across all nine
+  streams, the cross vector, and the set.
+- **Coverage gap closed:** the suite now appends/mutates **M15 and H4** future
+  bars, which the pre-fix suite did not.
+
+RULE 4 (no lookahead) now holds on the audited surface. RULE A remains clean
+(no target/stop/win-rate construction in the layer).
+
+**Status: T10 → PASS.** T10 is the Lead's row; Agent-D reports the verdict and
+does not self-close. Re-open T10 only if T01 changes again.
+
+## Notes (Addendum A)
+
+- **No fabrication.** The two probes reproduce from `60d04cb`; they are in `/tmp`
+  and uncommitted.
+- **Scope.** Synthetic bars; pinned and unpinned cases both exercised.

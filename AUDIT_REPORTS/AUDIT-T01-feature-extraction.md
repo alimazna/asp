@@ -188,3 +188,75 @@ the status change.
   manual compile. This is the same class of gap as Agent-D's F2 on T06 and
   should be resolved once by the Lead (recursive glob or explicit test
   registration).
+
+---
+
+## ADDENDUM A — re-audit after Agent-A fix (2026-10-07 21:35 UTC)
+
+- **Re-audited commit:** `60d04cbded05d1af96c7b0098da1d37699e33cf0`
+  ("agent-a: fix T01/T10 causality (common decision instant in
+  computeCross/computeAll) + leakage tests").
+- **Verdict: F1/F2 FIXED. T01 now PASSES the causality criterion.**
+
+What changed (read from the diff, not the claim):
+
+- `computeCross` and `computeAll` now take `asOfBarOpenSec` (default -1) and
+  thread one `asOf` into every `computeTimeframe(..., asOf)` call.
+- When unpinned, the default is `latestOpenAcross(byTimeframe)` — the max
+  observed bar open time across all streams — **not** a per-stream tail.
+- `computeTimeframe` now sets `f.asOfBarOpenSec` to the decision instant (not the
+  last-read bar) and erases bars with `openTimeSec > asOfBarOpenSec`.
+- `computeCross` reports `c.asOfBarOpenSec = asOf` (the common instant, not the
+  M15 tail); `computeAll` sets `set.asOfBarOpenSec = asOf`.
+
+Independent re-verification (Agent-D, not Agent-A's tests):
+
+```
+$ cmake --build build -j4 ; g++ ... feat_unit2 ; g++ ... feat_leak2
+UNIT    9/9 PASS
+LEAKAGE 7/7 PASS
+$ ctest --test-dir build        12/12 PASS
+$ g++ -Wall -Wextra -c AnalyticalFeatureEngine.cpp   (warning-free)
+
+Adversarial probe (Agent-D):
+PART A (pinned asOf=35100):
+  before asOf=35100 m15Trigger=0.976316
+  after  asOf=35100 m15Trigger=0.976316
+  PINNED LEAK: no
+PART B (unpinned, 9 equal streams):
+  set.asOf == cross.asOf; all per-TF share set.asOf: YES
+  after future-M15 append: all-TF-share=YES cross-agrees=YES
+  UNPINNED DRIFT: no
+OVERALL: F1/F2 FIXED (invariants hold)
+```
+
+- **F1 closed.** With a pinned instant the cross output is invariant to future
+  M15 bars (the exact probe that previously leaked now returns 0.976316 both
+  times).
+- **F2 closed.** Unpinned, every per-TF vector, the cross vector, and the set
+  share one `asOfBarOpenSec`; no per-stream drift.
+- **New leakage tests are the right shape.** `cross_future_m15_h4_bars_do_not_leak`
+  appends future **M15 + H4** bars (the previous gap), and
+  `compute_all_shares_one_decision_instant` asserts the common instant. Both
+  pass; both fail against the pre-fix engine.
+
+Residual observations (not blockers):
+
+- **N1 (advisory, RULE 4 wording).** When unpinned, the default instant is the
+  latest bar across streams; appending a future bar legitimately advances the
+  set instant (correct causal behaviour — it is what a live feed does). The
+  caller must therefore pin `asOf` for a reproducible historical snapshot. The
+  new tests cover the pinned case; consider documenting the pinned/unpinned
+  contract in `FEATURES.md`. Not a defect.
+- **N2 (build graph, unchanged).** `tests/features/` is still outside CTest
+  (non-recursive glob). Agent-A's tests were rerun manually. Awaiting the
+  Lead/human build-graph decision.
+
+**Status: T01 → PASS (causality).** No further code change requested. Agent-D
+does not set DONE; the Lead owns the status change.
+
+## Notes (Addendum A)
+
+- **No fabrication.** Every addendum claim reproduces from `60d04cb`; the probe
+  is in `/tmp` and uncommitted.
+- **Scope.** Synthetic bars; pinned + unpinned cases both exercised.

@@ -80,3 +80,15 @@
   L2 computeAll. Report: AUDIT_REPORTS/AUDIT-T10-leakage.md
 - Set own T10 row ACTIVE (per Lead board 21:26); audit will re-run after T01 fix.
 - Posted consolidated APPROVED/REJECTED verdicts to Lead.
+
+### [2026-10-07 21:35 UTC] T01/T10 re-audit after Agent-A fix — PASS
+- Agent-A resubmitted (60d04cb: asOf threaded through computeCross/computeAll).
+- Rebuilt; reran: UNIT 9/9, LEAKAGE 7/7, ctest 12/12, warning-free.
+- Adversarial probe: pinned asOf=35100 -> future M15 append leaves m15Trigger
+  0.976316 unchanged (leak closed); unpinned 9 streams -> set.asOf == cross.asOf
+  == all per-TF (no drift). OVERALL F1/F2 FIXED.
+- Read the diff: latestOpenAcross() default (max observed bar), not per-stream
+  tail; computeTimeframe reports the decision instant.
+- Verdict T01 PASS (causality), T10 PASS (leakage closed). Addendum A appended
+  to both reports. N1 advisory: document pinned/unpinned contract in FEATURES.md.
+- Did not self-close; Lead owns status. Next: T11 calibration audit (IDLE).
