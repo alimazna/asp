@@ -33,3 +33,10 @@ Note: Agent-D audit FAIL (F1 runner overlap guard) — fixing, then resubmit.
 
 ### [2026-10-07 22:12 UTC] T05 → REVIEW
 Note: F1 fix (structural partition guard) pushed; re-audit requested (162 pass).
+
+### [2026-10-07 22:16 UTC] T05 → REVIEW
+Note: F1 fixed (structural separation guard); Agent-D re-audit PASS; 162 tests.
+
+### [2026-10-07 22:16 UTC] T04 → IDLE
+Note: dep posture set — stdlib deterministic booster unless XGBoost is provably
+better; pin + prove determinism either way. Gated on T05 DONE.

@@ -42,16 +42,21 @@ lease (per `README.md` §F).
 | T02 | Feature tests           | Agent-A  | Agent-D  | DONE   | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | DONE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
-| T05 | Calibration metrics     | Agent-B  | Agent-D  | ACTIVE | 22:40 UTC   |
+| T05 | Calibration metrics     | Agent-B  | Agent-D  | REVIEW | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
 | T07 | Python bundling         | Agent-C  | Agent-D  | DONE   | -           |
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
-| T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
+| T11 | Calibration audit       | Agent-D  | Lead     | ACTIVE | 22:40 UTC   |
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
-| T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | IDLE   | -           |
+| T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | REVIEW | -           |
+| T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | ACTIVE | 22:55 UTC |
+| T16 | Analysis API endpoints  | Agent-C  | Agent-D  | IDLE   | -           |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | IDLE   | -           |
+| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:10 UTC   |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | IDLE   | -           |
 
 ---
 
@@ -67,6 +72,10 @@ lease (per `README.md` §F).
 - **T10/T11/T12 (Agent-D):** independent audits — leakage, calibration, baseline
   control. Agent-D reports to the Lead, not to the task owner.
 - **T13 (Agent-C, reviewed by All):** end-to-end integration once T01–T09 are DONE.
+- **T15 (Lead+Agent-B):** decision model — prediction horizon + SL/TP methods,
+  justified and tested. Deliverable `docs/architecture/DECISION_MODEL.md`.
+- **T16/T17/T19 (Agent-C):** analysis API endpoints, API v1 freeze, mock generator.
+- **T18 (Lead, Agent-C input):** frontend handoff guide.
 
 ## Change log
 
@@ -87,3 +96,7 @@ lease (per `README.md` §F).
 | 2026-10-07 22:00   | DeepSeek | Phase 3.0 autonomy; T14 (bounds guards) added for Agent-A.  |
 | 2026-10-07 22:05   | Agent-B  | T05 submitted → REVIEW (calibrators/calibrated runner, 150 tests).|
 | 2026-10-07 22:06   | Agent-D  | T05 audit FAIL (F1 runner overlap guard) → back to ACTIVE.  |
+| 2026-10-07 22:13   | Agent-B  | T05 F1 fixed (structural separation guard) → REVIEW; 162 pass.|
+| 2026-10-07 22:14   | Agent-D  | T05 re-audit PASS → REVIEW; T11 ready to open.             |
+| 2026-10-07 22:15   | Agent-A  | T14 bounds/NaN guards + interpretability index → REVIEW.    |
+| 2026-10-07 22:16   | DeepSeek | T05 PASS; T11 ACTIVE. Phase 4.0: T15–T19 added (T14 taken). |

@@ -1,21 +1,27 @@
 # DAILY SUMMARY — 2026-10-07
 
-**Mission status:** ON TRACK (features + baseline complete; calibration is the
-critical path).
+**Mission status:** Phase 4.0 — decision-support backend + frontend handoff.
+The backend produces a calibrated probability (UP/DOWN/FLAT) over a defined
+horizon, suggests SL/TP + reward/risk, reports confidence/coverage honestly, and
+is handed to the frontend against a **frozen API v1**. "Complete" does not require
+profit — it requires an honest calibration result and a frozen contract.
 
 ## Progress
 
-- Sprint 1 features complete: T01 (feature extraction) and T02 (feature tests)
-  DONE, both audited PASS by Agent-D.
-- T03 (logistic baseline) DONE, audited PASS — leakage surface verified
-  independently.
-- Backend: T06 (MT5 bridge) and T07 (Python bundling) DONE, audited PASS.
-- T10 (leakage audit) DONE. T12 (baseline control check) DEFERRED by human.
+- Sprint 1 features complete: T01, T02 DONE (audited PASS).
+- T03 (logistic baseline) DONE, audited PASS. T05 (calibration) — Agent-D re-audit
+  PASS after the F1 partition-guard fix (162 tests); T11 (calibration audit)
+  ACTIVE on that head.
+- T14 (feature bounds/NaN guards + interpretability index) submitted → REVIEW.
+- Backend: T06/T07 DONE audited. Phase 4.0 tasks added: T15 (decision model,
+  draft), T16 (analysis API), T17 (freeze v1), T18 (handoff guide, draft),
+  T19 (mock generator).
+- T10 DONE; T12 DEFERRED by human.
 
 ## Calibration numbers
 
-- None yet. T03's Brier/ECE are measurement-only (synthetic data). No calibrated
-  probability exists; T11 remains IDLE (RULE C).
+- Not yet published. T11 is auditing the T05 calibration; no ECE/Brier number is
+  final until Agent-D reports. All current numbers are on synthetic data (Q2).
 
 ## Escalations pending
 
@@ -25,10 +31,10 @@ critical path).
 ## Risks
 
 - No real XAUUSD data in the repo (Q2): results are correct but not evidential.
-- RULE B cost tiers unbuilt: no result can be called "real" yet.
+- RULE B cost tiers unbuilt: no decision-grade result is possible yet.
 - Environment lacks cmake: C++ tests are compiled manually.
 
 ## Next 24h focus
 
-- T05 calibration (Agent-B) → T11 audit (Agent-D). T14 feature bounds guards
-  (Agent-A). T09 probability API with RULE C bound (Agent-C). T04 after T05.
+- T11 calibration audit (Agent-D). T14 audit. T15 decision-model validation
+  (Agent-B). T16/T17/T19 API + freeze + mock (Agent-C). T04 booster after T05 DONE.

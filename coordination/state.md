@@ -40,12 +40,15 @@ Sprint 1 — Features & Control Baseline
 - T10 — **DONE** (Agent-D; leakage closed, re-audit PASS)
 - T02 — **DONE** (Agent-A; Agent-D PASS — RULE A, 180-pair sweep)
 - T03 — **DONE** (Agent-B; Agent-D PASS — leakage surface verified)
-- T05 — ACTIVE (owner Agent-B) — F1 fix: enforce partition disjointness/order
-- T04 — IDLE (owner Agent-B) — gated on T05; dep posture decided (see Governance)
+- T05 — **REVIEW** (Agent-B) — Agent-D re-audit PASS (F1 fixed, 162 tests); Lead flip pending
+- T04 — IDLE (owner Agent-B) — gated on T05 DONE; dep posture decided (see Governance)
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
-- T11 — IDLE (Agent-D) — opens when a calibrated output is published
+- T11 — ACTIVE (Agent-D) — calibration audit on T05 head (RULE C gate satisfied)
 - T08/T09 — IDLE (owner Agent-C) — T09 unblocked (RULE C bound); T08 held on E02/E03
-- T14 — IDLE (owner Agent-A) — feature bounds/NaN-inf guard tests (new, Phase 3.0)
+- T14 — **REVIEW** (Agent-A) — bounds/NaN-inf guards + interpretability index; audit requested
+- T15 — ACTIVE (Lead+Agent-B) — decision model (horizon + SL/TP); draft written
+- T16/T17/T19 — IDLE (owner Agent-C) — analysis API, freeze v1, mock generator
+- T18 — ACTIVE (Lead) — frontend handoff guide; draft written
 
 ## Blockers
 
@@ -82,15 +85,27 @@ Sprint 1 — Features & Control Baseline
   pinned in an in-zone lockfile with determinism evidence. T05 (stdlib) lands
   first. Rationale: preserve the project's byte-identical determinism and avoid
   an unpinned supply-chain surface.
+- **Phase 4.0 mission redefinition (22:16 UTC):** mission is now a
+  **decision-support backend + frontend handoff**. `MISSION.md` §10 rewritten;
+  T15–T19 added. **Interpretation:** the directive's proposed T14 (decision model)
+  collides with the already-delivered T14 (bounds guards, Agent-A); to preserve
+  append-only history I mapped the directive's items to fresh IDs — T15 (decision
+  model, Lead+Agent-B), T16 (analysis API, Agent-C), T17 (freeze API v1,
+  Agent-C), T18 (handoff guide, Lead), T19 (mock generator, Agent-C). T14 stays as
+  delivered. Documented per charter §2.5.
+- **Horizon choice (T15, provisional):** next 4 closed M15 (~1h) with a cost-aware
+  FLAT dead-band; contingent on Agent-B's calibration evidence (switch to H1 if it
+  calibrates materially better). SL `atr_1.5x`; TP `rr_2x`; `prob_scaled` TP
+  rejected as primary (RULE A).
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 22:07 UTC (cycle 13)
+- Updated: 2026-10-07 22:16 UTC (cycle 14)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02 DONE; T14 assigned)
-- Agent-B: ACTIVE (T03 DONE; T05 F1 fix in progress — critical path)
-- Agent-C: ACTIVE (T06/T07 DONE; T09 unblocked, T08 held)
-- Agent-D: ACTIVE (T01/T02/T03/T10 PASS; T05 FAIL returned; T11 prepared)
+- Agent-A: ACTIVE (T01/T02 DONE; T14 REVIEW — audit requested)
+- Agent-B: ACTIVE (T03/T05 done; T15 co-owner; T04 after T05 DONE)
+- Agent-C: ACTIVE (T06/T07 DONE; T16/T17/T19 assigned; T09 open; T08 held)
+- Agent-D: ACTIVE (T01/T02/T03/T05 PASS; T11 ACTIVE; T14 audit requested)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

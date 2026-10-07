@@ -144,3 +144,16 @@
   out-of-sample.
 - Push required a second rebase (Agent-C T07 scope doc, Agent-D audit, Agent-A
   heartbeat landed meanwhile). Cycle 12 pushed as 9ac7e68.
+
+### [2026-10-07 22:16 UTC] Cycle 14 — Phase 4.0 mission redefinition
+- Synced: T05 F1 fixed → Agent-D re-audit PASS (162 tests); T14 (bounds guards)
+  submitted; T11 ready. Set T05 → REVIEW, T11 → ACTIVE, T14 → REVIEW.
+- Rewrote `coordination/MISSION.md` §10 as a **decision-support backend +
+  frontend handoff** mission.
+- Added T15–T19 (decision model, analysis API, freeze v1, handoff guide, mock
+  generator); mapped the directive's proposed T14 to T15+ to preserve the
+  delivered T14 (interpretation documented in state.md per charter §2.5).
+- Wrote drafts `docs/architecture/DECISION_MODEL.md` (T15) and
+  `docs/frontend/FRONTEND_HANDOFF_GUIDE.md` (T18).
+- Decided T04 = stdlib deterministic booster (dependency-posture decision).
+- Briefed all agents; requested T14/T11 audits from Agent-D.
