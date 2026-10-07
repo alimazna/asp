@@ -213,3 +213,17 @@
   it). F15-2 FIXED (docstring matches close-based behaviour). Dead apply_cost
   removed. 225/225. F15-3 deferred to T17 freeze; F15-4 open design question.
 - Addendum A appended. Verdict T15 PASS.
+
+### [2026-10-07 23:09 UTC] Phase 4.0 audits — T16 PASS, T20 PASS, T17/T19 NEEDS WORK
+- T16 analysis API: real-facade payloads dump (3 modes) + 12/12 validate vs schema.
+  Single shared RULE C gate confirmed (calibrated+un-audited -> null; audited ->
+  0.72). No fabrication. PASS.
+- T20 cost tiers: tiers/order/flags validated; negative rej; NaN/+inf accepted
+  (F20-1 non-blocking). levels dedup identical. PASS. E04 closable.
+- T17 freeze: real impl matches schema (15/15 endpoints covered) BUT "machine-
+  checked" applies only to the mock (F17-1 blocking); api-v1.0 tag absent
+  (F17-2). NEEDS WORK.
+- T19 mock: schema-valid + no-probability-when-uncalibrated, BUT default serves
+  values the freeze declares null (F19-1) and score_is_probability inverts the
+  real API (F19-2). NEEDS WORK.
+- Reports: AUDIT-T16/17/19/20. Verdicts to Lead + Agent-C.

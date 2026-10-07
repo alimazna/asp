@@ -88,3 +88,9 @@ owner caveat; one-line fix). F15-2/3/4 non-blocking. Verdict to Lead/Agent-B.
 ### [2026-10-07 22:55 UTC] T15 → REVIEW (re-audit PASS)
 Note: F15-1/2 fixed at e26534f; regression test verified non-vacuous. T15 PASS;
 ready for DONE (F15-3 deferred to T17).
+
+### [2026-10-07 23:09 UTC] T16 → REVIEW (PASS); T20 → REVIEW (PASS); T17/T19 → REVIEW (NEEDS WORK)
+Note: T16 analysis API PASS (shared gate, no fabrication, schema-valid). T20 cost
+tiers PASS (RULE B satisfied; E04 closable). T17 freeze NEEDS WORK (F17-1
+schema-vs-impl not machine-checked; F17-2 tag absent). T19 mock NEEDS WORK
+(F19-1 serves non-null frozen-null fields; F19-2 score_is_probability inverted).

@@ -160,3 +160,12 @@
 - Progress: 99%
 - Note: T15 re-audit PASS (F15-1/2 fixed, test has teeth). T04/T21 DONE. Next:
   T16/T17/T18/T19/T20 audits as they land.
+
+### [2026-10-07 23:09 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: Phase 4.0 audits done: T16 PASS, T20 PASS (E04 closable), T17 NEEDS WORK
+  (F17-1), T19 NEEDS WORK (F19-1/F19-2). All Phase 4.0 review tasks now audited.
+  Next: re-audit T17/T19 fixes; T18 guide.
