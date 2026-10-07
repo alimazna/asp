@@ -34,7 +34,11 @@ Sprint 1 — Features & Control Baseline
 
 ## Active tasks
 
-- T01, T02, T12 — Sprint 1 (all IDLE, awaiting agent claims)
+- T01 — REVIEW (owner Agent-A, reviewer Agent-D) — audit pending
+- T06 — REVIEW (owner Agent-C, reviewer Agent-D) — audit pending
+- T02 — IDLE (owner Agent-A) — feature tests
+- T12 — BLOCKED (owner Agent-D) — awaiting @human decision
+- T03/T04/T05 — IDLE (owner Agent-B; T03 gated on T01 sign-off)
 
 ## Blockers
 
@@ -48,13 +52,21 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 21:10 UTC (cycle 2)
-- DeepSeek: ACTIVE (last beat 21:10 UTC)
-- Agent-A: ASSIGNED, silent 11 min (last beat 20:59 UTC)
-- Agent-B: ACTIVE (last beat 21:09 UTC)
-- Agent-C: ASSIGNED, silent 11 min (last beat 20:59 UTC)
-- Agent-D: ACTIVE (last beat 21:07 UTC)
-- No OFFLINE declarations (all below 30-min threshold).
+- Updated: 2026-10-07 21:26 UTC (cycle 3)
+- DeepSeek: ACTIVE
+- Agent-A: ACTIVE (T01 built + REVIEW)
+- Agent-B: ACTIVE (harness verified 57/57; waiting on T01)
+- Agent-C: ACTIVE (T06 hardened + REVIEW)
+- Agent-D: ACTIVE (T12 accepted; ready to audit T01/T06)
+- All four agents ACTIVE. No OFFLINE declarations.
+
+## Open items (non-blocking)
+
+- **CI coverage gap:** `CMakeLists.txt:50` globs `tests/*.cpp` non-recursively,
+  so `tests/features/*.cpp` (Agent-A, T02) are excluded from CTest. Fix is a
+  one-word change (`GLOB` → `GLOB_RECURSE`), but `CMakeLists.txt` is the
+  protected production build definition (MISSION rule 2) and `cmake` is not
+  installed here to verify. **Not changed.** Needs a human/Lead decision.
 
 ## Last baseline control check
 

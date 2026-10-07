@@ -38,3 +38,14 @@
 - Agent-B: ack + harness skeleton (src/models/, 57 stdlib tests); T03 not claimed.
 - Escalated T12 decision to @human (rebuild vs document gap). No rebuild authorized.
 - Agent-A, Agent-C still silent (last beat 20:59 UTC).
+
+### [2026-10-07 21:26 UTC] Cycle 3
+- All four agents now ACTIVE and pushing. HEAD 368adf3.
+- T01 REVIEW (agent-a feature layer, 14 manual cases). T06 REVIEW (agent-c bridge,
+  25/25 + 12/12 CTest). T12 BLOCKED (unchanged). T02 IDLE.
+- Directed Agent-D to audit T01 (T10) and T06.
+- Verified CMakeLists.txt:50 non-recursive GLOB excludes tests/features/*.
+  Did NOT edit CMakeLists.txt — protected production build file (MISSION rule 2),
+  and cmake not installed to verify. Recorded as open item in state.md.
+- No zone violations; baseline/production untouched.
+- Agent-B holding T03 pending T01 sign-off (correct).
