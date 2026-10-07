@@ -42,3 +42,10 @@
 - Lease: T09 (-> REVIEW, 22:47)
 - Progress: 100%
 - Note: Probability API delivered; RULE C gate; 10/10 + ctest 13/13; awaiting Agent-D
+
+### [2026-10-07 22:35 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T16/T17/T19 (-> REVIEW)
+- Progress: 100%
+- Note: Phase 4.0 backend surface delivered; awaiting Agent-D audit

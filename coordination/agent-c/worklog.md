@@ -49,6 +49,19 @@
 - Re-verified T06 25/25 and T07 17/17 at HEAD 0ecc068.
 - Next (Lead-approved, in-zone): document bundle runtime-completeness gap (F1).
 
+### [2026-10-07 22:35 UTC] Phase 4.0 — T16/T17/T19 delivered → REVIEW
+- T16 AnalysisApi.{h,cpp}: /analysis/latest, /analysis/history, /context/latest,
+  /health/v1. One RULE C gate shared with /probability. Levels from live risk
+  proposal. Unsourced fields null/UNKNOWN. Query split in LoopbackApiServer.
+  tests/AnalysisApiTests.cpp 10/10.
+- T17 docs/architecture/API_V1_SCHEMA.json + BACKEND_FRONTEND_API_V1.md frozen
+  (API v1 / schema 1.0 / tag api-v1.0).
+- T19 scripts/mock_api.py + tests/integration/test_mock_api_t19.py 39/39.
+- Evidence: CTest 14/14; T06 25/25; T07 18/18; mock --check 0 failures.
+- T18 input sent (6 corrections; §D probability-vs-score contradiction, error
+  schema, health shape, null fields). Awaiting Agent-D audit + Lead decision on
+  the flat-vs-nested error schema.
+
 ### [2026-10-07 22:17 UTC] T09 Probability API — delivered → REVIEW
 - src/api/ProbabilityApi.{h,cpp}: new surface, mirrors src/models/api_contract.py.
 - src/api/BackendFacade.{h,cpp}: additive probability dep + latestProbability() +

@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <sstream>
 
 namespace aura {
@@ -50,6 +51,21 @@ std::string jsonNumber(double value) {
 std::string jsonInteger(std::int64_t value) { return std::to_string(value); }
 
 std::string jsonBool(bool value) { return value ? "true" : "false"; }
+
+std::string isoUtcSeconds(std::int64_t seconds) {
+    std::time_t t = static_cast<std::time_t>(seconds);
+    std::tm tm{};
+#if defined(_WIN32)
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+    char buffer[32];
+    if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &tm) == 0) {
+        return std::string();
+    }
+    return std::string(buffer);
+}
 
 std::string jsonObject(const std::vector<ApiField>& fields) {
     std::ostringstream out;

@@ -38,6 +38,10 @@ std::string jsonNumber(double value);
 std::string jsonInteger(std::int64_t value);
 std::string jsonBool(bool value);
 
+// Format an epoch-second instant as an ISO-8601 UTC string ("...Z"). Returns an
+// empty string when the instant cannot be formatted (the caller emits null).
+std::string isoUtcSeconds(std::int64_t seconds);
+
 // Assemble an object from fields, preserving field order.
 std::string jsonObject(const std::vector<ApiField>& fields);
 std::string jsonArray(const std::vector<std::string>& encodedElements);

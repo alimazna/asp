@@ -610,6 +610,71 @@ ApiResponse BackendFacade::recentAudit() const {
 
 ApiResponse BackendFacade::handle(const std::string& method,
                                   const std::string& path) const {
+    return handle(method, path, "");
+}
+
+ApiResponse BackendFacade::latestAnalysis() const {
+    if (deps_.analysis == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: analysis surface");
+    }
+    const std::string symbol =
+        deps_.runtime != nullptr ? deps_.runtime->resolvedSymbol() : std::string();
+    const DecisionContext context =
+        deps_.runtime != nullptr ? deps_.runtime->lastDecisionContext()
+                                 : DecisionContext{};
+    return deps_.analysis->latest(symbol, context, deps_.probability, deps_.ledger);
+}
+
+ApiResponse BackendFacade::analysisHistory(int limit) const {
+    if (deps_.analysis == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: analysis surface");
+    }
+    const std::string symbol =
+        deps_.runtime != nullptr ? deps_.runtime->resolvedSymbol() : std::string();
+    const DecisionContext context =
+        deps_.runtime != nullptr ? deps_.runtime->lastDecisionContext()
+                                 : DecisionContext{};
+    return deps_.analysis->history(symbol, context, deps_.probability, deps_.ledger,
+                                   limit);
+}
+
+ApiResponse BackendFacade::contextLatest() const {
+    if (deps_.analysis == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: analysis surface");
+    }
+    const std::string symbol =
+        deps_.runtime != nullptr ? deps_.runtime->resolvedSymbol() : std::string();
+    const DecisionContext context =
+        deps_.runtime != nullptr ? deps_.runtime->lastDecisionContext()
+                                 : DecisionContext{};
+    return deps_.analysis->contextLatest(symbol, context);
+}
+
+ApiResponse BackendFacade::healthV1() const {
+    if (deps_.analysis == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: analysis surface");
+    }
+    std::string bridgeState = "OFFLINE";
+    bool handshakeOk = false;
+    if (deps_.runtime != nullptr) {
+        bridgeState = toString(deps_.runtime->bridgeState());
+        handshakeOk = deps_.runtime->bridgeHandshakeOk();
+    }
+    std::int64_t uptimeSec = -1;
+    if (startedAtSec_ >= 0) {
+        const std::int64_t nowSec = Timestamp::now().epochMillis() / 1000;
+        uptimeSec = nowSec >= startedAtSec_ ? nowSec - startedAtSec_ : 0;
+    }
+    return deps_.analysis->health(deps_.health, bridgeState, handshakeOk, uptimeSec);
+}
+
+ApiResponse BackendFacade::handle(const std::string& method,
+                                  const std::string& path,
+                                  const std::string& query) const {
     if (method != "GET") {
         return errorResponse(405, "method_not_allowed",
                              "only GET is supported on read routes");
@@ -626,6 +691,31 @@ ApiResponse BackendFacade::handle(const std::string& method,
     if (path == "/api/v1/governance/status") return governanceStatus();
     if (path == "/api/v1/bridge/status") return bridgeStatus();
     if (path == "/api/v1/audit/recent") return recentAudit();
+
+    // Decision-support analysis surface (Phase 4.0 / T16).
+    if (path == "/api/v1/analysis/latest") return latestAnalysis();
+    if (path == "/api/v1/analysis/history") {
+        int limit = 50;
+        const std::string key = "limit=";
+        const std::size_t at = query.find(key);
+        if (at != std::string::npos) {
+            std::size_t end = query.find('&', at);
+            const std::string value =
+                query.substr(at + key.size(),
+                             end == std::string::npos ? std::string::npos
+                                                      : end - (at + key.size()));
+            try {
+                limit = std::stoi(value);
+            } catch (...) {
+                limit = 50;  // malformed limit falls back to the default
+            }
+        }
+        if (limit < 0) limit = 0;
+        if (limit > 500) limit = 500;
+        return analysisHistory(limit);
+    }
+    if (path == "/api/v1/context/latest") return contextLatest();
+    if (path == "/api/v1/health/v1") return healthV1();
 
     const std::string prefix = "/api/v1/timeframes/";
     if (path.size() > prefix.size() &&

@@ -58,6 +58,26 @@ public:
     void setCalibrationAudited(bool audited) noexcept { audited_ = audited; }
     bool calibrationAudited() const noexcept { return audited_; }
 
+    // The single source of truth for "may this be shown as a probability?".
+    // Both the /probability and /analysis surfaces read this so the RULE C gate
+    // can never diverge between routes.
+    struct Gate {
+        bool presentable = false;    // RULE C: may be presented as a probability
+        double probability = 0.0;    // valid only when presentable
+        double score = 0.0;          // the raw (uncalibrated) score, always valid
+        const char* tier = nullptr;  // valid only when presentable
+        const char* direction = nullptr;  // "UP" | "DOWN" | "NONE"
+        std::string reason;          // why not presentable
+    };
+    struct View {
+        bool available = false;      // a prediction exists in the ledger
+        Gate gate;
+        PredictionRecord record;     // the source record (copy)
+    };
+    // Apply the RULE C gate to one record. Pure; depends only on `audited_`.
+    Gate evaluate(const PredictionRecord& record) const;
+    View view(const PredictionLedger* ledger) const;
+
     // Render the latest prediction as a probability payload. `ledger` may be
     // null (503) or empty (available=false). When the value is not calibrated,
     // `probability` is null and `calibrated` is false — the score is carried in

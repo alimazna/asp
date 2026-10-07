@@ -322,7 +322,16 @@ void LoopbackApiServer::acceptLoop() {
 ApiResponse LoopbackApiServer::handleRequest(const std::string& method,
                                              const std::string& path,
                                              const std::string& body) {
-    if (path == "/api/v1/command") {
+    // Split the request target into path and query once, here, so the facade
+    // never has to reason about HTTP framing.
+    std::string routePath = path;
+    std::string query;
+    const std::size_t q = routePath.find('?');
+    if (q != std::string::npos) {
+        query = routePath.substr(q + 1);
+        routePath = routePath.substr(0, q);
+    }
+    if (routePath == "/api/v1/command") {
         if (method != "POST") {
             return errorResponse(405, "method_not_allowed",
                                  "command route requires POST");
@@ -335,7 +344,7 @@ ApiResponse LoopbackApiServer::handleRequest(const std::string& method,
     }
     // All other paths are read routes owned by the facade (which enforces
     // GET-only, 404, and dependency availability).
-    return facade_->handle(method, path);
+    return facade_->handle(method, routePath, query);
 }
 
 }  // namespace aura

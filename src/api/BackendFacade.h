@@ -8,6 +8,7 @@
 // broker directly on the frontend's behalf.
 
 #include "api/BackendApiSchema.h"
+#include "api/AnalysisApi.h"
 #include "api/ProbabilityApi.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
@@ -17,6 +18,7 @@
 #include "shadow/PositionSimulator.h"
 #include "telegram/TelegramGateway.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -33,6 +35,9 @@ struct FacadeDependencies {
     // Optional. When null, the probability surface still reports honestly
     // (available=false / uncalibrated) rather than fabricating a value.
     ProbabilityApi* probability = nullptr;
+    // Optional analysis surface (analysis/context/health routes). When null
+    // those routes report 503 rather than fabricating a payload.
+    AnalysisApi* analysis = nullptr;
 };
 
 struct CommandRequest {
@@ -43,7 +48,11 @@ struct CommandRequest {
 
 class BackendFacade {
 public:
-    explicit BackendFacade(FacadeDependencies deps) : deps_(deps) {}
+    explicit BackendFacade(FacadeDependencies deps) : deps_(deps) {
+        startedAtSec_ = Timestamp::now().isKnown()
+                            ? Timestamp::now().epochMillis() / 1000
+                            : -1;
+    }
 
     // Read-only routes. Every route returns the standard envelope or an error
     // object; a missing dependency yields 503, never fabricated data.
@@ -61,9 +70,20 @@ public:
     ApiResponse bridgeStatus() const;
     ApiResponse recentAudit() const;
 
+    // Decision-support analysis surface (Phase 4.0 / T16).
+    ApiResponse latestAnalysis() const;
+    ApiResponse analysisHistory(int limit) const;
+    ApiResponse contextLatest() const;
+    ApiResponse healthV1() const;
+
     // Route table: method + path dispatch. Returns 404 for unknown paths and
     // 405 for a known path with the wrong method.
     ApiResponse handle(const std::string& method, const std::string& path) const;
+
+    // As above, with the raw query string (no leading '?'). Only
+    // /analysis/history reads it (`limit`); every other route ignores it.
+    ApiResponse handle(const std::string& method, const std::string& path,
+                       const std::string& query) const;
 
     // Command contract (versioned, policy-checked). Only a small allow-list of
     // non-execution commands is accepted.
@@ -74,6 +94,7 @@ public:
 private:
     FacadeDependencies deps_;
     std::vector<std::string> commandLog_;
+    std::int64_t startedAtSec_ = -1;  // process-relative uptime origin
 };
 
 }  // namespace aura

@@ -21,12 +21,22 @@ Backend & Live Integration. Owns the MT5 bridge, Python bundling, Windows packag
 - T07 Python bundling — **DONE** (Agent-D PASS 17/17 → 18/18 after scope
   assertion). packaging/bundle_manifest.json, scripts/bundle.py, parity test.
 - T08 Windows packaging — HELD (Lead). T09 Probability API — **REVIEW** (Agent-D).
+- T16 analysis API — **REVIEW**. T17 freeze v1 — **REVIEW**. T19 mock — **REVIEW**.
+- T18 frontend guide — Lead-owned; my 6 corrections sent 22:35.
 - T13 End-to-end integration — IDLE, gated on T01–T09.
 
 ## Owned files (src/api/)
-- ProbabilityApi.h / ProbabilityApi.cpp (T09) — probability surface, RULE C gate.
-- BackendFacade.h / BackendFacade.cpp (T09 additive) — route /api/v1/probability/latest.
-- tests/ProbabilityApiTests.cpp (T09) — 10 cases.
+- ProbabilityApi.h / ProbabilityApi.cpp — RULE C gate (single source of truth).
+- AnalysisApi.h / AnalysisApi.cpp — /analysis, /context, /health/v1 surface.
+- BackendFacade.h / BackendFacade.cpp — routes + wiring.
+- LoopbackApiServer.cpp — path?query split.
+- tests/ProbabilityApiTests.cpp (10), tests/AnalysisApiTests.cpp (10).
+
+## Owned files (other)
+- scripts/mock_api.py — T19 mock server.
+- docs/architecture/API_V1_SCHEMA.json — frozen v1 contract (authoritative).
+- docs/architecture/BACKEND_FRONTEND_API_V1.md — freeze record (T17).
+- tests/integration/test_mock_api_t19.py — 39 checks.
 
 ## Key findings
 - Bridge verified empirically on 127.0.0.1:8791 (no real MT5/broker here).

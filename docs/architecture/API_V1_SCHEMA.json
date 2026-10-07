@@ -1,0 +1,225 @@
+{
+  "$comment": "ASTRA backend/frontend API v1 - frozen contract (T17). Hand-maintained, machine-checked by tests/integration/test_mock_api_t19.py and scripts/mock_api.py --check. Routes not listed here are NOT part of the frozen frontend contract; /probability/latest and /signals/latest exist but are superseded by /analysis/latest. Every response body is enveloped as {api:'v1', schema:'1.0', data:...}. A missing dependency yields HTTP 503 with the flat error object {error:'true', code, message}; unknown routes yield 404; wrong method 405.",
+  "api": "v1",
+  "schema": "1.0",
+  "base": "http://127.0.0.1:8790/api/v1/",
+  "loopback_only": true,
+  "error_schema": {
+    "type": "object",
+    "required": ["error", "code", "message"],
+    "properties": {
+      "error": {"type": "string", "const": "true"},
+      "code": {"type": "string"},
+      "message": {"type": "string"}
+    }
+  },
+  "endpoints": {
+    "GET /api/v1/system/state": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["mode", "shadow_only", "ready", "bridge_state", "startup_stage", "api", "schema"],
+      "data_properties": {
+        "mode": {"enum": ["STARTING", "RECOVERY", "NORMAL", "DEGRADED", "SHADOW", "PAUSED", "MANUAL", "EMERGENCY", "HALTED"]},
+        "shadow_only": {"type": "boolean"},
+        "ready": {"type": "boolean"},
+        "bridge_state": {"type": "string"},
+        "startup_stage": {"type": "string"},
+        "api": {"const": "v1"},
+        "schema": {"const": "1.0"}
+      }
+    },
+    "GET /api/v1/health": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["aggregate", "decision_grade_data", "degraded_reasons", "observed_at", "unknown_is_not_safe"],
+      "data_properties": {
+        "aggregate": {"type": "string"},
+        "decision_grade_data": {"type": "boolean"},
+        "degraded_reasons": {"type": "array"},
+        "observed_at": {"type": ["integer", "null"]},
+        "unknown_is_not_safe": {"const": true}
+      }
+    },
+    "GET /api/v1/health/v1": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["status", "bridge", "version", "uptime_sec"],
+      "data_properties": {
+        "status": {"enum": ["ok", "degraded", "offline"]},
+        "bridge": {"enum": ["ok", "degraded", "offline"]},
+        "version": {"const": "v1"},
+        "uptime_sec": {"type": ["integer", "null"]}
+      }
+    },
+    "GET /api/v1/timeframes": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_type": "array",
+      "element_required": ["timeframe", "observed", "has_closed_bar", "quality", "decision_grade", "freshness", "last_successful_update"],
+      "element_properties": {
+        "timeframe": {"enum": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]},
+        "observed": {"type": "boolean"},
+        "has_closed_bar": {"type": "boolean"},
+        "quality": {"type": "string"},
+        "decision_grade": {"type": "boolean"},
+        "freshness": {"type": ["object", "null"]},
+        "last_successful_update": {"type": ["integer", "null"]}
+      }
+    },
+    "GET /api/v1/timeframes/{tf}/snapshot": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["timeframe", "observed", "quality"],
+      "data_properties": {
+        "timeframe": {"type": "string"},
+        "observed": {"type": "boolean"},
+        "quality": {"type": "string"}
+      }
+    },
+    "GET /api/v1/analysis/latest": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["timestamp", "symbol", "context", "signal", "levels", "meta"],
+      "data_properties": {
+        "timestamp": {"type": ["string", "null"]},
+        "symbol": {"type": "string"},
+        "context": {
+          "type": "object",
+          "required": ["regime", "h4_bias", "m15_trigger", "mtf_agreement", "volatility_state"],
+          "properties": {
+            "regime": {"type": "string"},
+            "h4_bias": {"type": "string"},
+            "m15_trigger": {"type": "string"},
+            "mtf_agreement": {"type": ["number", "null"]},
+            "volatility_state": {"type": "string"}
+          }
+        },
+        "signal": {
+          "type": "object",
+          "required": ["direction", "horizon", "probability", "probability_calibrated", "score", "confidence_lo", "confidence_hi", "model_version", "features_contributing"],
+          "properties": {
+            "direction": {"enum": ["UP", "DOWN", "FLAT", "NONE", "UNKNOWN"]},
+            "horizon": {"type": ["string", "null"]},
+            "probability": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "probability_calibrated": {"type": "boolean"},
+            "score": {"type": ["number", "null"]},
+            "confidence_lo": {"type": ["number", "null"]},
+            "confidence_hi": {"type": ["number", "null"]},
+            "model_version": {"type": ["string", "null"]},
+            "features_contributing": {"type": "array"}
+          }
+        },
+        "levels": {
+          "type": "object",
+          "required": ["entry", "stop_loss", "take_profit", "reward_risk", "suggested_risk_pct", "sl_method", "tp_method"],
+          "properties": {
+            "entry": {"type": ["number", "null"]},
+            "stop_loss": {"type": ["number", "null"]},
+            "take_profit": {"type": ["number", "null"]},
+            "reward_risk": {"type": ["number", "null"]},
+            "suggested_risk_pct": {"type": ["number", "null"]},
+            "sl_method": {"type": ["string", "null"]},
+            "tp_method": {"type": ["string", "null"]}
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["coverage_tier", "data_freshness_sec", "degraded", "score_is_probability", "disclaimer"],
+          "properties": {
+            "coverage_tier": {"enum": ["high", "medium", "low", "unknown"]},
+            "data_freshness_sec": {"type": ["integer", "null"]},
+            "degraded": {"type": "boolean"},
+            "score_is_probability": {"type": "boolean"},
+            "disclaimer": {"type": "string"}
+          }
+        }
+      }
+    },
+    "GET /api/v1/analysis/history": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_type": "array",
+      "element_required": ["timestamp", "symbol", "context", "signal", "levels", "meta"],
+      "query": {
+        "limit": {"type": "integer", "default": 50, "minimum": 0, "maximum": 500}
+      }
+    },
+    "GET /api/v1/context/latest": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["timestamp", "symbol", "context"],
+      "data_properties": {
+        "timestamp": {"type": ["string", "null"]},
+        "symbol": {"type": "string"},
+        "context": {"type": "object"}
+      }
+    },
+    "GET /api/v1/bridge/status": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["bridge_process_state", "startup_stage", "handshake_ok", "mt5_ready", "transport", "host", "loopback_only"],
+      "data_properties": {
+        "bridge_process_state": {"type": "string"},
+        "startup_stage": {"type": "string"},
+        "handshake_ok": {"type": "boolean"},
+        "mt5_ready": {"type": "boolean"},
+        "transport": {"const": "http_loopback"},
+        "host": {"const": "127.0.0.1"},
+        "loopback_only": {"const": true}
+      }
+    },
+    "GET /api/v1/risk/latest": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["available", "open_positions", "aggregate_open_risk_fraction", "risk_bounded_by_guardian"],
+      "data_properties": {
+        "available": {"type": "boolean"},
+        "open_positions": {"type": "integer"},
+        "aggregate_open_risk_fraction": {"type": "number"},
+        "risk_bounded_by_guardian": {"type": "boolean"}
+      }
+    },
+    "GET /api/v1/shadow/positions": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["count"],
+      "data_properties": {
+        "count": {"type": "integer"}
+      }
+    },
+    "GET /api/v1/shadow/outcomes": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["count"],
+      "data_properties": {
+        "count": {"type": "integer"}
+      }
+    },
+    "GET /api/v1/research/status": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["available", "mode", "note"],
+      "data_properties": {
+        "available": {"type": "boolean"},
+        "mode": {"const": "SHADOW"},
+        "note": {"type": "string"}
+      }
+    },
+    "GET /api/v1/governance/status": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["live_trading_authorised"],
+      "data_properties": {
+        "live_trading_authorised": {"const": false}
+      }
+    },
+    "GET /api/v1/audit/recent": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["count"],
+      "data_properties": {
+        "count": {"type": "integer"}
+      }
+    }
+  }
+}

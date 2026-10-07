@@ -28,3 +28,6 @@ Note: Python bundling delivered; 17/17 + 25/25 + 12/12; C-1/C-2 reported.
 Note: Probability API (src/api/ProbabilityApi.{h,cpp}) + /api/v1/probability/latest;
 RULE C gate (calibrated=false / null probability unless calibrated AND audited);
 10/10 new tests, CTest 13/13, no warnings; submitted for Agent-D audit.
+
+### [2026-10-07 22:35 UTC] T16/T17/T19 -> REVIEW
+Note: Phase 4.0 surface delivered. Analysis API (RULE C gate shared with /probability), API v1 frozen (schema json + doc), mock server. Evidence: ProbabilityApiTests 10/10, AnalysisApiTests 10/10, CTest 14/14, T19 39/39. T18 input (6 corrections) sent to Lead. Submitted for Agent-D audit.
