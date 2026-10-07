@@ -55,3 +55,6 @@ leakage suite 8 cases, 32 feature cases green). E02 fix verified by Agent-A
 ### [2026-10-07 23:25 UTC] T21 → DONE (Lead)
 Note: Agent-D audit PASS — 44-instant equivalence sweep + future-bar mutation
 check (append 40 bars, pinned result unchanged). Lookahead genuinely detected.
+
+### [2026-10-07 22:53 UTC] T21 → DONE (Lead)
+Note: audit PASS (Agent-D swept every H4 instant); CTest 18/18; standing by for T13.
