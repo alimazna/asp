@@ -63,3 +63,6 @@ Note: audit PASS (Agent-D swept every H4 instant); CTest 18/18; standing by for 
 ### [2026-10-08 00:22 UTC] T22 → IDLE (assigned to Agent-A)
 Note: canonical `/api/v1/*` valid+invalid payload fixtures derived from
 `API_V1_SCHEMA.json`; test surface for T18/T13/F17-1. In-zone, tests only.
+
+### [2026-10-07 23:20 UTC] T22 → ACTIVE
+Note: analysis-API schema fixtures (tests/fixtures/api_v1/); lease until 23:50 UTC.

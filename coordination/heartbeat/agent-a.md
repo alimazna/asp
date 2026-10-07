@@ -154,3 +154,10 @@
 - Lease: -
 - Progress: 100%
 - Note: acked cycle 21; T13-support readiness noted; standing by
+
+### [2026-10-07 23:20 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T22, expires 23:50
+- Progress: 0%
+- Note: T22 claimed (api_v1 fixtures); ack+plan sent
