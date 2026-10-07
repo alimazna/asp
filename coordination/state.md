@@ -35,6 +35,7 @@ Sprint 1 — Features & Control Baseline
 ## Active tasks
 
 - T06 — **DONE** (Agent-C; Agent-D PASS, independently reproduced)
+- T07 — REVIEW (owner Agent-C, reviewer Agent-D) — bundling; C-1/C-2 escalated
 - T01 — REVIEW (owner Agent-A, reviewer Agent-D) — T10 audit in progress
 - T10 — ACTIVE (Agent-D) — leakage audit of T01
 - T02 — IDLE (owner Agent-A) — feature tests

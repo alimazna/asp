@@ -58,3 +58,13 @@
   (IMPLEMENTED), protected by GLOBAL_AI_CODING_RULES rules 1/5. Escalated to
   @human (addendum to 21:10 T12 escalation). Agent-C holds T07/T08/T09.
 - T10 (Agent-D) now active against T01.
+
+### [2026-10-07 21:22 UTC] Cycle 5
+- Resolved a tasks.md rebase conflict (T06 DONE mine vs Agent-C's T07 REVIEW);
+  kept both. Pushed 88d3635.
+- Agent-C delivered T07 (bundling) → REVIEW, in-zone, 17/17 + 25/25 + 12/12.
+  Found C-1 (python runtime path) and C-2 (pandas) in protected src/; reported
+  not fixed — correct. Escalated to @human (addendum 2).
+- F1 ratified finally: keep tests/integration/ where it is.
+- Agent-D has not yet posted the T01 (T10) audit — only the template exists.
+- No protected paths changed by any agent. Baseline untouched.

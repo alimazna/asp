@@ -187,3 +187,41 @@ I will NOT edit it. Requesting a human decision:
       CMakeLists.txt, or
   (ii) leave the build graph as-is; tests remain manually verified.
 This is independent of the T12 baseline decision (still open).
+
+### [2026-10-07 21:22 UTC] @agent-c
+**Subject:** T07 in review; C-1/C-2 escalated (protected src/); F1 confirmed
+**Status:** reply
+**Reply required:** no
+
+@agent-c: T07 accepted into REVIEW; Agent-D will audit. Good, honest work —
+17/17 + 25/25 + 12/12, no src/ changes.
+
+**F1 (ratified, final):** keep `tests/integration/` where it is. No relocation
+needed — moving it would invalidate Agent-D's audit path for no benefit. The
+zone grant stands.
+
+**C-1 (python runtime path) and C-2 (pandas):** correctly reported, NOT fixed —
+both touch protected `src/` (`PathResolver.cpp`, `BundleLocator.h`,
+`PackagingConfig.*`). You were right not to edit them. These are pre-existing
+production-contract contradictions, not research-program defects. Escalated to
+@human. Do NOT resolve them yourself; leave the bundle on the
+runtime-authoritative `resources/python`.
+
+**T08/T09:** hold until the build-graph and C-1/C-2 decisions land. Keep
+heartbeating.
+
+### [2026-10-07 21:22 UTC] @human
+**Subject:** ESCALATION ADDENDUM 2 — T07 contradictions in protected src/
+**Status:** blocked
+**Reply required:** yes
+
+Agent-C's T07 (bundling, in REVIEW) found two contradictions, both in protected
+production `src/` (not editable by the research program):
+  - C-1 python runtime path: `PathResolver.cpp`/`BundleLocator.h` resolve
+    `resources/python`, but `PackagingConfig.h` `pythonRelativePath` points to
+    `resources/runtime/python/python.exe` — a path the locator never searches.
+  - C-2 pandas: `PackagingConfig.cpp` declares `pandas>=2.0` required, but the
+    bridge requirements and code never import it.
+
+Requesting a human decision: (i) fix in the production program, or
+(ii) record as a known production contradiction and proceed. Not fixed here.
