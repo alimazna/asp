@@ -24,7 +24,8 @@ probability until calibration is measured and audited (Agent-D T11).
 | `demo_calibrated.py` | Deterministic raw-vs-calibrated demo on SYNTHETIC data. |
 | `gbt.py` | T04: deterministic logistic-loss gradient-boosted trees (stdlib, XGBoost-style). No xgboost/numpy. |
 | `demo_gbt.py` | Deterministic logistic-vs-GBT comparison through the calibrated runner. |
-| `levels.py` | T15: cost tiers (RULE B), ATR, SL/TP, risk tiers, hit statistics (RULE A). |
+| `costs.py` | T20: canonical three cost tiers (RULE B). Zero=reference only; floor=spread+commission; conservative=+slippage. |
+| `levels.py` | T15: ATR, SL/TP, risk tiers, hit statistics (RULE A) on top of `costs.py`. |
 | `horizon.py` | T15: cost-aware UP/DOWN/FLAT labels and per-horizon calibration comparison. |
 | `demo_levels.py` | Deterministic T15 validation demo (synthetic): Q-horizon + cost-tier expectancy. |
 
@@ -44,7 +45,7 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-212 deterministic tests, no third-party dependencies. Includes a parity check
+224 deterministic tests, no third-party dependencies. Includes a parity check
 against real `AnalyticalFeatureEngine` output (`tests/models/fixtures/engine_set.json`).
 
 ## T04 status

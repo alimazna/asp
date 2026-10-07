@@ -126,3 +126,14 @@
   as a synthetic-generator artifact, not skill** (recorded, not hidden).
 - Suite 178 → 212 tests, all pass; demo byte-identical across processes.
 - T15 → REVIEW; REPORT-T15.md written; audit requested from Agent-D.
+
+### [2026-10-07 23:20 UTC] Sync cycle 11 — T04 audited PASS; T20 built
+- Agent-D `AUDIT-T04-gbt.md`: **PASS**, no defects; deep-tree regression verified
+  structurally. T04 pending Lead DONE flip.
+- T20 (RULE B cost tiers) assigned. **Zone conflict**: deliverable path `src/costs/`
+  is outside my owned zone. Implemented in-zone as `src/models/costs.py`; refactored
+  `levels.py` onto it (deduplicated). Escalated the path question to the Lead.
+- `costs.py`: zero/floor(0.40)/conservative(0.60), `cost_r`, `net_expectancy_r`,
+  configurable + validated assumptions.
+- Suite 212 → 224 tests, all pass; demo re-verified after refactor.
+- T20 → REVIEW; REPORT-T20.md written.

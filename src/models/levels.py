@@ -18,43 +18,14 @@ synthetic and labelled as such.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
+from src.models.costs import CostTier, cost_tiers, tier_by_name
 from src.models.splits import SplitError
 
-# XAUUSD cost assumptions (RULE B). Spread is in price units; commission and
-# slippage are expressed in the same units for a round trip.
-SPREAD = 0.30
-COMMISSION = 0.10
-SLIPPAGE = 0.20
-
-
-@dataclass(frozen=True)
-class CostTier:
-    """A named round-trip cost in price units."""
-
-    name: str
-    round_trip: float
-    decision_grade: bool
-
-    def dead_band(self) -> float:
-        """The minimum move that must be cleared to be worth trading (theta)."""
-        return self.round_trip
-
-
-# Tier 1 is a reference only and is never decision-grade (RULE B).
-COST_TIERS: Tuple[CostTier, ...] = (
-    CostTier("zero", 0.0, False),
-    CostTier("floor", SPREAD + COMMISSION, True),
-    CostTier("conservative", SPREAD + COMMISSION + SLIPPAGE, True),
-)
-
-
-def tier_by_name(name: str) -> CostTier:
-    for tier in COST_TIERS:
-        if tier.name == name:
-            return tier
-    raise SplitError(f"unknown cost tier: {name!r}")
+# The canonical cost tiers live in `src.models.costs` (T20). Re-exported here so
+# the T15 level code and its tests share one definition (RULE B).
+COST_TIERS = cost_tiers()
 
 
 def atr(closes: Sequence[float], period: int = 14) -> float:

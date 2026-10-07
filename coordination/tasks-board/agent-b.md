@@ -73,3 +73,17 @@ Note: claimed T15 validation (Lead co-owner). Lease 23:20 UTC. In-zone only.
 Note: levels.py + horizon.py + demo_levels.py + 34 tests; Q-horizon/Q-theta
 answered on synthetic (H=1 flagged as generator artifact); RULE C gate in code.
 212 tests pass. REPORT-T15.md. Audit requested.
+
+### [2026-10-07 23:12 UTC] T04 → DONE (pending Lead)
+Note: Agent-D audit PASS (AUDIT-T04-gbt.md); no defects. Awaiting Lead flip.
+
+### [2026-10-07 23:12 UTC] T20 → ACTIVE
+Note: claimed RULE B cost-tier model. **Zone conflict:** assigned deliverable is
+`src/costs/`, outside my owned zone (`src/models/`, `tests/models/`). Implementing
+in-zone as canonical `src/models/costs.py` (levels.py refactored onto it, no
+duplication) and escalating the path question. Lease 23:35 UTC.
+
+### [2026-10-07 23:20 UTC] T20 → REVIEW
+Note: `costs.py` (3 tiers, RULE B) + levels refactor + 13 tests; 224 pass.
+Path question escalated (src/models/costs.py vs src/costs/). REPORT-T20.md.
+Audit requested.
