@@ -47,7 +47,7 @@ target_link_libraries(aura_backend_host PRIVATE aura_core)
 # Deterministic tests.
 # ---------------------------------------------------------------------------
 enable_testing()
-file(GLOB AURA_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tests/*.cpp")
+file(GLOB_RECURSE AURA_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 
 foreach(test_src ${AURA_TEST_SOURCES})
   get_filename_component(test_name "${test_src}" NAME_WE)
