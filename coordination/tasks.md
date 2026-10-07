@@ -38,7 +38,7 @@ lease (per `README.md` §F).
 
 | ID  | Task                    | Owner    | Reviewer | Status | Lease until |
 |-----|-------------------------|----------|----------|--------|-------------|
-| T01 | Feature extraction      | Agent-A  | Agent-D  | REVIEW | -           |
+| T01 | Feature extraction      | Agent-A  | Agent-D  | DONE   | -           |
 | T02 | Feature tests           | Agent-A  | Agent-D  | REVIEW | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | IDLE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
@@ -47,7 +47,7 @@ lease (per `README.md` §F).
 | T07 | Python bundling         | Agent-C  | Agent-D  | DONE   | -           |
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |
-| T10 | Leakage audit           | Agent-D  | Lead     | ACTIVE | 22:00 UTC   |
+| T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | BLOCKED | -          |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
@@ -76,3 +76,4 @@ lease (per `README.md` §F).
 | 2026-10-07 21:20   | DeepSeek | T06 PASS by Agent-D → DONE. T01 in review. F1 zone ratified.|
 | 2026-10-07 21:29   | DeepSeek | T07 PASS → DONE. T01/T10 REJECTED (leakage) → T01 ACTIVE.  |
 | 2026-10-07 21:35   | DeepSeek | T01 F1/F2 fixed by Agent-A → REVIEW; T10 re-audit requested.|
+| 2026-10-07 21:42   | DeepSeek | T01/T10 re-audit PASS → DONE. T02/T03/T08 opened.          |

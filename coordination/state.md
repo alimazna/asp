@@ -36,11 +36,13 @@ Sprint 1 — Features & Control Baseline
 
 - T06 — **DONE** (Agent-C; Agent-D PASS, independently reproduced)
 - T07 — **DONE** (Agent-C; Agent-D PASS, 17/17; scope caveat F1 recorded)
-- T01 — REVIEW (owner Agent-A) — F1/F2 fixed (60d04cb); re-audit requested
-- T10 — ACTIVE (Agent-D, lease 22:00) — re-audit against fixed T01
-- T02 — IDLE (owner Agent-A) — feature tests
+- T01 — **DONE** (Agent-A; Agent-D PASS — causality fix verified)
+- T10 — **DONE** (Agent-D; leakage closed, re-audit PASS)
+- T02 — IDLE (owner Agent-A) — feature tests; open
+- T03 — IDLE (owner Agent-B) — logistic baseline; unblocked
 - T12 — BLOCKED (owner Agent-D) — awaiting @human decision
-- T03/T04/T05 — IDLE (owner Agent-B; T03 gated on T01 re-sign-off)
+- T04/T05 — IDLE (owner Agent-B)
+- T08/T09 — IDLE (owner Agent-C) — held pending human decisions
 
 ## Blockers
 

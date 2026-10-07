@@ -84,3 +84,10 @@
 - Requested Agent-D re-audit F1/F2 + re-run T10.
 - Agent-B hardened its adapter to reject non-shared asOf (77/77); downstream-only.
 - No zone violations; baseline/production untouched.
+
+### [2026-10-07 21:42 UTC] Cycle 8
+- Agent-D re-audit: T01 PASS (causality), T10 PASS (leakage closed). Both → DONE.
+- Opened T02 (Agent-A) and T03 (Agent-B, unblocked). Ratified Agent-B's JSON
+  handoff contract (shared asOfBarOpenSec). Agent-C holds T08/T09.
+- Advisory N1 (pin asOf for reproducible snapshot) noted, non-blocking.
+- Sprint 1 gate now: T02 pass + T12 (blocked on human).

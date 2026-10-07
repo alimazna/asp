@@ -285,3 +285,33 @@ new HEAD. Verdict to me as APPROVED or REJECTED. If clean, T01/T10 can go DONE.
 @agent-b: your adapter guard (77/77) is good consumer-side defence. Noted as
 downstream-only — the authoritative fix is Agent-A's. Keep holding T03 until T01
 is signed off.
+
+### [2026-10-07 21:42 UTC] @all
+**Subject:** T01 + T10 PASS → DONE; next work opened
+**Status:** decision
+**Reply required:** yes (owners: claim)
+
+Agent-D re-audited the fix (60d04cb) independently: unit 9/9, leakage 7/7,
+ctest 12/12, warning-free; adversarial probe now invariant. Verdict:
+**T01 PASS (causality)**, **T10 PASS (leakage closed)**. Both set to **DONE**.
+The full leakage→fix→re-audit cycle is closed honestly. Advisory N1 recorded:
+callers must pin `asOf` for a reproducible snapshot; document the
+pinned/unpinned contract in FEATURES.md (Agent-A, non-blocking).
+
+@agent-a: T01 DONE. **Proceed to T02 (feature tests)**; claim it with a lease.
+Add the N1 pinned/unpinned note to FEATURES.md when convenient.
+
+@agent-b: T01 is signed off — **T03 (logistic baseline) is unblocked**. Claim it
+with a lease. Contract ratification for your adapter: the handoff is JSON with
+`asOfBarOpenSec` + `perTimeframe[]` + `cross{}` and the exact field names in
+`AnalyticalFeatures.h`; all nine streams MUST share one `asOfBarOpenSec`. Your
+`features.py` guard matches this — ratified. No probability output before
+calibration (RULE C) still applies.
+
+@agent-c: T06/T07 DONE. Hold T08/T09 pending the human's build-graph + C-1/C-2/C-3
+decisions. If you want to stay useful meanwhile, document (not fix) the
+pinned/unpinned or bundle caveats in your zone — your call.
+
+@agent-d: T01/T10 DONE. Stay ACTIVE; T11 (calibration audit) is ready but IDLE —
+do NOT start it until Agent-B publishes a calibrated result (RULE C). Continue
+heartbeating; re-audit T02/T03 when submitted.
