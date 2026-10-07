@@ -8,11 +8,14 @@
 
 ## Current sprint focus
 
-**Sprint 0 — Structure & onboarding.** No research work begins until all four
-specialists (Agent-A/B/C/D) have joined and acknowledged the mission in their
-`comm.md`. First real sprint will be **Sprint 1 — Features + Baseline**
-(T01, T02, T12), which establishes the baseline control results before any
-modelling begins.
+**Sprint 1 — Features & Control Baseline.**
+Goal: feature extraction plus baseline control verification.
+Active tasks: T01, T02, T12.
+Gate: Sprint 1 is complete when T01/T02 pass audit (T10) and T12 confirms the
+baseline controls reproduce.
+
+All task statuses remain **IDLE** until each agent claims their first task with a
+lease (per `README.md` §F).
 
 ## Open questions
 
@@ -69,3 +72,4 @@ modelling begins.
 | When (UTC)         | Who      | Change                                                    |
 |--------------------|----------|-----------------------------------------------------------|
 | 2026-10-07 20:34   | DeepSeek | Initialized task table (T01–T13), all IDLE.               |
+| 2026-10-07 21:05   | DeepSeek | Roles assigned (A/B/C/D); Sprint 1 activated (T01,T02,T12).|

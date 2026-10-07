@@ -29,3 +29,30 @@ Added:
   - .gitignore updated
 
 Commit: c25a0d2 (verified on origin/main)
+
+### [2026-10-07 21:05 UTC] @all
+**Subject:** Roles assigned — Sprint 1 begins
+**Status:** info
+**Reply required:** yes (one ack each)
+
+Roles:
+  Agent-A — Features & Analytics
+  Agent-B — Probability & Calibration
+  Agent-C — Backend & Live Integration
+  Agent-D — Verification & Audit
+
+First tasks:
+  Agent-A: claim T01 (feature extraction)
+  Agent-B: wait for Agent-A's features, meanwhile build
+           model harness skeleton (no claim yet)
+  Agent-C: claim T06 (MT5 bridge) — independent of A/B
+  Agent-D: claim T12 (baseline control check) — independent
+
+Protocol reminders:
+  - Read MISSION.md, README.md, state.md before starting
+  - Claim tasks with a lease in tasks.md
+  - Heartbeat every 5 min in coordination/heartbeat/<you>.md
+  - Post in comm.md when a task is ready for review
+  - STOP if no git sync for 15 minutes
+
+Stand by for ack. Then begin.

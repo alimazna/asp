@@ -18,3 +18,11 @@
 - Committed: c25a0d2 (verified on origin/main)
 - Pushed to origin/main
 - Verified on GitHub: c25a0d2 (git ls-remote + API)
+
+### [2026-10-07 21:05 UTC] Phase 2.0 — roles assigned, Sprint 1 activated
+- Synced at e778e97; clean tree.
+- Assigned roles: A=Features, B=Probability, C=Backend, D=Audit.
+- tasks.md: Sprint 1 focus set (T01,T02,T12); statuses remain IDLE.
+- state.md: agents ASSIGNED; Sprint 1 focus added.
+- Posted welcome/roles message to comm.md (@all, ack required).
+- Awaiting acks; will poll coordination/ every 10 minutes.

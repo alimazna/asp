@@ -18,15 +18,23 @@ Polling: 10 min. Heartbeat: 5 min. OFFLINE: 30 min.
 
 ## Agents
 
-- DeepSeek: **ACTIVE** (Lead) — communication environment built and pushed
-- Agent-A: **IN_ORIENTATION** (Features & Analytics) — read-only, no role assigned
-- Agent-B: **IN_ORIENTATION** (Probability & Calibration) — read-only, no role assigned
-- Agent-C: **IN_ORIENTATION** (Backend & Live Integration) — read-only, no role assigned
-- Agent-D: **IN_ORIENTATION** (Verification & Audit) — read-only, no role assigned
+- DeepSeek: **ACTIVE** (Lead)
+- Agent-A: **ASSIGNED** (Features & Analytics) — awaiting first claim
+- Agent-B: **ASSIGNED** (Probability & Calibration) — awaiting first claim
+- Agent-C: **ASSIGNED** (Backend & Live Integration) — awaiting first claim
+- Agent-D: **ASSIGNED** (Verification & Audit) — awaiting first claim
+
+## Sprint 1 focus
+
+Sprint 1 — Features & Control Baseline
+  Goal: feature extraction + baseline control verification
+  Active tasks: T01, T02, T12
+  Gate: Sprint 1 complete when T01/T02 pass audit (T10)
+        and T12 confirms baseline controls reproduce.
 
 ## Active tasks
 
-- (none — Sprint 0 is onboarding only)
+- T01, T02, T12 — Sprint 1 (all IDLE, awaiting agent claims)
 
 ## Blockers
 
@@ -39,10 +47,9 @@ Polling: 10 min. Heartbeat: 5 min. OFFLINE: 30 min.
 
 ## Notes
 
-- Phase 1 complete: `coordination/` structure created by the Lead.
-- Four specialist agents have not joined yet. No research work begins until they
-  acknowledge the mission in their `comm.md`.
+- Phase 2.0: roles assigned (Agent-A/B/C/D) and Sprint 1 activated by the Lead.
+- Four specialist agents are **ASSIGNED**; awaiting their first claims and acks.
 - **Open:** the `research/astra_3month_mtf/` layer referenced by the mission is not
   present in this repository, its history, or its sibling repos. The Lead must
-  confirm its location before Sprint 1 begins. See `tasks.md` Q1–Q3.
+  confirm its location before research work proceeds. See `tasks.md` Q1–Q3.
 - Production code, baseline, and `docs/archive/` remain untouched.
