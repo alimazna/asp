@@ -79,3 +79,6 @@ Note: Agent-D audit NEEDS WORK — default fixture pinned `model_version="logist
 and non-empty `features_contributing`, but the backend emits null/[] in both
 branches. Fix in-zone; expand `invariant_violations` to the full E06 set. A fixture
 may only pin fields the freeze pins.
+
+### [2026-10-07 23:36 UTC] T22 → REVIEW (F22 fixed)
+Note: F22-1 model_version=null + features_contributing=[] in both analysis fixtures; F22-2 helper expanded to full E06 set (now 41/41); F22-3 live-vs-frozen documented.

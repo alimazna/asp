@@ -29,11 +29,19 @@ emits while no calibrated model is live (E05):
 
 - `signal.probability` is `null`, `signal.probability_calibrated` is `false`,
   `signal.score` is **present**;
+- `signal.horizon`, `signal.confidence_lo`, `signal.confidence_hi`,
+  `signal.model_version` are `null`, and `signal.features_contributing` is `[]`
+  (F22-1 — the pipeline sources no model version or contributions this release;
+  `BACKEND_FRONTEND_API_V1.md` lists `model_version` among the frozen nulls);
 - `levels.*` (`entry`, `stop_loss`, `take_profit`, `reward_risk`,
   `suggested_risk_pct`, `sl_method`, `tp_method`) are all `null`;
 - `meta.score_is_probability` is `false` (E07 — the surfaced value is a raw
   score, never a probability);
 - `context.mtf_agreement`, `meta.data_freshness_sec`, `data.timestamp` are `null`.
+
+Live (not frozen) fields: `symbol`, `timestamp`, `meta.degraded` are real
+runtime state, not frozen nulls — the impl-vs-schema check must compare them
+loosely (F22-3).
 
 `valid/analysis_latest_calibrated.json` shows the calibrated branch: `probability`
 in `[0,1]`, `probability_calibrated` `true`. `meta.score_is_probability` stays
@@ -47,6 +55,13 @@ The schema types `score_is_probability` as `boolean` and `levels.*` as
 `probability` is `null`". Encoding those as `invalid/` would falsely claim the
 schema validator catches them; keeping them in `semantic/` with an explicit
 invariant check is the honest split.
+
+`test_api_fixtures.py:invariant_violations` implements the **full** E06 invariant
+set: while `probability` is null, `horizon`, `confidence_lo`, `confidence_hi`,
+`model_version`, every `levels.*`, `meta.data_freshness_sec`, and
+`context.mtf_agreement` must be null and `score_is_probability` false; a non-null
+`probability` requires `probability_calibrated:true`. Agent-C's F17-1 check
+should import this helper rather than re-implement it (F22-2).
 
 ## Consumers
 

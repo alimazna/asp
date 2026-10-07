@@ -106,12 +106,28 @@ def main() -> int:
             check(f"semantic/{name} is structurally schema-valid", False, str(exc))
 
     def invariant_violations(data):
+        """Full frozen-null invariant set (E06): the schema cannot express
+        these conditional requirements, so they live here. Agent-C's F17-1
+        check should consume this helper rather than re-implement it."""
         out = []
-        sig, meta, lv = data["signal"], data["meta"], data["levels"]
-        if sig["probability"] is None and meta["score_is_probability"]:
-            out.append("score_is_probability=true while probability is null (E07)")
-        if sig["probability"] is None and any(v is not None for v in lv.values()):
-            out.append("levels present while uncalibrated")
+        sig, meta, lv, ctx = (data["signal"], data["meta"], data["levels"],
+                              data["context"])
+        if sig["probability"] is None:
+            if meta["score_is_probability"]:
+                out.append("score_is_probability=true while probability is null (E07)")
+            for key in ("horizon", "confidence_lo", "confidence_hi", "model_version"):
+                if sig.get(key) is not None:
+                    out.append(f"signal.{key} non-null while uncalibrated")
+            for key, val in lv.items():
+                if val is not None:
+                    out.append(f"levels.{key} non-null while uncalibrated")
+            if meta.get("data_freshness_sec") is not None:
+                out.append("meta.data_freshness_sec non-null while uncalibrated")
+            if ctx.get("mtf_agreement") is not None:
+                out.append("context.mtf_agreement non-null while uncalibrated")
+        else:
+            if sig["probability_calibrated"] is not True:
+                out.append("non-null probability without probability_calibrated:true")
         return out
 
     for name in ("uncalibrated_claims_probability.json", "uncalibrated_non_null_levels.json"):
@@ -142,6 +158,11 @@ def main() -> int:
           meta["score_is_probability"] is False)
     check("uncalibrated: every level is null",
           all(lv[k] is None for k in lv))
+    # F22-1: model_version is a frozen null this release (BACKEND_FRONTEND_API_V1.md)
+    check("uncalibrated: model_version is null (F22-1)",
+          sig["model_version"] is None)
+    check("uncalibrated: features_contributing is empty (F22-1)",
+          sig["features_contributing"] == [])
 
     cal = load(os.path.join("valid", "analysis_latest_calibrated.json"))["data"]
     check("calibrated: probability in [0,1]",

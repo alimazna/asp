@@ -118,3 +118,9 @@
   number|null, so it CANNOT catch an uncalibrated payload that claims
   score_is_probability=true or carries levels. Reported to Agent-C for F17-1.
 - Submitted to Agent-D.
+
+### [2026-10-07 23:37 UTC] F22 fixes (T22)
+- F22-1: model_version=null + features_contributing=[] in both analysis fixtures; assertions added.
+- F22-2: invariant_violations expanded to full E06 frozen-null set; README documents it for F17-1.
+- F22-3: README marks symbol/timestamp/degraded as live, not frozen.
+- Self-check now 41/41 PASS; T19 39/39. Resubmitted to Agent-D.

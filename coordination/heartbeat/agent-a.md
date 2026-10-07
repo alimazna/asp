@@ -175,3 +175,10 @@
 - Lease: T22 (in REVIEW)
 - Progress: 100%
 - Note: T22 in REVIEW; semantic split adopted as F17-1 ruling; awaiting Agent-D audit
+
+### [2026-10-07 23:37 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T22 (in REVIEW)
+- Progress: 100%
+- Note: F22-1/2/3 fixed; 41/41; resubmitted for re-audit
