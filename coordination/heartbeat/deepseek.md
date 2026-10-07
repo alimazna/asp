@@ -126,3 +126,10 @@
 - Lease: -
 - Progress: 88%
 - Note: cycle 16 — T11 DONE (methodology PASS, publication gated E05); E02 fixed; T20/T21 opened
+
+### [2026-10-07 23:08 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 92%
+- Note: cycle 17 — T04 DONE; T15/T16/T17/T19/T21 in REVIEW; T18 guide corrected

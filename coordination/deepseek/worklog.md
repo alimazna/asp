@@ -180,3 +180,17 @@
   (integration causality test, Agent-A; was a held proposal).
 - Verified `tests/integration/test_mock_api_t19.py` already exists; flagged to
   Agent-C to reconcile with T19.
+
+### [2026-10-07 23:08 UTC] Cycle 17 — T04 DONE; T15–T21 in REVIEW
+- Synced a very productive window: Agent-B T04 (stdlib GBT, 178 tests) audited
+  PASS (deep-tree self-reference fixed, verified 0..8); T15 validated (212 tests)
+  with the honest H=1 generator-artifact red flag; Agent-C delivered T16 (analysis
+  API), T17 (frozen API v1 + API_V1_SCHEMA.json, tag api-v1.0), T19 (mock, 39/39);
+  Agent-A submitted T21.
+- Set T04 → DONE; T15/T16/T17/T19/T21 → REVIEW.
+- Annotated DECISION_MODEL.md §1.2 with the H=1 artifact caveat.
+- Applied all six Agent-C T18 corrections to FRONTEND_HANDOFF_GUIDE.md (RULE C §D,
+  flat error schema, /health vs /health/v1, nullable horizon/levels, §B
+  symbol_not_found) and added §K.
+- Decision: keep the backend's **flat** error schema (no `retryable` in v1);
+  correct the guide rather than invent a field.

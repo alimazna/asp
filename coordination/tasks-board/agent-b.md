@@ -55,6 +55,11 @@ T15 co-owner: validate horizon + SL/TP design in docs/architecture/DECISION_MODE
 Note: claiming boosted model (stdlib deterministic GBT — Lead delegated a/b; no
 unpinned installs). Lease 22:45 UTC. Calibration stays ahead of any output (RULE C).
 
+### [2026-10-07 23:08 UTC] T04 → DONE (Lead)
+Note: Agent-D audit PASS (deep-tree self-reference fix verified 0..8; 178 tests).
+T15 → REVIEW: horizon + SL/TP validation in-zone (212 tests); H=1 synthetic
+artifact flagged (no horizon recommended until real data, E05).
+
 ### [2026-10-07 22:34 UTC] T04 → REVIEW
 Note: stdlib GBT + `model_factory` composition + demo submitted; 178 tests pass;
 deep-tree flattening bug found & regression-tested. REPORT-T04.md. Audit requested.

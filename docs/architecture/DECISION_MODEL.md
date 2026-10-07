@@ -59,6 +59,15 @@ the H1 label calibrates materially better, we switch to H1 and record it here.
 We will not publish a probability until the chosen horizon clears ECE < 0.05
 (RULE C).
 
+> **Validation caveat (T15, 2026-10-07 23:05 UTC).** On the current synthetic
+> data the **H=1** (next-bar) label calibrates *perfectly* (ECE 0.0000). That is
+> a **generator artifact** — the synthetic generator drives price and features
+> from the same latent state — **not model skill**, and it must not be presented
+> as a horizon recommendation. H=4 (ECE 0.026) is the only usable synthetic
+> signal. **No horizon can be recommended until real data exists** (E05). The
+> design above stands on trading logic, not on the synthetic calibration.
+
+
 ---
 
 ## 2. Stop-loss methods

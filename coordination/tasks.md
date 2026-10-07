@@ -41,7 +41,7 @@ lease (per `README.md` §F).
 | T01 | Feature extraction      | Agent-A  | Agent-D  | DONE   | -           |
 | T02 | Feature tests           | Agent-A  | Agent-D  | DONE   | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | DONE   | -           |
-| T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
+| T04 | XGBoost + calibration   | Agent-B  | Agent-D  | DONE   | -           |
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | DONE   | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
 | T07 | Python bundling         | Agent-C  | Agent-D  | DONE   | -           |
@@ -110,3 +110,7 @@ lease (per `README.md` §F).
 | 2026-10-07 22:24   | DeepSeek | T05/T09/T14 → DONE; T11 go/no-go granted.                   |
 | 2026-10-07 22:30   | Agent-D  | T11 audit PASS (methodology); publication gated on real data.|
 | 2026-10-07 22:36   | DeepSeek | T11 → DONE; T20 (cost tiers) + T21 (T13 causality) added.   |
+| 2026-10-07 22:50   | Agent-B  | T04 submitted (stdlib GBT, 178 tests); T15 submitted (212). |
+| 2026-10-07 23:05   | Agent-C  | T16/T17/T19 delivered (frozen schema, mock 39/39).         |
+| 2026-10-07 23:05   | Agent-D  | T04 audit PASS (deep-tree fix verified).                    |
+| 2026-10-07 23:08   | DeepSeek | T04 → DONE; T15/H=1 caveat + T18 corrections addressed.     |

@@ -41,18 +41,18 @@ Sprint 1 — Features & Control Baseline
 - T02 — **DONE** (Agent-A; Agent-D PASS — RULE A, 180-pair sweep)
 - T03 — **DONE** (Agent-B; Agent-D PASS — leakage surface verified)
 - T05 — **DONE** (Agent-B) — Agent-D re-audit PASS (F1 fixed, 162 tests)
-- T04 — IDLE (owner Agent-B) — gated on T05 DONE; dep posture: stdlib booster
+- T04 — **DONE** (Agent-B) — Agent-D PASS (stdlib GBT; deep-tree fix verified)
 - T12 — DEFERRED (owner Agent-D) — baseline controls unavailable; human decision
 - T11 — **DONE** (Agent-D) — calibration audit PASS (methodology); publication
   gated on real data + cost tiers
 - T09 — **DONE** (Agent-C) — Agent-D PASS; caveat C-1 (audit-gate source) to wire
 - T08 — IDLE (owner Agent-C) — held on E02/E03
 - T14 — **DONE** (Agent-A) — Agent-D PASS (bounds guards + interpretability index)
-- T15 — ACTIVE (Lead+Agent-B) — decision model (horizon + SL/TP); draft written
-- T16/T17/T19 — IDLE (owner Agent-C) — analysis API, freeze v1, mock generator
-- T18 — ACTIVE (Lead) — frontend handoff guide; draft written
+- T15 — **REVIEW** (Agent-B) — decision-model validation (212 tests); audit requested
+- T16/T17/T19 — **REVIEW** (Agent-C) — analysis API, freeze v1 (schema 1.0), mock
+- T18 — ACTIVE (Lead) — frontend handoff guide; revised per Agent-C corrections
 - T20 — IDLE (owner Agent-B) — 3-cost-tier model (RULE B), unblocked by T05
-- T21 — IDLE (owner Agent-A) — integration causality test (T13 support)
+- T21 — **REVIEW** (Agent-A) — integration causality test; audit requested
 
 ## Blockers
 
@@ -122,12 +122,12 @@ Sprint 1 — Features & Control Baseline
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 22:38 UTC (cycle 16)
+- Updated: 2026-10-07 23:08 UTC (cycle 17)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02/T14 DONE; T21 assigned)
-- Agent-B: ACTIVE (T03/T05 DONE; T04 ACTIVE; T15 co-owner; T20 assigned)
-- Agent-C: ACTIVE (T06/T07/T09 DONE; T16/T17/T19 ready; T08 held)
-- Agent-D: ACTIVE (all audits PASS; re-verify CTest registration)
+- Agent-A: ACTIVE (T01/T02/T14 DONE; T21 REVIEW)
+- Agent-B: ACTIVE (T03/T04/T05 DONE; T15 REVIEW; T20 assigned)
+- Agent-C: ACTIVE (T06/T07/T09 DONE; T16/T17/T19 REVIEW; T08 held)
+- Agent-D: ACTIVE (all audits PASS; auditing T15/T16/T17/T19/T21)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check

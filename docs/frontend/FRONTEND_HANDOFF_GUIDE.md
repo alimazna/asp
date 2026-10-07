@@ -33,9 +33,12 @@
 | symptom | cause | fix |
 |---|---|---|
 | health never `ok` | MT5 not running / not logged in | start MT5, log in, relaunch |
-| `symbol_not_found` | broker names gold differently | set the broker symbol alias in config |
+| symbol unresolved | broker names gold differently | set the broker symbol alias in config |
 | bridge `stale` | no new bars arriving | check the MT5 terminal / market hours |
 | port in use | another instance running | close the other instance |
+
+`symbol_not_found` in the table above is a **bridge/health condition**, not an
+HTTP error code; the API returns `code = "not_found"` only for unknown routes.
 
 ## C. API contract — full spec
 
@@ -43,6 +46,11 @@ Base: `http://127.0.0.1:8790/api/v1/` — **loopback only**, JSON only, no auth 
 v1 (local process only). Additive changes only within v1.
 
 ### `GET /api/v1/analysis/latest`
+
+> The example below shows the **calibrated** branch (`probability_calibrated: true`).
+> In the default (uncalibrated) shape, `signal.probability` is `null`,
+> `signal.probability_calibrated` is `false`, and `meta.score_is_probability` is
+> `false` — the value lives in `signal.score`.
 
 ```json
 {
@@ -92,21 +100,29 @@ Array of the same object, most-recent-first. `limit` default 50, max 500.
 ### `GET /api/v1/context/latest`
 The `context` object plus `timestamp` / `symbol`.
 
-### `GET /api/v1/health`
-`{"status":"ok|degraded|offline","bridge":"ok|stale|offline","version":"v1","uptime_sec":N}`
+### `GET /api/v1/health` and `GET /api/v1/health/v1`
+`/health` keeps its existing monitor-aggregate shape. `/health/v1` is the
+frontend liveness surface: `{"status":"ok|degraded|offline","bridge":"ok|stale|offline","version":"v1","uptime_sec":N}`.
 
 ### Error schema (all endpoints)
 
+The backend emits a **flat** error object:
+
 ```json
-{"error": {"code": "symbol_not_found", "message": "human-readable", "retryable": false}}
+{"error": "true", "code": "not_found", "message": "human-readable"}
 ```
+
+There is **no `retryable` field in v1** (it is prospective, additive-only).
+Unknown routes return `code = "not_found"`. `symbol_not_found` is a
+bridge/health **condition**, not an HTTP error code.
 
 ## D. Field-by-field interpretation
 
 | field | means | frontend shows | optional in v1 |
 |---|---|---|---|
-| `signal.probability` | calibrated `P(UP)` | percentage + interval | no |
-| `signal.probability_calibrated` | `false` ⇒ value is a **score** | "score" label, not "probability" | no |
+| `signal.probability` | calibrated `P(UP)` **or `null`** | percentage + interval, or "calibrated probability unavailable" | no |
+| `signal.probability_calibrated` | `false` ⇒ **do not read a probability** | "score" label | no |
+| `signal.score` | the uncalibrated score (always present) | a **score** — never labelled "probability" | no |
 | `signal.confidence_lo/hi` | uncertainty band | as a range, never a point | yes |
 | `context.regime` | market state | regime chip | no |
 | `context.mtf_agreement` | 0–1 multi-TF agreement | meter | yes |
@@ -116,9 +132,16 @@ The `context` object plus `timestamp` / `symbol`.
 | `meta.degraded` | backend degraded | banner; suppress confident styling | no |
 | `meta.score_is_probability` | calibration verdict | drives the probability-vs-score label | no |
 
+**RULE C contract (important):** when `probability_calibrated` is `false`, the
+backend emits **`probability: null`** and exposes the uncalibrated value only as
+`signal.score`. A score is **never** emitted under the name `probability`.
+
 **Guaranteed in v1:** `timestamp`, `symbol`, `signal.direction`,
-`signal.probability`, `signal.probability_calibrated`, `meta.coverage_tier`,
-`meta.degraded`. Everything else may be `null` and must degrade gracefully.
+`signal.score`, `signal.probability_calibrated`, `meta.coverage_tier`,
+`meta.degraded`. `signal.probability` is guaranteed *as a key* (possibly `null`).
+`signal.horizon`, `levels.sl_method`, `levels.tp_method` are **nullable in v1** —
+they are `null` until T15 freezes the horizon and level methods. Everything else
+may be `null` and must degrade gracefully.
 
 ## E. Recommended screens
 
@@ -167,3 +190,17 @@ from there. **Do not invent new branding.**
   `docs/architecture/BACKEND_FRONTEND_API_V1.md`.
 - Additive changes only within `v1`, through a documented process.
 - Breaking changes require `v2`; `v1` keeps serving until clients migrate.
+
+## K. Frozen artifact & mock validation
+
+- **Frozen spec:** `docs/architecture/BACKEND_FRONTEND_API_V1.md` — API v1,
+  schema `1.0`, tag `api-v1.0`.
+- **Authoritative machine-readable contract:** `docs/architecture/API_V1_SCHEMA.json`.
+  If the prose here and the schema ever disagree, **the schema wins**; report the
+  drift so the prose is corrected.
+- **Mock:** `scripts/mock_api.py` serves the frozen contract with realistic
+  synthetic data (loopback only, stdlib only). Default is the **uncalibrated**
+  shape (`probability: null`, `score` present); `--calibrated` exercises the
+  calibrated branch. `--check` validates every payload against the schema
+  (0 failures required). The mock can never serve a probability in uncalibrated
+  mode — that is RULE C by construction.

@@ -46,3 +46,8 @@ Note: landed in tests/features/AnalyticalFeatureLeakageTests.cpp (8 cases) at 62
 Note: integration causality test accepted as task T21 (was held proposal).
 Submit `interior_instant_equals_truncated_prefix_across_streams`; underwrites T13.
 E02 resolved by Lead: one-line GLOB→GLOB_RECURSE landed in isolated commit 7be7d2f.
+
+### [2026-10-07 23:08 UTC] T21 → REVIEW (Lead)
+Note: T21 submitted (interior_instant_equals_truncated_prefix_across_streams,
+leakage suite 8 cases, 32 feature cases green). E02 fix verified by Agent-A
+(CTest #15–#18). Agent-D audit requested.

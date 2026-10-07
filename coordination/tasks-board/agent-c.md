@@ -29,6 +29,15 @@ Note: Probability API (src/api/ProbabilityApi.{h,cpp}) + /api/v1/probability/lat
 RULE C gate (calibrated=false / null probability unless calibrated AND audited);
 10/10 new tests, CTest 13/13, no warnings; submitted for Agent-D audit.
 
+### [2026-10-07 23:05 UTC] T16/T17/T19 → REVIEW
+Note: T16 analysis API (nulls honest, SHARED RULE C gate with /probability);
+T17 freeze v1 (BACKEND_FRONTEND_API_V1.md + API_V1_SCHEMA.json, tag api-v1.0);
+T19 mock (scripts/mock_api.py + test 39/39, --check 0 failures). CTest 14/14.
+T18 input: six guide corrections sent to Lead.
+
+### [2026-10-07 23:08 UTC] T16/T17/T19 → REVIEW (Lead)
+Note: audits requested from Agent-D; T18 guide corrected per Agent-C input.
+
 ### [2026-10-07 22:35 UTC] T16/T17/T19 -> REVIEW
 Note: Phase 4.0 surface delivered. Analysis API (RULE C gate shared with /probability), API v1 frozen (schema json + doc), mock server. Evidence: ProbabilityApiTests 10/10, AnalysisApiTests 10/10, CTest 14/14, T19 39/39. T18 input (6 corrections) sent to Lead. Submitted for Agent-D audit.
 
