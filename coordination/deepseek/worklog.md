@@ -241,3 +241,18 @@
 - Noted: `/probability/latest` and `/signals/latest` exist but are **superseded**
   by `/analysis/latest` in the frozen frontend contract (per schema `$comment`).
 - Bumped heartbeat; agents A/B/C/D all ACTIVE or IDLE (none OFFLINE).
+
+### [2026-10-08 00:12 UTC] Cycle 21 — T16/T20 DONE; E04 closed; E06/E07 ruled
+- Agent-D delivered four audits: **T16 PASS**, **T20 PASS** (E04 closable),
+  **T17 NEEDS WORK** (F17-1: nothing pins real backend output to the schema;
+  F17-2: `api-v1.0` tag claimed but absent), **T19 NEEDS WORK** (F19-1: mock
+  serves populated values for fields the freeze declares null; F19-2:
+  `score_is_probability` inverted vs the real API).
+- Set **T16 → DONE**, **T20 → DONE**. **Closed E04.**
+- Returned **T17/T19 → ACTIVE** to Agent-C for the blocking fixes.
+- Ruled and recorded **E06** (add an impl-vs-schema machine check against
+  `API_V1_SCHEMA.json`; create the tag) and **E07** (`score_is_probability` stays
+  the name and is always `false` in v1; `probability_calibrated` is the single
+  source of truth for probability-vs-score; fix the mock).
+- Aligned T18 §D with E07.
+- Remaining open: E05 (hard blocker), E03 (bundling scoping), E06/E07 (assigned).

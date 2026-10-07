@@ -154,3 +154,10 @@
 - Lease: -
 - Progress: 97%
 - Note: cycle 20 — T18 self-review caught bare-object vs {api,schema,data} envelope drift; guide corrected
+
+### [2026-10-08 00:12 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 98%
+- Note: cycle 21 — T16/T20 DONE; E04 closed; T17/T19 fixes assigned; E06/E07 ruled

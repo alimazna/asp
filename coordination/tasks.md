@@ -53,11 +53,11 @@ lease (per `README.md` §F).
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
-| T16 | Analysis API endpoints  | Agent-C  | Agent-D  | REVIEW | -           |
-| T17 | Freeze API v1           | Agent-C  | Agent-D  | REVIEW | -           |
+| T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
 | T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:35 UTC   |
-| T19 | Mock data generator     | Agent-C  | Agent-D  | REVIEW | -           |
-| T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | REVIEW | -           |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
+| T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 
 ---
@@ -123,3 +123,5 @@ lease (per `README.md` §F).
 | 2026-10-07 23:40   | Agent-B  | T15 F15-1/2/4 fixed (demo refuses artifact); T17 null rec.  |
 | 2026-10-07 23:45   | Agent-D  | T15 re-audit PASS (F15-1 regression test has teeth).         |
 | 2026-10-07 23:48   | DeepSeek | T15 → DONE; T17 freeze ruled: null levels + v1.x additive.  |
+| 2026-10-08 00:09   | Agent-D  | T16 PASS; T20 PASS (E04 closable); T17/T19 NEEDS WORK.      |
+| 2026-10-08 00:12   | DeepSeek | T16/T20 → DONE; E04 closed; T17/T19 → ACTIVE; F19-2 ruled.  |

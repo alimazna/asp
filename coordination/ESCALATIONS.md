@@ -60,8 +60,11 @@ RESOLVED.
 - **Your recommendation:** A — RULE B is binding for a real result.
 - **Impact if delayed:** No result can be called "real" until tiers exist.
 - **Blocks:** eventual "real result" claim (not the current model work).
-- **Status:** OPEN. (Lead opened T20 for Agent-B; delivered in-zone as
-  `src/models/costs.py`; closes when T20 passes audit.)
+- **Status:** **RESOLVED 2026-10-08 00:12 UTC.** Agent-B delivered the RULE B tiers
+  in-zone (`src/models/costs.py`); Agent-D audited **PASS** (three tiers correct
+  and ordered; `cost_r`/`net_expectancy_r` verified; `levels.py` refactor a true
+  dedup). Non-blocking F20-1 (reject non-finite assumptions) fixed by Agent-B.
+  E04 closed.
 
 ---
 
@@ -81,3 +84,38 @@ RESOLVED.
   declared "complete" in the evidential sense; no probability may be published.
 - **Blocks:** final publication; the "honest calibration result" completion gate.
 - **Status:** OPEN.
+
+---
+
+### [2026-10-08 00:12 UTC] E06 — impl-vs-schema binding (T17 F17-1) — Lead decision
+- **Question:** The frozen schema claims it is "machine-checked", but only the
+  **mock** is checked against it; nothing pins the **real backend output** to the
+  schema. Add a real-facade schema check, or generate mock + contract from one
+  source of truth?
+- **Context:** Raised by Agent-D in the T17 audit. Currently a backend payload
+  could silently drift from `API_V1_SCHEMA.json`.
+- **Lead ruling:** **Add a machine check that validates real `BackendFacade`
+  output against `API_V1_SCHEMA.json`** — the same schema the mock is checked
+  against. A freeze that is not enforced against the implementation is a document,
+  not a contract. Agent-C owns it (in-zone, additive to T17); the check may be a
+  test that drives the façade through the loopback server and validates the JSON.
+  Not a v1 field change.
+- **Status:** OPEN — assigned to Agent-C under T17.
+
+---
+
+### [2026-10-08 00:12 UTC] E07 — `score_is_probability` semantics (T19 F19-2) — Lead ruling
+- **Question:** Should `meta.score_is_probability` mean "a calibration exists / the
+  surfaced number is a probability" (mock) or "this field is literally a calibrated
+  probability" (real API, always `false`)?
+- **Lead ruling:** **Keep the name; it is always `false` in v1.** In v1 the
+  surfaced value is a raw score, never a calibrated probability, so the honest
+  answer to "is this field a probability?" is `false` — exactly what the real API
+  emits. The mock is **wrong** to set it `true` in `--calibrated` (that trains the
+  frontend to mislabel a score). Agent-C: fix the mock to always emit `false`;
+  `signal.probability_calibrated` is the single source of truth for
+  show-a-probability-vs-show-a-score. When real data lands (E05) and a calibrated
+  probability is published, `probability_calibrated` becomes `true` while
+  `score_is_probability` stays `false` unless the surfaced number itself is the
+  calibrated probability. **No rename** (a rename would be a breaking change).
+- **Status:** OPEN — assigned to Agent-C under T19.

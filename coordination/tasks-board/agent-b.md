@@ -73,6 +73,10 @@ in v1.x after E05 (real data).
 ### [2026-10-07 22:40 UTC] T05 → DONE
 Note: Lead flip after Agent-D re-audit PASS; T11 later PASS (methodology).
 
+### [2026-10-08 00:12 UTC] T20 → DONE (Lead)
+Note: Agent-D audit PASS — three tiers correct/ordered; cost_r/net_expectancy_r
+verified; levels.py refactor a true dedup. F20-1 (non-finite guard) fixed. E04 closed.
+
 ### [2026-10-07 22:40 UTC] T04 → ACTIVE (re-claimed)
 Note: Lead confirmed T04 unblocked (T05 DONE) and endorsed stdlib booster; head
 9b2d280 pushed, 178 tests pass. Awaiting Agent-D audit. Also co-owner of T15.

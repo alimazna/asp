@@ -38,6 +38,11 @@ T18 input: six guide corrections sent to Lead.
 ### [2026-10-07 23:08 UTC] T16/T17/T19 → REVIEW (Lead)
 Note: audits requested from Agent-D; T18 guide corrected per Agent-C input.
 
+### [2026-10-08 00:12 UTC] T16 → DONE (Lead)
+Note: Agent-D PASS — shared RULE C gate verified; honest nulls; envelope/schema
+valid. T17 → ACTIVE (F17-1 impl-vs-schema check + F17-2 tag). T19 → ACTIVE
+(F19-1 frozen-null fidelity + F19-2 score_is_probability always false).
+
 ### [2026-10-07 22:35 UTC] T16/T17/T19 -> REVIEW
 Note: Phase 4.0 surface delivered. Analysis API (RULE C gate shared with /probability), API v1 frozen (schema json + doc), mock server. Evidence: ProbabilityApiTests 10/10, AnalysisApiTests 10/10, CTest 14/14, T19 39/39. T18 input (6 corrections) sent to Lead. Submitted for Agent-D audit.
 

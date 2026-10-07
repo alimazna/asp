@@ -134,12 +134,16 @@ bridge/health **condition**, not an HTTP error code.
 | `signal.score` | the uncalibrated score (always present) | a **score** — never labelled "probability" | no |
 | `signal.confidence_lo/hi` | uncertainty band | as a range, never a point | yes |
 | `context.regime` | market state | regime chip | no |
-| `context.mtf_agreement` | 0–1 multi-TF agreement | meter | yes |
-| `levels.*` | suggested levels | **suggestions**, clearly labelled | yes |
-| `levels.reward_risk` | derived RR | number | yes |
+| `context.mtf_agreement` | 0–1 multi-TF agreement | meter | yes (null in v1) |
+| `levels.*` | suggested levels | **suggestions**, clearly labelled | yes (null in v1) |
+| `levels.reward_risk` | derived RR | number | yes (null in v1) |
 | `meta.coverage_tier` | `high/medium/low` | coverage badge (RULE D) | no |
 | `meta.degraded` | backend degraded | banner; suppress confident styling | no |
-| `meta.score_is_probability` | calibration verdict | drives the probability-vs-score label | no |
+| `meta.score_is_probability` | literal: is the surfaced number a calibrated probability? | always `false` in v1 — not a display switch | no |
+
+**Use `signal.probability_calibrated` — not `meta.score_is_probability` — to
+decide whether to show a probability or a score.** In v1 `score_is_probability`
+is always `false` (the surfaced value is never itself a calibrated probability).
 
 **RULE C contract (important):** when `probability_calibrated` is `false`, the
 backend emits **`probability: null`** and exposes the uncalibrated value only as
