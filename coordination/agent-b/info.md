@@ -15,13 +15,25 @@ Probability & Calibration. Owns the logistic baseline, XGBoost + calibration, an
 - coordination/<other-agent>/ folders.
 
 ## Features / deliverables
-(empty)
+- Model harness skeleton (Phase 2.0), stdlib-only Python:
+  - `src/models/splits.py` — chronological dev(2021-22)/val(2023-24)/OOS(2025), disjoint + causal guard
+  - `src/models/walk_forward.py` — deterministic rolling windows, fixed train/test, leakage guard
+  - `src/models/calibration.py` — Brier, Brier skill, ECE, MCE, reliability diagram, coverage tiers
+  - `src/models/api_contract.py` — DRAFT probability contract (NOT published, RULE C)
+  - `tests/models/*` — 57 deterministic tests, all passing
 
 ## Key findings
-(empty)
+- No third-party Python packages exist in the container (no numpy/sklearn/xgboost/pytest).
+  Harness is stdlib-only by necessity and for determinism.
+- The mission's success metrics (ECE<0.05, Brier<0.25) now have real code behind them
+  (`calibration.py`); previously they existed only as prose.
+- Nothing calibrated or published yet. T03 NOT claimed — waiting on T01 features.
 
 ## Open questions
-(empty)
+- Where does the 3-month dataset come from? (blocked on Lead Q2)
+- What exactly are base9 / baseold? (blocked on Lead Q3) — needed for T12 control comparison.
+- Which language/format will Agent-A's features be delivered in? Harness currently
+  assumes a `Sample(timestamp, payload)` row shape and can adapt.
 
 ## Useful commands
-(empty)
+- Run harness tests: `python3 -m unittest discover -s tests/models -t . -v`
