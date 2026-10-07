@@ -34,7 +34,7 @@ inline constexpr std::size_t kTriggerWindow = 9;
 // exact formula and range of every field.
 struct TimeframeFeatures {
     Timeframe timeframe = Timeframe::M15;
-    std::int64_t asOfBarOpenSec = 0;   // open time of the decision (last closed) bar
+    std::int64_t asOfBarOpenSec = 0;   // decision instant this vector describes
     std::size_t barsAvailable = 0;     // context (3-month) bars supplied
     std::size_t windowUsed = 0;        // trigger bars actually used (<= 9)
 

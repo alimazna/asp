@@ -5,6 +5,43 @@ probability system. Implementation:
 `src/analysis/features/AnalyticalFeatureEngine.cpp`. Types:
 `src/analysis/features/AnalyticalFeatures.h`.
 
+## Interpretability index
+
+One line per feature: `name — range — source`. Source is
+`src/analysis/features/AnalyticalFeatureEngine.cpp:<line>` unless noted.
+
+```
+structureTrend          [-1,1]   :188   (helper structureTrendOf :75)
+rangePosition           [0,1]    :191
+swingAsymmetry          [-1,1]   :201
+bodyRatio               [0,1]    :170
+upperWickRatio          [0,1]    :171
+lowerWickRatio          [0,1]    :173
+candleDirection         {-1,0,1} :176
+runBalance              [-1,1]   :219
+momentumNorm            [-1,1]   :228
+momentumPersistence     [0,1]    :229
+momentumAcceleration    [-1,1]   :239
+volatilityRatio         [0,1]    :247   (helper logReturnStdev :38)
+atrRatio                [0,1]    :252   (helper meanTrueRange :57)
+netChangeRatio          [-1,1]   :255
+patternScore            [-1,1]   :256
+higherHighShare         [0,1]    :186
+lowerLowShare           [0,1]    :187
+contextTrend            [-1,1]   :261
+contextVolatility       [0,1]    :262
+contextRangePosition    [0,1]    :270
+h4M15Agreement          {-1,0,1} :319
+h4D1Agreement           {-1,0,1} :322
+mtfConflictScore        [0,1]    :338
+h4StructuralAuthority   [-1,1]   :340
+m15TriggerState         [-1,1]   :341
+```
+
+Ranges are enforced by `clampSigned`/`clampUnit` (`:16`, `:23`), which map any
+non-finite input to `0.0`. `tests/features/AnalyticalFeatureBoundsTests.cpp`
+asserts every range above on deterministic edge cases and a fixed-seed sweep.
+
 ## Causality contract
 
 The engine reads only closed bars and computes every feature as of a single

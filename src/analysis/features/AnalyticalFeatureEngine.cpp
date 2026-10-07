@@ -1,8 +1,8 @@
 // Agent-A (T01) - Analytical feature engine implementation.
 //
 // Formula reference and ranges: src/analysis/features/FEATURES.md.
-// All features are causal: the engine never reads a bar with a close time
-// later than the decision bar. `asOfBarOpenSec` is the last closed bar used.
+// All features are causal: every stream is computed as of one shared decision
+// instant `asOfBarOpenSec`, and no bar opening after it is read.
 
 #include "analysis/features/AnalyticalFeatureEngine.h"
 

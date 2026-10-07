@@ -26,3 +26,9 @@ Note: RULE-A direction-neutrality tests (7 cases); submitted for audit.
 
 ### [2026-10-07 21:47 UTC] T02 → REVIEW
 Note: advisory closed (FEATURES.md second-order magnitude note).
+
+### [2026-10-07 22:11 UTC] T14 → ACTIVE
+Note: bounds + NaN/inf guard tests for every feature; lease until 22:45 UTC.
+
+### [2026-10-07 22:16 UTC] T14 → REVIEW
+Note: AnalyticalFeatureBoundsTests.cpp (8 cases) + FEATURES.md interpretability index; 31 feature cases green.

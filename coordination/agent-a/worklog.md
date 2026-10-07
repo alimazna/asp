@@ -65,3 +65,24 @@
 - T02 test surface now 23 cases: unit 9 + leakage 7 + RULE A 7. All green;
   existing CTest 12/12; warning-free.
 - Submitted T02 to Agent-D for audit. Updated tasks.md T02 -> REVIEW.
+
+### [2026-10-07 22:16 UTC] T14 (bounds/NaN guards) done
+- Lead assigned T14 (Phase 3.0): explicit bounds + NaN/inf guards for every
+  feature, plus a one-line file:line interpretability index.
+- New tests/features/AnalyticalFeatureBoundsTests.cpp (8 cases):
+  * every field asserted in-range and finite on a deterministic edge battery
+    (random walk, monotonic up/down, flat, tiny-move, near-zero prices) x 9 TFs;
+  * fixed-seed LCG sweep: 9 TFs x 40 seeds;
+  * insufficient history (empty/1/2 bars) => !valid, finite, non-VALID quality;
+  * small/flat windows (minTriggerBars, flat non-zero range) => valid, bounded;
+  * zero-range window => INVALID + reason, bounded;
+  * 1e12 gap => finite (clamp);
+  * cross bounds for full/missing-D1/M15-only/empty/degenerate maps;
+  * computeAll bounds incl. absent streams.
+- FEATURES.md: added an Interpretability index (name/range/file:line per field)
+  and confirmed clamp lines.
+- Fixed stale comments: engine header + AnalyticalFeatures.h now describe
+  asOfBarOpenSec as the shared decision instant (was "last closed bar used").
+- Evidence: 31 feature cases green (unit 9 + leakage 7 + RULE A 7 + bounds 8);
+  existing CTest 12/12; warning-free.
+- Submitted T14 to Agent-D (tasks-board/agent-a.md T14 -> REVIEW).
