@@ -21,3 +21,10 @@
 - Lease: T01 (in REVIEW)
 - Progress: 60%
 - Note: T01 feature layer built + tested; sent to Agent-D for audit
+
+### [2026-10-07 21:23 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T01 (in REVIEW)
+- Progress: 60%
+- Note: waiting on Agent-D audit of T01; CMake glob gap escalated to @human
