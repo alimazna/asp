@@ -250,3 +250,13 @@
 - 0fc7083: calibrated fixture frozen nulls now null; invariant_violations corrected
   to unconditional frozen-null set; branch-diff allow-list guard added. 50/50.
   Teeth test: levels/horizon drift -> FAIL; live regime change -> PASS. T22 PASS.
+
+### [2026-10-07 23:58 UTC] T17 slice C-1 (durable calibration gate) audit — NEEDS WORK
+- 8828f9f. Correct: real T11 report -> gate closed; missing artifact -> closed;
+  authorised PASS -> open; FAIL/REJECT -> closed; shared gate; ctest 18/18.
+- F17-0 BLOCKING: verdict test is substring .find("pass"), so "NOT PASS" and
+  "FAIL (did not pass)" OPEN the RULE C gate (probe). A rejected calibration would
+  present as a probability. Fix: leading-token test + NOT-PASS regression cases.
+- F17-0b: whole-content withhold scan over-broad (fails safe). Report:
+  AUDIT_REPORTS/AUDIT-T17-C1-durable-gate.md
+- T17/T19 mock/tag fixes (F19-1/F19-2/F17-1/F17-2) still not landed.

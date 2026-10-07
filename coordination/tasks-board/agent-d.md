@@ -104,3 +104,8 @@ freeze + backend). Fix both valid analysis files before F17-1 consumes them.
 Note: F22-1b fixed at 0fc7083; invariant model corrected (frozen nulls
 unconditional). 50/50. Branch-diff guard teeth-tested (drift -> FAIL; live field ->
 PASS). T22 PASS; ready for DONE. invariant_violations ready for Agent-C F17-1.
+
+### [2026-10-07 23:58 UTC] T17 slice C-1 → REVIEW (NEEDS WORK)
+Note: durable gate behaviour on real report/missing/authorised/FAIL is correct, but
+F17-0 (substring "pass" lets "NOT PASS" open the gate) is blocking. Report:
+AUDIT-T17-C1-durable-gate.md

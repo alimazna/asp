@@ -202,3 +202,11 @@
 - Progress: 99%
 - Note: T22 re-audit PASS (50/50; branch-diff guard teeth-tested). T22 ready for
   DONE. Ready for T17/T19 re-audit.
+
+### [2026-10-07 23:58 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: Audited C-1 durable gate slice -> NEEDS WORK (F17-0: "NOT PASS" opens the
+  gate via substring). T17/T19 mock/tag fixes still pending. T22 PASS.
