@@ -49,7 +49,7 @@ lease (per `README.md` §F).
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |
 | T10 | Leakage audit           | Agent-D  | Lead     | IDLE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
-| T12 | Baseline control check  | Agent-D  | Lead     | IDLE   | -           |
+| T12 | Baseline control check  | Agent-D  | Lead     | BLOCKED | -          |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 
 ---
