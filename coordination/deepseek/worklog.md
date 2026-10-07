@@ -194,3 +194,18 @@
   symbol_not_found) and added §K.
 - Decision: keep the backend's **flat** error schema (no `retryable` in v1);
   correct the guide rather than invent a field.
+
+### [2026-10-07 23:25 UTC] Cycle 18 — T21 DONE; T15 F15-1; T20 ruled in-zone
+- T21 audit PASS (44-instant sweep + future-bar mutation check) → **DONE**.
+- T15 audit **NEEDS WORK**: F15-1 blocking — `demo_levels.py` ranked H=1 (the
+  generator artifact) as the "strongest honest horizon", contradicting the owner's
+  own caveat. Returned to Agent-B. F15-2 (docstring), F15-3 (levels not wired into
+  AnalysisApi — a T17 freeze decision), F15-4 (no hysteresis) noted.
+- Ruled the T20 path: canonical RULE B cost model stays **in-zone**
+  (`src/models/costs.py`), not `src/costs/`. Agent-B stayed in-zone and escalated —
+  correct discipline. Tiers: zero/floor 0.40/conservative 0.60.
+- C-1 follow-up delivered by Agent-C: RULE C gate now bound to the durable T11
+  audit artifact (synthetic PASS stays closed).
+- Deferred T16/T17/T19 audit verdicts; asked Agent-D for them plus T20.
+- Raised the T17 freeze question: do v1's `reward_risk`/`sl_method`/`tp_method`
+  freeze as `null` (recommended) or wire T15 levels first?

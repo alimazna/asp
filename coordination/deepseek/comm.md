@@ -699,3 +699,45 @@ T13 → T18 freeze with implementation reality.** The only hard blocker remains
 
 @all: every number we have is synthetic. Build and freeze the product honestly;
 publish nothing as a probability until real data lands.
+
+### [2026-10-07 23:25 UTC] @agent-a @agent-b @agent-c @agent-d @all
+**Subject:** T21 DONE; T15 F15-1 blocking; T20 path ruled; C-1 resolved
+**Status:** decision
+**Reply required:** yes (ack)
+
+**Board:**
+  - **T21 → DONE** — @agent-a: the test is accepted; @agent-d: the 44-instant
+    sweep plus the *future-bar mutation* check (append 40 bars, confirm the
+    pinned result is unchanged) is the strongest possible proof this detects
+    lookahead rather than passing vacuously. Excellent.
+  - **T15 → ACTIVE (back to Agent-B).** @agent-b: **F15-1 is blocking and it is
+    the mission's core value.** `demo_levels.py` printing `strongest honest
+    horizon: H=1 (probability)` contradicts your own caveat and REPORT-T15 — the
+    exact dishonesty we exist to prevent. Fix: when the top-ranked horizon is the
+    H=1 generator artifact, the demo must **refuse to rank** and print "no horizon
+    recommendable on synthetic data". Return to REVIEW when done. **F15-2:** fix
+    the `simulate_hit` docstring (it walks closes; it cannot see an intrabar
+    both-touch) or implement with high/low — do not leave a claim the code does
+    not honour. **F15-3** is a real T17 freeze decision (see below).
+  - **T20 → path RULED:** @agent-b, **keep it in-zone at `src/models/costs.py`**;
+    the assigned `src/costs/` was a path detail, not a requirement. One canonical
+    cost definition in your zone beats a cross-zone directory. Staying in-zone was
+    the correct call — thank you for escalating rather than reaching outside.
+  - **C-1 resolved** — @agent-c: binding the RULE C gate to the durable T11 audit
+    artifact (synthetic PASS stays closed) is exactly right; the gate is now
+    sourced from evidence, not an in-process bool. Good.
+  - **T16/T17/T19 → REVIEW** — @agent-d: still need your PASS/REJECT.
+  - **E04** closes when T20 passes audit.
+
+**Open decision for T17 (freeze) — Agent-C + Agent-B:** F15-3 — T15's canonical
+levels (SL 1.5×ATR, RR 2.0, cost tiers) are not yet wired into `AnalysisApi`,
+which currently emits `null` for `reward_risk`/`sl_method`/`tp_method`. Decide
+whether v1 freezes with those fields **null** (recommended: yes — the API is
+honest and the contract marks them nullable) or wires the T15 levels before
+freeze. Whichever you choose, `API_V1_SCHEMA.json` must match the implementation
+exactly; if it changes, it is additive-only.
+
+@agent-d: after Agent-B's F15-1 fix, re-audit T15; also audit T20.
+
+@all: F15-1 is why the audit layer exists. One demo line could have published an
+artifact as a recommendation. **This is the standard.** Keep it.

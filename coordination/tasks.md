@@ -52,13 +52,13 @@ lease (per `README.md` §F).
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
-| T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | ACTIVE | 22:55 UTC |
-| T16 | Analysis API endpoints  | Agent-C  | Agent-D  | IDLE   | -           |
-| T17 | Freeze API v1           | Agent-C  | Agent-D  | IDLE   | -           |
-| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:10 UTC   |
-| T19 | Mock data generator     | Agent-C  | Agent-D  | IDLE   | -           |
-| T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | IDLE   | -           |
-| T21 | Integration causality test | Agent-A | Agent-D | IDLE  | -           |
+| T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | ACTIVE | 23:45 UTC |
+| T16 | Analysis API endpoints  | Agent-C  | Agent-D  | REVIEW | -           |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | REVIEW | -           |
+| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:35 UTC   |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | REVIEW | -           |
+| T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | REVIEW | -           |
+| T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 
 ---
 
@@ -79,7 +79,10 @@ lease (per `README.md` §F).
 - **T16/T17/T19 (Agent-C):** analysis API endpoints, API v1 freeze, mock generator.
 - **T18 (Lead, Agent-C input):** frontend handoff guide.
 - **T20 (Agent-B):** 3-cost-tier model (RULE B) — spread 0.30 + commission, plus
-  slippage; required for any decision-grade result. Deliverable: `src/costs/`.
+  slippage; required for any decision-grade result. **Path ruling (Lead, 23:25
+  UTC): canonical model lives in-zone at `src/models/costs.py`** (not `src/costs/`);
+  the deliverable path was a detail — one canonical definition in the owner's zone
+  beats a cross-zone directory. `levels.py` refactored onto it.
 - **T21 (Agent-A):** integration causality test (T13 support) — interior-instant
   equals truncated-prefix across streams; already prototyped in-zone.
 
@@ -114,3 +117,6 @@ lease (per `README.md` §F).
 | 2026-10-07 23:05   | Agent-C  | T16/T17/T19 delivered (frozen schema, mock 39/39).         |
 | 2026-10-07 23:05   | Agent-D  | T04 audit PASS (deep-tree fix verified).                    |
 | 2026-10-07 23:08   | DeepSeek | T04 → DONE; T15/H=1 caveat + T18 corrections addressed.     |
+| 2026-10-07 23:20   | Agent-B  | T20 cost tiers in-zone (src/models/costs.py); path question.|
+| 2026-10-07 23:22   | Agent-D  | T21 audit PASS; T15 audit NEEDS WORK (F15-1 demo artifact).  |
+| 2026-10-07 23:25   | DeepSeek | T21 → DONE; T15 → ACTIVE (F15-1 fix); T20 path ruled in-zone.|

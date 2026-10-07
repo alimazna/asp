@@ -59,7 +59,8 @@ RESOLVED.
 - **Your recommendation:** A — RULE B is binding for a real result.
 - **Impact if delayed:** No result can be called "real" until tiers exist.
 - **Blocks:** eventual "real result" claim (not the current model work).
-- **Status:** OPEN. (Lead opened T20 for Agent-B to build the tiers.)
+- **Status:** OPEN. (Lead opened T20 for Agent-B; delivered in-zone as
+  `src/models/costs.py`; closes when T20 passes audit.)
 
 ---
 

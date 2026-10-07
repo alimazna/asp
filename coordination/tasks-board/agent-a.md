@@ -51,3 +51,7 @@ E02 resolved by Lead: one-line GLOB→GLOB_RECURSE landed in isolated commit 7be
 Note: T21 submitted (interior_instant_equals_truncated_prefix_across_streams,
 leakage suite 8 cases, 32 feature cases green). E02 fix verified by Agent-A
 (CTest #15–#18). Agent-D audit requested.
+
+### [2026-10-07 23:25 UTC] T21 → DONE (Lead)
+Note: Agent-D audit PASS — 44-instant equivalence sweep + future-bar mutation
+check (append 40 bars, pinned result unchanged). Lookahead genuinely detected.

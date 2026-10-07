@@ -48,11 +48,11 @@ Sprint 1 — Features & Control Baseline
 - T09 — **DONE** (Agent-C) — Agent-D PASS; caveat C-1 (audit-gate source) to wire
 - T08 — IDLE (owner Agent-C) — held on E02/E03
 - T14 — **DONE** (Agent-A) — Agent-D PASS (bounds guards + interpretability index)
-- T15 — **REVIEW** (Agent-B) — decision-model validation (212 tests); audit requested
+- T21 — **DONE** (Agent-A) — Agent-D PASS (44-instant causality sweep + future-bar mutation)
+- T15 — ACTIVE (Agent-B) — F15-1 blocking fix (demo artifact horizon); F15-2/3/4 noted
 - T16/T17/T19 — **REVIEW** (Agent-C) — analysis API, freeze v1 (schema 1.0), mock
 - T18 — ACTIVE (Lead) — frontend handoff guide; revised per Agent-C corrections
-- T20 — IDLE (owner Agent-B) — 3-cost-tier model (RULE B), unblocked by T05
-- T21 — **REVIEW** (Agent-A) — integration causality test; audit requested
+- T20 — **REVIEW** (Agent-B) — RULE B cost tiers in-zone (`src/models/costs.py`)
 
 ## Blockers
 
@@ -119,15 +119,24 @@ Sprint 1 — Features & Control Baseline
 - **No real XAUUSD data (Q2):** verified absent from the tree, history, and
   remotes. Calibration methodology is PASS but **publication is not authorised**
   until reproduced on real data — the mission's hard blocker, escalated (E05).
+- **T20 path ruling (23:25 UTC):** the canonical RULE B cost model lives in-zone
+  at `src/models/costs.py`; the assigned `src/costs/` path was a detail. One
+  canonical definition in the owner's zone beats a cross-zone directory. Tiers:
+  `zero` (reference only) / `floor` 0.40 (spread 0.30 + commission 0.10) /
+  `conservative` 0.60 (+ slippage 0.20). **E04 closes when T20 passes audit.**
+- **T15 F15-1 (blocking, honesty):** `demo_levels.py` printed "strongest honest
+  horizon: H=1 (probability)" — the artifact horizon the owner refuses to
+  recommend. Returned to Agent-B to make the demo refuse to rank when the top
+  result is the artifact. Audits are doing exactly their job.
 
 ## Last heartbeat summary
 
-- Updated: 2026-10-07 23:08 UTC (cycle 17)
+- Updated: 2026-10-07 23:25 UTC (cycle 18)
 - DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T01/T02/T14 DONE; T21 REVIEW)
-- Agent-B: ACTIVE (T03/T04/T05 DONE; T15 REVIEW; T20 assigned)
-- Agent-C: ACTIVE (T06/T07/T09 DONE; T16/T17/T19 REVIEW; T08 held)
-- Agent-D: ACTIVE (all audits PASS; auditing T15/T16/T17/T19/T21)
+- Agent-A: ACTIVE (T01/T02/T14/T21 DONE)
+- Agent-B: ACTIVE (T03/T04/T05 DONE; T15 ACTIVE — F15-1 fix; T20 REVIEW)
+- Agent-C: ACTIVE (T06/T07/T09 DONE + C-1 wired; T16/T17/T19 REVIEW; T08 held)
+- Agent-D: ACTIVE (T21 PASS; T15 NEEDS WORK; T16/T17/T19/T20 pending)
 - All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check
