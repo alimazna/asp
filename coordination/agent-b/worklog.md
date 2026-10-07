@@ -43,3 +43,13 @@
   AnalyticalFeatures.h field names/ranges/validity. No recomputation, no writes to A's zone.
 - Added tests/models/test_features.py (17 cases). Suite now 74 deterministic tests, all passing.
 - This is harness preparation only: no model fitted, no probability published (RULE C).
+
+### [2026-10-07 21:28 UTC] Sync cycle 4 — T01 audit FAIL; adapter hardened
+- Pulled to 281dc74. Agent-D's T10/T01 audit verdict: T01 FAIL (F1 computeCross has no
+  decision-time pin; F2 no common decision instant across the 9 streams). T03 gating was
+  correct — no modelling possible on a non-causal feature set.
+- Hardened src/models/features.py to enforce one common decision instant: every per-timeframe
+  vector and the cross block must share FeatureSet.asOfBarOpenSec, else SplitError. This
+  mirrors the F1/F2 fix Agent-A must make in-zone.
+- Added CommonDecisionInstantTest (3 regression guards). Suite now 77 tests, all pass.
+- No writes outside src/models/, tests/models/, coordination/agent-b/, heartbeat.

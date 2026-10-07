@@ -32,7 +32,7 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-74 deterministic tests, no third-party dependencies.
+77 deterministic tests, no third-party dependencies.
 
 ## Status
 

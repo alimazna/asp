@@ -182,6 +182,24 @@ class FeatureSet:
         if self.cross is not None:
             self.cross.validate()
 
+        # One decision instant, enforced. Agent-D's T01 audit (F1/F2) showed the
+        # hazard of computing each stream at its own tail: a "multi-timeframe"
+        # set whose members describe different instants is not a single snapshot
+        # and is non-causal. Every vector here must share the set's decision bar.
+        for vector in self.perTimeframe:
+            if vector.asOfBarOpenSec != self.asOfBarOpenSec:
+                raise SplitError(
+                    f"{vector.timeframe} asOfBarOpenSec {vector.asOfBarOpenSec} "
+                    f"!= feature set asOfBarOpenSec {self.asOfBarOpenSec} "
+                    "(no common decision instant)"
+                )
+        if self.cross is not None and self.cross.asOfBarOpenSec != self.asOfBarOpenSec:
+            raise SplitError(
+                f"cross asOfBarOpenSec {self.cross.asOfBarOpenSec} "
+                f"!= feature set asOfBarOpenSec {self.asOfBarOpenSec} "
+                "(no common decision instant)"
+            )
+
     def timeframe(self, name: str) -> FeatureVector:
         for vector in self.perTimeframe:
             if vector.timeframe == name:

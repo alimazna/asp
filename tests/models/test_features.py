@@ -16,6 +16,7 @@ from src.models.features import (
     CROSS_DISCRETE,
     PER_TIMEFRAME_BOUNDS,
     PER_TIMEFRAME_DISCRETE,
+    TIMEFRAMES,
     FeatureSet,
     FeatureVector,
     CrossFeatureVector,
@@ -40,13 +41,27 @@ def cross_values(**overrides):
     return values
 
 
-def tf(timeframe="M15", **overrides):
+ASOF = 1735689600
+
+
+def tf(timeframe="M15", asof=ASOF, **overrides):
     return FeatureVector(
         timeframe=timeframe,
-        asOfBarOpenSec=1735689600,
+        asOfBarOpenSec=asof,
         values=per_values(**overrides),
         quality="VALID",
         valid=True,
+    )
+
+
+def cross(asof=ASOF):
+    return CrossFeatureVector(
+        asOfBarOpenSec=asof,
+        values=cross_values(),
+        quality="VALID",
+        valid=True,
+        m15Available=True,
+        h4Available=True,
     )
 
 
@@ -116,12 +131,12 @@ class FeatureSetTest(unittest.TestCase):
             bad.validate()
 
     def test_lookup_by_timeframe(self):
-        good = FeatureSet(0, (tf("M1"), tf("M15")), None, "VALID", True)
+        good = FeatureSet(ASOF, (tf("M1"), tf("M15")), cross(), "VALID", True)
         good.validate()
         self.assertEqual(good.timeframe("M15").timeframe, "M15")
 
     def test_flat_row_is_deterministic_and_sorted(self):
-        good = FeatureSet(0, (tf("M1"), tf("M15")), None, "VALID", True)
+        good = FeatureSet(ASOF, (tf("M1"), tf("M15")), cross(), "VALID", True)
         row_a = good.as_flat_row()
         row_b = good.as_flat_row()
         self.assertEqual(row_a, row_b)
@@ -130,9 +145,41 @@ class FeatureSetTest(unittest.TestCase):
 
     def test_flat_row_ordering_is_canonical(self):
         # M1 keys must all precede M15 keys.
-        good = FeatureSet(0, (tf("M1"), tf("M15")), None, "VALID", True)
+        good = FeatureSet(ASOF, (tf("M1"), tf("M15")), cross(), "VALID", True)
         keys = list(good.as_flat_row().keys())
         self.assertLess(keys.index("M1.structureTrend"), keys.index("M15.structureTrend"))
+
+
+class CommonDecisionInstantTest(unittest.TestCase):
+    """Regression guards for Agent-D T01 audit findings F1/F2.
+
+    A multi-timeframe feature set must describe exactly one decision instant.
+    These tests fail loudly if a vector's asOf drifts from the set's, which is
+    the shape of the non-causal defect Agent-D found in Agent-A's engine.
+    """
+
+    def test_mismatched_timeframe_asof_rejected(self):
+        bad = FeatureSet(
+            ASOF,
+            (tf("M1", asof=ASOF), tf("M15", asof=ASOF + 900)),
+            None,
+            "VALID",
+            True,
+        )
+        with self.assertRaises(SplitError):
+            bad.validate()
+
+    def test_mismatched_cross_asof_rejected(self):
+        bad = FeatureSet(ASOF, (tf("M1"), tf("M15")), cross(asof=ASOF + 1), "VALID", True)
+        with self.assertRaises(SplitError):
+            bad.validate()
+
+    def test_all_streams_share_one_instant(self):
+        # Nine streams, one decision bar -> valid.
+        streams = tuple(tf(name, asof=ASOF) for name in TIMEFRAMES)
+        good = FeatureSet(ASOF, streams, cross(asof=ASOF), "VALID", True)
+        good.validate()
+        self.assertEqual(len({v.asOfBarOpenSec for v in good.perTimeframe}), 1)
 
 
 class ParseTest(unittest.TestCase):

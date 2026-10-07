@@ -35,3 +35,10 @@
 - Lease: -
 - Progress: 25%
 - Note: T01 delivered; built feature adapter (74 tests pass); T03 still gated on T01 audit
+
+### [2026-10-07 21:28 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: -
+- Progress: 30%
+- Note: T01 audit FAIL (F1/F2); hardened adapter to enforce one decision instant; 77 tests pass
