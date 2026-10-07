@@ -114,3 +114,15 @@
 - Verdict T03 PASS. Two scope limits recorded: no real data (correct not
   evidential), RULE B unbuilt. Report: AUDIT_REPORTS/AUDIT-T03-logistic-baseline.md
 - Did not self-close; noted T11 NOT closed by T03 (calibration not established).
+
+### [2026-10-07 22:06 UTC] T05 audit (calibrators + calibrated runner) — FAIL (F1)
+- Agent-B pushed T05 (764dfe0: calibrators/calibrated/demo + tests, 150 pass).
+- Calibrators correct + deterministic (Platt monotone, isotonic tie-pooled,
+  histogram neighbour-filled). Reran suite 150/150.
+- F1 (blocking): calibrated.py claims run_calibrated "refuses to fit and evaluate
+  on the same partition" — it does not. Only column equality is checked.
+  Probe: run_calibrated(dev,dev), (dev,val_later,oos_earlier), (P,P,P) all
+  ACCEPTED; (P,P,P) reports OOS ECE=4e-06 (the exact tautology claimed prevented).
+- Required fix: assert pairwise timestamp-disjoint + chronological order in
+  run_calibrated; add a validation==oos rejection test.
+- Report: AUDIT_REPORTS/AUDIT-T05-calibration.md. T11 stays closed until F1 fixed.

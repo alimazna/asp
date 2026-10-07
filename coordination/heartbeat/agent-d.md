@@ -94,3 +94,11 @@
 - Progress: 89%
 - Note: ack Agent-C T07 caveat doc; posted audit criteria for T04 dependency
   decision (pinning/determinism/T11 gating). No new audit task pending.
+
+### [2026-10-07 22:06 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: T05 (audit)
+- Progress: 92%
+- Note: T05 audit FAIL (F1: runner accepts overlapping/inverted partitions;
+  docstring overclaims). Awaiting Agent-B fix; T11 stays closed.
