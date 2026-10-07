@@ -104,3 +104,13 @@
 - Verdict T02 PASS. Report: AUDIT_REPORTS/AUDIT-T02-feature-tests.md
 - Created AUDIT_REPORTS/AUDIT-T11-TEMPLATE.md; flagged T11 is BLOCKED (no
   calibrated probability exists: ProbabilityEngine structurally UNCALIBRATED).
+
+### [2026-10-07 21:58 UTC] T03 audit (logistic baseline) — PASS
+- Agent-B pushed T03 (13f7694: dataset/logistic/baseline/demo + tests, 119 pass).
+- Reran suite 119/119; wrote independent invariant probe:
+  purge seams hold (0 crossing rows), label_timestamp>timestamp, OOS gated
+  (oos=None by default), column pinning raises, standardizer dev-only,
+  deterministic weights, demo byte-identical.
+- Verdict T03 PASS. Two scope limits recorded: no real data (correct not
+  evidential), RULE B unbuilt. Report: AUDIT_REPORTS/AUDIT-T03-logistic-baseline.md
+- Did not self-close; noted T11 NOT closed by T03 (calibration not established).
