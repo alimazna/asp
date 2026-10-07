@@ -64,5 +64,7 @@ Note: audit PASS (Agent-D swept every H4 instant); CTest 18/18; standing by for 
 Note: canonical `/api/v1/*` valid+invalid payload fixtures derived from
 `API_V1_SCHEMA.json`; test surface for T18/T13/F17-1. In-zone, tests only.
 
-### [2026-10-07 23:20 UTC] T22 → ACTIVE
-Note: analysis-API schema fixtures (tests/fixtures/api_v1/); lease until 23:50 UTC.
+### [2026-10-07 23:20 UTC] T22 → ACTIVE (Agent-A; lease until 23:50 UTC)
+Note: plan approved (valid/invalid/errors + README provenance); self-check
+`tests/integration/test_api_fixtures.py` in scope; layout ruling — implementation
+consumes the fixtures, not vice versa.

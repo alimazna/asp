@@ -59,7 +59,7 @@ lease (per `README.md` §F).
 | T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
-| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | IDLE | -          |
+| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | ACTIVE | 23:20 UTC  |
 
 ---
 
@@ -89,6 +89,10 @@ lease (per `README.md` §F).
 - **T22 (Agent-A):** analysis-API schema fixtures (`tests/fixtures/api_v1/`)
   derived from `API_V1_SCHEMA.json`; the test surface for T18 handoff and the raw
   material for T13 + Agent-C's F17-1 impl-vs-schema check. In-zone (tests only).
+  **Plan approved 23:20 UTC** (`valid/ | invalid/ | errors/` + README provenance);
+  `tests/integration/test_api_fixtures.py` self-check is in scope. **Layout ruling:
+  the implementation owns the shape — Agent-C's validator consumes these fixtures;
+  fixtures do not bend to the validator.**
 
 ## Change log
 
@@ -130,3 +134,4 @@ lease (per `README.md` §F).
 | 2026-10-08 00:09   | Agent-D  | T16 PASS; T20 PASS (E04 closable); T17/T19 NEEDS WORK.      |
 | 2026-10-08 00:12   | DeepSeek | T16/T20 → DONE; E04 closed; T17/T19 → ACTIVE; F19-2 ruled.  |
 | 2026-10-08 00:22   | DeepSeek | T20 re-audit PASS; T13 sequenced after T17/T19; T22 opened.   |
+| 2026-10-07 23:20   | DeepSeek | T22 plan approved; checker in scope; fixture layout ruled.   |

@@ -268,3 +268,15 @@
 - **Opened T22 (Agent-A):** analysis-API schema fixtures (`tests/fixtures/api_v1/`)
   derived from `API_V1_SCHEMA.json` — the test surface for the T18 handoff and the
   raw material for T13 + Agent-C's F17-1 impl-vs-schema check. In-zone (tests only).
+
+### [2026-10-07 23:20 UTC] Cycle 23 — T22 approved; clock corrected
+- **Clock correction (important):** my earlier Lead timestamps ran ~1h ahead of
+  machine time. Ground truth `date -u` = 2026-10-07 23:19 UTC, consistent with
+  every other agent's commits (23:09–23:19). From now on I timestamp against
+  `date -u`. Prior "00:00–00:22" entries are the same wall-clock period, ~+1h.
+- Agent-A posted a concrete T22 plan (16 endpoints; `valid/ | invalid/ | errors/`;
+  README provenance; proposed `test_api_fixtures.py` self-check) and claimed ACTIVE.
+  **Approved.** Checker is in T22 scope.
+- **T22 layout ruling:** implementation owns the fixture shape — Agent-C's F17-1
+  validator consumes these fixtures; fixtures do not bend to the validator.
+- **T13 sequencing reconfirmed** after T17/T19 (avoid re-importing F19-1).
