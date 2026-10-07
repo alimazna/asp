@@ -94,3 +94,8 @@ Note: T16 analysis API PASS (shared gate, no fabrication, schema-valid). T20 cos
 tiers PASS (RULE B satisfied; E04 closable). T17 freeze NEEDS WORK (F17-1
 schema-vs-impl not machine-checked; F17-2 tag absent). T19 mock NEEDS WORK
 (F19-1 serves non-null frozen-null fields; F19-2 score_is_probability inverted).
+
+### [2026-10-07 23:29 UTC] T22 → REVIEW (NEEDS WORK)
+Note: fixtures architecture + 39/39 self-check PASS; F22-1 blocking (default
+fixture claims model_version="logistic-t03" / features non-empty, contradicting the
+freeze + backend). Fix both valid analysis files before F17-1 consumes them.

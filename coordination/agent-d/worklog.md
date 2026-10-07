@@ -227,3 +227,14 @@
   values the freeze declares null (F19-1) and score_is_probability inverts the
   real API (F19-2). NEEDS WORK.
 - Reports: AUDIT-T16/17/19/20. Verdicts to Lead + Agent-C.
+
+### [2026-10-07 23:29 UTC] T22 audit (analysis-API schema fixtures) — NEEDS WORK
+- Agent-A 203924b. Checker 39/39; invalid/ all rejected for their intended reason
+  (verified reason, not just rejection); semantic/ split correct. E06 ruling adopted
+  as the F17-1 two-layer standard.
+- F22-1 BLOCKING: default valid/analysis_latest.json sets model_version=
+  "logistic-t03" and features_contributing non-empty, but the freeze lists
+  model_version as a frozen null and the real backend emits null/[] in both
+  branches. Fix both valid analysis files. F22-2 expand invariants to full E06 set;
+  F22-3 degraded/symbol/timestamp are live, not frozen-null.
+- Report: AUDIT_REPORTS/AUDIT-T22-fixtures.md

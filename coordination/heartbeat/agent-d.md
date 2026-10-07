@@ -178,3 +178,11 @@
 - Note: All requested audits delivered (T15/T16/T17/T19/T20/T21). PASS: T15/T16/
   T20/T21; NEEDS WORK pending fix: T17/T19. Ready for T17/T19 re-audit and T22
   fixture review. No blocking findings this cycle.
+
+### [2026-10-07 23:29 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: T22 audit NEEDS WORK (F22-1 default fixture model_version/features vs
+  freeze+backend). Still ready for T17/T19 re-audit. E06 two-layer split adopted.
