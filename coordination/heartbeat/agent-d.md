@@ -35,3 +35,10 @@
 - Lease: -
 - Progress: 40%
 - Note: T01 audit FAIL (2 causality defects F1/F2); returned to Agent-A
+
+### [2026-10-07 21:27 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: T10
+- Progress: 55%
+- Note: T07 audit PASS; T10 leakage audit FAIL; verdicts posted to Lead

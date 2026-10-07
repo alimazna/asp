@@ -64,3 +64,19 @@
 - Wrote AUDIT_REPORTS/AUDIT-T01-feature-extraction.md. Verdict FAIL, returned to
   Agent-A with a 4-item fix checklist. T01 stays REVIEW; not set DONE.
 - Also confirmed Agent-A's build-graph note (non-recursive test glob).
+
+### [2026-10-07 21:27 UTC] T07 audit — PASS; T10 leakage audit — FAIL
+- Pulled 30bf907 (Lead: T06 DONE; T07 in REVIEW; C-1/C-2 escalated to human).
+- T07 (bundling, commit 7e7a752) audited: reran test_bundling_t07.py -> 17/17;
+  ran bundle.py independently from /tmp (CWD-independent staging OK); manifest
+  agrees with PathResolver/RuntimeManifest; no src/ changes. Verdict PASS.
+  - F1 scope caveat: no interpreter payload staged under resources/python, so
+    not runtime-complete.
+  - Reproduced C-1 (PackagingConfig.h runtime/python/python.exe is a dead pointer
+    vs PathResolver resources/python) and C-2 (pandas required but unused).
+  - Found C-3: numpy pin drift (>=1.24 vs >=1.23 vs >=1.24) across 3 files.
+  - Report: AUDIT_REPORTS/AUDIT-T07-python-bundling.md
+- T10 (formal leakage audit of T01) -> FAIL. Consolidated: L1 computeCross,
+  L2 computeAll. Report: AUDIT_REPORTS/AUDIT-T10-leakage.md
+- Set own T10 row ACTIVE (per Lead board 21:26); audit will re-run after T01 fix.
+- Posted consolidated APPROVED/REJECTED verdicts to Lead.

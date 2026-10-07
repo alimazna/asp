@@ -47,7 +47,7 @@ lease (per `README.md` §F).
 | T07 | Python bundling         | Agent-C  | Agent-D  | REVIEW | -           |
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
 | T09 | Probability API         | Agent-C  | Agent-D  | IDLE   | -           |
-| T10 | Leakage audit           | Agent-D  | Lead     | IDLE   | -           |
+| T10 | Leakage audit           | Agent-D  | Lead     | ACTIVE | 22:00 UTC   |
 | T11 | Calibration audit       | Agent-D  | Lead     | IDLE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | BLOCKED | -          |
 | T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
