@@ -4,11 +4,53 @@
 
 #include <cmath>
 #include <cstdint>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 namespace aura {
 namespace {
+
+std::string lowerCopy(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+}
+
+// A line of the report containing `label` (e.g. "Verdict:"), lowercased.
+std::string reportLine(const std::string& content, const std::string& label) {
+    std::istringstream stream(content);
+    std::string line;
+    const std::string needle = lowerCopy(label);
+    while (std::getline(stream, line)) {
+        if (lowerCopy(line).find(needle) != std::string::npos) return line;
+    }
+    return "";
+}
+
+std::string reportValue(const std::string& content, const std::string& label) {
+    const std::string line = reportLine(content, label);
+    if (line.empty()) return "";
+    const std::size_t at = line.find(':');
+    if (at == std::string::npos) return "";
+    std::string value = line.substr(at + 1);
+    while (!value.empty() && (value.front() == ' ' || value.front() == '*')) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\r')) {
+        value.pop_back();
+    }
+    return value;
+}
+
+// "NOT authorised" / "not authorized" -> no publication authorisation.
+bool withholdsPublication(const std::string& line) {
+    return line.find("not authoris") != std::string::npos ||
+           line.find("not authoriz") != std::string::npos ||
+           line.find("withheld") != std::string::npos ||
+           line.find("withhold") != std::string::npos ||
+           line.find("no publication") != std::string::npos;
+}
 
 // Coverage-tier boundaries. These MUST equal TIER_BOUNDS in
 // src/models/calibration.py: low [0,1/3), medium [1/3,2/3), high [2/3,1].
@@ -125,6 +167,50 @@ ApiResponse ProbabilityApi::latest(const PredictionLedger* ledger) const {
     fields.push_back({"as_of_bar_open_sec", jsonInteger(record.asOfBarOpenSec), true});
     fields.push_back({"shadow_only", jsonBool(true), true});
     return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true};
+}
+
+ProbabilityApi::Audit ProbabilityApi::applyCalibrationAudit(const std::string& path) {
+    Audit audit;
+    audit.source = path;
+
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        // No artifact: the gate stays closed. Honest absence, not a silent pass.
+        audit.reason = "calibration audit artifact not found: " + path;
+        audited_ = false;
+        audit_ = audit;
+        return audit;
+    }
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    const std::string content = buffer.str();
+    audit.present = true;
+
+    const std::string verdict = reportValue(content, "Verdict:");
+    const std::string date = reportValue(content, "Date:");
+    const std::string auditor = reportValue(content, "Auditor:");
+    audit.date = date;
+    audit.auditor = auditor;
+
+    // Explicit "NOT AUTHORISED" (or a withheld authorisation) anywhere relevant.
+    const std::string verdictLower = lowerCopy(verdict);
+    const std::string caveatLower = lowerCopy(reportLine(content, "publication"));
+    const bool withheld = withholdsPublication(verdictLower) ||
+                          withholdsPublication(caveatLower) ||
+                          withholdsPublication(lowerCopy(content));
+
+    audit.passed = verdictLower.find("pass") != std::string::npos;
+    // A PASS that withholds publication (synthetic data, E05) does NOT open the
+    // probability gate: the value remains a score. Only a PASS that authorises
+    // publication unlocks a calibrated probability.
+    audit.publicationAuthorised = audit.passed && !withheld;
+    audit.reason = audit.publicationAuthorised
+                       ? "publication authorised"
+                       : (audit.passed ? "PASS but publication not authorised"
+                                       : "verdict is not PASS");
+
+    audited_ = audit.publicationAuthorised;
+    return audit;
 }
 
 }  // namespace aura

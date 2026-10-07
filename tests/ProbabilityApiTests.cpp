@@ -16,6 +16,8 @@
 #include "shadow/PositionSimulator.h"
 #include "telegram/TelegramGateway.h"
 
+#include <cstdio>
+#include <fstream>
 #include <string>
 
 using namespace aura;
@@ -187,3 +189,74 @@ TEST_CASE(payload_is_deterministic_for_a_fixed_record) {
     CHECK(contains(first.body, "\"api\":\"v1\""));
     CHECK(contains(first.body, "\"schema\":\"1.0\""));
 }
+
+// --- C-1: the audit gate must come from a durable artifact, not a toggle. ---
+
+namespace {
+std::string writeTempAudit(const std::string& tag, const std::string& body) {
+    const std::string path = "/tmp/aura_audit_test_" + tag + ".md";
+    std::ofstream out(path, std::ios::trunc);
+    out << body;
+    out.close();
+    return path;
+}
+}  // namespace
+
+TEST_CASE(audit_artifact_withholds_publication_keeps_the_gate_closed) {
+    // The real T11 posture: PASS on methodology, publication NOT authorised
+    // (synthetic data, E05). RULE C must stay closed.
+    ProbabilityApi api;
+    const std::string path = writeTempAudit(
+        "withhold",
+        "# Audit Report - T11\n- **Verdict:** **PASS (methodology)**\n"
+        "- **Publication caveat:** publication is NOT authorised until "
+        "reproduced on real data.\n");
+    const ProbabilityApi::Audit audit = api.applyCalibrationAudit(path);
+    CHECK(audit.present);
+    CHECK(audit.passed);
+    CHECK(!audit.publicationAuthorised);
+    CHECK(!api.calibrationAudited());
+    ::remove(path.c_str());
+}
+
+TEST_CASE(audit_artifact_with_authorised_pass_opens_the_gate) {
+    ProbabilityApi api;
+    const std::string path = writeTempAudit(
+        "authorise",
+        "# Audit Report - T11\n- **Verdict:** PASS\n"
+        "- **Publication:** authorised on real data.\n");
+    const ProbabilityApi::Audit audit = api.applyCalibrationAudit(path);
+    CHECK(audit.present);
+    CHECK(audit.passed);
+    CHECK(audit.publicationAuthorised);
+    CHECK(api.calibrationAudited());
+    ::remove(path.c_str());
+}
+
+TEST_CASE(missing_audit_artifact_keeps_the_gate_closed) {
+    ProbabilityApi api;
+    const ProbabilityApi::Audit audit =
+        api.applyCalibrationAudit("/nonexistent/audit.md");
+    CHECK(!audit.present);
+    CHECK(!audit.passed);
+    CHECK(!audit.publicationAuthorised);
+    CHECK(!api.calibrationAudited());
+}
+
+TEST_CASE(real_t11_report_keeps_the_gate_closed_on_this_build) {
+    // Parse the actual committed report; a synthetic-data PASS must not open
+    // the probability gate.
+#ifdef AURA_SOURCE_DIR
+    const std::string report =
+        std::string(AURA_SOURCE_DIR) + "/AUDIT_REPORTS/AUDIT-T11-calibration.md";
+#else
+    const std::string report = "AUDIT_REPORTS/AUDIT-T11-calibration.md";
+#endif
+    ProbabilityApi api;
+    const ProbabilityApi::Audit audit = api.applyCalibrationAudit(report);
+    REQUIRE(audit.present);
+    CHECK(audit.passed);
+    CHECK(!audit.publicationAuthorised);
+    CHECK(!api.calibrationAudited());
+}
+

@@ -51,12 +51,35 @@ const char* probabilityTier(double probability) noexcept;
 // number itself comes from the ledger.
 class ProbabilityApi {
 public:
+    // Provenance of the audit that gates RULE C. Populated from the durable
+    // audit artifact (see applyCalibrationAudit) so "audited" is a record, not a
+    // toggle (audit C-1). `passed` means the methodology was accepted;
+    // `publicationAuthorised` means the value may be shown as a probability to a
+    // user. A synthetic-data PASS is not publication-authorised (E05).
+    struct Audit {
+        bool present = false;
+        bool passed = false;
+        bool publicationAuthorised = false;
+        std::string auditor;
+        std::string date;
+        std::string source;
+        std::string reason;
+    };
+
     ProbabilityApi() = default;
 
-    // The calibration audit is the gate (RULE C). Default false: no audit has
-    // blessed a calibrated output, so nothing may be presented as a probability.
+    // Manual override. Default false: no audit has blessed a calibrated output,
+    // so nothing may be presented as a probability. Prefer applyCalibrationAudit
+    // in production so the gate is bound to a durable artifact (C-1).
     void setCalibrationAudited(bool audited) noexcept { audited_ = audited; }
     bool calibrationAudited() const noexcept { return audited_; }
+
+    // Parse a calibration audit report (Markdown) and bind the RULE C gate to it.
+    // The gate opens ONLY when the report shows a PASS and does not withhold
+    // publication authorisation. Returns the parsed audit (present=false when the
+    // file is missing/unreadable, in which case the gate stays closed).
+    Audit applyCalibrationAudit(const std::string& path);
+    const Audit& calibrationAudit() const noexcept { return audit_; }
 
     // The single source of truth for "may this be shown as a probability?".
     // Both the /probability and /analysis surfaces read this so the RULE C gate
@@ -86,6 +109,7 @@ public:
 
 private:
     bool audited_ = false;
+    Audit audit_;
 };
 
 }  // namespace aura

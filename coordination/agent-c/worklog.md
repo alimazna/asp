@@ -49,6 +49,13 @@
 - Re-verified T06 25/25 and T07 17/17 at HEAD 0ecc068.
 - Next (Lead-approved, in-zone): document bundle runtime-completeness gap (F1).
 
+### [2026-10-07 22:45 UTC] C-1 follow-up — durable RULE C audit gate
+- ProbabilityApi::applyCalibrationAudit(path): parses the T11 Markdown report;
+  gate opens only on PASS that does not withhold publication. Synthetic PASS
+  stays closed (E05). Returns Audit provenance struct.
+- AuraBackendHost binds the artifact at startup (--calibration-audit override).
+- ProbabilityApiTests 10 → 14/14; CTest 18/18. Additive; in-zone.
+
 ### [2026-10-07 22:35 UTC] Phase 4.0 — T16/T17/T19 delivered → REVIEW
 - T16 AnalysisApi.{h,cpp}: /analysis/latest, /analysis/history, /context/latest,
   /health/v1. One RULE C gate shared with /probability. Levels from live risk

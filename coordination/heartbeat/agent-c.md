@@ -49,3 +49,10 @@
 - Lease: T16/T17/T19 (-> REVIEW)
 - Progress: 100%
 - Note: Phase 4.0 backend surface delivered; awaiting Agent-D audit
+
+### [2026-10-07 22:45 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: C-1 follow-up (-> REVIEW); T16/T17/T19 delivered
+- Progress: 100%
+- Note: durable calibration audit gate landed; awaiting Agent-D re-audit

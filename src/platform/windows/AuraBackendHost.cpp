@@ -6,6 +6,7 @@
 
 #include "api/BackendFacade.h"
 #include "api/LoopbackApiServer.h"
+#include "api/ProbabilityApi.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "platform/windows/PathResolver.h"
@@ -64,6 +65,19 @@ bool wantsOneShot(int argc, char** argv) {
     return false;
 }
 
+// Path to the durable calibration audit that opens the RULE C probability gate.
+// Defaults to <appRoot>/AUDIT_REPORTS/AUDIT-T11-calibration.md (relocatable
+// alongside the executable); overridable for tests and deployments.
+std::string parseCalibrationAuditPath(int argc, char** argv,
+                                      const std::string& appRootDir) {
+    for (int i = 1; i + 1 < argc; ++i) {
+        if (std::string(argv[i]) == "--calibration-audit") {
+            return std::string(argv[i + 1]);
+        }
+    }
+    return appRootDir + "/AUDIT_REPORTS/AUDIT-T11-calibration.md";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -105,9 +119,26 @@ int main(int argc, char** argv) {
     aura::IncidentManager incidents;
     aura::ApprovalGate approvals(runtime.guardian());
     aura::TelegramGateway telegram;
+
+    // RULE C gate (audit C-1): "audited" is bound to the durable calibration
+    // audit artifact, not an in-process toggle. In this build the T11 report is
+    // PASS-on-methodology but explicitly NOT publication-authorised (synthetic
+    // data, blocker E05), so the gate stays closed and the surface reports a
+    // score — never a market probability.
+    aura::ProbabilityApi probability;
+    const aura::ProbabilityApi::Audit audit = probability.applyCalibrationAudit(
+        parseCalibrationAuditPath(argc, argv, paths.appRootDir));
+    std::cout << "  calibration audit: "
+              << (audit.present ? "present" : "absent")
+              << ", passed=" << (audit.passed ? "yes" : "no")
+              << ", publication_authorised="
+              << (audit.publicationAuthorised ? "yes" : "no") << " ("
+              << audit.reason << ")\n";
+
+    aura::AnalysisApi analysis;
     aura::BackendFacade facade(aura::FacadeDependencies{
         &runtime, &runtime.health(), &runtime.ledger(), &runtime.positions(),
-        &incidents, &approvals, &telegram});
+        &incidents, &approvals, &telegram, &probability, &analysis});
 
     // The frontend-facing transport: a loopback-only HTTP/JSON server over the
     // facade. It is started by the host so the ASTRA frontend connects to a
