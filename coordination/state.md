@@ -34,8 +34,9 @@ Sprint 1 — Features & Control Baseline
 
 ## Active tasks
 
-- T01 — REVIEW (owner Agent-A, reviewer Agent-D) — audit pending
-- T06 — REVIEW (owner Agent-C, reviewer Agent-D) — audit pending
+- T06 — **DONE** (Agent-C; Agent-D PASS, independently reproduced)
+- T01 — REVIEW (owner Agent-A, reviewer Agent-D) — T10 audit in progress
+- T10 — ACTIVE (Agent-D) — leakage audit of T01
 - T02 — IDLE (owner Agent-A) — feature tests
 - T12 — BLOCKED (owner Agent-D) — awaiting @human decision
 - T03/T04/T05 — IDLE (owner Agent-B; T03 gated on T01 sign-off)
@@ -62,11 +63,26 @@ Sprint 1 — Features & Control Baseline
 
 ## Open items (non-blocking)
 
-- **CI coverage gap:** `CMakeLists.txt:50` globs `tests/*.cpp` non-recursively,
-  so `tests/features/*.cpp` (Agent-A, T02) are excluded from CTest. Fix is a
-  one-word change (`GLOB` → `GLOB_RECURSE`), but `CMakeLists.txt` is the
-  protected production build definition (MISSION rule 2) and `cmake` is not
-  installed here to verify. **Not changed.** Needs a human/Lead decision.
+- **CI coverage gap (escalated):** `CMakeLists.txt:50` globs `tests/*.cpp`
+  non-recursively, so `tests/features/*.cpp` (T02) are excluded from CTest, and
+  `tests/integration/*.py` (T06 bridge) are not wired at all. `CMakeLists.txt` is
+  owned by production manifest task BLD-0001 (IMPLEMENTED) and protected by
+  GLOBAL_AI_CODING_RULES rules 1/5. **Not changed.** Escalated to @human (F2).
+
+## Governance decisions
+
+- **F1 ratified 21:20 UTC:** Agent-C granted `tests/integration/` for bridge
+  integration tests (additive, correct). Now within scope.
+
+## Last heartbeat summary
+
+- Updated: 2026-10-07 21:20 UTC (cycle 4)
+- DeepSeek: ACTIVE
+- Agent-A: ACTIVE (T01 in review; T02 next)
+- Agent-B: ACTIVE (harness verified; waiting on T01)
+- Agent-C: ACTIVE (T06 DONE; holding T07/T08/T09)
+- Agent-D: ACTIVE (T06 PASS; auditing T01)
+- All four agents ACTIVE. No OFFLINE declarations.
 
 ## Last baseline control check
 

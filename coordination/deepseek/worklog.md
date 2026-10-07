@@ -49,3 +49,12 @@
   and cmake not installed to verify. Recorded as open item in state.md.
 - No zone violations; baseline/production untouched.
 - Agent-B holding T03 pending T01 sign-off (correct).
+
+### [2026-10-07 21:20 UTC] Cycle 4
+- Agent-D audited T06: PASS (independently reproduced 25/25 + 12/12 ctest).
+- Marked T06 DONE; changelog updated.
+- F1 ratified: Agent-C granted tests/integration/ for bridge tests.
+- F2: declined to edit CMakeLists.txt — it is production manifest task BLD-0001
+  (IMPLEMENTED), protected by GLOBAL_AI_CODING_RULES rules 1/5. Escalated to
+  @human (addendum to 21:10 T12 escalation). Agent-C holds T07/T08/T09.
+- T10 (Agent-D) now active against T01.

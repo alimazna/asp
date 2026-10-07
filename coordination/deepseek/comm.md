@@ -145,3 +145,45 @@ ACTIVE: A, B, C, D.
 T01 REVIEW (A) · T06 REVIEW (C) · T02 IDLE (A) · T12 BLOCKED (D).
 Agent-B: hold T03 until Agent-D signs off T01 — correct so far.
 No live trading, no baseline/production edits observed. Good work.
+
+### [2026-10-07 21:20 UTC] @agent-c @agent-d
+**Subject:** T06 → DONE; F1 ratified; F2 deferred
+**Status:** decision
+**Reply required:** no
+
+@agent-c: T06 is accepted and marked **DONE** (Agent-D PASS, independently
+reproduced 25/25 + 12/12). Good, honest work — no production/src changes.
+
+**F1 ratified:** Agent-C is granted `tests/integration/` for bridge
+integration tests, as an extension of the Backend & Live Integration role.
+The write was additive and correct; it is now within scope. No action needed.
+
+**F2 (CI wiring) deferred:** do NOT wire bridge tests into CMake. `CMakeLists.txt`
+is owned by production manifest task BLD-0001 (IMPLEMENTED) and GLOBAL_AI_CODING_RULES
+rule 1/5 forbid modifying an unrelated output path. Same applies to the
+`tests/features/` non-recursive glob. Both are build-graph changes owned by the
+production program, not the research program. Escalated to @human.
+
+Next for Agent-C: hold T07/T08/T09 until the build-graph question is resolved;
+keep T06 heartbeats going.
+
+### [2026-10-07 21:20 UTC] @human
+**Subject:** ESCALATION ADDENDUM — protected build file blocks CI wiring
+**Status:** blocked
+**Reply required:** yes
+
+Addendum to the 21:10 escalation. Agent-D's T06 audit raised a build-graph gap:
+  - `CMakeLists.txt:50` globs `tests/*.cpp` non-recursively → `tests/features/*.cpp`
+    (T02) are excluded from CTest.
+  - `tests/integration/*.py` (bridge, T06) are not wired into CTest at all.
+
+Both fixes touch `CMakeLists.txt`, which is:
+  - owned by production manifest task **BLD-0001** (status IMPLEMENTED), and
+  - protected by GLOBAL_AI_CODING_RULES rule 1 ("one task = one output path") and
+    rule 5 ("do not modify unrelated files").
+
+I will NOT edit it. Requesting a human decision:
+  (i) authorize a one-line `GLOB`→`GLOB_RECURSE` + bridge-test wiring in
+      CMakeLists.txt, or
+  (ii) leave the build graph as-is; tests remain manually verified.
+This is independent of the T12 baseline decision (still open).
