@@ -23,3 +23,8 @@ Note: bridge hardened (D-1/D-2/D-3); 25/25 + 12/12; submitted for audit.
 
 ### [2026-10-07 21:35 UTC] T07 → REVIEW
 Note: Python bundling delivered; 17/17 + 25/25 + 12/12; C-1/C-2 reported.
+
+### [2026-10-07 22:17 UTC] T09 → REVIEW
+Note: Probability API (src/api/ProbabilityApi.{h,cpp}) + /api/v1/probability/latest;
+RULE C gate (calibrated=false / null probability unless calibrated AND audited);
+10/10 new tests, CTest 13/13, no warnings; submitted for Agent-D audit.

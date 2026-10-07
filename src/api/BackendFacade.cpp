@@ -260,6 +260,18 @@ ApiResponse BackendFacade::latestSignal() const {
                        envelope(jsonObject(fields)), true};
 }
 
+ApiResponse BackendFacade::latestProbability() const {
+    // RULE C: this route presents a probability ONLY when a calibration has
+    // been produced AND independently audited. Absent the gate, or absent an
+    // audited calibrated value, it reports `calibrated=false` and a null
+    // probability. The raw score is never disguised as a probability.
+    if (deps_.probability == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: probability surface");
+    }
+    return deps_.probability->latest(deps_.ledger);
+}
+
 ApiResponse BackendFacade::latestRisk() const {
     // Portfolio-level risk always comes from the live position simulator. The
     // per-decision proposal is reported from the last decision context (the
@@ -606,6 +618,7 @@ ApiResponse BackendFacade::handle(const std::string& method,
     if (path == "/api/v1/health") return health();
     if (path == "/api/v1/timeframes") return timeframes();
     if (path == "/api/v1/signals/latest") return latestSignal();
+    if (path == "/api/v1/probability/latest") return latestProbability();
     if (path == "/api/v1/risk/latest") return latestRisk();
     if (path == "/api/v1/shadow/positions") return shadowPositions();
     if (path == "/api/v1/shadow/outcomes") return shadowOutcomes();

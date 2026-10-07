@@ -8,6 +8,7 @@
 // broker directly on the frontend's behalf.
 
 #include "api/BackendApiSchema.h"
+#include "api/ProbabilityApi.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "health/HealthMonitor.h"
@@ -29,6 +30,9 @@ struct FacadeDependencies {
     IncidentManager* incidents = nullptr;
     ApprovalGate* approvals = nullptr;
     TelegramGateway* telegram = nullptr;
+    // Optional. When null, the probability surface still reports honestly
+    // (available=false / uncalibrated) rather than fabricating a value.
+    ProbabilityApi* probability = nullptr;
 };
 
 struct CommandRequest {
@@ -48,6 +52,7 @@ public:
     ApiResponse timeframes() const;
     ApiResponse timeframeSnapshot(const std::string& timeframe) const;
     ApiResponse latestSignal() const;
+    ApiResponse latestProbability() const;
     ApiResponse latestRisk() const;
     ApiResponse shadowPositions() const;
     ApiResponse shadowOutcomes() const;

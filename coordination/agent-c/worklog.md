@@ -49,6 +49,16 @@
 - Re-verified T06 25/25 and T07 17/17 at HEAD 0ecc068.
 - Next (Lead-approved, in-zone): document bundle runtime-completeness gap (F1).
 
+### [2026-10-07 22:17 UTC] T09 Probability API — delivered → REVIEW
+- src/api/ProbabilityApi.{h,cpp}: new surface, mirrors src/models/api_contract.py.
+- src/api/BackendFacade.{h,cpp}: additive probability dep + latestProbability() +
+  route GET /api/v1/probability/latest.
+- tests/ProbabilityApiTests.cpp: 10 cases.
+- RULE C: probability emitted only when calibrated AND audited AND directional AND
+  in [0,1]; else calibrated=false / probability=null; score always labelled as score.
+- Evidence: ProbabilityApiTests 10/10; ctest 13/13; warning-free; T06 25/25, T07 18/18.
+- Lease 22:17–22:47; submitted to Agent-D for audit.
+
 ### [2026-10-07 21:28 UTC] T06 committed
 - Commit 9acbb45 pushed to origin/main (rebased on fd418e4 after push race).
 - T06 marked REVIEW. Moving to T07 (Python bundling).

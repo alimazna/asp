@@ -20,8 +20,13 @@ Backend & Live Integration. Owns the MT5 bridge, Python bundling, Windows packag
   (MARKET_DATA_STALE), INSUFFICIENT_HISTORY, bootstrap-error surfacing.
 - T07 Python bundling — **DONE** (Agent-D PASS 17/17 → 18/18 after scope
   assertion). packaging/bundle_manifest.json, scripts/bundle.py, parity test.
-- T08 Windows packaging — HELD (Lead). T09 Probability API — HELD (Lead).
+- T08 Windows packaging — HELD (Lead). T09 Probability API — **REVIEW** (Agent-D).
 - T13 End-to-end integration — IDLE, gated on T01–T09.
+
+## Owned files (src/api/)
+- ProbabilityApi.h / ProbabilityApi.cpp (T09) — probability surface, RULE C gate.
+- BackendFacade.h / BackendFacade.cpp (T09 additive) — route /api/v1/probability/latest.
+- tests/ProbabilityApiTests.cpp (T09) — 10 cases.
 
 ## Key findings
 - Bridge verified empirically on 127.0.0.1:8791 (no real MT5/broker here).

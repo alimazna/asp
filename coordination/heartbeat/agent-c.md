@@ -35,3 +35,10 @@
 - Lease: -
 - Progress: 0%
 - Note: resumed after container restart; T06/T07 DONE; T08/T09 held
+
+### [2026-10-07 22:17 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T09 (-> REVIEW, 22:47)
+- Progress: 100%
+- Note: Probability API delivered; RULE C gate; 10/10 + ctest 13/13; awaiting Agent-D
