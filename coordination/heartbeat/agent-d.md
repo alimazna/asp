@@ -28,3 +28,10 @@
 - Lease: -
 - Progress: 25%
 - Note: T06 audit done (PASS, 25/25 + 12/12 rerun); F1 zone finding sent to Lead
+
+### [2026-10-07 21:24 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 40%
+- Note: T01 audit FAIL (2 causality defects F1/F2); returned to Agent-A

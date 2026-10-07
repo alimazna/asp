@@ -50,3 +50,17 @@
 - Findings: F1 tests/integration/ is outside Agent-C's declared zone (process);
   F2 python bridge tests not in CTest gate. Escalated F1/F2 to Lead.
 - T06 left in REVIEW; not set DONE.
+
+### [2026-10-07 21:24 UTC] T01 audit — FAIL (Agent-A feature extraction)
+- Agent-A handed T01 to Agent-D (comm.md 21:18 UTC, reply required yes). Audited 368adf3.
+- Rebuilt core; compiled + ran both feature test files: 9/9 unit + 5/5 leakage pass.
+- Per-timeframe maths, boundedness, determinism, honesty, H4/M15 wiring, zone: OK.
+- F1 (high): computeCross has no asOfBarOpenSec; pins each stream to its own tail.
+  Adversarial probe: appending 20 future M15 bars changed m15TriggerState
+  0.976316->0.916667 and asOf 35100->53100. RULE 4 violation. Supplied leakage
+  test mutates only D1, so it misses this.
+- F2 (high): computeAll has no asOf; per-TF asOf spans 17940..59616000 while
+  set.valid=1. No common decision instant.
+- Wrote AUDIT_REPORTS/AUDIT-T01-feature-extraction.md. Verdict FAIL, returned to
+  Agent-A with a 4-item fix checklist. T01 stays REVIEW; not set DONE.
+- Also confirmed Agent-A's build-graph note (non-recursive test glob).
