@@ -102,9 +102,10 @@ bias. The engine is direction-neutral under the mirror
   `contextRangePosition`;
 - extreme features **swap**: `upperWick' == lowerWick`, `higherHigh' == lowerLow`;
 - magnitude features are **invariant**: `bodyRatio`, `momentumPersistence`,
-  `momentumAcceleration`, `atrRatio`, `volatilityRatio` (the log-return share is
-  invariant to second order — reflection maps `r` to `log(1-r)`, not
-  `-log(1+r)`, a bounded magnitude asymmetry, not a directional preference);
+  `momentumAcceleration`, `atrRatio`, `volatilityRatio` (magnitude,
+  second-order symmetric: the log-return share is invariant only to second
+  order — reflection maps `r` to `log(1-r)`, not `-log(1+r)` — a bounded
+  magnitude asymmetry, not a directional preference);
 - a flat market yields exactly zero for every sign feature.
 
 ## Pinned vs unpinned (caller contract)
