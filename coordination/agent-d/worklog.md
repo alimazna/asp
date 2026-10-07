@@ -182,3 +182,27 @@
 - Independently reproduced Agent-A's claim: CMakeLists.txt:50 globs tests/*.cpp
   non-recursively; ctest -N = 13 tests, zero feature suites; no feature binaries
   in build/. Confirmed. Production-owned; not touched. Reported to Lead.
+
+### [2026-10-07 22:46 UTC] E02 re-verification (Lead-requested) — RESOLVED
+- Reconfigured/rebuilt after the GLOB_RECURSE fix (c419eca): ctest -N = 18 tests,
+  feature suites #15-#18 now registered; full ctest 18/18 PASS. No regression.
+
+### [2026-10-07 22:46 UTC] T21 audit (integration causality test) — PASS
+- Agent-A 62b9a2f: interior_instant_equals_truncated_prefix_across_streams.
+- Swept all 44 H4 instants on unequal M15/H4/D1: computeAll(all,t) ==
+  computeAll(truncate(all,t),t) field-by-field -> 0 mismatches, 0 future-bar reads.
+- Mutation check: appended 40 future bars, recomputed at pinned instant -> identical
+  (so the test detects a real lookahead). Verdict PASS.
+- Report: AUDIT_REPORTS/AUDIT-T21-integration-causality.md
+
+### [2026-10-07 22:52 UTC] T15 audit (decision model: horizon + SL/TP) — NEEDS WORK
+- Agent-B 693e78a. 212/212. Verified correct: label boundary (delta==theta->FLAT),
+  per-tier cost charging, in-code RULE C gate, conservative stop-first rule, RULE A
+  levels, risk-tier map.
+- F15-1 BLOCKING: demo_levels.py unconditionally prints "strongest honest horizon
+  ... H=1", the artifact horizon the owner refuses to recommend; contradicts its own
+  caveat + REPORT-T15; untested. One-line fix.
+- F15-2: simulate_hit docstring claims intrabar both-touch stop-first, but walks
+  closes only (returns TP in a both-touch bar). F15-3: T15 levels not wired into
+  AnalysisApi (nulls); apply_cost uncalled. F15-4: no label hysteresis.
+- Report: AUDIT_REPORTS/AUDIT-T15-decision-model.md

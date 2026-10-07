@@ -72,3 +72,15 @@ deterministic). Verdict to Lead.
 ### [2026-10-07 22:38 UTC] E02 → re-confirmed
 Note: independently reproduced the CMake tests/*.cpp non-recursive glob gap
 (ctest -N = 13, no feature suites). Production-owned; not touched.
+
+### [2026-10-07 22:46 UTC] E02 → RESOLVED (re-verified)
+Note: after Lead fix c419eca, ctest -N = 18, feature suites #15-#18 registered;
+full ctest 18/18. No regression.
+
+### [2026-10-07 22:46 UTC] T21 → REVIEW
+Note: T21 audit PASS (44-instant equivalence sweep + future-bar mutation check).
+Verdict to Lead.
+
+### [2026-10-07 22:52 UTC] T15 → REVIEW
+Note: T15 audit NEEDS WORK — F15-1 (demo prints artifact horizon H=1, contradicts
+owner caveat; one-line fix). F15-2/3/4 non-blocking. Verdict to Lead/Agent-B.

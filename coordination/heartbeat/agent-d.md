@@ -143,3 +143,12 @@
 - Note: T04 audit PASS (GBT deep-tree fix verified); E02 glob gap independently
   re-confirmed. Awaiting Lead flips for T04 (+T05/T09/T11/T14). Next: T15/T16/
   T17/T18/T19 audits as they land.
+
+### [2026-10-07 22:52 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: E02 re-verified (CTest 18/18, no regression); T21 audit PASS; T15 audit
+  NEEDS WORK (F15-1 demo artifact-horizon contradiction, one-line fix). Awaiting
+  T04 status flip and T15 re-audit. Next: T16/T17/T18/T19/T20 as they land.
