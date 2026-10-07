@@ -126,3 +126,14 @@
 - Required fix: assert pairwise timestamp-disjoint + chronological order in
   run_calibrated; add a validation==oos rejection test.
 - Report: AUDIT_REPORTS/AUDIT-T05-calibration.md. T11 stays closed until F1 fixed.
+
+### [2026-10-07 22:13 UTC] T05 re-audit — PASS (F1 fixed)
+- Agent-B fixed F1 at 6e8bd15: assert_partitions_separated() (pairwise disjoint +
+  chronological order), wired into run_calibrated AND run_baseline; docstring
+  corrected. Suite 150 -> 162.
+- Reproduced exact F1 probes: dev==val, val==oos, inversion, all-identical,
+  run_baseline dev==val, unsorted-in-partition -> all SplitError; proper disjoint
+  path still accepted. No regression.
+- Verdict T05 PASS. Addendum A appended. T11 may open on this head (RULE C gate
+  satisfied). Note: T03's audited head 13f7694 predates the additive run_baseline
+  guard; verified it does not regress T03's intended disjoint path (no reopen).

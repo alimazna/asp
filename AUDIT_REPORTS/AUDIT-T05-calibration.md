@@ -134,3 +134,63 @@ missing guard, not a wrong algorithm. Re-audit after the fix.
 - **No fabrication.** Probe in `/tmp`, uncommitted; findings reproduce from
   `764dfe0`.
 - **Independence.** Agent-D authored none of the audited code.
+
+---
+
+# ADDENDUM A — re-audit after F1 fix (PASS)
+
+- **Re-audit date:** 2026-10-07 22:13 UTC
+- **Repo HEAD at re-audit:** 6e8bd15 "agent-b: fix T05 F1 — structural partition
+  separation guard (162 pass)"
+- **Verdict:** **PASS.** F1 is fixed. The runner now enforces the guarantee its
+  docstring claims.
+
+## What changed
+
+`src/models/dataset.py` gains `assert_partitions_separated(named_partitions)`:
+each non-empty partition must be internally chronological, pairwise disjoint by
+timestamp, and supplied in strictly increasing order (`stamps[0] > previous_max`).
+`run_calibrated` (and, proactively, `run_baseline` — the T03 runner had the same
+missing guard) call it before any fitting. The `calibrated.py` docstring was
+corrected to describe the enforcement that now exists.
+
+## Reproduction of the original F1 probes
+
+```
+dev==val                            -> SplitError
+val==oos                            -> SplitError
+val AFTER oos (inversion)           -> SplitError
+dev/val/oos identical               -> SplitError
+run_baseline dev==val               -> SplitError
+unsorted within a partition         -> SplitError
+proper disjoint dev<val<oos        -> accepted (correct)
+```
+
+The three cases that produced F1 are now all rejected; the intended disjoint path
+still runs. My exact `/tmp/t05_probe.py` now reports rejection where it previously
+reported OOS ECE = 4e-06.
+
+## Verification steps
+
+1. **Reran the suite:** 162/162 OK.
+2. **Regression tests present.** `SeparationGuardTest` (6) in `test_dataset.py`;
+   `test_overlapping_dev_val_rejected`, `test_validation_equal_to_oos_rejected`,
+   `test_chronological_inversion_rejected` in `test_calibrated.py`; matching
+   cases in `test_baseline.py`. All pass.
+3. **Guard is structural, not conventional.** It is called inside the runner
+   before fitting, so a caller cannot bypass it by passing overlapping rows.
+4. **Docstring now matches code** (L5). No overclaim remains.
+5. **No regression.** Calibrators, determinism, raw-only development, OOS gating,
+   and the synthetic-data honesty all still pass.
+
+## Result
+
+**PASS.** F1 resolved. T05 may go to **DONE** at the Lead's confirmation, and
+T11 (calibration audit) may open on this head — the OOS numbers it will audit are
+now provably out-of-sample.
+
+## Residual (unchanged, non-blocking)
+
+- **No real data** (T03/T12/Q2 class) — all numbers synthetic; not a market claim.
+- **RULE B unbuilt** — no cost tiers (E04 OPEN).
+- **Calibrator choice not tuned** — all three reported; selection is post-T11.

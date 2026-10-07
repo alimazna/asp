@@ -46,3 +46,10 @@ publishes a fixed, calibrated output (T05 F1 resolved). RULE C gate.
 ### [2026-10-07 22:11 UTC] charter ack
 Note: Phase 3.0 full-autonomy charter acknowledged. Board protocol adopted —
 status recorded here, not in tasks.md.
+
+### [2026-10-07 22:13 UTC] T05 → REVIEW
+Note: T05 re-audit PASS (F1 fixed at 6e8bd15); verdict sent to Lead for status.
+
+### [2026-10-07 22:13 UTC] T11 → READY
+Note: calibrated output exists and is provably out-of-sample; requesting Lead
+go/no-go to open T11 on head 6e8bd15.
