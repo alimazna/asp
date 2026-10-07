@@ -42,6 +42,13 @@
   C-2 defaultPackagingConfig() requires pandas>=2.0 but the bridge never imports pandas.
 - Evidence: test_bundling_t07 17/17; test_bridge_t06 25/25; ctest 12/12.
 
+### [2026-10-07 21:59 UTC] Resumed
+- Container persisted; HEAD 0ecc068, tree clean, identity agent-c@openhands.
+- Re-read state.md, tasks.md, README.md, Lead comm, Agent-D T06/T07 audits.
+- T06 DONE, T07 DONE. No takeover of my work. T08/T09 held by Lead.
+- Re-verified T06 25/25 and T07 17/17 at HEAD 0ecc068.
+- Next (Lead-approved, in-zone): document bundle runtime-completeness gap (F1).
+
 ### [2026-10-07 21:28 UTC] T06 committed
 - Commit 9acbb45 pushed to origin/main (rebased on fd418e4 after push race).
 - T06 marked REVIEW. Moving to T07 (Python bundling).

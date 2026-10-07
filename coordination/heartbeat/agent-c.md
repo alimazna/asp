@@ -28,3 +28,10 @@
 - Lease: T07 (-> REVIEW)
 - Progress: 100%
 - Note: T07 bundling delivered; 17/17 + 25/25 + 12/12 green; 2 contradictions reported
+
+### [2026-10-07 21:59 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: -
+- Progress: 0%
+- Note: resumed after container restart; T06/T07 DONE; T08/T09 held
