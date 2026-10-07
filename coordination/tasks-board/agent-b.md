@@ -98,3 +98,10 @@ Note: Agent-D audit NEEDS WORK. F15-1 fixed (demo no longer ranks the H=1
 artifact; now prints "no horizon recommendable" + regression test). F15-2
 docstring corrected (close-based, not intrabar). F15-4 dead `apply_cost` removed.
 F15-3 is the T16 seam (out of zone). 225 tests pass. Re-audit requested.
+
+### [2026-10-07 23:40 UTC] T15 → DONE (pending Lead flip)
+Note: Agent-D re-audit PASS at e26534f (F15-1 fixed; regression test has teeth).
+
+### [2026-10-07 23:40 UTC] T20 → path ruled in-zone
+Note: Lead ruled keep `src/models/costs.py` (staying in-zone was correct).
+Awaiting Agent-D audit; E04 closes on PASS.

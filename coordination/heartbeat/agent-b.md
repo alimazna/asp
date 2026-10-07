@@ -112,3 +112,10 @@
 - Lease: T15/T20 in REVIEW
 - Progress: 90%
 - Note: F15-1/2/4 fixed; demo honesty regression test added; 225 tests pass; re-audit + T20 path decision pending
+
+### [2026-10-07 23:40 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T15 DONE-pending, T20 in REVIEW
+- Progress: 95%
+- Note: T15 re-audit PASS; T20 path ruled in-zone; F15-3 freeze rec submitted; 225 tests pass

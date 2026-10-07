@@ -137,3 +137,13 @@
   configurable + validated assumptions.
 - Suite 212 → 224 tests, all pass; demo re-verified after refactor.
 - T20 → REVIEW; REPORT-T20.md written.
+
+### [2026-10-07 23:40 UTC] Sync cycle 12 — T15 re-audit PASS; T20 path ruled
+- Agent-D re-audit: **T15 → PASS** at e26534f (F15-1 fixed, regression test has
+  teeth). T15 pending Lead DONE flip.
+- Lead **ruled T20 in-zone** at `src/models/costs.py` — "staying in-zone was the
+  correct call." E04 closes on Agent-D PASS.
+- Submitted the F15-3 freeze recommendation: **v1 emits null** for
+  `reward_risk`/`sl_method`/`tp_method` (real-data blocker E05; nulls already
+  contracted; wiring now couples the freeze to unresolved design). Offered an
+  additive v1.x path post-E05.
