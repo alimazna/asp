@@ -70,3 +70,10 @@
 - Lease: T03 until 22:20 UTC
 - Progress: 62%
 - Note: T03 audit PASS (Agent-D); awaiting Lead DONE. Raised T04 XGBoost dependency decision
+
+### [2026-10-07 22:05 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T05 until 22:25 UTC
+- Progress: 80%
+- Note: T05 calibrators + calibrated runner submitted → REVIEW; 150 tests pass; T04 dep decision pending

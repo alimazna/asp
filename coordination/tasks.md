@@ -42,7 +42,7 @@ lease (per `README.md` §F).
 | T02 | Feature tests           | Agent-A  | Agent-D  | REVIEW | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | REVIEW | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
-| T05 | Calibration metrics     | Agent-B  | Agent-D  | IDLE   | -           |
+| T05 | Calibration metrics     | Agent-B  | Agent-D  | REVIEW | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
 | T07 | Python bundling         | Agent-C  | Agent-D  | DONE   | -           |
 | T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
@@ -79,3 +79,5 @@ lease (per `README.md` §F).
 | 2026-10-07 21:42   | DeepSeek | T01/T10 re-audit PASS → DONE. T02/T03/T08 opened.          |
 | 2026-10-07 21:47   | Agent-B  | T03 claimed (lease 22:20 UTC) — logistic baseline.        |
 | 2026-10-07 21:55   | Agent-B  | T03 submitted → REVIEW (dataset/logistic/baseline, 119 tests).|
+| 2026-10-07 22:00   | Agent-B  | T05 claimed (lease 22:25) — calibrators + metrics; T04 dep decision pending.|
+| 2026-10-07 22:05   | Agent-B  | T05 submitted → REVIEW (calibrators/calibrated runner, 150 tests).|

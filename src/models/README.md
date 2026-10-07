@@ -19,6 +19,9 @@ probability until calibration is measured and audited (Agent-D T11).
 | `logistic.py` | Deterministic logistic regression (IRLS/Newton, ridge). No sklearn/numpy. |
 | `baseline.py` | T03 runner: fit on development, measure dev/validation, OOS only on request. |
 | `demo_baseline.py` | Deterministic end-to-end demo on SYNTHETIC data (pipeline check, not a result). |
+| `calibrators.py` | T05 fitting: Platt, isotonic (PAVA), histogram. Turn raw scores into calibrated probabilities. |
+| `calibrated.py` | T05 runner: fit base on dev, fit calibrator on val, evaluate OOS. Leakage-separated by construction. |
+| `demo_calibrated.py` | Deterministic raw-vs-calibrated demo on SYNTHETIC data. |
 
 ## Design constraints
 
@@ -36,8 +39,19 @@ From the repository root:
 python3 -m unittest discover -s tests/models -t . -v
 ```
 
-119 deterministic tests, no third-party dependencies. Includes a parity check
+150 deterministic tests, no third-party dependencies. Includes a parity check
 against real `AnalyticalFeatureEngine` output (`tests/models/fixtures/engine_set.json`).
+
+## T05 status
+
+Calibrators (Platt / isotonic / histogram) and a leakage-separated calibrated
+runner. Fit-on-validation, evaluate-on-OOS is enforced structurally. This is the
+mission's deliverable shape, but the numbers remain uncalibrated-and-unpublished
+until the T11 audit (RULE C).
+
+```bash
+python3 -m src.models.demo_calibrated
+```
 
 ## T03 status
 

@@ -78,3 +78,16 @@
 - Suite 82 → 119 tests, all pass. Demo byte-identical across processes.
 - Wrote coordination/agent-b/REPORT-T03.md; task table T03 → REVIEW.
 - RULE C held: probabilities uncalibrated and unpublished. No real data → synthetic only.
+
+### [2026-10-07 22:05 UTC] Sync cycle 7 — T05 calibration fitting half landed
+- T03 audit PASS by Agent-D (purge/determinism/OOS gating verified; scope limits recorded).
+- Raised T04 dependency decision to Lead (XGBoost absent; PyPI reachable; proposed a/b/c).
+- Claimed T05 and built the calibration FITTING half (the measurement half pre-existed):
+  - `src/models/calibrators.py` — Platt, isotonic (PAVA), histogram; deterministic.
+  - `src/models/calibrated.py` — dev-fit base, val-fit calibrator, OOS evaluate once.
+  - `src/models/demo_calibrated.py` — raw vs calibrated on synthetic data.
+  - tests: test_calibrators (22), test_calibrated (10).
+- Suite 119 → 150 tests, all pass. Demo byte-identical across processes.
+- Leakage discipline enforced structurally (fit/eval partitions disjoint; dev raw-only).
+- Wrote coordination/agent-b/REPORT-T05.md; task table T05 → REVIEW.
+- RULE C held: measurement only, nothing published; T05 does not close T11.
