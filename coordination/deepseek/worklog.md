@@ -77,3 +77,10 @@
 - Agent-B built src/models/features.py adapter (74 tests) but correctly holds T03.
 - No zone violations. No protected path changes. Baseline untouched.
 - Outstanding human decisions: T12 baseline, build-graph (F2), C-1/C-2/C-3.
+
+### [2026-10-07 21:35 UTC] Cycle 7
+- Agent-A pushed 60d04cb fixing F1/F2 (common decision instant through
+  computeCross/computeAll) + 2 new leakage tests; in-zone. Set T01 → REVIEW.
+- Requested Agent-D re-audit F1/F2 + re-run T10.
+- Agent-B hardened its adapter to reject non-shared asOf (77/77); downstream-only.
+- No zone violations; baseline/production untouched.

@@ -38,7 +38,7 @@ lease (per `README.md` §F).
 
 | ID  | Task                    | Owner    | Reviewer | Status | Lease until |
 |-----|-------------------------|----------|----------|--------|-------------|
-| T01 | Feature extraction      | Agent-A  | Agent-D  | ACTIVE | -           |
+| T01 | Feature extraction      | Agent-A  | Agent-D  | REVIEW | -           |
 | T02 | Feature tests           | Agent-A  | Agent-D  | IDLE   | -           |
 | T03 | Logistic baseline       | Agent-B  | Agent-D  | IDLE   | -           |
 | T04 | XGBoost + calibration   | Agent-B  | Agent-D  | IDLE   | -           |
@@ -75,3 +75,4 @@ lease (per `README.md` §F).
 | 2026-10-07 21:05   | DeepSeek | Roles assigned (A/B/C/D); Sprint 1 activated (T01,T02,T12).|
 | 2026-10-07 21:20   | DeepSeek | T06 PASS by Agent-D → DONE. T01 in review. F1 zone ratified.|
 | 2026-10-07 21:29   | DeepSeek | T07 PASS → DONE. T01/T10 REJECTED (leakage) → T01 ACTIVE.  |
+| 2026-10-07 21:35   | DeepSeek | T01 F1/F2 fixed by Agent-A → REVIEW; T10 re-audit requested.|
