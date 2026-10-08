@@ -79,9 +79,63 @@ def live_paths(value, segs: List[str] | None = None) -> Set[str]:
     return out
 
 
+def required_paths(spec: dict) -> Set[str]:
+    """Key paths the schema marks as required (envelope + data + array element)."""
+    out: Set[str] = set(spec.get("required") or [])
+    if spec.get("data_properties") is not None:
+        out.update("data." + k for k in (spec.get("data_required") or []))
+    if spec.get("data_type") == "array":
+        out.update("data.[]." + k for k in (spec.get("element_required") or []))
+    return out
+
+
+def missing_required(route: str, spec: dict, payload) -> List[str]:
+    """Required paths the payload fails to supply (schema-required <= payload-keys).
+
+    Array-element requirements (``...[]...``) are vacuous when the array is absent
+    or empty: there is no element to violate them, and an absent ``data`` is
+    already reported by its own required path.
+    """
+    seen = live_paths(payload)
+    missing: List[str] = []
+    for path in required_paths(spec):
+        segs = path.split(".")
+        if "[]" in segs:
+            node = payload
+            navigable = True
+            for seg in segs[: segs.index("[]")]:
+                if isinstance(node, dict) and seg in node:
+                    node = node[seg]
+                else:
+                    navigable = False
+                    break
+            if not navigable or not isinstance(node, list) or not node:
+                continue
+        if path not in seen:
+            missing.append(path)
+    return sorted(missing)
+
+
 def undeclared(route: str, spec: dict, payload) -> List[str]:
     """Key paths the payload emits that the route spec does not declare."""
     return sorted(live_paths(payload) - declared_paths(spec))
+
+
+def check_exact_shape(route: str, spec: dict, payload) -> Dict[str, List[str]]:
+    """Two-sided exact-shape check: extra (undeclared) + missing (required).
+
+    ``payload-keys <= schema-keys`` (no extras) AND
+    ``schema-required <= payload-keys`` (nothing required is missing).
+    Returns ``{}`` when both hold.
+    """
+    problems: Dict[str, List[str]] = {}
+    extra = undeclared(route, spec, payload)
+    if extra:
+        problems["undeclared"] = extra
+    missing = missing_required(route, spec, payload)
+    if missing:
+        problems["missing_required"] = missing
+    return problems
 
 
 def undeclared_by_route(schema: dict, payloads: Dict[str, object]) -> Dict[str, List[str]]:

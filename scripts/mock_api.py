@@ -285,7 +285,13 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                     "has_closed_bar": True,
                     "quality": {"state": "VALID", "decision_grade": True},
                     "decision_grade": True,
-                    "freshness": {"last_update": 1760000000000},
+                    "freshness": {
+                        "state": "FRESH",
+                        "is_fresh": True,
+                        "last_update": 1760000000000,
+                        "age_millis": 0,
+                        "max_age_millis": 60000,
+                    },
                     "last_successful_update": 1760000000,
                 }
                 for tf in ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
@@ -308,6 +314,19 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                 "transport": "http_loopback",
                 "host": "127.0.0.1",
                 "loopback_only": True,
+                "managed_by_application": True,
+                "requires_manual_cmd": False,
+                "resolved_symbol": "XAUUSD",
+                "package_available": True,
+                "initialized": True,
+                "mt5_ready_live": True,
+                "broker": None,
+                "server": None,
+                "bridge_symbol": "XAUUSD",
+                "process_state": "ONLINE",
+                "last_error": "",
+                "last_successful_request": 1760000000000,
+                "observed": True,
             }
         ),
         "GET /api/v1/risk/latest": envelope(
@@ -316,6 +335,9 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                 "open_positions": 0,
                 "aggregate_open_risk_fraction": 0.0,
                 "risk_bounded_by_guardian": True,
+                "proposal_available": False,
+                "proposal": None,
+                "proposal_reason": "no decision evaluated yet",
             }
         ),
         "GET /api/v1/shadow/positions": envelope(
@@ -348,12 +370,28 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                 "available": True,
                 "mode": "SHADOW",
                 "note": "research output never grants execution authority",
+                "experiment_count": 0,
+                "experiments": [],
+                "failure_count": 0,
+                "failures": [],
             }
         ),
         "GET /api/v1/governance/status": envelope(
-            {"live_trading_authorised": False}
+            {
+                "live_trading_authorised": False,
+                "pending_count": 0,
+                "pending": [],
+                "history": [],
+            }
         ),
-        "GET /api/v1/audit/recent": envelope({"count": 0}),
+        "GET /api/v1/audit/recent": envelope(
+            {
+                "count": 0,
+                "audit_stream_size": 0,
+                "audit_records": [],
+                "active_incidents": [],
+            }
+        ),
     }
     # Snapshot is templated on the timeframe; validate a representative one.
     snapshot = schema["endpoints"]["GET /api/v1/timeframes/{tf}/snapshot"]

@@ -37,10 +37,41 @@ def main() -> int:
           f"mock-only={set(payloads) - set(schema['endpoints'])} "
           f"schema-only={set(schema['endpoints']) - set(payloads)}")
 
-    problems = schema_shape.undeclared_by_route(schema, payloads)
     for route in sorted(schema["endpoints"]):
-        extra = problems.get(route, [])
-        check(f"{route} mock emits only schema-declared keys", not extra, "; ".join(extra))
+        spec = schema["endpoints"][route]
+        found = schema_shape.check_exact_shape(route, spec, payloads[route])
+        detail = "; ".join(
+            f"{k}: {'; '.join(v)}" for k, v in sorted(found.items())
+        )
+        check(f"{route} mock is exact-shape (no undeclared, no missing required)",
+              not found, detail)
+
+    # Teeth-bite: prove the assertion is not vacuously green - it must DETECT a
+    # synthetic extra key and a synthetic missing-required key (the red-before
+    # evidence Agent-D requires: before T30 these classes went undetected).
+    import copy as _copy
+
+    bridge = schema["endpoints"]["GET /api/v1/bridge/status"]
+    sample = payloads["GET /api/v1/bridge/status"]
+
+    with_extra = _copy.deepcopy(sample)
+    with_extra["data"]["totally_undeclared_field"] = 1
+    got = schema_shape.check_exact_shape("GET /api/v1/bridge/status", bridge, with_extra)
+    check("tooth detects an undeclared extra key",
+          "undeclared" in got and "data.totally_undeclared_field" in got["undeclared"],
+          str(got))
+
+    with_missing = _copy.deepcopy(sample)
+    del with_missing["data"]["observed"]
+    got = schema_shape.check_exact_shape("GET /api/v1/bridge/status", bridge, with_missing)
+    check("tooth detects a missing required key",
+          "missing_required" in got and "data.observed" in got["missing_required"],
+          str(got))
+
+    empty_array_ok = _copy.deepcopy(payloads["GET /api/v1/audit/recent"])
+    got = schema_shape.check_exact_shape(
+        "GET /api/v1/audit/recent", schema["endpoints"]["GET /api/v1/audit/recent"], empty_array_ok)
+    check("empty arrays are not flagged as missing element keys", not got, str(got))
 
     passed = sum(1 for ok in _results if ok)
     total = len(_results)

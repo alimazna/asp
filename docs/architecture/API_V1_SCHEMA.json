@@ -276,7 +276,7 @@
     "GET /api/v1/bridge/status": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["bridge_process_state", "startup_stage", "handshake_ok", "mt5_ready", "transport", "host", "loopback_only"],
+      "data_required": ["bridge_process_state", "startup_stage", "handshake_ok", "mt5_ready", "transport", "host", "loopback_only", "managed_by_application", "requires_manual_cmd", "resolved_symbol", "package_available", "initialized", "mt5_ready_live", "broker", "server", "bridge_symbol", "process_state", "last_error", "last_successful_request", "observed"],
       "data_properties": {
         "bridge_process_state": {"type": "string"},
         "startup_stage": {"type": "string"},
@@ -303,7 +303,7 @@
     "GET /api/v1/risk/latest": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["available", "open_positions", "aggregate_open_risk_fraction", "risk_bounded_by_guardian"],
+      "data_required": ["available", "open_positions", "aggregate_open_risk_fraction", "risk_bounded_by_guardian", "proposal_available", "proposal", "proposal_reason"],
       "data_properties": {
         "available": {"type": "boolean"},
         "open_positions": {"type": "integer"},
@@ -385,7 +385,7 @@
     "GET /api/v1/research/status": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["available", "mode", "note"],
+      "data_required": ["available", "mode", "note", "experiment_count", "experiments", "failure_count", "failures"],
       "data_properties": {
         "available": {"type": "boolean"},
         "mode": {"const": "SHADOW"},
@@ -422,7 +422,7 @@
     "GET /api/v1/governance/status": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["live_trading_authorised"],
+      "data_required": ["live_trading_authorised", "pending_count", "pending", "history"],
       "data_properties": {
         "live_trading_authorised": {"const": false},
         "pending_count": {"type": "integer"},
@@ -453,7 +453,7 @@
     "GET /api/v1/audit/recent": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["count"],
+      "data_required": ["count", "audit_stream_size", "audit_records", "active_incidents"],
       "data_properties": {
         "count": {"type": "integer"},
         "audit_stream_size": {"type": "integer"},
