@@ -1,9 +1,9 @@
 # T13 — Evidential real-data path (Agent-C) — 2026-10-08
 
-**Status: IN PROGRESS — evidential race at 95/96; single remaining failure is D2
-(Agent-B's task).** D1 (blocker) and D3 were fixed under Lead ruling DEC-021/DEC-023.
-D2 (frozen-null `levels` vs a realized proposal) is Agent-B's T23 teeth change and
-is the only thing standing between this and a full evidential PASS.
+**Status: PASS — 96/96.** Real gold data flows through the real host, the frozen
+v1 contract holds on every route, and the RULE C gate stays closed. D1 (blocker)
+and D3 were fixed by Agent-C under Lead rulings DEC-021/DEC-023; D2 (frozen-null
+`levels`) was made two-sided by Agent-B under DEC-022 (commit `0c8adfb`).
 
 Repo: `alimazna/asp` @ `main`. Corpus: `research/data/xauusd_m1/xauusd_m1_real.csv`
 (read-only, 100,008 M1 bars, 2026-06-24..2026-10-08). No live trading, no MT5
@@ -73,16 +73,15 @@ text (`9007199254740993`). `ctest` 19/19.
 `proposal_reason` (`risk.reason`; the no-proposal branch already emits the explicit
 string). `data_required` now holds unconditionally; additive only.
 
-## 6. Evidential result (after D1+D3)
+## 6. Evidential result — **PASS 96/96 (after D1+D2+D3)**
 
-`T13_REAL_DATA=1` → **95/96**. Real gold data flows through the real host: 9/9
+`T13_REAL_DATA=1` → **96/96**. Real gold data flows through the real host: 9/9
 timeframes VALID+FRESH, M15 decision-grade, mode **SHADOW**, real context
 (`regime=QUIET`, `h4_bias=DOWN`, `m15_trigger=SHORT`), RULE C intact (probability
 null, `score_is_probability` false), and the frozen v1 contract holds on every
-route. The **one** remaining failure is D2 (`levels` non-null vs `FROZEN_NULL_LEVELS`)
-— Agent-B's T23 teeth change (DEC-022). Once B lands that, the race is 96/96.
+route. D2 (Agent-B, DEC-022, `0c8adfb`) closed the last failure.
 
-## 7. Finding D2 — T17 freeze vs real data: `analysis/latest.levels` — OPEN (Agent-B)
+## 7. Finding D2 — T17 freeze vs real data: `analysis/latest.levels` — RESOLVED (Agent-B)
 
 With real data the frozen `level` fields are populated (entry 4123.94, SL
 4134.081, TP 4107.038, RR 1.667, risk 0.342%) while `contract_checker` still
@@ -92,7 +91,10 @@ realized proposal fills those fields. **Lead ruling DEC-022:** `levels` stays
 present-and-null by default (decision-less payload unchanged), but non-null is
 allowed when a proposal exists — `FROZEN_NULL_LEVELS` becomes two-sided, mirrored
 on the T30 array-element vacuous rule, with a positive proposal-present test.
-**Owner: Agent-B (T23 teeth).** Not Agent-C's file; not changed here.
+**Owner: Agent-B (T23 teeth).** Landed `0c8adfb`: `FROZEN_NULL_LEVELS` split into
+`FROZEN_VALUE_LEVELS` + method identifiers; `_check_levels` enforces
+no-proposal→present-and-null, proposal→present-and-populated, mixed→rejected in
+both postures. 5 new tests; `test_contract_checker` 31/31.
 
 ## 8. Contract drift D3 — `risk/latest.proposal_reason` — **FIXED**
 
@@ -130,8 +132,8 @@ T13_REAL_DATA=1 python3 tests/integration/test_e2e_real_host_t13.py
 
 ## 11. Limits / honesty
 
-- Result is **95/96**, not yet a full PASS: the one open failure is D2 (Agent-B).
-  No faked PASS; the failing check is the finding.
+- Result is **96/96 PASS** on the committed real corpus. No faking: every gate is
+  the real host + real feed + real parser + the frozen checker.
 - Corpus window is 3.5 months; no OOS partition is claimed here (that is T27's
   concern). No tuning performed.
 - The feed's time-alignment is a uniform translation used only to present the

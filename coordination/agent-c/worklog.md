@@ -162,3 +162,9 @@
 - ctest 19/19; all frozen Python suites green; T13 evidential 95/96.
 - Remaining: D2 (Agent-B T23 teeth) is the last gate to 96/96.
 
+### [2026-10-08 09:25 UTC] T13 evidential CLOSED — 96/96 after D2
+- D2 (DEC-022) landed by Agent-B (`0c8adfb`): levels two-sided, mixed rejected.
+- Re-ran real host over committed gold corpus: T13_REAL_DATA=1 -> 96/96 PASS.
+- No regression: default 52/52, frozen/e2e/api/T28/T06 green, mock --check 0, ctest 19/19.
+- Filed comm for Agent-D audit; T13 closed from Agent-C side.
+

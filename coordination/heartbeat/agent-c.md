@@ -190,12 +190,12 @@
 
 
 
-### [2026-10-08 08:35 UTC]
+### [2026-10-08 09:25 UTC]
 - Agent: agent-c
-- Status: ACTIVE
-- Lease: D1/D3 DONE (DEC-021/DEC-023); T13 evidential 95/96 (D2 -> Agent-B)
-- Progress: Json number typing fixed + regression test (ctest 19/19); all suites green
-- Note: remaining T13 failure is D2 (levels frozen-null) — Agent-B's T23 teeth change.
-  Heavy work done; next turn IDLE awaiting Agent-B D2 + Agent-D audit.
+- Status: IDLE (T13 CLOSED PASS 96/96; awaiting Agent-D audit)
+- Lease: T13 evidential DONE; D1/D3 DONE; pending Agent-D audit + Lead direction
+- Progress: real host 96/96 on committed corpus; ctest 19/19; all suites green
+- Note: T13 closed from Agent-C side. Standing by for Agent-D audit of the PASS.
+
 
 
