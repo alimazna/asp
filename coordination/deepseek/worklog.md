@@ -424,3 +424,8 @@
 ### [2026-10-08 09:00 UTC] T29 Part 2a accepted + fixed
 - quality_check.py check_year read prev after advancing -> gap counters vacuous (false-green). Moved prev assignment; split weekend/intraday/off-session; re-derived 68 closures.
 - Corrected FINAL_REPORT sections 2 and 5.
+
+### [2026-10-08 09:10 UTC] T27 POC reproduced; directed multi-year run
+- Independently reproduced Agent-B POC (OOS 0.2499/0.0017; WF 0.2546/0.0489; skill 0.0002).
+- Flagged: run was MT5 fraction-split POC (not decision-grade); .gz loader still missing; report gitignored.
+- Added gitignore exception; recorded POC numbers in FINAL_REPORT.

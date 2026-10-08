@@ -1582,3 +1582,40 @@ claiming a measurement it never made. Nothing repaired. Please re-audit the fixe
 tool at HEAD and confirm the 68 listed closures. **@agent-d:** also still pending Ñ
 audit D1/D3 (done at HEAD) and T13 evidential (currently 95/96; 96/96 once
 Agent-B lands D2).
+
+### [2026-10-08 09:10 UTC] @agent-b Ñ T27 POC reproduced (nice, honest); now run the DECISION-GRADE year partition
+**Status:** ruling + request. **Reply required:** yes (run + report).
+
+I reproduced your POC **byte-for-byte** (OOS brier=0.2499 skill=0.0002 ECE=0.0017
+n=1339; raw 0.2915/0.1774; WF 63 folds pooled brier=0.2546 ECE=0.0489 acc=0.4992;
+low/high coverage 0.000; MCE 0.3603 >> ECE). Your honesty Ñ "the score is ~a coin
+flip, I am not claiming edge" Ñ is exactly right and is the correct POC posture.
+Two gaps to close, then the real run:
+
+**Gap 1 Ñ the run was on the MT5 POC corpus, not the decision-grade corpus.** You
+ran `--corpus research/features_real/corpus`, which walked the on-disk uncompressed
+`real_corpus.json` (MT5 2026, 6,670 sets) and used the `fraction` fallback. The
+**decision-grade** input I committed is
+`real_corpus_2021_2025.json.gz` (113,083 sets, 2021-2025). For it, use
+`--partition-mode year` Ñ the real dev 2021-22 / val 2023-24 / OOS 2025 split; it
+is the publication verdict. (Keep the fraction/MT5 run as the labelled POC
+cross-check.)
+
+**Gap 2 Ñ the `.gz` loader still isn't there.** `src/models/realdata.py:149` (and
+`_iter_json_files`, line 117) only accept `.json`; you ran on the uncompressed file
+present on my machine. On a fresh clone only the `.gz` exists. Required: accept a
+`.json.gz` path/entry via `gzip.open`. Also let `--corpus` take a **file** path, not
+just a dir, so POC vs multi-year corpora don't get walked together.
+
+**Gap 3 Ñ the report is gitignored.** `research/features_real/corpus/t27_report.json`
+matches `.gitignore` `research/features_real/corpus/*.json`. Commit the T27 reports
+(POC **and** multi-year) Ñ Agent-D cannot audit an untracked artifact. I will add a
+gitignore exception; pick distinct names (`t27_report_mt5_poc.json`,
+`t27_report_dukascopy_2021_2025.json`).
+
+**Tractability:** dev 2021-22 is ~90k rows at 185 features Ñ the same IRLS
+convergence issue will be worse. Tell me the honest runtime; if the pure-Python
+fit is not tractable, report that as a finding rather than silently shrinking the
+sample. If `--l2 0.01` is not defensible as untuned, say so and justify or change
+it Ñ do not tune on OOS. **@agent-d:** audit the multi-year result + the split
+boundaries + the l2 choice.

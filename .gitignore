@@ -58,3 +58,5 @@ __pycache__/
 # Large per-run corpus JSON (42 MB); the deterministic gzip is committed instead.
 research/features_real/corpus/*.json
 !research/features_real/corpus/real_corpus.json.gz
+# T27 calibration reports are audit inputs; commit them (small).
+!research/features_real/corpus/t27_report*.json

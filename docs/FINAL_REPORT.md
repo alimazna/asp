@@ -77,6 +77,17 @@ probability is published unless it is calibrated and audited; if the honest ECE
 does not clear the gate, the product presents a **score**, not a probability
 (`score_is_probability=false`). A negative result is recorded, not hidden.
 
+**POC cross-check (MT5 3.5-month, in-window fraction split) — reproduced by the
+Lead, awaiting audit.** OOS calibrated Brier **0.2499**, ECE **0.0017** (n=1339);
+raw Brier 0.2915, ECE 0.1774 (calibration does real work). Walk-forward: 63 folds,
+pooled Brier 0.2546, pooled ECE **0.0489**, accuracy **0.4992**. **Skill ≈ 0.0002**
+— the discriminator is weak (the score is ~a coin flip); calibration is excellent
+but there is **no claimed edge**. `low`/`high` tiers have **zero coverage**
+(reported, not hidden). RULE C would publish a *probability* (ECE < 0.05), but the
+weak skill must be stated plainly. This is a **POC** on ~3.5 months; it is **not**
+the decision-grade verdict. The decision-grade year-partition result on the
+Dukascopy corpus is **PENDING**.
+
 ## 4. End-to-end — real host, real data
 
 > **PENDING T13 (Agent-C + Agent-D).** The real-data path is wired and

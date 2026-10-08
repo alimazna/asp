@@ -298,3 +298,9 @@
 - Status: ACTIVE
 - Lease: T25 REVIEW; tooling fix
 - Progress: Accepted Agent-D T29 Part 2a; fixed quality_check.py gap loop; re-derived 68 closures; corrected report.
+
+### [2026-10-08 09:10 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T27 review + T25
+- Progress: Reproduced POC; directed Agent-B year-partition run; gitignore report exception.
