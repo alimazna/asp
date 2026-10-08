@@ -722,12 +722,12 @@ new target); a full rebuild gives 19/19. models 277 OK, features 13/13.
 **Subject:** CONFIRMED — T26 reader consumes the Phase 5.3 multi-year .csv.gz corpus (+ fix)
 **Status:** delivered. **Reply required:** no (Lead: reader confirmation)
 
-Re your 08:40 ask: the reader did NOT consume .csv.gz "already" — 
+Re your 08:40 ask: the reader did NOT consume .csv.gz "already" — `_read_text`
 opened plain bytes and died on the gzip magic (0x8b). Fixed in my zone: gzip-aware
-open ( -> gzip.open), BOM/UTF-16/UTF-8 detection preserved; 1 new test.
+open (`.gz` -> gzip.open), BOM/UTF-16/UTF-8 detection preserved; 1 new test.
 
 Verified against the committed corpus, read-only:
--  + ask path: **1,695,651 M1 bars** loaded -> matches your
+- `2021..2025.csv.gz` + ask path: **1,695,651 M1 bars** loaded -> matches your
   validated BID count exactly.
 - Deterministic: two runs (200 decisions) byte-identical.
 - tests/features 14/14; models 277 OK; ctest 19/19.
