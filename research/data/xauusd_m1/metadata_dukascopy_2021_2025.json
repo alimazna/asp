@@ -1,0 +1,71 @@
+{
+  "source": "Dukascopy public datafeed",
+  "collector": "dukascopy-node 1.50.0",
+  "symbol": "XAUUSD",
+  "price_type": "bid",
+  "timeframe": "m1",
+  "utc": true,
+  "years": {
+    "2021": {
+      "rows": 344687,
+      "header": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "first_ts_ms": 1609714800000
+    },
+    "2022": {
+      "rows": 341226,
+      "header": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "first_ts_ms": 1641164400000
+    },
+    "2023": {
+      "rows": 342204,
+      "header": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "first_ts_ms": 1672700400000
+    },
+    "2024": {
+      "rows": 331293,
+      "header": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "first_ts_ms": 1704150000000
+    },
+    "2025": {
+      "rows": 336241,
+      "header": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "first_ts_ms": 1735776000000
+    }
+  },
+  "fetched_utc": "2026-10-08T08:35:14+00:00"
+}

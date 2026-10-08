@@ -72,9 +72,9 @@ def main() -> int:
             head = next(fh).strip().split(",")
             first = next(fh).split(",")[0]
         meta["years"][str(y)] = {"rows": n, "header": head, "first_ts_ms": int(first)}
-    (HERE / "checksums.sha256").write_text("\n".join(sums) + "\n")
+    (HERE / "checksums_dukascopy_2021_2025.sha256").write_text("\n".join(sums) + "\n")
     meta["fetched_utc"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
-    (HERE / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
+    (HERE / "metadata_dukascopy_2021_2025.json").write_text(json.dumps(meta, indent=2) + "\n")
     print("packaged:", len(sums) // 3, "years")
     return 0
 

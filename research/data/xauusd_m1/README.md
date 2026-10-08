@@ -1,8 +1,25 @@
-# XAUUSD M1 — real market data (Phase 5.1, closes E05)
+# XAUUSD M1 — real market data
 
-Real XAU/USD one-minute bars, 2021-01-01 through 2025-12-31 (UTC). This is the
-data that unblocks the mission's only hard publication blocker (E05): without it,
-every calibration number is a synthetic pipeline check, not evidence about gold.
+Two real XAU/USD one-minute corpora live here. Together they unblock the
+mission's only hard publication blocker (E05) and support the real-data
+calibration.
+
+| Corpus | Window | Bars | Role |
+|---|---|---|---|
+| **Dukascopy BID+ASK** | 2021-01-03 .. 2025-12-30 | 1,695,651 | **multi-regime** — the only corpus that can carry a decision-grade dev/val/OOS walk-forward |
+| **Operator MT5** | 2026-06-24 .. 2026-10-08 | 100,008 | newer broker export — an **independent cross-check** and a 3.5-month POC window |
+
+The Dukascopy corpus covers five calendar years across different gold regimes
+(as low as ~1680, as high as ~4400 USD/oz); the MT5 export is a single recent
+3.5-month window. A **decision-grade** result needs the multi-regime corpus; the
+MT5 window alone supports only a **proof-of-concept** (see its own section
+below). Neither corpus is repainted or repaired — anomalies are reported, not
+fixed.
+
+Commit policy: the raw per-minute CSVs are large; the **deterministic gzip**
+(`<year>.csv.gz`, ~24 MB total for BID, ~22 MB for ASK) is committed so the
+distributed team can consume the multi-year corpus, while the raw CSVs stay
+reproducible via `fetch.sh`.
 
 ## Source
 
@@ -24,8 +41,8 @@ pause) so the fetch is robust and idempotent. Re-running produces the same files
 ```
 cd research/data/xauusd_m1
 ./fetch.sh            # BID (with tick volume) + ASK (spread reference)
-python3 tools/quality_check.py    # -> QUALITY.md
-python3 tools/pack.py             # -> .csv.gz, sample/, checksums.sha256, metadata.json
+python3 tools/quality_check.py    # -> QUALITY_dukascopy_2021_2025.md
+python3 tools/pack.py             # -> .csv.gz, sample/, checksums_/metadata_dukascopy_*.{sha256,json}
 ```
 
 ## Files
@@ -33,15 +50,15 @@ python3 tools/pack.py             # -> .csv.gz, sample/, checksums.sha256, metad
 | Path | Committed? | What |
 |---|---|---|
 | `fetch.sh` | yes | reproducible fetch (pinned collector) |
-| `tools/quality_check.py` | yes | data-quality checks -> `QUALITY.md` |
+| `tools/quality_check.py` | yes | data-quality checks -> `QUALITY_dukascopy_2021_2025.md` |
 | `tools/pack.py` | yes | gzip + samples + checksums + metadata |
 | `<year>.csv` | no (gitignored) | raw BID M1 OHLCV, ~5 MB/yr |
-| `<year>.csv.gz` | no (gitignored) | deterministic gzip of the raw CSV |
+| `<year>.csv.gz` | **yes** | deterministic gzip of the raw CSV (committed so the team can consume the multi-year corpus) |
 | `ask/<year>.csv` | no (gitignored) | raw ASK M1 (spread/cost, RULE B) |
 | `sample/<year>.head.csv` | yes | first 1000 rows per year (provenance) |
-| `checksums.sha256` | yes | sha256 of raw + gz + samples |
-| `metadata.json` | yes | source, fetch time, row counts, header |
-| `QUALITY.md` | yes | mandatory quality report |
+| `checksums_dukascopy_2021_2025.sha256` | yes | sha256 of raw + gz + samples |
+| `metadata_dukascopy_2021_2025.json` | yes | source, fetch time, row counts, header |
+| `QUALITY_dukascopy_2021_2025.md` | yes | mandatory quality report |
 
 Raw multi-hundred-MB files are deliberately **not** committed. The committed
 `fetch.sh` + checksums + samples are sufficient to reproduce and verify the
@@ -87,7 +104,7 @@ secondary source.
 
 ```
 python3 research/data/xauusd_m1/tools/convert_mt5.py   # -> xauusd_m1_real.csv
-python3 research/data/xauusd_m1/tools/quality_check_mt5.py  # -> QUALITY.md
+python3 research/data/xauusd_m1/tools/quality_check_mt5.py  # -> QUALITY.md (MT5 corpus)
 ```
 
 ## Files
@@ -98,7 +115,7 @@ python3 research/data/xauusd_m1/tools/quality_check_mt5.py  # -> QUALITY.md
 | `xauusd_m1_real.csv` | **yes** | canonical corpus: `timestamp,open,high,low,close,volume` |
 | `sample_first_1000.csv` | yes | first 1000 bars (provenance) |
 | `checksums.sha256` | yes | sha256 of the canonical corpus + sample |
-| `QUALITY.md` | yes | mandatory quality report |
+| `QUALITY.md` | yes | mandatory quality report (MT5 corpus) |
 | `tools/convert_mt5.py` | yes | reproducible converter |
 | `tools/quality_check_mt5.py` | yes | quality checks |
 
@@ -147,4 +164,6 @@ number — it is **not** enough for a decision-grade, multi-regime walk-forward.
 
 This limitation is a property of the operator's uploaded window, not a defect;
 the file is authoritative for what it covers and nothing is extrapolated beyond
-it.
+it. **The final publication verdict does not rest on this window** — it rest on
+the Dukascopy 2021-2025 corpus above, which supports the multi-regime
+dev/val/OOS split. The MT5 window is the independent POC / cross-check.

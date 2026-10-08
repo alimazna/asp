@@ -2,7 +2,6 @@
 # Patterns are relative to this directory.
 *.csv
 *.csv.gz
-ask/
 .work/
 fetch.log
 # ...but the small committed samples must survive the *.csv rule.
@@ -14,3 +13,17 @@ XAUUSDM1.csv
 XAUUSDM1.csv.gz
 !xauusd_m1_real.csv
 !sample_first_1000.csv
+# Phase 5.3: the Dukascopy multi-year corpus is decision-critical (it is the only
+# multi-regime window). Commit the deterministic per-year gzip (BID + ASK) so the
+# distributed team can consume it; the raw per-minute CSV stays reproducible.
+!2021.csv.gz
+!2022.csv.gz
+!2023.csv.gz
+!2024.csv.gz
+!2025.csv.gz
+# (ask/ is excluded by *.csv / *.csv.gz above; re-include its committed gzip below)
+!ask/2021.csv.gz
+!ask/2022.csv.gz
+!ask/2023.csv.gz
+!ask/2024.csv.gz
+!ask/2025.csv.gz

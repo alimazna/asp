@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import os
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -128,7 +129,8 @@ def main() -> int:
     lines.append("")
     lines.append(f"**Verdict: {'PASS — no anomalies' if overall_ok else 'FAIL — anomalies present (do not repair silently; see table)'}**")
     lines.append("")
-    (HERE / "QUALITY.md").write_text("\n".join(lines) + "\n")
+    out = os.environ.get("QUALITY_OUT", "QUALITY.md")
+    (HERE / out).write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0 if overall_ok else 1
 
