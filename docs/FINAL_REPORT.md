@@ -40,9 +40,13 @@ silently repaired):
 
 - **Dukascopy 2021-2025** (BID+ASK) — the **decision-grade** corpus:
   1,695,651 M1 BID bars, 2021-01-03..2025-12-30, spanning several gold regimes
-  (~1680..~4400 USD/oz). 0 duplicates, 0 OHLC violations, 0 non-monotonic
-  timestamps, 0 unexpected gaps. Committed as deterministic per-year gzip
-  (`2021..2025.csv.gz`, BID+ASK). (`QUALITY_dukascopy_2021_2025.md`.)
+  (~1670..~4550 USD/oz). Bar integrity is clean: 0 duplicates, 0 OHLC violations,
+  0 non-monotonic timestamps, 0 off-grid bars. The venue's **68 off-session
+  closures** (bank holidays + maintenance, 3.5h..98h) are **reported and listed**,
+  not silently labelled "expected" — an earlier checker bug made that count
+  vacuously zero; fixed and re-derived (see §5 / AUDIT-T29). Committed as
+  deterministic per-year gzip (`2021..2025.csv.gz`, BID+ASK).
+  (`QUALITY_dukascopy_2021_2025.md`.)
 - **Operator MT5 2026** — an independent, newer 3.5-month window:
   100,008 M1 bars, 2026-06-24 11:08..2026-10-08 10:30 (broker time), 0 dups /
   0 OHLC violations / 0 NaN / 0 off-grid / 0 unexpected gaps. Price band WARN:
@@ -88,7 +92,7 @@ posture): T13 host harness **52/52**.
 
 | Suite | Result |
 |---|---|
-| C++ `ctest` | **18/18 pass** |
+| C++ `ctest` | **19/19 pass** |
 | Frozen-contract v1 e2e (T24) | **88/88** |
 | Analysis-API schema fixtures (T22) | **52/52** |
 | Mock API (T19) | **39/39** |
@@ -101,7 +105,10 @@ posture): T13 host harness **52/52**.
 
 Audits live in `AUDIT_REPORTS/` (Agent-D). Key ones: T29 Part 1 (corpus +
 pipeline **byte-reproducible**, provenance closed), T30 (F23-3 fixtures refreshed,
-teeth two-sided and green).
+teeth two-sided and green), T29 Part 2a (Dukascopy corpus — **found and closed a
+false-green**: the gap loop read `prev` after advancing it, so off-session
+closures were never counted; fixed, re-derived to 68 listed closures, no bar
+damage).
 
 ## 6. Baseline & production
 

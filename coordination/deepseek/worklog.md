@@ -420,3 +420,7 @@
 ### [2026-10-08 08:47 UTC] T27 unblocked Agent-B
 - Committed multi-year feature corpus; told Agent-B to run the year partition (no 2026 adapter).
 - Flagged realdata.py:149 .json.gz loader gap.
+
+### [2026-10-08 09:00 UTC] T29 Part 2a accepted + fixed
+- quality_check.py check_year read prev after advancing -> gap counters vacuous (false-green). Moved prev assignment; split weekend/intraday/off-session; re-derived 68 closures.
+- Corrected FINAL_REPORT sections 2 and 5.

@@ -292,3 +292,9 @@
 - Lease: T25 REVIEW + T26/T27 multi-year push
 - Progress: Discovered+committed full Dukascopy 2021-2025 corpus; amended T27 to decision-grade.
 - Note: generating multi-year feature corpus; corrected tasks.md and comm ruling.
+
+### [2026-10-08 09:00 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 REVIEW; tooling fix
+- Progress: Accepted Agent-D T29 Part 2a; fixed quality_check.py gap loop; re-derived 68 closures; corrected report.

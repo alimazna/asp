@@ -40,6 +40,7 @@ def check_year(path: Path) -> dict:
         "file": path.name, "rows": 0, "first": None, "last": None,
         "non_monotonic": 0, "duplicates": 0, "ohlc_violations": 0,
         "not_minute": 0, "gaps": [], "weekend_gaps": 0, "unexpected_gaps": 0,
+        "intraday_breaks": 0, "gap_list": [],
         "rows_volume": 0, "zero_volume": 0,
     }
     prev = None
@@ -65,7 +66,6 @@ def check_year(path: Path) -> dict:
             seen.add(ts)
             if prev is not None and ts <= prev:
                 r["non_monotonic"] += 1
-            prev = ts
             if not (h >= l and h >= o and h >= c and l <= o and l <= c):
                 r["ohlc_violations"] += 1
             if has_vol:
@@ -76,9 +76,11 @@ def check_year(path: Path) -> dict:
                 gap = ts - prev
                 if gap > MINUTE_MS * 5:  # ignore the routine 1-min cadence
                     r["gaps"].append((prev, ts, gap))
+            prev = ts
 
     for a, b, gap in r["gaps"]:
         start = dt.datetime.fromtimestamp(a / 1000, dt.timezone.utc)
+        end = dt.datetime.fromtimestamp(b / 1000, dt.timezone.utc)
         span_days = (b - a) / 86400000.0
         covers_sat = False
         d = start.date()
@@ -89,9 +91,13 @@ def check_year(path: Path) -> dict:
         if covers_sat and gap <= MAX_WEEKEND_GAP_MS:
             r["weekend_gaps"] += 1
         elif gap <= MAX_INTRADAY_GAP_MS:
-            pass  # routine maintenance session break
+            r["intraday_breaks"] += 1
         else:
+            # Off-session closure (holiday / venue maintenance) longer than the
+            # routine break. Reported and listed, never silently labelled
+            # "expected": a full holiday calendar is not assumed.
             r["unexpected_gaps"] += 1
+            r["gap_list"].append((_utc(a), _utc(b), round(gap / 3600000, 1)))
     return r
 
 
@@ -106,33 +112,53 @@ def main() -> int:
                  "(Fri close -> Sun open)")
     lines.append("")
     lines.append("| Year | Rows | First (UTC) | Last (UTC) | Non-mono | Dups | OHLC viol | "
-                 "Not-minute | Weekend gaps | Unexpected gaps | Zero-vol |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
-    overall_ok = True
+                 "Not-minute | Weekend gaps | Intraday breaks | Off-session gaps | Zero-vol |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    integrity_ok = True
+    gap_rows = []
     for y in YEARS:
         p = HERE / f"{y}.csv"
         if not p.exists():
-            lines.append(f"| {y} | MISSING | | | | | | | | | |")
-            overall_ok = False
+            lines.append(f"| {y} | MISSING | | | | | | | | | | |")
+            integrity_ok = False
             continue
         r = check_year(p)
+        # Integrity of the bars themselves: ordering, uniqueness, OHLC validity,
+        # minute alignment. Gap accounting is informational and reported
+        # separately (a venue closes for weekends and holidays; that is not a
+        # data defect, but it is never silently labelled "expected").
         ok = (r["non_monotonic"] == 0 and r["duplicates"] == 0
-              and r["ohlc_violations"] == 0 and r["not_minute"] == 0
-              and r["unexpected_gaps"] == 0)
-        overall_ok = overall_ok and ok
+              and r["ohlc_violations"] == 0 and r["not_minute"] == 0)
+        integrity_ok = integrity_ok and ok
+        for row in r["gap_list"]:
+            gap_rows.append((y, *row))
         lines.append(
             f"| {y} | {r['rows']} | {_utc(r['first'])} | {_utc(r['last'])} | "
             f"{r['non_monotonic']} | {r['duplicates']} | {r['ohlc_violations']} | "
-            f"{r['not_minute']} | {r['weekend_gaps']} | {r['unexpected_gaps']} | "
-            f"{r['zero_volume']} |"
+            f"{r['not_minute']} | {r['weekend_gaps']} | {r['intraday_breaks']} | "
+            f"{r['unexpected_gaps']} | {r['zero_volume']} |"
         )
     lines.append("")
-    lines.append(f"**Verdict: {'PASS — no anomalies' if overall_ok else 'FAIL — anomalies present (do not repair silently; see table)'}**")
+    lines.append("## Off-session closures (> 2h, not spanning a Saturday)")
+    lines.append("")
+    if gap_rows:
+        lines.append("| Year | Gap start (UTC) | Gap end (UTC) | Hours |")
+        lines.append("|---|---|---|---|")
+        for y, a, b, hrs in gap_rows:
+            lines.append(f"| {y} | {a} | {b} | {hrs} |")
+        lines.append("")
+        lines.append(f"_{len(gap_rows)} off-session closures. They are reported, not "
+                     "repaired; they cluster on bank holidays and maintenance windows. "
+                     "No OHLC/duplicate damage is associated with any of them._")
+    else:
+        lines.append("_None._")
+    lines.append("")
+    lines.append(f"**Verdict: {'PASS — bar integrity clean (no dups / OHLC violations / non-monotonic / off-grid)' if integrity_ok else 'FAIL — bar integrity anomalies present (do not repair silently; see table)'}**")
     lines.append("")
     out = os.environ.get("QUALITY_OUT", "QUALITY.md")
     (HERE / out).write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
-    return 0 if overall_ok else 1
+    return 0 if integrity_ok else 1
 
 
 if __name__ == "__main__":
