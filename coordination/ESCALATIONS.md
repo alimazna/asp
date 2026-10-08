@@ -202,3 +202,18 @@ RESOLVED.
 - **Chain:** T26 real corpus computed (6,670 sets / 2,497 valid) and committed;
   T27 (Agent-B) -> T29 (Agent-D) next.
 - **Status:** IN PROGRESS — closes when T29 audits the real-data calibration.
+
+---
+
+### [2026-10-08 10:55 UTC] E05 — RESOLVED (mission decision: accept the 3.5-month corpus)
+- **Decision:** the human **accepted the current 3.5-month corpus** and directed the
+  mission to close now — no further data acquisition. The 2021-2025 Dukascopy
+  corpus already acquired is reclassified as an **appendix / cross-check**, not the
+  verdict.
+- **Publication result:** T27 **PROOF-OF-CONCEPT — single window** (MT5
+  2026-06-24..2026-10-08, 100,008 bars, 2,497 valid sets). No walk-forward claimed.
+- **Audit chain:** T27 (Agent-B, POC) -> T29 POC audit (Agent-D) -> verdict. T13
+  evidential already PASS 96/96, with a real-data replay transcript committed.
+- **Status:** **RESOLVED.** E05 closed; the data gap no longer blocks publication
+  because the mission's completion bar (§10.7) is an *honest* result, which the
+  POC delivers (calibration excellent, discrimination ~0 — reported as a score).

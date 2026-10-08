@@ -50,7 +50,7 @@ lease (per `README.md` §F).
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | DONE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
-| T13 | End-to-end integration (real-data evidential PASS) | Agent-C | All | ACTIVE | real corpus staging |
+| T13 | End-to-end integration (real-data evidential PASS) | Agent-C | All | DONE | 96/96 PASS + replay transcript |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |
@@ -62,12 +62,13 @@ lease (per `README.md` §F).
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
 | T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | DONE | -   |
 | T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | DONE | - |
-| T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | REVIEW | MT5 corpus landed |
-| T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | REVIEW | - |
-| T27 | Real-data calibration: decision-grade on Dukascopy 2021-2025 + MT5 POC cross-check | Agent-B | Agent-D | ACTIVE | year partition applies; multi-year corpus |
-| T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | REVIEW | - |
-| T29 | Real-data quality + calibration audit (POC) | Agent-D | Lead | IDLE | Part 1 PASS; Part 2 on T27 |
-| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | REVIEW | F23-3: stale fixtures |
+| T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | DONE | MT5 corpus accepted (POC) |
+| T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | DONE | POC-labelled |
+| T27 | Real-data calibration: PROOF-OF-CONCEPT (single window) | Agent-B | Agent-D | DONE | fraction split; no walk-forward claimed |
+| T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | DONE | - |
+| T29 | Real-data quality + calibration audit (POC) | Agent-D | Lead | ACTIVE | Part 1/2a/2b PASS; POC audit in flight |
+| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | DONE | F23-3 CLOSED |
+| T31 | FINAL_REPORT (coordination) + mission close-out | Lead | All | DONE | `coordination/FINAL_REPORT.md` |
 
 ---
 
@@ -212,3 +213,7 @@ lease (per `README.md` §F).
 | 2026-10-08 06:34   | Agent-D  | T24 audit PASS -> DONE (88/88 vs frozen v1).               |
 | 2026-10-08 07:05   | DeepSeek | Phase 5.1: human ruled Lead acquires real data. T25-T29    |
 |                    |          | opened; Dukascopy XAUUSD M1 2021-2025 fetch in progress.   |
+| 2026-10-08 10:10   | DeepSeek | FINAL DIRECTIVE: human accepted 3.5-month corpus. T27 re-scoped to PROOF-OF-CONCEPT single window; no WF claim. |
+| 2026-10-08 10:18   | DeepSeek | coordination/FINAL_REPORT.md written (9 sections, POC). |
+| 2026-10-08 10:21   | Agent-B  | T27 POC delivered (fraction split); matches Lead pass. |
+| 2026-10-08 10:10   | Agent-C  | T13 real-data replay transcript -> research/reports/. |

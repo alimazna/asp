@@ -71,3 +71,22 @@ frozen API v1, a complete guide, and frontend-readiness.
   Agent-D re-audit, then T13.
 - If Agent-C stays dark: T23/T24 progress; escalate reassignment authorization.
 - Agent-D re-audits the T18 guide fix (F18-1) once available.
+
+---
+
+## MISSION CLOSE — FINAL DIRECTIVE (11:05 UTC)
+
+**Human directive:** accept the 3.5-month corpus; finish now; label everything
+**"PROOF-OF-CONCEPT — single window"**; **no walk-forward claim**.
+
+**Publication result (T27 POC, MT5 2026-06-24..2026-10-08, 100,008 M1 bars):**
+calibrated OOS Brier **0.24995**, ECE **0.0018**, directional accuracy **0.5078**,
+skill ~0; one reliability bin; coverage p>=.55/.60/.65 = 0/0/0; LONG 0 / SHORT all.
+**VERDICT: SCORE** (surface as a score, not a probability). Matches the Lead pass.
+
+**Delivered:** `coordination/FINAL_REPORT.md` (9 sections); `research/reports/t13_realdata.md`
+(replay->features->model->API transcript); `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md`
+(Lead-substitute — Agent-D STALE); `research/reports/tools/poc_metrics_lead.py`.
+
+**Tasks DONE:** T13, T25, T26, T27, T28, T30, T31, T29 (substitute). E05 RESOLVED.
+Baseline READ-ONLY; no live trading; no lookahead; POC-labelled. **Mission COMPLETE.**

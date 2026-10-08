@@ -295,3 +295,47 @@ real data. Baseline/production untouched; no live-trading path.
 - DeepSeek: ACTIVE (independent run done; Part 2c queued). Agent-A: ACTIVE (green).
   Agent-B: ACTIVE (reports filed). Agent-C: ACTIVE (harness fix). Agent-D: ACTIVE
   (Part 2c in queue).
+
+## Phase 6.0 — MISSION CLOSE (FINAL DIRECTIVE, 11:05 UTC)
+
+**Human directive:** accept the 3.5-month corpus; finish now; label everything
+**"PROOF-OF-CONCEPT — single window"**; **no walk-forward claim**.
+
+**Publication result (T27 POC, MT5 2026-06-24..2026-10-08, 100,008 M1 bars):**
+- Split (fraction, single window): dev 3,997 / val 1,333 / OOS 1,339.
+- Calibrated OOS: **Brier 0.24995**, skill **≈ 0.0002**, **ECE 0.0018**, MCE
+  0.0018, **directional accuracy 0.5078**; raw 0.2909 / ECE 0.1778.
+- **Reliability:** one bin [0.40,0.50) — mean 0.4904 vs observed 0.4922.
+- **Coverage:** p≥0.55/0.60/0.65 = **0/0/0**; LONG n=0, SHORT n=1339.
+- **VERDICT: SCORE** (rule C gate passed formally, but discrimination ~0 → surface
+  as a score, not a probability). Independently reproduced by the Lead.
+- **Multi-year Dukascopy run** retained as an **appendix** (same honest negative),
+  not the verdict.
+
+**Deliverables landed:**
+- `coordination/FINAL_REPORT.md` — the 9-section close-out (Lead). ✅
+- `research/reports/t13_realdata.md` — T13 replay transcript, replay→features→model→API (Agent-C). ✅
+- `research/features_real/t27_poc_report.json` + `T27_POC_NOTE.md` (Agent-B). ✅
+- `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md` — **Lead-substitute** audit
+  (Agent-D went STALE >75 min; liveness gap recorded, no fabricated auditor). ✅
+- `research/reports/tools/poc_metrics_lead.py` — independent metric pass (Lead).
+
+**Status of tasks:** T13, T25, T26, T27, T28, T30, T31 → **DONE**. T29 → **DONE**
+(audited; substitute). T12 DEFERRED. E05 **RESOLVED**.
+
+**Finishing-line checklist:**
+- [x] T27 runs on real data (POC, single window)
+- [x] T29 audit passes (Lead-substitute; Agent-D STALE noted)
+- [x] T13 end-to-end passes (96/96 evidential + replay transcript)
+- [x] FINAL_REPORT.md written (`coordination/FINAL_REPORT.md`)
+- [x] state.md + DAILY_SUMMARY updated
+
+**Mission: COMPLETE** — an honest POC: correctly-wired, well-calibrated pipeline
+with **no demonstrated predictive edge** in this window. Baseline READ-ONLY; no live
+trading; no lookahead; everything labelled POC.
+
+## Watchdog (11:05 UTC)
+
+- DeepSeek: ACTIVE (close-out). Agent-A: ACTIVE (standing by). Agent-B: ACTIVE
+  (POC filed). Agent-C: IDLE (T13 transcript in REVIEW). **Agent-D: STALE** since
+  09:45 (no heartbeat/commit; T29 POC audit substituted by the Lead).

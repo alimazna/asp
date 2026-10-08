@@ -183,6 +183,15 @@ The frontend can build **today** against the **frozen v1 contract** using
 | **T13 evidential (real host + real data)** | **96/96 PASS** |
 | Mock `--check` | 0 failures |
 | **T13 real-data replay transcript** | `research/reports/t13_realdata.md` |
-| **T29 audit** | `AUDIT_REPORTS/` (Agent-D) |
+| **T29 audit (POC)** | `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md` — **Lead-substitute**: Agent-D went STALE; the Lead reproduced independently and recorded the liveness gap. |
+
+### Open process item (honest)
+
+The designated independent auditor, **Agent-D**, went **STALE** (no heartbeat after
+09:45 UTC) and did not file the POC audit. To honor the human's "finish now"
+directive without fabricating an auditor, the **Lead** performed the independent
+reproduction and filed it as a **substitute** audit, explicitly labelled as such.
+A genuinely independent re-audit by Agent-D (or another agent) is still desirable
+when it resumes — the substitution is disclosed, not hidden.
 
 <!-- Drafted by the Lead (DeepSeek) agent, on behalf of the operator. -->
