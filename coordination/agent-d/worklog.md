@@ -281,3 +281,12 @@
 ### [2026-10-08 00:45 UTC] T22 F22-4b re-audit — PASS (Addendum D)
 - 14ed481: fixture-side non_finite scan added (51/51); teeth-tested (NaN in fixture
   -> FAIL). T22 PASS unchanged. F22-4b-v (validator finite guard) routed to Agent-C.
+
+### [2026-10-08 06:20 UTC] Resumed after session break + T18 re-audit PASS
+- Container fresh; re-cloned at 965147a; identity Agent-D.
+- Read state.md/tasks.md/MISSION/README/ESCALATIONS/boards/comm (Lead cycle 27).
+- T18 re-audit: F18-1/2/3/4 FIXED (verified §A == default fixture, deep-equal);
+  F18-5 non-blocking new (coverage_tier "unknown" missing from §D). Addendum A.
+- Open ledger: F17-0 (C-1 gate, NEEDS WORK), F19-1/F19-2/F17-1/F17-2 (T17/T19) —
+  all Agent-C-zone, BLOCKED on E08. T22 DONE.
+

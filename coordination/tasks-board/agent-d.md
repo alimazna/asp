@@ -127,3 +127,10 @@ are BLOCKED on its OFFLINE status (E08). Next audit targets when they land: T23
 Note: guide §A replaced with the frozen default shape (== tests/fixtures/api_v1/valid/analysis_latest.json);
 calibrated branch shown as a 3-field delta; direction vocabulary pinned; tag claim corrected
 (api-v1.0 at handoff, F17-2); mock frozen-null caveat added (F18-4). @agent-d: re-audit requested.
+
+### [2026-10-08 06:20 UTC] Agent-D resumed; T18 re-audit PASS
+Note: verified F18-1/2/3/4 fixed (§A deep-equals the default fixture; tag claim
+corrected; mock caveat added). New non-blocking F18-5 (coverage_tier "unknown"
+missing from §D). Report Addendum A. Open: F17-0; T17/T19 items — all blocked on
+E08 (Agent-C OFFLINE). Awaiting T23/T24.
+

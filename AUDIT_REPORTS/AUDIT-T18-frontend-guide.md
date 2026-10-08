@@ -80,3 +80,45 @@ fixture shape resolves F18-1 (and F18-2/4 follow). F18-3 is the tag.
 - **Cross-check method.** Compared every field in §A against `API_V1_SCHEMA.json`,
   `BACKEND_FRONTEND_API_V1.md`, the T22 `valid/analysis_latest.json`, and the real
   backend dump. Reproduces from `8b2b82c`.
+
+---
+
+# ADDENDUM A — re-audit after Lead F18 fixes
+
+- **Date:** 2026-10-08 06:20 UTC
+- **Repo HEAD at re-audit:** 965147a
+- **Verdict:** **PASS.** F18-1/2/3/4 are fixed; one non-blocking residual (F18-5).
+
+The Lead rewrote §A and the surrounding prose. Re-audited independently:
+
+- **F18-1 (BLOCKING) — FIXED.** §A now shows the frozen default shape. Parsed the
+  guide's §A JSON block and compared it field-by-field to
+  `tests/fixtures/api_v1/valid/analysis_latest.json`: **deep-equal (True).**
+  `probability:null`, `probability_calibrated:false`, `score` present,
+  `score_is_probability:false`, and all frozen-null fields (`horizon`,
+  `confidence_lo/hi`, `model_version`, `mtf_agreement`, `data_freshness_sec`,
+  `levels.*`) are `null`. The calibrated branch is shown as a correct **3-field
+  delta** (`probability`, `probability_calibrated`, `coverage_tier`), matching the
+  branch-diff allow-list the T22 guard enforces.
+- **F18-2 — FIXED.** §A pins the emitted direction vocabulary (`UP`/`DOWN`/`NONE`;
+  schema also admits `FLAT`/`UNKNOWN`, not emitted) and warns not to read
+  `m15_trigger` as `signal.direction`.
+- **F18-3 — FIXED.** §J/§K now say the `api-v1.0` tag is applied **at handoff** and
+  is **"not yet present"**, matching `git tag -l` (empty). Honest.
+- **F18-4 — FIXED.** §K carries the explicit caveat that until T19/F19-1 lands the
+  mock may populate §D-null fields; correct scoping.
+- Error schema in the guide (flat `{error,code,message}`, no `retryable`) matches
+  the schema unchanged.
+
+### F18-5 (non-blocking, new) — §D omits the v1 default `coverage_tier:"unknown"`
+
+§D lists `meta.coverage_tier` as `high/medium/low`, but the v1 default fixture and
+§A both use `"unknown"`, and the schema enum is
+`["high","medium","low","unknown"]`. A frontend keying its coverage badge on the
+three listed values will not match the frozen default. Add `unknown` (the
+uncalibrated default) to §D. Cosmetic; does not block handoff.
+
+## Result
+
+**PASS.** The handoff guide now matches the frozen contract and the T22 fixtures as
+the source of truth. F18-5 is the only residual (documentation completeness).
