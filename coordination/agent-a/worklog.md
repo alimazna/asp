@@ -176,3 +176,10 @@
 - Hardened M1 parsing: fractional Dukascopy volume, s/ms epochs, duplicate-open
   rejection, multi-file order harmonisation. tests 10/10.
 - Regression: Python 277 OK, ctest 18/18. Awaiting T25 corpus for real sample.
+
+### [2026-10-08 08:40 UTC] T26 reader hardened; RULE C reproduction (Phase 5.2)
+- Rebased onto Lead Phase 5.2; merged timestamp parsing (epoch s/ms + ISO + dot-date),
+  UTF-16/UTF-8 autodetect, optional volume, loud-on-corruption. tests/features 13/13.
+- RULE C: reproduced canonical corpus from xauusd_m1_real.csv -> 6670 sets / 2497
+  valid, byte-identical to committed corpus/real_corpus.json.gz.
+- models 277 OK; ctest 18/18. T26 stays REVIEW (real data now available for Agent-D).

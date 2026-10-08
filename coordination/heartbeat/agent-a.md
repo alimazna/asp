@@ -280,3 +280,10 @@
 - Lease: T26 -> REVIEW (Agent-D)
 - Progress: 90% (real sample pending T25)
 - Note: contract pinned; T27 interop green; 10/10 harness, 277 py, ctest 18/18
+
+### [2026-10-08 08:40 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 (real-data harness; in REVIEW -> Agent-D)
+- Progress: 95% (real data now available)
+- Note: rebased onto Lead Phase 5.2; reader hardened (MT5 UTF-16/dot-date); RULE C reproduced committed corpus byte-identically (6670/2497); models 277 OK, features 13/13, ctest 18/18
