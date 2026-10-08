@@ -189,3 +189,13 @@
 
 
 
+
+### [2026-10-08 08:40 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 evidential BLOCKED (D1 reported); T30(b)/T28 REVIEW; T27 blocker ruled
+- Progress: real-data path wired (opt-in); 91/96 exposes D1 frozen Json.cpp defect
+- Note: parsed JSON numbers become Type::String -> asDouble=0 -> NON_POSITIVE_PRICE.
+  Temp-fixed to prove SHADOW+real context, then reverted (src byte-identical).
+  Report at coordination/agent-c/T13-evidential-report.md. Awaiting Lead ruling.
+
