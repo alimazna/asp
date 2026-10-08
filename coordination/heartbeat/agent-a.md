@@ -252,3 +252,10 @@
 - Lease: T24 (audit PASS; awaiting Lead DONE)
 - Progress: 100%
 - Note: corroborated Agent-C T13 real-host e2e (37/37) on this tree
+
+### [2026-10-08 07:10 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T24 (audit PASS; awaiting Lead DONE)
+- Progress: 100%
+- Note: ack freeze-drift finding; T24 mock-scoped, no change; ready for ruling-driven fixture update
