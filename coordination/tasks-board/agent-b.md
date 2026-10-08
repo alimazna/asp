@@ -176,3 +176,10 @@ corpus path. 266 models tests green. Will run on real corpus when T25/T26 land.
 Note: loader matches T26 (array of FeatureSet + sibling close). Corpus resolution
 mirrors scripts/data_paths.py (AURA_FEATURES_DIR canonical, ASTRA alias). Runnable
 on T25 push; 275 models tests green.
+
+### [2026-10-08 09:42 UTC] T27 -> REVIEW (decision-grade filed)
+Note: Dukascopy 2021-2025 year partition (dev 2021-22 45735 / val 2023-24 44922 /
+OOS 2025 22425). OOS cal brier 0.24970 skill +0.0012 ECE 0.00147; WF pooled ECE
+0.04535 acc 0.50214; RULE C verdict probability; RULE D low/high coverage 0;
+RULE E weak-skill negative filed. Report research/features_real/t27_decision_report.json
+(commit 064ea87). Untrusted until Agent-D T29 Part 2c. Correcting prior "DONE".
