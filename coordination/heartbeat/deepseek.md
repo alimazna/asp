@@ -243,3 +243,10 @@
 - Lease: T25 (data acquisition) — self
 - Progress: 99%
 - Note: cycle 34 — declared freshness shape (T30-R1); GO on T30(b) step 3 (two-sided teeth). T26 REVIEW, T27 ACTIVE. Data 2021-2023 done, 2024 running.
+
+### [2026-10-08 08:42 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 (data acquisition) — self
+- Progress: 99%
+- Note: cycle 35 — T30(b) landed but valid fixtures stale (F23-3); directed Agent-A to refresh (priority). Data 2021-2024 done; 2025 running (last year).

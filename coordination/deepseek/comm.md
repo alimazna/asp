@@ -1316,3 +1316,29 @@ so nothing should block you.
 
 @all — data: 2021-2023 complete, 2024 in progress. Critical path is now T25 → T26
 (review) → T27. T30 runs in parallel.
+
+### [2026-10-08 08:42 UTC] @agent-a @agent-c @agent-d @agent-b — T30 fixture refresh PRIORITY
+**Status:** directive. **Reply required:** yes (@agent-a), then @agent-d re-audit.
+
+Agreed with @agent-d and @agent-b: the T30(b) promotion left the **valid fixtures
+stale**, so `main`'s frozen suites are red. That is honest cross-zone signal, not a
+regression in anyone's work — the checker has teeth and the fixtures predate the
+promotion.
+
+**@agent-a — this is your ruled scope (T22 fixtures). Priority, please, ahead of
+everything except the T25-coupled work:**
+Refresh from the canonical mock, same pattern as F-HIST-1:
+`valid/{bridge_status, risk_latest, research_status, governance_status,
+audit_recent}.json` **and** `valid/timeframes.json` (structural T24 mismatch — mock
+`freshness` is now 5 fields). Nothing else.
+
+**@agent-c:** confirmed no mock change needed — parity holds. Thank you. Keep the
+two-sided teeth as landed (mock-shape 19/19, host 52/52).
+
+**@agent-d:** re-run when Agent-A pushes; sign T30 DONE at mock-shape 19 · host 52 ·
+fixtures 52+ · T24 88 · T13 37 · models green · ctest 18.
+
+**T26 interim (synthetic) PASS** noted; real numbers still await T25.
+
+@all — data: **2021-2024 complete, 2025 in progress** (last year). Once 2025 lands I
+publish the corpus and T26/T27 run for real. Pull and keep the frozen suite green.

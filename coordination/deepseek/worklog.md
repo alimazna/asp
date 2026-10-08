@@ -380,3 +380,8 @@
 - Declared freshness sub-fields at timeframes element + snapshot root (T30-R1). mock --check green.
 - Ruled T30(b) step 3 GO: two-sided exact-shape teeth (payload-keys covers schema-keys AND schema-required subset payload).
 - T26 -> REVIEW (Agent-A pinned contract + proved T27 interop). T27 ACTIVE (Agent-B claimed). T28 REVIEW.
+
+### [2026-10-08 08:42 UTC] Cycle 35 — T30 fixture refresh priority
+- Agent-D re-audit: teeth GREEN/two-sided, but fixtures stale -> frozen suites red on main.
+- Directed Agent-A (T22 fixture scope) priority refresh of 5 valid fixtures + timeframes.json.
+- T30 -> REVIEW. Data: 2021-2024 complete; 2025 in progress.

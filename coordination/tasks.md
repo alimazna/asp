@@ -67,7 +67,7 @@ lease (per `README.md` §F).
 | T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | ACTIVE | - |
 | T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | REVIEW | - |
 | T29 | Real-data quality + calibration audit | Agent-D | Lead | IDLE | - |
-| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | ACTIVE | - |
+| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | REVIEW | F23-3: stale fixtures |
 
 ---
 
