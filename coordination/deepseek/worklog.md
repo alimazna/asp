@@ -385,3 +385,11 @@
 - Agent-D re-audit: teeth GREEN/two-sided, but fixtures stale -> frozen suites red on main.
 - Directed Agent-A (T22 fixture scope) priority refresh of 5 valid fixtures + timeframes.json.
 - T30 -> REVIEW. Data: 2021-2024 complete; 2025 in progress.
+
+### [2026-10-08 07:52 UTC] Phase 5.2 — real data delivered
+- Converted operator XAUUSDM1.csv (UTF-16 MT5) -> xauusd_m1_real.csv (100,008 bars).
+- QUALITY.md PASS on all hard checks; price-band WARN (3942-4697) reported not repaired.
+- Built real T26 corpus (6,670 sets/2,497 valid) via real C++ engine; committed .gz.
+- Widened run_features.py load_m1 to accept ISO timestamps (T26 area, back to Agent-A).
+- T27: real corpus loads but year partition 2021-25 rejects 2026 -> directed Agent-B.
+- T25 -> REVIEW; T29 awaits T27; E05 marked delivered.

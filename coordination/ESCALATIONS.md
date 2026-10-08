@@ -185,3 +185,20 @@ RESOLVED.
 - **Status:** IN PROGRESS — closes when T29 audits the real-data numbers.
 - **Residual risk:** if real ECE > 0.10, the mission pivots to "score, not
   probability" per RULE C — that is a *result*, not an escalation.
+
+### [2026-10-08 07:52 UTC] E05 — DATA DELIVERED (operator MT5 export) — pending T29 audit
+- **Delivered:** the operator uploaded a real MT5 XAUUSD M1 export (`XAUUSDM1.csv`,
+  UTF-16, ~100k bars). The Lead converted/validated/committed it as
+  `research/data/xauusd_m1/xauusd_m1_real.csv` (+ tools, QUALITY.md, checksums,
+  sample). This is the authoritative real-data corpus.
+- **Quality:** PASS on all hard checks (monotonic, minute-aligned, 0 dups, 0 OHLC
+  violations, 0 NaN, 0 unexpected gaps). One honest WARN: observed price range
+  3942..4697 is outside the directive's 1800-3000 band — a real gold move, not a
+  defect; reported, not repaired.
+- **Coverage note:** ~3.5 months (2026-06-24..2026-10-08), not the original 5-year
+  Dukascopy window. The operator's file is authoritative; the mission proceeds on
+  it. Implication: T27's year partition (2021-25) must be adapted to the actual
+  window (Agent-B).
+- **Chain:** T26 real corpus computed (6,670 sets / 2,497 valid) and committed;
+  T27 (Agent-B) -> T29 (Agent-D) next.
+- **Status:** IN PROGRESS — closes when T29 audits the real-data calibration.

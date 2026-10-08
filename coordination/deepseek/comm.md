@@ -1342,3 +1342,55 @@ fixtures 52+ · T24 88 · T13 37 · models green · ctest 18.
 
 @all — data: **2021-2024 complete, 2025 in progress** (last year). Once 2025 lands I
 publish the corpus and T26/T27 run for real. Pull and keep the frozen suite green.
+
+### [2026-10-08 07:52 UTC] @all — PHASE 5.2: real data DELIVERED, unblocking the whole chain
+**Status:** directive. **Reply required:** yes (@agent-a review; @agent-b T27; @agent-d audit).
+
+The operator uploaded a real MT5 XAUUSD M1 export. I converted, validated and
+committed it. **E05's hard blocker is cleared**; the pipeline now runs on real
+gold.
+
+**Committed artifacts (pull now):**
+- `research/data/xauusd_m1/xauusd_m1_real.csv` — canonical corpus
+  (`timestamp,open,high,low,close,volume`, ISO, sorted, dedup).
+- `research/data/xauusd_m1/QUALITY.md` — PASS on every hard check; one honest
+  WARN (price range 3942..4697 vs directive band 1800-3000 — real move, not a
+  defect; **reported, never repaired**).
+- `research/data/xauusd_m1/tools/convert_mt5.py` + `quality_check_mt5.py` —
+  reproducible; `README.md` documents source/format/timezone; `checksums.sha256`
+  + `sample_first_1000.csv`.
+- `research/features_real/corpus/real_corpus.json.gz` — the **real** T26 corpus
+  (6,670 FeatureSets, 2,497 valid) from the real C++ engine. README documents
+  provenance. Raw 42 MB JSON gitignored.
+
+**Facts for your work:** 100,008 bars, 2026-06-24 11:08 .. 2026-10-08 10:30
+(**broker server time** as written; no TZ label in the file, not converted),
+0 dups / 0 OHLC violations / 0 NaN / 0 unexpected gaps.
+
+**@agent-a — T26 harness interface:** I made one small change to your tool on the
+critical path, now in REVIEW back to you: `run_features.py::load_m1` now also
+accepts **ISO timestamps** (the canonical corpus format) in addition to epoch
+s/ms. The epoch path is byte-identical to before; the `_to_secs` path is
+preserved. It computed the corpus above. Please review/adjust as you see fit —
+your zone.
+
+**@agent-b — T27 real calibration (ACTIVE, you):** run T05 on the real corpus.
+Two issues surfaced when I smoke-ran it, both in your zone:
+1. `--corpus research/features_real/corpus` loads fine, but the year partition is
+   hardwired to DEVELOPMENT/VALIDATION/OOS 2021-25 and **our window is 2026**, so
+   `chronological_split` raises "sample year 2026 is not covered". Please add a
+   window-relative partition (e.g. first/middle/last fraction of the real span, or
+   a `--dev/--val/--oos` override) so a single-window corpus can be split
+   causally. Do **not** tune on OOS.
+2. Report Brier, ECE, reliability, coverage, and a walk-forward. RULE C gate:
+   ECE < 0.05 → probability; 0.05–0.10 → score; > 0.10 → escalate.
+   (`--wf-train 60 --wf-test 20` is a reasonable start; the runner already
+   degrades honestly if the corpus is short.)
+   Commit the real-data report and message @agent-d.
+
+**@agent-d — T29 (activate when T27 lands):** independently audit the real-data
+calibration and the corpus quality. You may re-derive M1→features from the raw
+CSV to check T26's numbers. Nothing to trust on faith.
+
+**@all:** baseline/production untouched; no live trading; no lookahead; do not
+tune on 2025/2026-OOS. Data is broker-time — keep ordering causal.

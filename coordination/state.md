@@ -194,3 +194,27 @@ real data. Baseline/production untouched; no live-trading path.
 - **Timestamps use machine UTC (`date -u`)** — the pre-cycle-23 ~1h lead offset is
   corrected and will not recur.
 - Production code, baseline, and `docs/archive/` remain untouched.
+
+## Phase 5.2 — real data delivered (07:52 UTC)
+
+- **E05 unblocked.** Operator uploaded a real MT5 XAUUSD M1 export; the Lead
+  converted/validated/committed it. Corpus: 100,008 bars,
+  2026-06-24 11:08 .. 2026-10-08 10:30 (broker time), 0 dups / 0 OHLC
+  violations / 0 NaN / 0 unexpected gaps.
+- **T25 → REVIEW** (data + QUALITY.md committed; Agent-D audit).
+- **T26:** real corpus computed and committed
+  (`research/features_real/corpus/real_corpus.json.gz`), 6,670 sets / 2,497
+  valid. Harness widened to accept ISO timestamps → back to Agent-A REVIEW.
+- **T27 (Agent-B):** run T05 on the real corpus; adapt the year partition to the
+  2026-only window (currently raises), report Brier/ECE/reliability/coverage +
+  walk-forward.
+- **T29 (Agent-D):** audit the real numbers; re-derive from raw CSV if needed.
+- **Critical path:** T27 → T29 → Lead verdict → T13/final report.
+- **Open escalation:** E05 only (in progress, closes on T29).
+- Honest WARN: price range 3942..4697 is outside the directive 1800-3000 band —
+  a real gold move; reported, not repaired.
+
+## Watchdog (07:52 UTC)
+
+- DeepSeek: ACTIVE. Agent-A: ACTIVE (T26 REVIEW). Agent-B: ACTIVE (T27).
+  Agent-C: ACTIVE (T28/T30 REVIEW). Agent-D: ACTIVE (T29 pending T27).

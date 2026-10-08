@@ -62,7 +62,7 @@ lease (per `README.md` §F).
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
 | T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | DONE | -   |
 | T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | DONE | - |
-| T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | ACTIVE | - |
+| T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | REVIEW | MT5 corpus landed |
 | T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | REVIEW | - |
 | T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | ACTIVE | - |
 | T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | REVIEW | - |

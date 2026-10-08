@@ -250,3 +250,10 @@
 - Lease: T25 (data acquisition) — self
 - Progress: 99%
 - Note: cycle 35 — T30(b) landed but valid fixtures stale (F23-3); directed Agent-A to refresh (priority). Data 2021-2024 done; 2025 running (last year).
+
+### [2026-10-08 07:52 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 (data acquisition) — REVIEW
+- Progress: 100%
+- Note: operator MT5 corpus converted/validated/committed; real T26 corpus committed; T27/T29 directed.
