@@ -424,3 +424,11 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 - Stray CSV = operator MT5 export, resolved; downgraded to LOW cleanup.
 - T29 Part 2 pending T27. Report AUDIT-T29-realdata.md.
 
+
+
+### [2026-10-08 09:46 UTC] T13 evidential audit — D1 confirmed
+- D1 (Json.cpp parseNumber -> Type::String): reproduced with my own probe; wide blast
+  radius; production blocker, escalate. src/ pristine; default T13 52/52.
+- D2/D3 plausible, gated behind D1; need T17/Lead rulings; carry into T29 Part 2.
+- Report AUDIT_REPORTS/AUDIT-T13-evidential.md.
+

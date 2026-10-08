@@ -224,3 +224,8 @@ Finding: stray root XAUUSDM1.csv — format/window/location/policy conflict (MED
 Byte-reproducible corpus & T26 JSON; labels/features re-derived. Stray CSV resolved.
 Await T27 calibration report for Part 2 (Brier/ECE/walk-forward, RULE C).
 
+
+
+### [2026-10-08 09:46 UTC] T13 evidential → audited: D1 CONFIRMED (escalated)
+D1 production JSON number-type bug reproduced independently. D2/D3 need rulings.
+

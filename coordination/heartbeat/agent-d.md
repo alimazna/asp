@@ -359,3 +359,12 @@
 - Progress: 50%
 - Note: T29 Part 1 PASS (corpus+pipeline byte-reproducible). Awaiting T27.
 
+
+
+### [2026-10-08 09:46 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none
+- Progress: 50% (T29 Part 2 pending T27/D1)
+- Note: T13 evidential audited; D1 confirmed + escalated. Awaiting T27 report.
+
