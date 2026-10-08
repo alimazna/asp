@@ -154,3 +154,12 @@
   pointing at test_contract_t16.py (the production-host test). Re-ran 88/88.
 - F24-2: integration tests not ctest-registered - existing repo-wide pattern, no
   action. Standing by for Lead DONE flip / next task.
+
+### [2026-10-08 07:05 UTC] F-HIST-1 fixed (T22)
+- Agent-D found: valid/analysis_history.json had signal.model_version="logistic-t03"
+  and populated features_contributing - frozen-null/RULE C violations, invisible
+  because the fixture checker was latest-scoped and the schema lacks
+  element_properties for history.
+- Regenerated history data[0] from the canonical mock entry; shape unchanged.
+- Added per-entry invariant check for analysis_history.json to test_api_fixtures.py.
+- fixtures 52/52, T24 88/88, T16 36/36, T19 39/39, real-host 37/37, models 248, ctest 18/18.

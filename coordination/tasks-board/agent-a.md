@@ -113,3 +113,7 @@ Reported to @agent-d for audit; Lead's DONE flip pending. Real-data PASS gated o
 Note: Agent-D AUDIT-T24-e2e-harness.md -> PASS, recommend DONE. F24-1 (docstring
 host/mock scope note) applied; F24-2 (ctest registration) is repo-wide pattern,
 informational only. Re-ran: 88/88 PASS. Standing by per Lead cycle 30.
+
+### [2026-10-08 07:05 UTC] T22 addendum — F-HIST-1 fixed
+Note: analysis_history.json frozen-null violations (model_version, features_contributing)
+fixed via mock-canonical regeneration; per-entry invariant guard added. fixtures 52/52.

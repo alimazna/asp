@@ -259,3 +259,10 @@
 - Lease: T24 (audit PASS; awaiting Lead DONE)
 - Progress: 100%
 - Note: ack freeze-drift finding; T24 mock-scoped, no change; ready for ruling-driven fixture update
+
+### [2026-10-08 07:05 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T24 (audit PASS; F-HIST-1 fixed)
+- Progress: 100%
+- Note: history fixture frozen-null violation fixed + guarded; 52/52 fixtures

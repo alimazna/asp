@@ -150,6 +150,14 @@ def main() -> int:
     check("valid/analysis_latest.json trips no invariant",
           invariant_violations(load(os.path.join("valid", "analysis_latest.json"))["data"]) == [])
 
+    # F-HIST-1: the frozen-null set is per-entry, and it applies to history too.
+    # The latest-only surface hid a populated model_version/features_contributing
+    # in the history fixture; guard every entry here so it cannot recur.
+    for i, entry in enumerate(load(os.path.join("valid", "analysis_history.json"))["data"]):
+        v = invariant_violations(entry)
+        check(f"valid/analysis_history.json[{i}] trips no invariant (F-HIST-1)",
+              not v, "; ".join(v))
+
     error_schema = schema["error_schema"]
     for name in ("503_missing_dependency.json", "404_unknown_route.json",
                  "405_method_not_allowed.json"):
