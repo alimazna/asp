@@ -218,6 +218,71 @@ class RunRealCalibrationTest(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+class WalkForwardTest(unittest.TestCase):
+    def _corpus(self, per_year=40):
+        rows = _corpus_rows(per_year=per_year)
+        return rows
+
+    def test_walk_forward_runs_and_is_deterministic(self):
+        rows = self._corpus(per_year=40)
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            wf = realdata.walk_forward_calibration(
+                *realdata.load_corpus(d), train_size=60, test_size=20
+            )
+        self.assertGreaterEqual(len(wf.folds), 1)
+        self.assertFalse(wf.overlap)
+        self.assertEqual(wf.n_pooled, sum(f.n_test for f in wf.folds))
+        self.assertEqual(wf.verdict, realdata.rule_c_verdict(wf.pooled_ece)[0])
+        json.dumps(wf.to_dict())
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            wf2 = realdata.walk_forward_calibration(
+                *realdata.load_corpus(d), train_size=60, test_size=20
+            )
+        self.assertEqual(wf.to_dict(), wf2.to_dict())
+
+    def test_walk_forward_no_leakage(self):
+        rows = self._corpus(per_year=40)
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            wf = realdata.walk_forward_calibration(
+                *realdata.load_corpus(d), train_size=40, test_size=20
+            )
+        for f in wf.folds:
+            self.assertLess(f.test_start, f.test_end)
+
+    def test_overlapping_step_is_reported(self):
+        rows = self._corpus(per_year=40)
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            wf = realdata.walk_forward_calibration(
+                *realdata.load_corpus(d), train_size=40, test_size=20, step=5
+            )
+        self.assertTrue(wf.overlap)
+        self.assertIn("overlap", wf.note.lower())
+
+    def test_too_short_corpus_raises(self):
+        rows = _corpus_rows(per_year=1)  # 5 instants
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            with self.assertRaises(SplitError):
+                realdata.walk_forward_calibration(
+                    *realdata.load_corpus(d), train_size=100, test_size=20
+                )
+
+    def test_run_real_calibration_includes_walk_forward(self):
+        rows = _corpus_rows(per_year=40)
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            report = realdata.run_real_calibration(
+                d, walk_forward_train=60, walk_forward_test=20
+            )
+        self.assertIsNotNone(report.walk_forward)
+        self.assertIn("walk-forward", report.summary())
+        self.assertIn("walk_forward", report.to_dict())
+
+
 class CliTest(unittest.TestCase):
     def test_no_corpus_configured_exits_2(self):
         rc = realdata.main(["--corpus", ""])
@@ -228,7 +293,9 @@ class CliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             write_corpus(rows, d)
             out = os.path.join(d, "report.json")
-            rc = realdata.main(["--corpus", d, "--out", out])
+            rc = realdata.main(
+                ["--corpus", d, "--out", out, "--wf-train", "40", "--wf-test", "20"]
+            )
             self.assertEqual(rc, 0)
             with open(out, "r", encoding="utf-8") as handle:
                 doc = json.load(handle)

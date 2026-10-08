@@ -437,3 +437,10 @@
 - Lease: T27 (real-data calibration runner)
 - Progress: harness 100%, run pending T25/T26
 - Note: realdata.py + 14 tests; 266 models tests green; blocked on real corpus
+
+### [2026-10-08 07:40 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 (real-data calibration runner)
+- Progress: harness + walk-forward 100%; run pending T25/T26
+- Note: realdata.py 19 tests; 271 models tests green; holding for T26 contract

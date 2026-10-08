@@ -181,3 +181,9 @@
   run, RULE C verdict, RULE D coverage, RULE E record
 - tests/models/test_realdata.py: 14 tests; 266 models tests green
 - Ready to run on T25 corpus / T26 FeatureSet JSON
+
+### [2026-10-08 07:40 UTC] T27 walk-forward added (cycle-32 ruling)
+- walk_forward_calibration + FoldCalibration/WalkForwardSummary; leakage-guarded,
+  overlap reported; pooled ECE -> RULE C verdict
+- CLI --wf-train/--wf-test/--wf-step; run_real_calibration embeds it
+- 271 models tests green

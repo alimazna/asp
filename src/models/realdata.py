@@ -50,12 +50,19 @@ from src.models.calibrated import CalibratedReport, run_calibrated
 from src.models.calibration import (
     ECE_FAILURE,
     ECE_TARGET,
-    TIER_BOUNDS,
     TierCoverage,
-    coverage_analysis,
+    calibration_report,
 )
-from src.models.dataset import LabeledExample, assert_partitions_separated, build_labeled_examples
+from src.models.calibrators import fit_calibrator
+from src.models.dataset import (
+    LabeledExample,
+    assert_partitions_separated,
+    build_labeled_examples,
+    feature_columns,
+    to_matrix,
+)
 from src.models.features import FeatureSet, parse_feature_set
+from src.models.logistic import fit_logistic
 from src.models.splits import (
     DEVELOPMENT_YEARS,
     OOS_YEARS,
@@ -64,6 +71,12 @@ from src.models.splits import (
     SplitError,
     assert_causal,
     chronological_split,
+)
+from src.models.walk_forward import (
+    WalkForwardConfig,
+    assert_no_leakage,
+    test_segments_overlap,
+    walk_forward,
 )
 
 DEFAULT_CLOSE_KEY = "close"
@@ -173,6 +186,169 @@ def rule_c_verdict(ece: float) -> Tuple[str, str]:
 
 
 # --------------------------------------------------------------------------
+# Walk-forward calibration
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FoldCalibration:
+    index: int
+    train_size: int
+    test_size: int
+    test_start: int          # asOfBarOpenSec of the first test instance
+    test_end: int            # asOfBarOpenSec of the last test instance
+    brier: float
+    ece: float
+    mce: float
+    accuracy: float
+    n_test: int
+
+
+@dataclass(frozen=True)
+class WalkForwardSummary:
+    folds: Tuple[FoldCalibration, ...]
+    pooled_brier: float
+    pooled_ece: float
+    pooled_mce: float
+    pooled_accuracy: float
+    n_pooled: int
+    overlap: bool
+    verdict: str
+    note: str
+
+    def to_dict(self) -> dict:
+        return {
+            "folds": [asdict(f) for f in self.folds],
+            "pooled_brier": self.pooled_brier,
+            "pooled_ece": self.pooled_ece,
+            "pooled_mce": self.pooled_mce,
+            "pooled_accuracy": self.pooled_accuracy,
+            "n_pooled": self.n_pooled,
+            "overlap": self.overlap,
+            "verdict": self.verdict,
+            "note": self.note,
+        }
+
+    def summary(self) -> str:
+        lines = [
+            f"  walk-forward: {len(self.folds)} folds, pooled n={self.n_pooled} "
+            f"(overlapping test windows: {self.overlap})",
+            f"    pooled: brier={self.pooled_brier:.4f} ece={self.pooled_ece:.4f} "
+            f"mce={self.pooled_mce:.4f} accuracy={self.pooled_accuracy:.4f}",
+            f"    VERDICT: {self.verdict} — {self.note}",
+        ]
+        for f in self.folds:
+            lines.append(
+                f"      fold {f.index}: train={f.train_size} test={f.test_size} "
+                f"brier={f.brier:.4f} ece={f.ece:.4f}"
+            )
+        return "\n".join(lines)
+
+
+def _fit_calibrate_eval(train, test, method, model_factory, calibrator_fraction=0.5):
+    """Fit base on the train's first part, calibrator on its second, score test.
+
+    Keeps the calibrator disjoint from the scored test rows (T05 discipline) while
+    never looking at the test window during fitting. Returns (probs, outcomes).
+    """
+    if not train or not test:
+        raise SplitError("walk-forward fold has an empty train or test slice")
+    cut = int(len(train) * calibrator_fraction)
+    cut = max(1, min(cut, len(train) - 1))
+    base_rows = train[:cut]
+    cal_rows = train[cut:]
+    assert_partitions_separated((("base", base_rows), ("cal", cal_rows), ("test", test)))
+
+    columns = feature_columns(base_rows)
+    for name, part in (("cal", cal_rows), ("test", test)):
+        if feature_columns(part) != columns:
+            raise SplitError(f"walk-forward '{name}' has different feature columns")
+
+    x_base, y_base = to_matrix(base_rows, columns)
+    model = fit_logistic(x_base, y_base) if model_factory is None else model_factory(x_base, y_base)
+
+    x_cal, y_cal = to_matrix(cal_rows, columns)
+    calibrator = fit_calibrator(method, [model.decision_function(r) for r in x_cal], y_cal)
+
+    x_test, y_test = to_matrix(test, columns)
+    probs = calibrator.transform_batch([model.decision_function(r) for r in x_test])
+    return probs, y_test
+
+
+def walk_forward_calibration(
+    feature_sets: Sequence[FeatureSet],
+    closes: Sequence[float],
+    *,
+    label_horizon: int = 1,
+    method: str = "platt",
+    model_factory: Optional[Callable] = None,
+    train_size: int = 60,
+    test_size: int = 20,
+    step: int = 0,
+) -> WalkForwardSummary:
+    """Rolling-origin calibration over the whole real corpus (no year partitions).
+
+    Each fold fits on a fixed train window and is scored once on the following
+    test window; folds advance by `step` (default = test_size, non-overlapping
+    test segments). Pooled OOS ECE drives the RULE C verdict.
+    """
+    examples = _to_examples(feature_sets, closes, label_horizon)
+    samples = [
+        Sample(datetime.fromtimestamp(ex.timestamp, tz=timezone.utc), ex)
+        for ex in examples
+    ]
+    folds = walk_forward(samples, WalkForwardConfig(train_size, test_size, step))
+    assert_no_leakage(folds)
+    overlap = test_segments_overlap(folds)
+
+    fold_results: List[FoldCalibration] = []
+    pooled_probs: List[float] = []
+    pooled_outcomes: List[int] = []
+    for fold in folds:
+        train = [s.payload for s in fold.train]
+        test = [s.payload for s in fold.test]
+        probs, outcomes = _fit_calibrate_eval(train, test, method, model_factory)
+        rep = calibration_report(probs, outcomes)
+        fold_results.append(
+            FoldCalibration(
+                index=fold.index,
+                train_size=fold.train_size,
+                test_size=fold.test_size,
+                test_start=test[0].timestamp,
+                test_end=test[-1].timestamp,
+                brier=rep.brier,
+                ece=rep.ece,
+                mce=rep.mce,
+                accuracy=sum(1 for p, y in zip(probs, outcomes) if (p >= 0.5) == bool(y))
+                / len(test),
+                n_test=len(test),
+            )
+        )
+        pooled_probs.extend(probs)
+        pooled_outcomes.extend(outcomes)
+
+    pooled = calibration_report(pooled_probs, pooled_outcomes)
+    verdict, note = rule_c_verdict(pooled.ece)
+    if overlap:
+        note += " (overlapping test windows — folds are not independent.)"
+
+    return WalkForwardSummary(
+        folds=tuple(fold_results),
+        pooled_brier=pooled.brier,
+        pooled_ece=pooled.ece,
+        pooled_mce=pooled.mce,
+        pooled_accuracy=sum(
+            1 for p, y in zip(pooled_probs, pooled_outcomes) if (p >= 0.5) == bool(y)
+        )
+        / len(pooled_probs),
+        n_pooled=len(pooled_probs),
+        overlap=overlap,
+        verdict=verdict,
+        note=note,
+    )
+
+
+# --------------------------------------------------------------------------
 # Report
 # --------------------------------------------------------------------------
 
@@ -192,6 +368,7 @@ class RealCalibrationReport:
     verdict: str
     note: str
     notes: Tuple[str, ...] = field(default_factory=tuple)
+    walk_forward: Optional[WalkForwardSummary] = None
 
     @property
     def ece_oos(self) -> Optional[float]:
@@ -235,6 +412,7 @@ class RealCalibrationReport:
             "verdict": self.verdict,
             "note": self.note,
             "notes": list(self.notes),
+            "walk_forward": self.walk_forward.to_dict() if self.walk_forward else None,
         }
 
     def summary(self) -> str:
@@ -265,6 +443,8 @@ class RealCalibrationReport:
         else:
             lines.append("  OOS: not available (partition empty)")
         lines.append(f"  VERDICT: {self.verdict} — {self.note}")
+        if self.walk_forward is not None:
+            lines.append(self.walk_forward.summary())
         for extra in self.notes:
             lines.append(f"  note: {extra}")
         return "\n".join(lines)
@@ -308,12 +488,19 @@ def run_real_calibration(
     development_years: Sequence[int] = DEVELOPMENT_YEARS,
     validation_years: Sequence[int] = VALIDATION_YEARS,
     oos_years: Sequence[int] = OOS_YEARS,
+    walk_forward_train: int = 0,
+    walk_forward_test: int = 0,
+    walk_forward_step: int = 0,
 ) -> RealCalibrationReport:
     """Run the T05 calibrated pipeline on a real corpus and apply the RULE C gate.
 
     Never tunes on OOS and never interpolates missing data. If a partition is
     empty the report says so and the verdict is `cannot_publish` — the absence is
     surfaced, not hidden.
+
+    When `walk_forward_train` and `walk_forward_test` are both positive, a
+    rolling-origin walk-forward is also run over the whole corpus; its pooled ECE
+    is the more robust RULE C signal and is reported alongside the year split.
     """
     feature_sets, closes = load_corpus(corpus_dir, close_key=close_key)
     examples = _to_examples(feature_sets, closes, label_horizon)
@@ -379,6 +566,19 @@ def run_real_calibration(
     if calibrated_oos is None:
         raise SplitError("calibrated report is missing the OOS partition")
 
+    wf = None
+    if walk_forward_train > 0 and walk_forward_test > 0:
+        wf = walk_forward_calibration(
+            feature_sets,
+            closes,
+            label_horizon=label_horizon,
+            method=method,
+            model_factory=model_factory,
+            train_size=walk_forward_train,
+            test_size=walk_forward_test,
+            step=walk_forward_step,
+        )
+
     ece = calibrated_oos.calibration.ece
     verdict, note = rule_c_verdict(ece)
 
@@ -411,6 +611,7 @@ def run_real_calibration(
         verdict=verdict,
         note=note,
         notes=tuple(notes),
+        walk_forward=wf,
     )
 
 
@@ -433,6 +634,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("--horizon", type=int, default=1)
     parser.add_argument("--method", default="platt", choices=["platt", "isotonic", "histogram"])
+    parser.add_argument("--wf-train", type=int, default=0, help="walk-forward train size")
+    parser.add_argument("--wf-test", type=int, default=0, help="walk-forward test size")
+    parser.add_argument("--wf-step", type=int, default=0, help="walk-forward step (0=test size)")
     parser.add_argument("--out", default="", help="write the JSON report here")
     args = parser.parse_args(argv)
 
@@ -449,6 +653,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         close_key=args.close_key,
         label_horizon=args.horizon,
         method=args.method,
+        walk_forward_train=args.wf_train,
+        walk_forward_test=args.wf_test,
+        walk_forward_step=args.wf_step,
     )
     print(report.summary())
     if args.out:
