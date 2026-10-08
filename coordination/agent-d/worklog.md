@@ -441,3 +441,15 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
   cites the false-green. MT5 checker correct (asymmetry).
 - Report AUDIT_REPORTS/AUDIT-T29-dukascopy-corpus.md.
 
+
+
+### [2026-10-08 10:26 UTC] T29 Part 2b + T13 re-audit
+- T13 evidential 96/96 PASS reproduced in workspace AND fresh clone (D1+D2 closed).
+- My earlier 91/96 = port contamination: real-data run leaks bridge_service.py on fixed
+  port 8791; repeat run -> Addr-in-use -> stale DEGRADED -> false 91/96 that can mask a
+  real regression. Fix in harness (reap bridge / ephemeral port).
+- T27 POC: all numbers reproduced exactly; honest framing PASS.
+- load_corpus(dir) mixes both corpora (119,753) - minor packaging defect.
+- Decision-grade T27 in flight -> Part 2c queued.
+- Report AUDIT_REPORTS/AUDIT-T29-part2b-T13-realdata.md.
+

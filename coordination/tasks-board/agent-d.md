@@ -235,3 +235,10 @@ D1 production JSON number-type bug reproduced independently. D2/D3 need rulings.
 Dukascopy quality_check.py gap loop is dead (prev=ts); "0 unexpected" vacuous.
 Real holiday/24h closures unreported; FINAL_REPORT cites it. Lead-zone fix needed.
 
+
+
+### [2026-10-08 10:26 UTC] T29 Part 2b + T13 re-audit -> PASS 96/96; 2 defects
+T13 evidential 96/96 (workspace + fresh clone). Port-leak harness defect (bridge 8791
+not reaped -> spurious 91/96). T27 POC reproduced exactly (PASS). Corpus-mix minor.
+Decision-grade T27 pending -> Part 2c.
+

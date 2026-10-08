@@ -377,3 +377,13 @@
 - Progress: 60%
 - Note: T29 Part 2a done — Dukascopy checker defect escalated. Awaiting T27 report.
 
+
+
+### [2026-10-08 10:26 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none
+- Progress: 75%
+- Note: T13 96/96 verified x2; D2/D1 closed. Port-leak harness defect escalated. T27 POC
+  reproduced. Decision-grade T27 in flight -> Part 2c queued.
+
