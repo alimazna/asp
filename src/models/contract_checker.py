@@ -37,6 +37,7 @@ REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
 SCHEMA_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "API_V1_SCHEMA.json")
 
 ANALYSIS_ENDPOINT = "GET /api/v1/analysis/latest"
+HISTORY_ENDPOINT = "GET /api/v1/analysis/history"
 
 # The frozen-null set (v1). These fields are `null` this release regardless of
 # calibration; `BACKEND_FRONTEND_API_V1.md` ("Unavailable is not zero") lists
@@ -204,10 +205,10 @@ def validate_envelope(endpoint: str, spec: Dict[str, Any], payload: Any) -> None
 
 
 def frozen_violations(data: Any) -> List[str]:
-    """Every frozen-contract invariant `data` violates (empty means clean).
+    """Every frozen-contract invariant an `analysis` object violates (empty=clean).
 
-    `analysis/latest` is the only surface with frozen nulls and conditional
-    calibration invariants, so this takes the `data` object directly. It is
+    Applies to an `/analysis/latest` `data` object and to each `/analysis/history`
+    entry — the frozen-null set is per-entry (F23-2 / AUDIT-HISTORY). It is
     deliberately tolerant of missing keys: a structurally broken payload is
     reported as violations rather than raising, so a caller that runs structure
     and semantics together never loses the semantic findings.
@@ -268,6 +269,25 @@ def frozen_violations(data: Any) -> List[str]:
 # --------------------------------------------------------------------------
 
 
+def history_violations(payload: Any) -> List[str]:
+    """Every frozen-contract invariant an `/analysis/history` body violates.
+
+    The frozen-null set is per-entry (F23-2 / AUDIT-HISTORY): the same invariants
+    that hold for `/analysis/latest` hold for each history element. Reported with
+    an entry index so a caller can locate the offender.
+    """
+    if not isinstance(payload, dict):
+        return ["response body is not an object"]
+    entries = payload.get("data")
+    if not isinstance(entries, list):
+        return ["data is not an array"]
+    out: List[str] = []
+    for i, entry in enumerate(entries):
+        for violation in frozen_violations(entry):
+            out.append(f"data[{i}]: {violation}")
+    return out
+
+
 def load_schema(path: Optional[str] = None) -> Dict[str, Any]:
     with open(path or SCHEMA_PATH, "r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -278,11 +298,13 @@ def analysis_contract_violations(
     schema: Optional[Dict[str, Any]] = None,
     endpoint: str = ANALYSIS_ENDPOINT,
 ) -> List[str]:
-    """All contract violations in one `analysis/latest` response body.
+    """All contract violations in one `analysis` response body.
 
-    Runs the structural layer first; if the payload does not even conform to the
-    schema, the semantic invariant check is not meaningful, so the structural
-    error is returned alone.
+    Defaults to `/analysis/latest`; pass `HISTORY_ENDPOINT` for an
+    `/analysis/history` body (the frozen-null set is enforced per entry). Runs the
+    structural layer first; if the payload does not even conform to the schema, the
+    semantic invariant check is not meaningful, so the structural error is returned
+    alone.
     """
     schema = schema if schema is not None else load_schema()
     spec = schema["endpoints"][endpoint]
@@ -290,7 +312,11 @@ def analysis_contract_violations(
         validate_envelope(endpoint, spec, payload)
     except ContractError as exc:
         return [f"structure: {exc}"]
-    return [f"invariant: {v}" for v in frozen_violations(payload["data"])]
+    if endpoint == HISTORY_ENDPOINT:
+        found = history_violations(payload)
+    else:
+        found = frozen_violations(payload["data"])
+    return [f"invariant: {v}" for v in found]
 
 
 def require_valid_analysis(

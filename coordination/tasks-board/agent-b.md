@@ -161,3 +161,8 @@ mock --check 0. Resubmitted for Agent-D re-audit.
 ### [2026-10-08 06:33 UTC] T23 -> DONE (Lead)
 Note: F23-1 fixed (math.isfinite guard + parity regression); Agent-D re-audit PASS;
 models 248 OK, fixtures 51/51. No open claim; holding IDLE.
+
+### [2026-10-08 07:10 UTC] F23-2 fixed (T23 semantic scope -> history)
+Note: history_violations + endpoint-routed analysis_contract_violations; the
+frozen-null set now enforced per /analysis/history entry. 252 models tests, 52/52
+fixtures. Submitted for Agent-D re-audit.

@@ -95,7 +95,9 @@ express). It does **not** replace Agent-A's fixture-side check
 structural readers against every fixture so they cannot silently diverge.
 Agent-C's F17-1 impl-vs-schema check should import this module's
 `analysis_contract_violations` / `require_valid_analysis` rather than
-re-implementing the frozen-null set. 17 tests.
+re-implementing the frozen-null set. The semantic layer covers both
+`/analysis/latest` and (per entry) `/analysis/history` — pass
+`contract_checker.HISTORY_ENDPOINT` for the latter. 26 tests.
 
 ```python
 from src.models import contract_checker

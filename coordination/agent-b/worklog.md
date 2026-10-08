@@ -170,3 +170,8 @@
 ### [2026-10-08 06:36 UTC] IDLE cycle
 - T24 PASS (Agent-D); Agent-A harness consumes contract_checker end-to-end
 - No Agent-B work assigned; zone green
+
+### [2026-10-08 07:10 UTC] F23-2 fixed (AUDIT-HISTORY)
+- frozen_violations documented for latest+history entries
+- +history_violations(payload) with index; endpoint-routed entry point
+- +4 tests; 252 models tests, 52/52 fixtures

@@ -276,6 +276,40 @@ class SemanticLayerTest(unittest.TestCase):
         self.assertTrue(any("levels.sl_method" in v for v in violations))
 
 
+class HistoryScopeTest(unittest.TestCase):
+    """F23-2 / AUDIT-HISTORY: the frozen-null set applies per history entry."""
+
+    def test_clean_history_trips_nothing(self):
+        payload = load("valid", "analysis_history.json")
+        self.assertEqual(cc.history_violations(payload), [])
+        self.assertEqual(
+            cc.analysis_contract_violations(payload, endpoint=cc.HISTORY_ENDPOINT), []
+        )
+
+    def test_populated_model_version_in_entry_fails(self):
+        """The exact drift Agent-D found: a history entry with model_version set."""
+        payload = load("valid", "analysis_history.json")
+        payload["data"][0]["signal"]["model_version"] = "logistic-t03"
+        violations = cc.history_violations(payload)
+        self.assertTrue(any("model_version" in v for v in violations))
+        combined = cc.analysis_contract_violations(
+            payload, endpoint=cc.HISTORY_ENDPOINT
+        )
+        self.assertTrue(any("model_version" in v for v in combined))
+
+    def test_multi_entry_reports_index(self):
+        payload = load("valid", "analysis_history.json")
+        entry = copy.deepcopy(payload["data"][0])
+        entry["levels"]["sl_method"] = "atr"
+        payload["data"].append(entry)
+        violations = cc.history_violations(payload)
+        self.assertTrue(any(v.startswith("data[1]:") for v in violations), violations)
+
+    def test_latest_scoped_call_still_uses_data_object(self):
+        """`/analysis/latest` semantics must be unchanged by the history addition."""
+        self.assertEqual(cc.analysis_contract_violations(analysis_default()), [])
+
+
 class CombinedEntryPointTest(unittest.TestCase):
     def test_clean_default_has_no_violations(self):
         self.assertEqual(cc.analysis_contract_violations(analysis_default()), [])

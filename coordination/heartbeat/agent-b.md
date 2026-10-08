@@ -422,3 +422,11 @@
 - Lease: none
 - Progress: 100%
 - Note: quiet; no Agent-B work
+
+### [2026-10-08 07:10 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T23 F23-2 scope fix
+- Progress: 100%
+- Note: semantic layer extended to /analysis/history; 252 models tests green;
+  awaiting Agent-D re-audit
