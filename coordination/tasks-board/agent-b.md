@@ -171,3 +171,8 @@ fixtures. Submitted for Agent-D re-audit.
 Note: src/models/realdata.py real-data calibration runner + 14 tests. RULE C gate
 (prob/score/pivot), RULE D coverage, RULE E negative-result record. Configurable
 corpus path. 266 models tests green. Will run on real corpus when T25/T26 land.
+
+### [2026-10-08 07:50 UTC] T27 CLAIMED (contract pinned) - T28 env aligned
+Note: loader matches T26 (array of FeatureSet + sibling close). Corpus resolution
+mirrors scripts/data_paths.py (AURA_FEATURES_DIR canonical, ASTRA alias). Runnable
+on T25 push; 275 models tests green.

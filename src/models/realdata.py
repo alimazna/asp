@@ -81,6 +81,26 @@ from src.models.walk_forward import (
 
 DEFAULT_CLOSE_KEY = "close"
 
+# T28 alignment: AURA_FEATURES_DIR is the canonical feature-corpus location;
+# ASTRA_FEATURE_CORPUS is honoured as the T27 spelling. Default is the repo's
+# research/features_real, computed from this file (never the CWD).
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+DEFAULT_FEATURES_DIR = os.path.join(_REPO_ROOT, "research", "features_real")
+FEATURES_DIR_ENV = ("AURA_FEATURES_DIR", "ASTRA_FEATURE_CORPUS")
+ENV_CLOSE_KEY = "AURA_CLOSE_KEY"
+
+
+def resolve_corpus_dir(explicit: str = "", environ=None) -> str:
+    """Resolve the corpus directory: explicit > AURA_FEATURES_DIR > alias > repo default."""
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    env = os.environ if environ is None else environ
+    for name in FEATURES_DIR_ENV:
+        if env.get(name):
+            return os.path.abspath(os.path.expanduser(env[name]))
+    return DEFAULT_FEATURES_DIR
+
+
 # RULE C verdicts.
 PUBLISH_PROBABILITY = "probability"
 PUBLISH_SCORE = "score"
@@ -624,13 +644,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="T27 real-data calibration runner")
     parser.add_argument(
         "--corpus",
-        default=os.environ.get("ASTRA_FEATURE_CORPUS", ""),
-        help="directory of FeatureSet JSON (env ASTRA_FEATURE_CORPUS)",
+        default="",
+        help="directory of FeatureSet JSON "
+        "(default: AURA_FEATURES_DIR / ASTRA_FEATURE_CORPUS / "
+        "<repo>/research/features_real)",
     )
     parser.add_argument(
         "--close-key",
-        default=os.environ.get("ASTRA_CLOSE_KEY", DEFAULT_CLOSE_KEY),
-        help="flat feature key holding the decision-bar close",
+        default=os.environ.get(ENV_CLOSE_KEY, DEFAULT_CLOSE_KEY),
+        help="sibling key holding the decision-bar close",
     )
     parser.add_argument("--horizon", type=int, default=1)
     parser.add_argument("--method", default="platt", choices=["platt", "isotonic", "histogram"])
@@ -640,16 +662,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--out", default="", help="write the JSON report here")
     args = parser.parse_args(argv)
 
-    if not args.corpus:
+    corpus = resolve_corpus_dir(args.corpus)
+    if not os.path.isdir(corpus):
         print(
-            "no corpus configured: pass --corpus DIR or set ASTRA_FEATURE_CORPUS "
-            "(T25 data has not landed).",
+            f"no corpus at {corpus}: pass --corpus DIR or set AURA_FEATURES_DIR / "
+            "ASTRA_FEATURE_CORPUS (T25 data has not landed).",
             file=sys.stderr,
         )
         return 2
 
     report = run_real_calibration(
-        args.corpus,
+        corpus,
         close_key=args.close_key,
         label_horizon=args.horizon,
         method=args.method,

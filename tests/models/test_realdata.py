@@ -283,9 +283,30 @@ class WalkForwardTest(unittest.TestCase):
         self.assertIn("walk_forward", report.to_dict())
 
 
+class ResolveCorpusDirTest(unittest.TestCase):
+    def test_explicit_wins(self):
+        self.assertEqual(
+            realdata.resolve_corpus_dir("/tmp/xyz", environ={"AURA_FEATURES_DIR": "/tmp/a"}),
+            os.path.abspath("/tmp/xyz"),
+        )
+
+    def test_aura_is_canonical_over_alias(self):
+        got = realdata.resolve_corpus_dir(
+            "", environ={"AURA_FEATURES_DIR": "/tmp/a", "ASTRA_FEATURE_CORPUS": "/tmp/b"}
+        )
+        self.assertEqual(got, os.path.abspath("/tmp/a"))
+
+    def test_alias_honoured_when_canonical_absent(self):
+        got = realdata.resolve_corpus_dir("", environ={"ASTRA_FEATURE_CORPUS": "/tmp/b"})
+        self.assertEqual(got, os.path.abspath("/tmp/b"))
+
+    def test_default_is_repo_relative(self):
+        self.assertEqual(realdata.resolve_corpus_dir("", environ={}), realdata.DEFAULT_FEATURES_DIR)
+
+
 class CliTest(unittest.TestCase):
     def test_no_corpus_configured_exits_2(self):
-        rc = realdata.main(["--corpus", ""])
+        rc = realdata.main(["--corpus", "/no/such/corpus/xyz"])
         self.assertEqual(rc, 2)
 
     def test_runs_and_writes_report(self):
