@@ -133,6 +133,61 @@ def chronological_split(
     )
 
 
+def fractional_split(
+    samples: Sequence[Sample],
+    development_fraction: float = 0.6,
+    validation_fraction: float = 0.2,
+) -> Split:
+    """Partition a single time window into chronological development/validation/OOS.
+
+    For corpora that span less than a few calendar years (e.g. a broker's rolling
+    few-month export) year-based partitions cannot apply. This splits by *fraction
+    of the observed time span*, so the boundaries are causal and data-relative:
+
+        development : [t0, t0 + d*span)
+        validation  : [t0 + d*span, t0 + (d+v)*span)
+        oos         : [t0 + (d+v)*span, t_end]
+
+    Same guarantees as `chronological_split`: disjoint, ascending, nothing dropped.
+    The OOS tail is touched once by the caller and never tuned on.
+    """
+    if not 0 < development_fraction < 1 or not 0 <= validation_fraction < 1:
+        raise SplitError("fractions must be in [0, 1)")
+    if development_fraction + validation_fraction >= 1:
+        raise SplitError("development + validation fractions must leave room for OOS")
+
+    ordered = _sorted_unique(samples)
+    if not ordered:
+        raise SplitError("cannot partition an empty sample set")
+
+    t0 = ordered[0].timestamp
+    t_end = ordered[-1].timestamp
+    span = (t_end - t0).total_seconds()
+    if span <= 0:
+        raise SplitError("sample window has zero time span; cannot split by fraction")
+
+    dev_cut = t0.timestamp() + development_fraction * span
+    val_cut = t0.timestamp() + (development_fraction + validation_fraction) * span
+
+    buckets: dict = {"development": [], "validation": [], "oos": []}
+    for sample in ordered:
+        ts = sample.timestamp.timestamp()
+        if ts < dev_cut:
+            buckets["development"].append(sample)
+        elif ts < val_cut:
+            buckets["validation"].append(sample)
+        else:
+            buckets["oos"].append(sample)
+
+    split = Split(
+        development=buckets["development"],
+        validation=buckets["validation"],
+        oos=buckets["oos"],
+    )
+    assert_causal(split)
+    return split
+
+
 def assert_causal(split: Split) -> None:
     """Verify the split respects chronology: every development sample precedes
     every validation sample, which precedes every OOS sample.

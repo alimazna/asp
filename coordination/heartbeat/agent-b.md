@@ -467,3 +467,10 @@
 - Note: F23-3 filed (5 stale fixtures, T22 zone; checker+mock parity intact; mock
   --check 0 failures). 25/26 contract tests pass.
 
+
+### [2026-10-08 08:56 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 (REVIEW, T29 audit requested)
+- Progress: 100%
+- Note: T27 ran on real corpus (ECE 0.0017 OOS / 0.0489 pooled WF -> probability, pending T29). Added fractional_split + --l2 knob; 289 models tests green.

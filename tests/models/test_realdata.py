@@ -97,6 +97,17 @@ def _corpus_rows(per_year=30):
     return rows
 
 
+def _single_window_rows(n=200):
+    """M15-close instants inside one rolling window (2026) — no year partitions."""
+    rows = []
+    start = datetime(2026, 6, 24, tzinfo=timezone.utc)
+    for i in range(n):
+        ts = int((start + timedelta(minutes=15 * i)).timestamp())
+        close = 4000.0 + (5.0 if i % 2 == 0 else -5.0)
+        rows.append(_row(ts, close, float(i)))
+    return rows
+
+
 def write_corpus(rows, tmpdir, fname="features.json"):
     path = os.path.join(tmpdir, fname)
     with open(path, "w", encoding="utf-8") as handle:
@@ -305,6 +316,77 @@ class WalkForwardTest(unittest.TestCase):
         self.assertIsNotNone(report.walk_forward)
         self.assertIn("walk-forward", report.summary())
         self.assertIn("walk_forward", report.to_dict())
+
+
+class SingleWindowPartitionTest(unittest.TestCase):
+    def test_auto_falls_back_to_fraction_and_is_recorded(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(_single_window_rows(200), d)
+            report = realdata.run_real_calibration(
+                d, walk_forward_train=40, walk_forward_test=20
+            )
+        # 2026 is not in 2021-25, so year split cannot apply -> fraction fallback.
+        self.assertTrue(
+            any("year partition not applicable" in n for n in report.notes)
+        )
+        self.assertTrue(all(report.partition_sizes[k] > 0 for k in
+                            ("development", "validation", "oos")))
+        self.assertNotEqual(report.verdict, realdata.CANNOT_PUBLISH)
+
+    def test_explicit_year_mode_still_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(_single_window_rows(200), d)
+            with self.assertRaises(SplitError):
+                realdata.run_real_calibration(d, partition_mode="year")
+
+    def test_explicit_fraction_mode(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(_single_window_rows(200), d)
+            report = realdata.run_real_calibration(
+                d, partition_mode="fraction", development_fraction=0.5,
+                validation_fraction=0.25,
+            )
+        # 200 instants -> 199 labeled examples (horizon drops the last). Fractions
+        # are applied to the observed span, so sizes are span-relative, not n*k.
+        s = report.partition_sizes
+        self.assertEqual(s["development"] + s["validation"] + s["oos"], 199)
+        self.assertAlmostEqual(s["development"] / 199, 0.5, delta=0.02)
+        self.assertAlmostEqual(s["validation"] / 199, 0.25, delta=0.02)
+        self.assertAlmostEqual(s["oos"] / 199, 0.25, delta=0.02)
+
+
+class L2KnobTest(unittest.TestCase):
+    def test_factory_fits_and_converges(self):
+        import random
+
+        rng = random.Random(0)
+        rows = [
+            [rng.gauss(0, 1) for _ in range(20)] for _ in range(40)
+        ]
+        y = [1 if sum(r) > 0 else 0 for r in rows]
+        factory = realdata._logistic_factory(0.1)
+        model = factory(rows, y)
+        self.assertTrue(model.converged)
+        self.assertLessEqual(model.iterations, 60)
+
+    def test_runner_accepts_l2(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(_single_window_rows(120), d)
+            report = realdata.run_real_calibration(
+                d, partition_mode="fraction", l2=0.05,
+            )
+        self.assertNotEqual(report.verdict, realdata.CANNOT_PUBLISH)
+
+    def test_cli_accepts_l2(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(_single_window_rows(120), d)
+            rc = realdata.main([
+                "--corpus", d, "--partition-mode", "fraction", "--l2", "0.05",
+                "--out", os.path.join(d, "r.json"),
+            ])
+            self.assertEqual(rc, 0)
+            with open(os.path.join(d, "r.json"), encoding="utf-8") as h:
+                self.assertIn("verdict", json.load(h))
 
 
 class ResolveCorpusDirTest(unittest.TestCase):

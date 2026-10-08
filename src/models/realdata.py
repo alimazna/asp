@@ -71,6 +71,7 @@ from src.models.splits import (
     SplitError,
     assert_causal,
     chronological_split,
+    fractional_split,
 )
 from src.models.walk_forward import (
     WalkForwardConfig,
@@ -504,20 +505,64 @@ def _maybe_walk_forward(
         return None
 
 
+def _logistic_factory(l2: float, max_iter: int = 60):
+    """A model factory closing over the ridge strength for the pure-Python IRLS.
+
+    `run_calibrated` and the walk-forward both accept `model_factory(x, y)`, so a
+    single factory threads the same solver settings through every fit.
+    """
+    def factory(x, y):
+        return fit_logistic(x, y, l2=l2, max_iter=max_iter)
+
+    return factory
+
+
 def _partition(
     examples: Sequence[LabeledExample],
     development_years: Sequence[int],
     validation_years: Sequence[int],
     oos_years: Sequence[int],
+    mode: str = "auto",
+    dev_fraction: float = 0.6,
+    val_fraction: float = 0.2,
+    notes: Optional[List[str]] = None,
 ):
+    """Split examples chronologically.
+
+    `mode`:
+      * "year"     — calendar-year partitions (the Phase 2.0 default);
+      * "fraction" — split the observed span by fraction (single-window corpora);
+      * "auto"     — try "year"; if the corpus years are not covered (e.g. a
+        rolling 2026 broker export), fall back to "fraction" and say so.
+
+    Both paths are causal (dev < val < oos) and disjoint. The fallback is recorded
+    in `notes`, never silent.
+    """
     samples = [
         Sample(datetime.fromtimestamp(ex.timestamp, tz=timezone.utc), ex)
         for ex in examples
     ]
-    split = chronological_split(
-        samples, development_years, validation_years, oos_years
-    )
-    assert_causal(split)  # leak guard: dev < val < oos in time
+    if mode not in ("auto", "year", "fraction"):
+        raise SplitError(f"unknown partition mode: {mode!r}")
+
+    if mode in ("auto", "year"):
+        try:
+            split = chronological_split(
+                samples, development_years, validation_years, oos_years
+            )
+            assert_causal(split)  # leak guard: dev < val < oos in time
+            return split
+        except SplitError as exc:
+            if mode == "year":
+                raise
+            if notes is not None:
+                notes.append(
+                    "year partition not applicable ("
+                    f"{exc}); using fraction partition "
+                    f"dev={dev_fraction} val={val_fraction} of the observed span."
+                )
+
+    split = fractional_split(samples, dev_fraction, val_fraction)
     return split
 
 
@@ -534,6 +579,10 @@ def run_real_calibration(
     walk_forward_train: int = 0,
     walk_forward_test: int = 0,
     walk_forward_step: int = 0,
+    partition_mode: str = "auto",
+    development_fraction: float = 0.6,
+    validation_fraction: float = 0.2,
+    l2: float = 1e-6,
 ) -> RealCalibrationReport:
     """Run the T05 calibrated pipeline on a real corpus and apply the RULE C gate.
 
@@ -547,7 +596,14 @@ def run_real_calibration(
     """
     feature_sets, closes = load_corpus(corpus_dir, close_key=close_key)
     examples = _to_examples(feature_sets, closes, label_horizon)
-    split = _partition(examples, development_years, validation_years, oos_years)
+    notes: List[str] = []
+    if model_factory is None:
+        model_factory = _logistic_factory(l2)
+    split = _partition(
+        examples, development_years, validation_years, oos_years,
+        mode=partition_mode, dev_fraction=development_fraction,
+        val_fraction=validation_fraction, notes=notes,
+    )
 
     development = [s.payload for s in split.development]
     validation = [s.payload for s in split.validation]
@@ -558,7 +614,6 @@ def run_real_calibration(
         "oos": len(oos),
     }
 
-    notes: List[str] = []
     wf = _maybe_walk_forward(
         feature_sets, closes, label_horizon, method, model_factory,
         walk_forward_train, walk_forward_test, walk_forward_step, notes,
@@ -673,6 +728,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("--horizon", type=int, default=1)
     parser.add_argument("--method", default="platt", choices=["platt", "isotonic", "histogram"])
+    parser.add_argument(
+        "--partition-mode", default="auto", choices=["auto", "year", "fraction"],
+        help="year (fall back=auto) or fraction split of a single time window",
+    )
+    parser.add_argument("--dev-fraction", type=float, default=0.6)
+    parser.add_argument("--val-fraction", type=float, default=0.2)
+    parser.add_argument(
+        "--l2", type=float, default=1e-6,
+        help="ridge for the IRLS base fit (larger converges faster at p>>n)",
+    )
     parser.add_argument("--wf-train", type=int, default=0, help="walk-forward train size")
     parser.add_argument("--wf-test", type=int, default=0, help="walk-forward test size")
     parser.add_argument("--wf-step", type=int, default=0, help="walk-forward step (0=test size)")
@@ -696,6 +761,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         walk_forward_train=args.wf_train,
         walk_forward_test=args.wf_test,
         walk_forward_step=args.wf_step,
+        partition_mode=args.partition_mode,
+        development_fraction=args.dev_fraction,
+        validation_fraction=args.val_fraction,
+        l2=args.l2,
     )
     print(report.summary())
     if args.out:

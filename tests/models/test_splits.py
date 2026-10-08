@@ -13,6 +13,7 @@ from src.models.splits import (
     SplitError,
     assert_causal,
     chronological_split,
+    fractional_split,
     year_of,
 )
 
@@ -100,6 +101,47 @@ class ChronologicalSplitTest(unittest.TestCase):
                 validation_years=(),
                 oos_years=(),
             )
+
+
+class FractionalSplitTest(unittest.TestCase):
+    def _window(self, n=100):
+        # n hourly samples inside a single day -> one time window, no years change.
+        base = datetime(2026, 6, 24, tzinfo=timezone.utc)
+        return [
+            Sample(timestamp=base.replace(hour=i % 24, day=24 + (i // 24)), payload=i)
+            for i in range(n)
+        ]
+
+    def test_partitions_are_disjoint_and_ordered(self):
+        split = fractional_split(self._window(), 0.6, 0.2)
+        self.assertTrue(split.development and split.validation and split.oos)
+        assert_causal(split)  # must not raise
+        total = len(split.development) + len(split.validation) + len(split.oos)
+        self.assertEqual(total, 100)
+
+    def test_fractions_are_respected(self):
+        split = fractional_split(self._window(), 0.5, 0.25)
+        self.assertEqual(len(split.development), 50)
+        self.assertEqual(len(split.validation), 25)
+        self.assertEqual(len(split.oos), 25)
+
+    def test_oos_is_the_last_partition(self):
+        split = fractional_split(self._window(), 0.6, 0.2)
+        self.assertLess(split.validation[-1].timestamp, split.oos[0].timestamp)
+
+    def test_bad_fractions_rejected(self):
+        for d, v in ((0.0, 0.2), (0.9, 0.2), (1.0, 0.0)):
+            with self.assertRaises(SplitError):
+                fractional_split(self._window(), d, v)
+
+    def test_empty_rejected(self):
+        with self.assertRaises(SplitError):
+            fractional_split([])
+
+    def test_zero_span_rejected(self):
+        one = [Sample(timestamp=datetime(2026, 6, 24, tzinfo=timezone.utc))]
+        with self.assertRaises(SplitError):
+            fractional_split(one)
 
 
 if __name__ == "__main__":
