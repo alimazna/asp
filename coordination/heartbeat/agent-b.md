@@ -488,3 +488,10 @@
 - Lease: T27 decision-grade run (in flight)
 - Progress: 100%
 - Note: F2 fixed (multi-corpus dir refused), 298 tests green; T13 evidential 96/96 closed by D2.
+
+### [2026-10-08 09:45 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 decision-grade DONE (→ T29 Part 2c)
+- Progress: 100%
+- Note: real year partition OOS 2025: ECE 0.00147, brier 0.24970 (skill ~0), WF pooled ECE 0.04535. Verdict probability pending T29. Weak-skill honest negative filed (RULE E).
