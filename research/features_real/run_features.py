@@ -36,6 +36,7 @@ Exit codes: 0 ok, 2 usage/config, 3 missing input or dump binary, 4 validation.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import re
@@ -85,8 +86,14 @@ def _to_secs(ts: int) -> int:
 
 
 def _read_text(path: str) -> str:
-    """Decode a bar file: UTF-16 (MT5 export, BOM) or UTF-8/Dukascopy."""
-    with open(path, "rb") as handle:
+    """Decode a bar file: gzip, UTF-16 (MT5 export, BOM) or UTF-8.
+
+    The committed multi-year Dukascopy corpus ships as deterministic per-year
+    `.csv.gz`; the raw MT5 export is UTF-16 with a BOM; Dukascopy fetch output is
+    UTF-8 (a header may be present).
+    """
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rb") as handle:
         raw = handle.read()
     if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
         return raw.decode("utf-16")

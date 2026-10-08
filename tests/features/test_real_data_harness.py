@@ -219,6 +219,20 @@ class M1FormatTest(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_gzip_corpus_read(self):
+        # The committed multi-year corpus ships as deterministic .csv.gz.
+        import gzip as _gz
+        with tempfile.NamedTemporaryFile("wb", suffix=".csv.gz", delete=False) as fh:
+            fh.write(_gz.compress(
+                b"timestamp,open,high,low,close,volume\n"
+                b"1609714800000,1904.998,1910.898,1903.288,1909.718,0.123445\n"))
+            path = fh.name
+        try:
+            rows = R.load_m1([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(rows[0][:5], (1609714800, 1904.998, 1910.898, 1903.288, 1909.718))
+
 
 if __name__ == "__main__":
     unittest.main()
