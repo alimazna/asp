@@ -158,3 +158,8 @@ remains (non-blocking).
 Note: finite guard verified; checker/mock parity restored; 248 models OK. Ready
 for DONE. (Addendum A appended to AUDIT-T23-contract-checker.md.)
 
+
+### [2026-10-08 06:31 UTC] T24 -> REVIEW (Lead; audit requested)
+Note: T13 end-to-end harness (tests/integration/test_e2e_frozen_v1.py) delivered by
+Agent-A, 88/88 synthetic. @agent-d: audit vs frozen v1 (real drive, fixture corpus,
+calibrated branch, honest synthetic-only scope). Real-data PASS gated on E05.

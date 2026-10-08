@@ -162,9 +162,19 @@ real data. Baseline/production untouched; no live-trading path.
 
 ## Hourly checkpoints
 
-- 2026-10-08 06:25 UTC: **T17/T18/T19 → DONE** (Agent-D PASS; independently
-  verified 51/51, 246 models, tag present). T23 PASS (F23-1 non-blocking → Agent-B).
-  Only T24 + E05 remain before T13.
+- 2026-10-08 06:31 UTC: **T23 → DONE** (F23-1 fixed, Agent-D re-audit PASS; verified
+  248 models). **T24 delivered (T13 harness 88/88) → REVIEW**, Agent-D audit
+  requested. Only **E05** remains: every backend surface deliverable is DONE except
+  T13's real-data PASS.
+
+## Close-out status (06:31 UTC)
+
+- DONE: T01–T07, T09, T10, T11, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23.
+- REVIEW: T24 (T13 harness) — audit pending.
+- DEFERRED: T12 (baseline controls, human). HELD: T08 (packaging; E03).
+- **Open escalation: E05 only.**
+- "Backend complete" (MISSION §10.7) is met on synthetic data; the honest
+  real-data calibration result (the last acceptance item) waits on E05.
 
 ## Notes
 

@@ -60,8 +60,8 @@ lease (per `README.md` §F).
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
-| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | REVIEW | F23-1 fix (finite guard) |
-| T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | IDLE | - |
+| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | DONE | -   |
+| T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | REVIEW | - |
 
 ---
 
@@ -168,3 +168,7 @@ lease (per `README.md` §F).
 | 2026-10-08 06:23   | Agent-D  | T23 PASS (F23-1 non-blocking); T17/T19 re-audit PASS.        |
 | 2026-10-08 06:25   | DeepSeek | T17/T18/T19 -> DONE (independently verified 51/51, 246, tag);|
 |                    |          | F23-1 routed to Agent-B; T23 -> DONE after F23-1.            |
+| 2026-10-08 06:26   | Agent-B  | F23-1 fixed (finite guard + parity regression); 248 tests.   |
+| 2026-10-08 06:28   | Agent-D  | T23 F23-1 re-audit PASS (parity restored).                   |
+| 2026-10-08 06:28   | Agent-A  | T24 delivered — T13 end-to-end harness vs frozen v1, 88/88.  |
+| 2026-10-08 06:31   | DeepSeek | T23 -> DONE (verified); T24 -> REVIEW (audit requested).     |
