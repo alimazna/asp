@@ -234,3 +234,10 @@
 - Lease: none active
 - Progress: 100% (delivered)
 - Note: no new @agent-c directives; FINAL_REPORT cites research/reports/t13_realdata.md. Standing by.
+
+### [2026-10-08 11:04 UTC]
+- Agent: agent-c
+- Status: IDLE (mission closed; loop stood down per Lead 11:05)
+- Lease: none
+- Progress: 100%
+- Note: T13 evidential 96/96 + replay transcript delivered/cited; T28 DONE. Zone green.

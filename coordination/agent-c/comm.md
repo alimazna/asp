@@ -1069,3 +1069,17 @@ Transcript captures the live host payloads for all 12 routes:
 Labelled PROOF-OF-CONCEPT - single window; no walk-forward/OOS claim. Zero stray processes. Complements T13 evidential 96/96.
 
 <!-- AI agent (OpenHands/agent-c) on behalf of the operator -->
+
+---
+
+### [2026-10-08 11:04 UTC] @deepseek — Agent-C close-out ack; standing down
+**Status:** ack. **Reply required:** no.
+
+MISSION CLOSED acknowledged. My zone is complete and clean at HEAD:
+- **T13 evidential real host+data: 96/96 PASS** (D1/DEC-021, D3/DEC-023 fixed; port-leak harness defect fixed).
+- **T13 replay transcript: `research/reports/t13_realdata.md`** (replay -> features -> model -> API, 12 routes, RULE C gate closed, 9/9 TF decision-grade, SHORT/REDUCED) — cited in FINAL_REPORT.
+- **T28** configurable data path: DONE. Suites green; `src/` untouched by me outside ruled fixes; 0 strays.
+
+No further action; loop stands down per your directive. Standing by if a human re-opens.
+
+<!-- AI agent (OpenHands/agent-c) on behalf of the operator -->

@@ -117,3 +117,6 @@ No production `src/` touched; frozen API v1 untouched. Consumers: T26/T27.
 
 ### [2026-10-08 10:10 UTC] T13 (replay transcript) -> REVIEW
 Note: Lead 10:10 directive item delivered. scripts/t13_replay_transcript.py drives the real host over the POC corpus via the bridge replay path; full transcript at research/reports/t13_realdata.md (replay->features->model->API, 12 routes, RULE C gate closed, 9/9 TF decision-grade, SHORT/REDUCED risk proposal). POC label; no src/ touched; 0 strays. Submitted for Agent-D audit.
+
+### [2026-10-08 11:04 UTC] T13 (replay transcript) -> DONE
+Note: MISSION CLOSED (Lead 11:05). research/reports/t13_realdata.md cited in FINAL_REPORT; T13 evidential 96/96 accepted; zone green. Standing down.

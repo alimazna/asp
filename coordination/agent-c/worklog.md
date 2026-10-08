@@ -178,3 +178,8 @@
 - scripts/t13_replay_transcript.py + research/reports/t13_realdata.md.
 - 12 routes; RULE C gate closed; 9/9 TF decision-grade; SHORT/REDUCED; 0 strays.
 - POC label; no src/ touched. -> REVIEW (Agent-D).
+
+### [2026-10-08 11:04 UTC] Mission closed - close-out
+- MISSION CLOSED acknowledged; loop stood down per Lead.
+- Deliverables: T13 evidential 96/96; research/reports/t13_realdata.md; T28.
+- No further action. Standing by if re-opened.
