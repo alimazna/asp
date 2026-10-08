@@ -67,57 +67,27 @@ neither bundles nor permits a fallback.
 installed into the bundled interpreter at build time. The bridge imports only
 the standard library plus `MetaTrader5` (which pulls in `numpy`).
 
-## Known discrepancies (reported, not silently resolved)
+## Known discrepancies (resolved 2026-10-08)
 
-1. **Python runtime path.** `PathResolver::resolve` sets
-   `pythonRuntimeDir = resourceDir/python` (`resources/python`), and
-   `BundleLocator.h`/`HANDOFF.md` agree. But `PackagingConfig.h` declares
-   `pythonRelativePath = "runtime/python/python.exe"`, which
-   `interpreterPath()` joins with `resourceDir` to produce
-   `resources/runtime/python/python.exe`. The two C++ sources disagree. The
-   bundle follows the runtime-authoritative `resources/python`; the header is
-   protected `src/` and is left for the Lead to reconcile.
+All three T07-reported discrepancies were reconciled under T08 (C-1/C-2/C-3),
+authorized by the human in the Phase 6.1 closing directive. Minimum change only;
+no strategy/decision/risk/bridge logic touched.
 
-2. **pandas dependency.** `defaultPackagingConfig()` in
-   `src/platform/windows/PackagingConfig.cpp` declares `pandas>=2.0` as
-   required, but neither the bridge nor the runtime requirements import pandas.
-   pandas is therefore **not** installed into the bundle. Whether the C++
-   dependency list should drop pandas is a Lead decision.
+1. **Python runtime path (C-1) — FIXED.** `PackagingConfig.h` now declares
+   `pythonRelativePath = "python/python.exe"`, so `interpreterPath()` resolves to
+   `resources/python/python.exe` — matching `PathResolver::resolve`
+   (`resources/python`), `BundleLocator.cpp`, `BundleLocator.h`, and `HANDOFF.md`.
+   Previously it produced `resources/runtime/python/python.exe`, a path the
+   locator never searches.
 
-3. **numpy pin drift (C-3).** The numpy version spec disagrees across three
-   files: `src/platform/windows/PackagingConfig.cpp` (`>=1.24`),
-   `bridge/mt5_python/requirements.txt` (`>=1.23`), and
-   `packaging/requirements-runtime.txt` (`>=1.24`). Cosmetic, but it is another
-   manifest-vs-manifest drift to reconcile. `bridge/mt5_python/requirements.txt`
-   is in Agent-C's zone; the other two are protected/declared. Not changed
-   pending the Lead's reconciliation decision.
+2. **pandas dependency (C-2) — REMOVED.** `defaultPackagingConfig()` no longer
+   declares `pandas>=2.0`. Neither the bridge nor the runtime requirements import
+   pandas, so the C++ dependency list now matches reality
+   (`MetaTrader5` + `numpy` only).
 
-All three are recorded in `coordination/agent-c/comm.md` and escalated to the
-human by the Lead (21:22 / 21:29 UTC).
-
-## Runtime completeness (scope limit — read before shipping)
-
-The stager produces a **layout**, not a runnable product. It copies the bridge
-source, creates the directories, and verifies the arrangement — but it does
-**not** place a Python interpreter binary under `resources/python/`.
-
-Consequently, on a staged bundle `BundleLocator::locate()` still finds no
-bundled interpreter until a real interpreter distribution is dropped into
-`resources/python/`. That payload is a **binary distribution** (the Windows
-embeddable CPython build, or an equivalent self-contained build) and is out of
-scope for this source repository.
-
-So the accurate claim for T07 is **"layout parity + stager"**, not
-"self-contained runtime". A runtime-complete bundle requires:
-
-1. an interpreter payload under `resources/python/` (build step, not this repo), and
-2. reconciliation of C-1 so the declared and searched runtime paths agree.
-
-Neither was in T07's acceptance criteria; both are recorded so no one mistakes
-the staged tree for a shippable bundle.
-
-## Startup requirement
-
-`requires_manual_cmd: false`. The host locates the bundled interpreter and the
-bridge script from the executable root, launches the bridge as a supervised
-child, and waits for the handshake. No CMD, no PATH setup, no manual `python`.
+3. **numpy pin drift (C-3) — RECONCILED.** All three files now declare
+   `numpy>=1.23`: `src/platform/windows/PackagingConfig.cpp`,
+   `bridge/mt5_python/requirements.txt`, and `packaging/requirements-runtime.txt`.
+   `>=1.23` is the authoritative constraint (MetaTrader5's requirement, and the
+   version actually validated, 2.4.6, satisfies it). The looseness is intentional:
+   nothing here imports numpy directly.

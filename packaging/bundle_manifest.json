@@ -28,7 +28,7 @@
       "windows": "python.exe",
       "posix": "python3"
     },
-    "note": "A release bundle ships a self-contained interpreter distribution (Windows embeddable build or equivalent). A system interpreter is a development-only fallback and must be requested explicitly. The authoritative bundled location is resources/python/ (PathResolver.cpp, BundleLocator.h, HANDOFF.md); PackagingConfig.h declares 'runtime/python/python.exe', which is a known contradiction recorded in coordination/agent-c/comm.md."
+    "note": "A release bundle ships a self-contained interpreter distribution (Windows embeddable build or equivalent). A system interpreter is a development-only fallback and must be requested explicitly. The authoritative bundled location is resources/python/ (PathResolver.cpp, BundleLocator.h, HANDOFF.md); PackagingConfig.h declares 'python/python.exe', which resolves to resources/python/python.exe, matching the locator (C-1 fixed)."
   },
   "excluded_from_bundle": [
     "__pycache__",

@@ -23,7 +23,7 @@ struct PackagingConfig {
     std::string executableName = "aura_backend_host";
     std::string bridgeRelativePath = "bridge/mt5_python/bridge_service.py";
     std::string requirementsRelativePath = "bridge/mt5_python/requirements.txt";
-    std::string pythonRelativePath = "runtime/python/python.exe";
+    std::string pythonRelativePath = "python/python.exe";
     std::string dataRelativePath = "data";
     std::string logsRelativePath = "logs";
     bool bundlePython = true;         // ship a private interpreter

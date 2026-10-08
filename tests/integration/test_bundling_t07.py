@@ -50,8 +50,8 @@ def main() -> int:
     check("bridgeRelativePath matches manifest",
           f'"{rel["bridge_dir"].split("resources/", 1)[1]}/bridge_service.py"' in pkg_h,
           rel["bridge_dir"] + "/bridge_service.py")
-    check("PackagingConfig pythonRelativePath is runtime/python (KNOWN DRIFT)",
-          'std::string pythonRelativePath = "runtime/python/python.exe";' in pkg_h)
+    check("PackagingConfig pythonRelativePath resolves under resources/python",
+          'std::string pythonRelativePath = "python/python.exe";' in pkg_h)
     check("runtime-authoritative python dir is resources/python",
           '"python"' in pathres and 'resourceDir, "python"' in pathres)
     check("resource dir named resources",

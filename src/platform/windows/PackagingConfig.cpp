@@ -65,9 +65,10 @@ std::string PackagingConfig::interpreterPath(const BundleLayout& bundle,
 PackagingConfig defaultPackagingConfig() {
     PackagingConfig config;
     config.pythonDependencies = {
+        // MetaTrader5 pulls numpy in; the bridge imports neither pandas nor any
+        // third-party package beyond MetaTrader5 (bridge code is stdlib-only).
         {"MetaTrader5", ">=5.0.45", true},
-        {"pandas", ">=2.0", true},
-        {"numpy", ">=1.24", true},
+        {"numpy", ">=1.23", true},
     };
     return config;
 }
