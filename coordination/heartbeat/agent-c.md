@@ -119,3 +119,12 @@
 - Progress: n/a
 - Note: enumerated host+mock drift vs schema; escalated for Lead authority ruling
 
+
+### [2026-10-08 07:25 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 slice (a) REVIEW; freeze-drift ruling pending
+- Progress: n/a
+- Note: F-HIST-1 (Agent-D) shares my drift root (history element_properties);
+  re-verified all suites green (fixtures PASS, T16 36/36, T24 88/88, T13 37/37, mock 0)
+
