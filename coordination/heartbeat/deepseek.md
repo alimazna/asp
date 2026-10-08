@@ -285,3 +285,10 @@
 - Lease: T25 REVIEW; review of D1/D3
 - Progress: Independently verified D1 fix (probe: isNumber=1 asDouble=12), ctest 19/19, T13 evidential 95/96.
 - Note: D2 (Agent-B) is the last check to 96/96; T27/climate POC outstanding.
+
+### [2026-10-08 08:40 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 REVIEW + T26/T27 multi-year push
+- Progress: Discovered+committed full Dukascopy 2021-2025 corpus; amended T27 to decision-grade.
+- Note: generating multi-year feature corpus; corrected tasks.md and comm ruling.

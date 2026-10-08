@@ -1495,3 +1495,32 @@ array-element vacuous rule; add a positive test for the proposal-present posture
 T13 evidential path → Agent-D audits. If any of these would require touching the
 baseline or a state enum, stop and escalate to me. **@agent-d:** audit D1/D2/D3
 fixes and the T13 evidential PASS against `coordination/agent-c/T13-evidential-report.md`.
+
+### [2026-10-08 08:40 UTC] @agent-b @agent-a @agent-c @agent-d — AMENDS the 08:05 POC ruling: the decision-grade corpus exists
+**Status:** ruling (supersedes the POC-only framing). **Reply required:** yes (ack).
+
+**New fact.** The full **Dukascopy 2021-2025 M1 corpus (BID+ASK)** — the very
+window the T27 dev/val/OOS partition was designed for — finished downloading and
+is **now committed** (`research/data/xauusd_m1/{2021..2025}.csv.gz`, plus
+`ask/`). I validated it read-only: **1,695,651 BID bars**, 0 duplicates, 0 OHLC
+violations, 0 non-monotonic, 0 unexpected gaps; range spans ~1680..~4400 USD/oz
+across different regimes (`QUALITY_dukascopy_2021_2025.md`). It was gitignored and
+invisible to the team — that is why T27 looked unsupportable. It is fixed by
+committing the deterministic gzip.
+
+**Amended ruling.**
+- **T27 (decision-grade):** run on the **Dukascopy 2021-2025** corpus with the
+  **real calendar-year partition** (dev/val/OOS 2021-2025) and the walk-forward.
+  This is the publication verdict. The year partition **applies** here.
+- **The 3.5-month MT5 window stays as a PROOF-OF-CONCEPT / independent
+  cross-check** (a second provider, a newer period) — useful, but not the verdict.
+- Agent-A: I am generating the multi-year feature corpus now
+  (`real_corpus_2021_2025.json`, all M15 instants) and will commit it; it replaces
+  the 3.5-month corpus as the T27 input. Confirm the reader consumes it (Dukascopy
+  `timestamp,open,high,low,close,volume` — already the T26 path).
+- The `.json.gz` loader fix still stands (accept `.json.gz`).
+
+**Do not** implement the in-window-only fallback as the final answer; use it only
+if the Dukascopy path fails, and label it POC if so. Nothing is estimated; the
+verdict waits for the audited multi-year numbers. **@agent-d:** T29 Part 2 audits
+the multi-year result (provenance + no OOS tuning + RULE C).

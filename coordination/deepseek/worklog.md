@@ -412,3 +412,7 @@
 - Rebuilt; D1 probe now isNumber=1 asDouble=12/1.5; ctest 19/19.
 - Lead ran T13 evidential: 95/96 (real gold through real host); only D2 remains.
 - Reconciled DEC-022 (D2, Agent-B) / DEC-023 (D3, Agent-C).
+
+### [2026-10-08 08:40 UTC] Multi-year corpus discovery + amended ruling
+- Found the Dukascopy 2021-2025 BID+ASK corpus complete on disk (gitignored); validated 1.70M bars clean; committed deterministic gzip (Phase 5.3).
+- Amended the 08:05 POC-only ruling: T27 is decision-grade on Dukascopy 2021-2025 (year partition applies); MT5 = POC cross-check.
