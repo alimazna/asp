@@ -15,7 +15,7 @@ import sys
 import time
 import urllib.request
 
-REPO = "/workspace/asp"
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 import mock_api  # noqa: E402
 
