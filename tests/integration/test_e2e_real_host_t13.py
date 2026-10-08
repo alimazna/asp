@@ -88,32 +88,39 @@ def wait_for(url: str, attempts: int = 50):
     raise RuntimeError(f"real host did not serve: {last}")
 
 
-def stage_replay_bundle():
-    """Drop the MetaTrader5 replay shim + CSV feed into the host's bundle.
+def ensure_bundle(include_replay: bool = False):
+    """Populate build/resources/bridge/mt5_python from the repo.
 
-    Writes only under build/resources (the packaged layout), never src/. The shim
-    impersonates the Windows-only MetaTrader5 package so the real bridge serves
-    the committed corpus with no terminal and no network. Returns the list of
-    files created so the caller can restore the pristine no-data bundle.
+    The real host locates its bridge as <exe_dir>/resources/bridge/mt5_python/
+    bridge_service.py (PathResolver). A checkout that has not been packaged has no
+    such tree, so the host cannot start. Staging the real bridge sources + (when
+    replaying) the MetaTrader5 shim makes this harness self-contained. Writes only
+    under build/; never src/. Returns files created so replay staging can revert.
     """
     target = os.path.join(os.path.dirname(HOST_BIN), "resources", "bridge",
                           "mt5_python")
     os.makedirs(target, exist_ok=True)
     created = []
-    for src_dir, name in (
-        (os.path.join(REPO, "tests", "integration", "fake_mt5"), "MetaTrader5.py"),
-        (os.path.join(REPO, "bridge", "mt5_python"), "mt5_csv_feed.py"),
-    ):
+    sources = [
+        (os.path.join(REPO, "bridge", "mt5_python", name), name)
+        for name in ("bridge_service.py", "mt5_client.py", "schemas.py",
+                     "mt5_csv_feed.py")
+    ]
+    if include_replay:
+        sources.append((
+            os.path.join(REPO, "tests", "integration", "fake_mt5", "MetaTrader5.py"),
+            "MetaTrader5.py"))
+    for src, name in sources:
         dest = os.path.join(target, name)
         if not os.path.exists(dest):
             created.append(dest)
-        shutil.copy(os.path.join(src_dir, name), dest)
+        shutil.copy(src, dest)
     return created
 
 
 def run_real_data_checks(csv_path: str, schema: dict) -> None:
     """Evidential path: real gold corpus flowing through the real host."""
-    staged = stage_replay_bundle()
+    staged = ensure_bundle(include_replay=True)
     port = free_port()
     env = dict(os.environ)
     env["FAKE_MT5_CSV"] = os.path.abspath(csv_path)
@@ -210,6 +217,10 @@ def main() -> int:
 
     with open(SCHEMA_PATH, "r", encoding="utf-8") as handle:
         schema = json.load(handle)
+
+    # The real host needs its bridge tree next to the binary; stage it so the
+    # harness works in an un-packaged checkout (no-op if already packaged).
+    ensure_bundle(include_replay=False)
 
     port = free_port()
     # No --once: the host stops right after its first cycle and the API would be

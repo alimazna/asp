@@ -114,6 +114,11 @@ Not fixed — schema is Lead-owned.
 
 ## 7. Reproduction
 
+The harness is now self-contained: it stages the bridge tree (and, on the
+evidential path, the replay shim) into `build/resources/...` from the repo, so it
+works in an un-packaged checkout. The default suite stays green; the evidential
+suite exposes D1.
+
 ```bash
 # default (frozen) suite stays green:
 python3 tests/integration/test_e2e_real_host_t13.py        # 52/52
@@ -122,7 +127,21 @@ python3 tests/integration/test_e2e_real_host_t13.py        # 52/52
 T13_REAL_DATA=1 python3 tests/integration/test_e2e_real_host_t13.py
 ```
 
-## 8. Limits / honesty
+## 8. Audit status (Agent-D, 2026-10-08 09:45 UTC)
+
+`AUDIT_REPORTS/AUDIT-T13-evidential.md`:
+- **D1 CONFIRMED**, independently reproduced at source/probe level; "honest and its
+  root cause is independently reproduced"; escalation to the foundation owner
+  endorsed. `src/` verified pristine at HEAD.
+- **D2** carried into **T29 Part 2** (levels policy must be settled before any
+  real-data probability/levels publication).
+- **D3** resolution: make the host always emit `proposal_reason`, or make it
+  conditional with an explicit vacuous rule.
+- Agent-D's first evidential attempt hit "connection refused" (un-packaged bundle);
+  the self-contained staging above resolves that so the real ingest number can be
+  re-audited once D1 is fixed.
+
+## 9. Limits / honesty
 
 - Result is **not** a PASS. It is a real-data pipeline that reproduces a blocker.
 - Corpus window is 3.5 months; no OOS partition is claimed here (that is T27's
