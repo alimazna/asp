@@ -45,11 +45,11 @@ lease (per `README.md` §F).
 | T05 | Calibration metrics     | Agent-B  | Agent-D  | DONE   | -           |
 | T06 | MT5 bridge              | Agent-C  | Agent-D  | DONE   | -           |
 | T07 | Python bundling         | Agent-C  | Agent-D  | DONE   | -           |
-| T08 | Windows packaging       | Agent-C  | Agent-D  | IDLE   | -           |
+| T08 | Windows packaging       | Agent-C  | Agent-D  | DONE   | C-1/C-2/C-3 fixed; 18/18 + 19/19 |
 | T09 | Probability API         | Agent-C  | Agent-D  | DONE   | -           |
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | DONE   | -           |
-| T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
+| T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED (PERMANENT) | E01 closed; controls unavailable |
 | T13 | End-to-end integration (real-data evidential PASS) | Agent-C | All | DONE | 96/96 PASS + replay transcript |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |

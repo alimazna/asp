@@ -15,8 +15,11 @@ RESOLVED.
 - **Your recommendation:** B — proceed; the mission is independent of the controls.
 - **Impact if delayed:** Sprint 1 control comparison stalls (features unaffected).
 - **Blocks:** T12 (only).
-- **Status:** RESOLVED 2026-10-07 21:52 UTC — human chose **proceed without
-  controls**; T12 set to DEFERRED.
+- **Status:** **CLOSED (permanent) 2026-10-08, Phase 6.1.** Human ruled T12
+  permanently deferred: the mission verdict is already SCORE/no-edge; prior
+  controls (base9/baseold) were built on 2021-2025 data while the current corpus
+  is a 2026 3.5-month window, so a direct comparison is impossible. No rebuild,
+  no investigation. Recorded as a permanent limitation in `FINAL_REPORT.md` §6.
 
 ---
 
@@ -47,10 +50,13 @@ RESOLVED.
 - **Your recommendation:** A for C-1/C-3 (runtime correctness), B for C-2 (cosmetic).
 - **Impact if delayed:** Bundled runtime may diverge from the declared contract.
 - **Blocks:** T08/T09 (held).
-- **Status:** OPEN — non-blocking. Only T08 (Windows packaging, HELD) is affected;
-  Agent-C scoped the minimal in-zone resolution (C-1 runtime-path correctness + C-3
-  numpy pin worth fixing, C-2 cosmetic recorded). Not on the critical path to the
-  frozen backend.
+- **Status:** **RESOLVED 2026-10-08, Phase 6.1.** Human authorized the minimal
+  production fix to `src/platform/windows/PackagingConfig.*`. Applied: C-1
+  (python runtime path `runtime/python/python.exe` → `python/python.exe`, now
+  resolves to `resources/python/python.exe`, matching `PathResolver`/`BundleLocator`),
+  C-2 (removed the unused `pandas` dependency), C-3 (numpy pin unified to `>=1.23`
+  across all three manifests). Tests: bundling 18/18, ctest 19/19, models 308 OK,
+  all integration suites green. T08 → DONE.
 
 ---
 

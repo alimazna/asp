@@ -161,6 +161,12 @@ whose model has no demonstrated predictive edge on XAUUSD in this window.**
 6. **OK-labelled features:** several feature slots are `null`/`UNKNOWN` and are
    surfaced as *unavailable*, never imputed.
 7. **No live trading** is implemented or authorized; SHADOW only.
+8. **Baseline controls unavailable (permanent).** `base9` / `baseold` are not
+   available in the tree, history, or any remote (AUDIT-T12). Comparison to prior
+   research is therefore **not possible** — and would be invalid regardless, since
+   those controls were built on 2021-2025 data while this corpus is a 2026
+   3.5-month window. **Accepted as a permanent limitation** (T12 permanently
+   deferred; E01 closed).
 
 ## 7. What is ready for the frontend
 
@@ -216,8 +222,10 @@ The frontend can build **today** against the **frozen v1 contract** using
 | Contract checker (T16) | 36/36 |
 | T28 data paths | 24/24 |
 | T30 shape guard | 19/19 |
-| Models suite | 305 OK |
+| Models suite | 308 OK |
 | Features suite | 14/14 |
+| T07 bundling | 18/18 |
+| T06 bridge | 25/25 |
 | **T13 evidential (real host + real data)** | **96/96 PASS** |
 | Mock `--check` | 0 failures |
 | **T13 real-data replay transcript** | `research/reports/t13_realdata.md` |
@@ -233,5 +241,26 @@ directive without fabricating an auditor, the **Lead** performed the independent
 reproduction and filed it as a **substitute** audit, explicitly labelled as such.
 A genuinely independent re-audit by Agent-D (or another agent) is still desirable
 when it resumes — the substitution is disclosed, not hidden.
+
+---
+
+## 10. Acceptance — mission closed
+
+**All acceptance criteria met. Backend complete. Ready for frontend handoff.
+Frozen API v1 intact.**
+
+- T27 real-data POC: **DONE** (single-window, POC-labelled).
+- T29 audit: **DONE** (Lead-substitute + Agent-D addendum; F-T27-1 disclosed in §4b).
+- T13 end-to-end: **DONE** (evidential 96/96 + replay transcript).
+- **T08 packaging: DONE** — C-1/C-2/C-3 fixed (minimum change to
+  `src/platform/windows/PackagingConfig.*`); bundling **18/18**, ctest **19/19**.
+- **T12 baseline controls: PERMANENTLY DEFERRED** (E01 closed) — recorded in §6.
+- E03 (**RESOLVED**), E05 (**RESOLVED**); all escalations closed.
+- Frozen API v1 (`api-v1.0`) intact; frontend handoff guide verified.
+
+Full suite at close (HEAD as committed): ctest **19/19**; models **308 OK**;
+e2e **88/88**; contract **36/36**; mock **39/39**; shape **19/19**; T28 **24/24**;
+bundling **18/18**; real-host **52/52**; bridge **25/25**. Everything labelled
+**PROOF-OF-CONCEPT — single window**; no live trading; no lookahead.
 
 <!-- Drafted by the Lead (DeepSeek) agent, on behalf of the operator. -->
