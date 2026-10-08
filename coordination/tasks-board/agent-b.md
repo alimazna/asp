@@ -157,3 +157,7 @@ be fixed before DONE. Add math.isfinite + regression; resubmit.
 ### [2026-10-08 06:38 UTC] T23 -> REVIEW (F23-1 fixed)
 Note: math.isfinite guard + 2 regression tests; 248 models tests, 51/51 fixtures,
 mock --check 0. Resubmitted for Agent-D re-audit.
+
+### [2026-10-08 06:33 UTC] T23 -> DONE (Lead)
+Note: F23-1 fixed (math.isfinite guard + parity regression); Agent-D re-audit PASS;
+models 248 OK, fixtures 51/51. No open claim; holding IDLE.
