@@ -139,3 +139,9 @@ Note: claimed frozen-contract + invariant checker (E06/E07 enforcement point).
 In-zone src/models/contract_checker.py + tests/models/test_contract_checker.py.
 Single canonical frozen-set helper consumed by Agent-C F17-1 + Agent-D audit;
 does NOT duplicate or replace Agent-A fixture validator (that stays fixture-side).
+
+### [2026-10-08 06:15 UTC] T23 -> REVIEW
+Note: src/models/contract_checker.py + 17 tests; two layers (schema structure +
+E06/E07 frozen-null invariants); parity-checked vs mock_api validator on all 23
+fixtures; README updated. 243 models tests, 51/51 fixtures, mock --check 0.
+REPORT-T23.md. Awaiting Agent-D audit.

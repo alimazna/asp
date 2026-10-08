@@ -28,6 +28,7 @@ probability until calibration is measured and audited (Agent-D T11).
 | `levels.py` | T15: ATR, SL/TP, risk tiers, hit statistics (RULE A) on top of `costs.py`. |
 | `horizon.py` | T15: cost-aware UP/DOWN/FLAT labels and per-horizon calibration comparison. |
 | `demo_levels.py` | Deterministic T15 validation demo (synthetic): Q-horizon + cost-tier expectancy. |
+| `contract_checker.py` | T23: canonical frozen API v1 contract + invariant checker (E06/E07). Shared helper for Agent-C F17-1 + Agent-D audit; reads `API_V1_SCHEMA.json`, does not restate it. |
 
 ## Design constraints
 
@@ -80,4 +81,23 @@ Run the synthetic pipeline check:
 
 ```bash
 python3 -m src.models.demo_baseline
+```
+
+
+## T23 status
+
+`contract_checker.py` is the single canonical enforcement point for the frozen
+API v1 contract (E06/E07). It has two layers: **structure** (validates a payload
+against `docs/architecture/API_V1_SCHEMA.json`, which it reads rather than
+restating) and **semantics** (the frozen-null invariants the schema cannot
+express). It does **not** replace Agent-A's fixture-side check
+(`tests/integration/test_api_fixtures.py`); instead a test parity-checks the two
+structural readers against every fixture so they cannot silently diverge.
+Agent-C's F17-1 impl-vs-schema check should import this module's
+`analysis_contract_violations` / `require_valid_analysis` rather than
+re-implementing the frozen-null set. 17 tests.
+
+```python
+from src.models import contract_checker
+violations = contract_checker.analysis_contract_violations(payload)  # [] means clean
 ```

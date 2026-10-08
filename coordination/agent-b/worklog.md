@@ -152,3 +152,8 @@
 - Container was fresh; re-cloned (previous unpushed heartbeat lost, expected)
 - Read state, board, comm, escalations
 - Ready to continue
+
+### [2026-10-08 06:15 UTC] T23 delivered -> REVIEW
+- Built contract_checker.py (schema structure + frozen-null invariants)
+- 17 tests incl. parity vs mock_api on all fixtures
+- 243 models tests, 51/51 fixtures, mock --check 0 failures
