@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -91,6 +92,10 @@ def validate_properties(value: Any, spec: dict, where: str) -> None:
     if value is not None and isinstance(value, (int, float)) and not isinstance(
         value, bool
     ):
+        # F22-4b-v: NaN/inf compare false against every bound, so a non-finite
+        # number would slip past min/max. JSON has no NaN literal; reject it.
+        if not math.isfinite(value):
+            raise SchemaError(f"{where}: non-finite number {value!r}")
         if "minimum" in spec and value < spec["minimum"]:
             raise SchemaError(f"{where}: {value} below minimum {spec['minimum']}")
         if "maximum" in spec and value > spec["maximum"]:
@@ -170,60 +175,76 @@ def error_body(code: str, message: str) -> dict:
     return {"error": "true", "code": code, "message": message}
 
 
-def context_obj() -> dict:
+def context_obj(calibrated: bool = False) -> dict:
+    # v1 default is the frozen-null posture: the backend sources no live context
+    # yet, so every field is UNKNOWN/NONE/None (F19-1 fidelity). The calibrated
+    # branch is the only one that carries a populated context.
+    if not calibrated:
+        return {
+            "regime": "UNKNOWN",
+            "h4_bias": "UNKNOWN",
+            "m15_trigger": "UNKNOWN",
+            "mtf_agreement": None,
+            "volatility_state": "UNKNOWN",
+        }
     return {
-        "regime": "RANGE",
-        "h4_bias": "UP",
-        "m15_trigger": "LONG",
-        "mtf_agreement": 0.72,
+        "regime": "TREND_UP",
+        "h4_bias": "BULLISH",
+        "m15_trigger": "UP",
+        "mtf_agreement": None,
         "volatility_state": "NORMAL",
     }
 
 
 def signal_obj(calibrated: bool) -> dict:
+    # Frozen nulls in v1: horizon / confidence_lo / confidence_hi / model_version
+    # stay null even when calibrated (the decision model is not frozen yet).
     return {
-        "direction": "UP",
-        "horizon": "next_4xM15",
-        "probability": 0.63 if calibrated else None,
+        "direction": "UP" if calibrated else "NONE",
+        "horizon": None,
+        "probability": 0.61 if calibrated else None,
         "probability_calibrated": calibrated,
-        "score": 71.0,
-        "confidence_lo": 0.57 if calibrated else None,
-        "confidence_hi": 0.69 if calibrated else None,
-        "model_version": "v1.0" if calibrated else None,
-        "features_contributing": (
-            [{"name": "h4_bias_up", "weight": 0.12}] if calibrated else []
-        ),
+        "score": 0.58 if calibrated else 0.512,
+        "confidence_lo": None,
+        "confidence_hi": None,
+        "model_version": None,
+        "features_contributing": [],
     }
 
 
 def levels_obj() -> dict:
+    # Frozen nulls in v1: levels come from a live risk proposal, which does not
+    # exist on the synthetic path (F19-1; F15-3 T17 freeze).
     return {
-        "entry": 2650.30,
-        "stop_loss": 2646.10,
-        "take_profit": 2658.70,
-        "reward_risk": 2.05,
-        "suggested_risk_pct": 0.5,
-        "sl_method": "atr_1.5x",
-        "tp_method": "rr_2x",
+        "entry": None,
+        "stop_loss": None,
+        "take_profit": None,
+        "reward_risk": None,
+        "suggested_risk_pct": None,
+        "sl_method": None,
+        "tp_method": None,
     }
 
 
 def meta_obj(calibrated: bool, tier: str) -> dict:
     return {
         "coverage_tier": tier,
-        "data_freshness_sec": 3,
+        "data_freshness_sec": None,
         "degraded": False,
-        "score_is_probability": calibrated,
+        # E07: the surfaced value is a raw score, never a calibrated probability,
+        # so this is ALWAYS false in v1. signal.probability_calibrated is the
+        # single source of truth for show-probability-vs-show-score.
+        "score_is_probability": False,
         "disclaimer": DISCLAIMER,
     }
 
 
 def analysis_obj(calibrated: bool, index: int = 0) -> dict:
-    tier = "high" if calibrated else "unknown"
+    tier = "medium" if calibrated else "unknown"
     return {
-        "timestamp": f"2026-10-08T14:{30 - index:02d}:00Z",
+        "timestamp": f"2026-10-07T22:{index:02d}:00Z" if calibrated else None,
         "symbol": "XAUUSD",
-        "context": context_obj(),
+        "context": context_obj(calibrated),
         "signal": signal_obj(calibrated),
         "levels": levels_obj(),
         "meta": meta_obj(calibrated, tier),
@@ -371,6 +392,41 @@ def check(schema: dict) -> int:
     except SchemaError as exc:
         failures += 1
         print(f"[FAIL] error schema: {exc}")
+
+    # F19-4: the default (uncalibrated) mock must match the frozen-null contract
+    # the real backend emits in v1. These are semantics the JSON Schema cannot
+    # express, so they are asserted explicitly.
+    default = build_payloads(schema, False)["GET /api/v1/analysis/latest"]["data"]
+    frozen_nulls = [
+        default["signal"]["horizon"],
+        default["signal"]["confidence_lo"],
+        default["signal"]["confidence_hi"],
+        default["signal"]["model_version"],
+        default["meta"]["data_freshness_sec"],
+        default["context"]["mtf_agreement"],
+        default["timestamp"],
+        *default["levels"].values(),
+    ]
+    if any(v is not None for v in frozen_nulls):
+        failures += 1
+        print("[FAIL] F19-4 frozen-null set present in default analysis payload")
+    else:
+        print("[PASS] F19-4 default payload is the frozen-null posture")
+
+    # E07: score_is_probability is always false in v1 (both branches).
+    e07_ok = all(
+        build_payloads(schema, cal)["GET /api/v1/analysis/latest"]["data"]["meta"][
+            "score_is_probability"
+        ]
+        is False
+        for cal in (False, True)
+    )
+    if not e07_ok:
+        failures += 1
+        print("[FAIL] E07 score_is_probability must be false in both branches")
+    else:
+        print("[PASS] E07 score_is_probability false in both branches")
+
     print(f"{failures} failure(s)")
     return 1 if failures else 0
 

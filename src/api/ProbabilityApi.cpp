@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -41,6 +42,25 @@ std::string reportValue(const std::string& content, const std::string& label) {
         value.pop_back();
     }
     return value;
+}
+
+// First alphabetic word, lowercased, with leading markdown/punctuation and
+// surrounding decoration stripped. The verdict's leading token is the decision
+// ("PASS ...", "NOT PASS", "FAIL ..."); a substring scan would wrongly accept a
+// non-PASS verdict whose prose merely contains the letters "pass".
+std::string leadingWord(const std::string& s) {
+    std::string out;
+    bool started = false;
+    for (char c : s) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isalpha(uc)) {
+            out.push_back(static_cast<char>(std::tolower(uc)));
+            started = true;
+        } else if (started) {
+            break;
+        }
+    }
+    return out;
 }
 
 // "NOT authorised" / "not authorized" -> no publication authorisation.
@@ -199,7 +219,11 @@ ProbabilityApi::Audit ProbabilityApi::applyCalibrationAudit(const std::string& p
                           withholdsPublication(caveatLower) ||
                           withholdsPublication(lowerCopy(content));
 
-    audit.passed = verdictLower.find("pass") != std::string::npos;
+    // F17-0: the verdict's LEADING token decides, not a substring. "PASS",
+    // "PASS (methodology)", "PASSED" open the gate; "NOT PASS", "FAIL (did not
+    // pass)", "PASSING", "NOT PASSING" must not.
+    const std::string verdictToken = leadingWord(verdict);
+    audit.passed = verdictToken == "pass" || verdictToken == "passed";
     // A PASS that withholds publication (synthetic data, E05) does NOT open the
     // probability gate: the value remains a score. Only a PASS that authorises
     // publication unlocks a calibrated probability.

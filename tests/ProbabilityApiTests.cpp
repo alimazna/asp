@@ -233,6 +233,46 @@ TEST_CASE(audit_artifact_with_authorised_pass_opens_the_gate) {
     ::remove(path.c_str());
 }
 
+TEST_CASE(non_pass_verdicts_never_open_the_gate) {
+    // F17-0: a verdict whose prose merely contains the letters "pass" must not
+    // be treated as a PASS. The leading token decides.
+    struct Case {
+        const char* name;
+        const char* verdict;
+    };
+    const Case cases[] = {
+        {"not_pass", "- **Verdict:** NOT PASS\n"},
+        {"fail_did_not_pass", "- **Verdict:** FAIL (did not pass)\n"},
+        {"passing", "- **Verdict:** PASSING is not a verdict we accept\n"},
+        {"not_passing", "- **Verdict:** NOT PASSING\n"},
+    };
+    for (const Case& c : cases) {
+        ProbabilityApi api;
+        const std::string path = writeTempAudit(
+            c.name, std::string("# Audit Report - T11\n") + c.verdict);
+        const ProbabilityApi::Audit audit = api.applyCalibrationAudit(path);
+        CHECK(audit.present);
+        CHECK(!audit.passed);
+        CHECK(!audit.publicationAuthorised);
+        CHECK(!api.calibrationAudited());
+        ::remove(path.c_str());
+    }
+}
+
+TEST_CASE(leading_pass_token_opens_gate_when_publication_authorised) {
+    // "PASS" and "PASSED" as the leading token are the only accept forms.
+    for (const char* verdict : {"- **Verdict:** PASS\n", "- **Verdict:** PASSED\n"}) {
+        ProbabilityApi api;
+        const std::string path = writeTempAudit(
+            "leading_pass", std::string("# Audit Report - T11\n") + verdict +
+                                "- **Publication:** authorised\n");
+        const ProbabilityApi::Audit audit = api.applyCalibrationAudit(path);
+        CHECK(audit.passed);
+        CHECK(audit.publicationAuthorised);
+        ::remove(path.c_str());
+    }
+}
+
 TEST_CASE(missing_audit_artifact_keeps_the_gate_closed) {
     ProbabilityApi api;
     const ProbabilityApi::Audit audit =
