@@ -58,3 +58,30 @@ added **`XAUUSDM1.csv`** (13,588,782 bytes, 100,008 rows) at the **repository ro
   ms-epoch CSV and its dates reconciled with 2021–2025 before it can feed T26/T27.
 
 No code touched. Flagged for the Lead's ruling.
+
+---
+
+# Addendum — RESOLVED (Phase 5.2)
+
+- **Date:** 2026-10-08 09:15 UTC
+- **Resolution:** **explained and largely closed.** The root `XAUUSDM1.csv` is the
+  **operator's original MetaTrader 5 export** (UTF-16, no header). The Lead converted
+  it with `research/data/xauusd_m1/tools/convert_mt5.py` to the canonical
+  `research/data/xauusd_m1/xauusd_m1_real.csv` (ISO ms-… format, checksummed),
+  documented provenance in `README.md`, and committed `QUALITY.md` +
+  `checksums.sha256` + `sample_first_1000.csv`. **E05 is cleared.**
+- **My concerns, re-checked:**
+  - *foreign format* → was the raw export; the converted canonical file is clean and
+    I reproduced it **byte-identically** from this very root file (see
+    `AUDIT-T29-realdata.md` §2).
+  - *2026.06 dates* → real: the operator's window is **2026-06-24 .. 2026-10-08**
+    (broker server time), not the earlier-declared Dukascopy 2021–2025. Correctly
+    surfaced; the T27/T29 reports carry the caveat.
+  - *wrong location* → resolved: the canonical corpus now lives under the layout
+    `data_paths.py` expects; the pipeline consumes it.
+  - *policy (no raw blobs on main)* → **still stands as a minor cleanup point:** the
+    13.6 MB raw upload remains at the repo root. Now that `convert_mt5.py` +
+    `checksums.sha256` + `sample_first_1000.csv` capture provenance, the root blob is
+    redundant and could be `git rm`'d from `main` (history retained) to reduce clone
+    weight. Non-blocking.
+- The earlier MEDIUM item is downgraded to **LOW (cleanup)**.

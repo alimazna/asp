@@ -350,3 +350,12 @@
 - Progress: 100%
 - Note: T30 signed DONE. Stray root XAUUSDM1.csv flagged (MEDIUM). T29 pending T25.
 
+
+
+### [2026-10-08 09:16 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none (T29 Part 2 activates on T27)
+- Progress: 50%
+- Note: T29 Part 1 PASS (corpus+pipeline byte-reproducible). Awaiting T27.
+

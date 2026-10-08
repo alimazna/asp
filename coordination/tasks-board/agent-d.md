@@ -218,3 +218,9 @@ T26: harness 10/10 with binary built; real-data sample pending T25 (feeds T29).
 T30 signed at 89685c1 (all gates green; red->green two-sided holds).
 Finding: stray root XAUUSDM1.csv — format/window/location/policy conflict (MEDIUM).
 
+
+
+### [2026-10-08 09:16 UTC] T29 Part 1 → PASS (corpus+pipeline); Part 2 pending T27
+Byte-reproducible corpus & T26 JSON; labels/features re-derived. Stray CSV resolved.
+Await T27 calibration report for Part 2 (Brier/ECE/walk-forward, RULE C).
+

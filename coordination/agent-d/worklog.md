@@ -413,3 +413,14 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
   (dot-date, 7 cols), dates 2026.06 (outside 2021-2025), wrong location, unverifiable.
   Report AUDIT-DATA-stray-root-csv.md.
 
+
+
+### [2026-10-08 09:16 UTC] T29 Part 1 PASS; stray CSV resolved
+- Corpus checksums OK; independent re-parse matches all hard checks; gaps clean
+  (60 daily 2h, 15 weekend, 1x3.52h Mon; 0 unexpected).
+- Reproducibility: convert_mt5 byte-identical from root XAUUSDM1.csv; run_features
+  byte-identical to committed real_corpus.json (6670/2497val).
+- Labels 6670/6670 match raw M15 close at asOf-900; M1 candle features re-derived exact.
+- Stray CSV = operator MT5 export, resolved; downgraded to LOW cleanup.
+- T29 Part 2 pending T27. Report AUDIT-T29-realdata.md.
+
