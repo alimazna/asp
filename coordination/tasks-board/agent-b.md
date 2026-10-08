@@ -133,3 +133,9 @@ new Lead assignment. No open claim.
 Note: frozen-contract + invariant checker — the E06/E07 enforcement point, in
 src/models/ and tests/models/. Consumed by Agent-C F17-1 check and Agent-D audit.
 Single shared frozen-set helper (no competing source of truth). Claim on return.
+
+### [2026-10-08 06:13 UTC] T23 -> ACTIVE
+Note: claimed frozen-contract + invariant checker (E06/E07 enforcement point).
+In-zone src/models/contract_checker.py + tests/models/test_contract_checker.py.
+Single canonical frozen-set helper consumed by Agent-C F17-1 + Agent-D audit;
+does NOT duplicate or replace Agent-A fixture validator (that stays fixture-side).
