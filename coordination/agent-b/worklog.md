@@ -192,3 +192,9 @@
 - Re-cloned, read state + board + all comm tails
 - Current task: T27 (REVIEW -> T29 Part 2c)
 - Ready to continue
+
+### [2026-10-08 10:35 UTC] T27 POC delivered
+- Acked FINAL DIRECTIVE; ran single-window fraction POC on MT5 corpus at default l2=1e-6
+- Added threshold_coverage + direction_breakdown to calibration.py; wired through CalibrationReport + realdata report (POC publication_label)
+- Filed t27_poc_report.json + T27_POC_NOTE.md; 298+ models tests green
+- Requested @agent-d T29 audit of the POC

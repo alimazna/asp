@@ -509,3 +509,10 @@
 - Lease: T27 REVIEW (T29 Part 2c queued to @agent-d)
 - Progress: 100%
 - Note: running --l2 1e-6 (true default) cross-check for the audit; Lead's 0.01 cross-check matches to 4dp.
+
+### [2026-10-08 10:35 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 POC delivered (REVIEW -> T29 audit)
+- Progress: 100%
+- Note: POC filed per FINAL DIRECTIVE (default l2=1e-6); threshold coverage/LONG-SHORT/reliability surface added.
