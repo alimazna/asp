@@ -60,7 +60,7 @@
         "timeframe": {"enum": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]},
         "observed": {"type": "boolean"},
         "has_closed_bar": {"type": "boolean"},
-        "quality": {"type": "string"},
+        "quality": {"type": "object"},
         "decision_grade": {"type": "boolean"},
         "freshness": {"type": ["object", "null"]},
         "last_successful_update": {"type": ["integer", "null"]}
@@ -73,7 +73,7 @@
       "data_properties": {
         "timeframe": {"type": "string"},
         "observed": {"type": "boolean"},
-        "quality": {"type": "string"}
+        "quality": {"type": "object"}
       }
     },
     "GET /api/v1/analysis/latest": {
@@ -182,17 +182,25 @@
     "GET /api/v1/shadow/positions": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["count"],
-      "data_properties": {
-        "count": {"type": "integer"}
+      "data_type": "array",
+      "element_required": ["position_id", "decision_id", "direction", "state", "shadow_only"],
+      "element_properties": {
+        "position_id": {"type": "string"},
+        "state": {"type": "string"},
+        "entry_price": {"type": ["number", "null"]},
+        "shadow_only": {"type": "boolean"}
       }
     },
     "GET /api/v1/shadow/outcomes": {
       "status": 200,
       "required": ["api", "schema", "data"],
-      "data_required": ["count"],
-      "data_properties": {
-        "count": {"type": "integer"}
+      "data_type": "array",
+      "element_required": ["outcome_id", "position_id", "decision_id", "shadow_only"],
+      "element_properties": {
+        "outcome_id": {"type": "string"},
+        "exit_state": {"type": "string"},
+        "realized_pnl": {"type": ["number", "null"]},
+        "shadow_only": {"type": "boolean"}
       }
     },
     "GET /api/v1/research/status": {

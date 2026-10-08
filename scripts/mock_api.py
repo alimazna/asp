@@ -262,7 +262,7 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                     "timeframe": tf,
                     "observed": True,
                     "has_closed_bar": True,
-                    "quality": "VALID",
+                    "quality": {"state": "VALID", "decision_grade": True},
                     "decision_grade": True,
                     "freshness": {"last_update": 1760000000000},
                     "last_successful_update": 1760000000,
@@ -297,8 +297,31 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                 "risk_bounded_by_guardian": True,
             }
         ),
-        "GET /api/v1/shadow/positions": envelope({"count": 0}),
-        "GET /api/v1/shadow/outcomes": envelope({"count": 0}),
+        "GET /api/v1/shadow/positions": envelope(
+            [
+                {
+                    "position_id": "pos-0001",
+                    "decision_id": "dec-0001",
+                    "direction": "LONG",
+                    "state": "OPEN",
+                    "entry_price": 2400.0,
+                    "shadow_only": True,
+                }
+            ]
+        ),
+        "GET /api/v1/shadow/outcomes": envelope(
+            [
+                {
+                    "outcome_id": "out-0001",
+                    "position_id": "pos-0001",
+                    "decision_id": "dec-0001",
+                    "direction": "LONG",
+                    "exit_state": "TP",
+                    "realized_pnl": 12.5,
+                    "shadow_only": True,
+                }
+            ]
+        ),
         "GET /api/v1/research/status": envelope(
             {
                 "available": True,
@@ -314,7 +337,7 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
     # Snapshot is templated on the timeframe; validate a representative one.
     snapshot = schema["endpoints"]["GET /api/v1/timeframes/{tf}/snapshot"]
     payloads["GET /api/v1/timeframes/{tf}/snapshot"] = envelope(
-        {"timeframe": "M15", "observed": True, "quality": "VALID"}
+        {"timeframe": "M15", "observed": True, "quality": {"state": "VALID", "decision_grade": True}}
     )
     payloads["GET /api/v1/analysis/history"] = envelope(
         [analysis_obj(calibrated, i) for i in range(3)]
@@ -400,7 +423,7 @@ class Handler(BaseHTTPRequestHandler):
             tf = path[len(prefix):-len("/snapshot")]
             self._send(
                 200,
-                envelope({"timeframe": tf, "observed": True, "quality": "VALID"}),
+                envelope({"timeframe": tf, "observed": True, "quality": {"state": "VALID", "decision_grade": True}}),
             )
             return
 
