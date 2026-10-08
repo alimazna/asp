@@ -189,6 +189,91 @@ class TierCoverage:
         return self.accuracy - self.mean_probability
 
 
+def threshold_coverage(
+    probabilities: Sequence[float], outcomes: Sequence[int], threshold: float
+) -> TierCoverage:
+    """Coverage/accuracy of the p >= threshold subset (RULE D honesty tiers).
+
+    This is the decision-grade reading of RULE D: `coverage_analysis` uses fixed
+    low/medium/high bands, whereas the mission asks for the *confident subset* at
+    explicit thresholds (p>=0.55 / 0.60 / 0.65). Both are reported, never merged.
+    An empty subset is returned with count 0 / coverage 0.0 so its absence is
+    visible rather than hidden.
+    """
+    _validate(probabilities, outcomes)
+    n = len(probabilities)
+    members = [(p, y) for p, y in zip(probabilities, outcomes) if p >= threshold]
+    name = f"p>={threshold:.2f}"
+    if not members:
+        return TierCoverage(name, threshold, 1.0, 0, 0.0, 0.0, 0.0)
+    accuracy = sum(y for _, y in members) / len(members)
+    mean_p = sum(p for p, _ in members) / len(members)
+    return TierCoverage(
+        tier=name,
+        lower=threshold,
+        upper=1.0,
+        count=len(members),
+        coverage=len(members) / n,
+        accuracy=accuracy,
+        mean_probability=mean_p,
+    )
+
+
+def threshold_coverage_suite(
+    probabilities: Sequence[float],
+    outcomes: Sequence[int],
+    thresholds: Sequence[float] = (0.55, 0.60, 0.65),
+) -> List[TierCoverage]:
+    """The p>=threshold coverage table, ordered by ascending threshold."""
+    return [threshold_coverage(probabilities, outcomes, t) for t in thresholds]
+
+
+@dataclass(frozen=True)
+class DirectionBreakdown:
+    """LONG vs SHORT conditional calibration and directional accuracy.
+
+    `direction` is the model's call (UP = LONG when calibrated p >= 0.5, DOWN =
+    SHORT below). `accuracy` is the hit rate within that direction's calls;
+    `mean_probability` is the mean calibrated p in the subset (always >= 0.5 for
+    LONG, < 0.5 for SHORT). Empty directions are reported with count 0.
+    """
+
+    direction: str
+    count: int
+    coverage: float
+    accuracy: float
+    mean_probability: float
+    brier: float
+
+
+def direction_breakdown(
+    probabilities: Sequence[float], outcomes: Sequence[int]
+) -> List[DirectionBreakdown]:
+    """Split the sample into the model's LONG (p>=0.5) and SHORT (p<0.5) calls."""
+    _validate(probabilities, outcomes)
+    n = len(probabilities)
+    result: List[DirectionBreakdown] = []
+    for direction, keep in (("LONG", lambda p: p >= 0.5), ("SHORT", lambda p: p < 0.5)):
+        members = [(p, y) for p, y in zip(probabilities, outcomes) if keep(p)]
+        if not members:
+            result.append(DirectionBreakdown(direction, 0, 0.0, 0.0, 0.0, 0.0))
+            continue
+        probs = [p for p, _ in members]
+        ys = [y for _, y in members]
+        hits = sum(1 for p, y in members if (p >= 0.5) == bool(y))
+        result.append(
+            DirectionBreakdown(
+                direction=direction,
+                count=len(members),
+                coverage=len(members) / n,
+                accuracy=hits / len(members),
+                mean_probability=sum(probs) / len(probs),
+                brier=brier_score(probs, ys),
+            )
+        )
+    return result
+
+
 def coverage_analysis(
     probabilities: Sequence[float], outcomes: Sequence[int]
 ) -> List[TierCoverage]:
@@ -238,6 +323,10 @@ class CalibrationReport:
     bins: int
     diagram: List[BinStats]
     coverage: List[TierCoverage]
+    # p>=0.55/0.60/0.65 confident-subset coverage (RULE D, decision-grade tiers).
+    threshold_coverage: List[TierCoverage]
+    # LONG (p>=0.5) vs SHORT (p<0.5) conditional calibration.
+    directions: List[DirectionBreakdown]
 
     def meets_target(self) -> bool:
         """Mission success gate: ECE < 0.05 and Brier better than 0.25."""
@@ -262,4 +351,6 @@ def calibration_report(
         bins=bins,
         diagram=reliability_diagram(probabilities, outcomes, bins=bins),
         coverage=coverage_analysis(probabilities, outcomes),
+        threshold_coverage=threshold_coverage_suite(probabilities, outcomes),
+        directions=direction_breakdown(probabilities, outcomes),
     )

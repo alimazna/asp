@@ -15,9 +15,12 @@ from src.models.calibration import (
     brier_skill_score,
     calibration_report,
     coverage_analysis,
+    direction_breakdown,
     expected_calibration_error,
     maximum_calibration_error,
     reliability_diagram,
+    threshold_coverage,
+    threshold_coverage_suite,
 )
 from src.models.splits import SplitError
 
@@ -142,3 +145,60 @@ class ValidationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThresholdCoverageTest(unittest.TestCase):
+    def test_counts_and_gap_are_exact(self):
+        probs = [0.9, 0.62, 0.58, 0.4, 0.3]
+        outcomes = [1, 1, 0, 1, 0]
+        p55 = threshold_coverage(probs, outcomes, 0.55)
+        self.assertEqual(p55.count, 3)
+        self.assertAlmostEqual(p55.coverage, 3 / 5)
+        self.assertAlmostEqual(p55.accuracy, 2 / 3)
+        self.assertAlmostEqual(p55.mean_probability, (0.9 + 0.62 + 0.58) / 3)
+        p65 = threshold_coverage(probs, outcomes, 0.65)
+        self.assertEqual(p65.count, 1)
+        self.assertEqual(p65.accuracy, 1.0)
+
+    def test_empty_threshold_is_visible_not_hidden(self):
+        tc = threshold_coverage([0.5, 0.4], [1, 0], 0.9)
+        self.assertEqual(tc.count, 0)
+        self.assertEqual(tc.coverage, 0.0)
+        self.assertEqual(tc.accuracy, 0.0)
+
+    def test_suite_is_ordered_and_defaults(self):
+        suite = threshold_coverage_suite([0.9, 0.6, 0.5], [1, 1, 0])
+        self.assertEqual([t.tier for t in suite], ["p>=0.55", "p>=0.60", "p>=0.65"])
+        covs = [t.coverage for t in suite]
+        self.assertEqual(covs, sorted(covs, reverse=True))
+
+
+class DirectionBreakdownTest(unittest.TestCase):
+    def test_long_short_split_is_exhaustive(self):
+        probs = [0.8, 0.6, 0.4, 0.2]
+        outcomes = [1, 0, 0, 1]
+        parts = {d.direction: d for d in direction_breakdown(probs, outcomes)}
+        self.assertEqual(parts["LONG"].count, 2)
+        self.assertEqual(parts["SHORT"].count, 2)
+        self.assertAlmostEqual(parts["LONG"].coverage + parts["SHORT"].coverage, 1.0)
+        self.assertAlmostEqual(parts["LONG"].accuracy, 0.5)
+        self.assertAlmostEqual(parts["SHORT"].accuracy, 0.5)
+
+    def test_empty_direction_reported(self):
+        parts = {d.direction: d for d in direction_breakdown([0.9, 0.7], [1, 1])}
+        self.assertEqual(parts["SHORT"].count, 0)
+        self.assertEqual(parts["SHORT"].coverage, 0.0)
+
+
+class ReportCarriesNewSurfaceTest(unittest.TestCase):
+    def test_calibration_report_populates_thresholds_and_directions(self):
+        probs = [0.9, 0.62, 0.58, 0.4, 0.3]
+        outcomes = [1, 1, 0, 1, 0]
+        r = calibration_report(probs, outcomes)
+        self.assertEqual(len(r.threshold_coverage), 3)
+        self.assertEqual([d.direction for d in r.directions], ["LONG", "SHORT"])
+
+    def test_boundary_at_exactly_one_half_is_long(self):
+        parts = {d.direction: d for d in direction_breakdown([0.5], [1])}
+        self.assertEqual(parts["LONG"].count, 1)
+        self.assertEqual(parts["SHORT"].count, 0)

@@ -51,6 +51,8 @@ from src.models.calibrated import CalibratedReport, run_calibrated
 from src.models.calibration import (
     ECE_FAILURE,
     ECE_TARGET,
+    BinStats,
+    DirectionBreakdown,
     TierCoverage,
     calibration_report,
 )
@@ -411,6 +413,9 @@ class RealCalibrationReport:
     note: str
     notes: Tuple[str, ...] = field(default_factory=tuple)
     walk_forward: Optional[WalkForwardSummary] = None
+    # Directive labelling: a single-window (fraction) run is PROOF-OF-CONCEPT and
+    # must NOT be sold as out-of-sample. Empty for a multi-year (year) run.
+    publication_label: str = ""
 
     @property
     def ece_oos(self) -> Optional[float]:
@@ -423,6 +428,22 @@ class RealCalibrationReport:
     @property
     def brier_skill_oos(self) -> Optional[float]:
         return self.calibrated_oos.calibration.brier_skill if self.calibrated_oos else None
+
+    @property
+    def directions(self) -> List[DirectionBreakdown]:
+        return list(self.calibrated_oos.calibration.directions) if self.calibrated_oos else []
+
+    @property
+    def threshold_coverage(self) -> List[TierCoverage]:
+        return (
+            list(self.calibrated_oos.calibration.threshold_coverage)
+            if self.calibrated_oos
+            else []
+        )
+
+    @property
+    def reliability_diagram(self) -> List[BinStats]:
+        return list(self.calibrated_oos.calibration.diagram) if self.calibrated_oos else []
 
     def to_dict(self) -> dict:
         def metric(m: Optional[PartitionMetrics]):
@@ -440,17 +461,26 @@ class RealCalibrationReport:
                 "is_failure": m.calibration.is_failure(),
             }
 
+        cal = self.calibrated_oos.calibration if self.calibrated_oos else None
         return {
             "corpus_dir": self.corpus_dir,
             "close_key": self.close_key,
             "label_horizon": self.label_horizon,
             "method": self.method,
+            "publication_label": self.publication_label,
             "n_instants": self.n_instants,
             "n_examples": self.n_examples,
             "partition_sizes": dict(self.partition_sizes),
             "raw_oos": metric(self.raw_oos),
             "calibrated_oos": metric(self.calibrated_oos),
             "coverage": [asdict(c) for c in self.coverage],
+            "reliability_diagram": (
+                [asdict(b) for b in cal.diagram] if cal else []
+            ),
+            "threshold_coverage": (
+                [asdict(c) for c in cal.threshold_coverage] if cal else []
+            ),
+            "directions": [asdict(d) for d in cal.directions] if cal else [],
             "verdict": self.verdict,
             "note": self.note,
             "notes": list(self.notes),
@@ -464,6 +494,8 @@ class RealCalibrationReport:
             f"partitions={self.partition_sizes} horizon={self.label_horizon} "
             f"method={self.method}",
         ]
+        if self.publication_label:
+            lines.append(f"  LABEL: {self.publication_label}")
         if self.calibrated_oos is not None:
             m = self.calibrated_oos.calibration
             lines.append(
@@ -481,6 +513,27 @@ class RealCalibrationReport:
                     f"    tier {tier.tier:<6} coverage={tier.coverage:.3f} "
                     f"n={tier.count} accuracy={tier.accuracy:.3f} "
                     f"mean_p={tier.mean_probability:.3f} gap={tier.gap:+.3f}"
+                )
+            lines.append("  coverage at p>=threshold (RULE D confident subset):")
+            for tc in self.threshold_coverage:
+                lines.append(
+                    f"    {tc.tier:<8} coverage={tc.coverage:.4f} n={tc.count} "
+                    f"accuracy={tc.accuracy:.4f} mean_p={tc.mean_probability:.4f} "
+                    f"gap={tc.gap:+.4f}"
+                )
+            lines.append("  directional (LONG p>=0.5 / SHORT p<0.5):")
+            for d in self.directions:
+                lines.append(
+                    f"    {d.direction:<5} coverage={d.coverage:.4f} n={d.count} "
+                    f"accuracy={d.accuracy:.4f} mean_p={d.mean_probability:.4f} "
+                    f"brier={d.brier:.4f}"
+                )
+            lines.append("  reliability (predicted vs observed):")
+            for b in self.reliability_diagram:
+                lines.append(
+                    f"    bin {b.index:>2} [{b.lower:.1f},{b.upper:.1f}) n={b.count} "
+                    f"pred={b.mean_predicted:.4f} obs={b.empirical_rate:.4f} "
+                    f"gap={b.gap:+.4f}"
                 )
         else:
             lines.append("  OOS: not available (partition empty)")
@@ -625,6 +678,21 @@ def run_real_calibration(
         mode=partition_mode, dev_fraction=development_fraction,
         val_fraction=validation_fraction, notes=notes,
     )
+    # A single observed window split by fraction is NOT out-of-sample evidence:
+    # there is no held-out calendar period. Label it POC and never call it OOS.
+    poc_mode = partition_mode == "fraction" or (
+        partition_mode == "auto"
+        and any("fraction partition" in n for n in notes)
+    )
+    publication_label = (
+        "PROOF-OF-CONCEPT — single window (NOT out-of-sample)" if poc_mode else ""
+    )
+    if poc_mode:
+        notes.append(
+            "single-window fraction split: dev/val/oos come from ONE observed "
+            "window; there is no held-out period. Label PROOF-OF-CONCEPT; do not "
+            "claim walk-forward or out-of-sample."
+        )
 
     development = [s.payload for s in split.development]
     validation = [s.payload for s in split.validation]
@@ -660,6 +728,7 @@ def run_real_calibration(
             note=note,
             notes=tuple(notes),
             walk_forward=wf,
+            publication_label=publication_label,
         )
 
     report: CalibratedReport = run_calibrated(
@@ -685,6 +754,7 @@ def run_real_calibration(
             note="no OOS partition: out-of-sample evidence is required to publish.",
             notes=tuple(notes),
             walk_forward=wf,
+            publication_label=publication_label,
         )
 
     raw_oos = report.raw.get("oos")
@@ -725,6 +795,7 @@ def run_real_calibration(
         note=note,
         notes=tuple(notes),
         walk_forward=wf,
+        publication_label=publication_label,
     )
 
 

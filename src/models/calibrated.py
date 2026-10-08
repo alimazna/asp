@@ -49,6 +49,8 @@ def _metrics(
         n=len(probabilities),
         accuracy=hits / len(probabilities),
         calibration=calibration_report(probabilities, outcomes),
+        probabilities=tuple(probabilities),
+        outcomes=tuple(int(v) for v in outcomes),
     )
 
 

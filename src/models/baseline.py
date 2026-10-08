@@ -37,6 +37,11 @@ class PartitionMetrics:
     n: int
     accuracy: float
     calibration: CalibrationReport
+    # Optional raw material for the T27 publication surface (reliability table,
+    # tier coverage, LONG/SHORT). Defaulted so existing constructors stay valid;
+    # `_metrics` always populates them. Research-only, never a wire field.
+    probabilities: Tuple[float, ...] = ()
+    outcomes: Tuple[int, ...] = ()
 
     def summary(self) -> str:
         return (
@@ -76,6 +81,8 @@ def _evaluate(
         n=len(examples),
         accuracy=accuracy(y, preds),
         calibration=calibration_report(probs, y),
+        probabilities=tuple(probs),
+        outcomes=tuple(int(v) for v in y),
     )
 
 
