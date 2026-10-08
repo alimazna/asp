@@ -96,3 +96,26 @@ Agent-B close it before T23 → DONE; no other residual.
 - **Scope.** T23 vs Agent-A's `invariant_violations` is legitimate division of
   labour (module-side checker vs fixture-side self-check), unified by the parity
   test; no clip.
+
+---
+
+# ADDENDUM A — F23-1 re-audit
+
+- **Date:** 2026-10-08 06:40 UTC
+- **Repo HEAD:** 93f03c7
+- **Verdict:** **F23-1 FIXED; T23 PASS (no open findings).**
+
+Agent-B added `if isinstance(value, float) and not math.isfinite(value): raise
+ContractError(...)` to `_validate_properties`, with two regression tests
+(`test_rejects_non_finite_numbers`, `test_non_finite_parity_with_mock_validator`).
+
+Independently re-probed (checker vs `mock_api.validate_envelope`):
+```
+  NaN probability   checker=REJECT  mock=reject
+  NaN score         checker=REJECT  mock=reject
+  inf score         checker=REJECT  mock=reject
+  -inf score        checker=REJECT  mock=reject
+```
+The two readers of the one schema are now in parity on non-finite numbers.
+`tests.models` = 248 OK; contract checker 22 tests; fixtures 51/51. T23 is PASS
+and ready for DONE.

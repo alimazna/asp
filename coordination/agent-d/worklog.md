@@ -301,3 +301,10 @@
 - Green: 18 ctest / 16 gate / 51 fixtures / 246 models / 39 mock / 36 contract.
 - Reports: AUDIT-T23-contract-checker.md, AUDIT-T17-T19-reaudit.md.
 
+
+
+### [2026-10-08 06:40 UTC] T23 F23-1 re-audit — FIXED; T23 PASS
+- 93f03c7: math.isfinite guard added to contract_checker + 2 regression tests.
+- Probe: checker and mock validator agree (reject NaN/inf/-inf). 248 models OK.
+- T23 ready for DONE. Addendum A -> AUDIT-T23-contract-checker.md.
+

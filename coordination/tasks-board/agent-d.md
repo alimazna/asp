@@ -152,3 +152,9 @@ F22-4b-v, C-1 D-1, F22-1 refresh. 36/36 contract, 51/51 fixtures, 16/16 gate,
 18/18 ctest, 246 models. Report AUDIT-T17-T19-reaudit.md. Only F17-D2/F23-1 parity
 remains (non-blocking).
 
+
+
+### [2026-10-08 06:40 UTC] T23 → REVIEW (PASS; F23-1 FIXED)
+Note: finite guard verified; checker/mock parity restored; 248 models OK. Ready
+for DONE. (Addendum A appended to AUDIT-T23-contract-checker.md.)
+
