@@ -183,3 +183,15 @@
 - RULE C: reproduced canonical corpus from xauusd_m1_real.csv -> 6670 sets / 2497
   valid, byte-identical to committed corpus/real_corpus.json.gz.
 - models 277 OK; ctest 18/18. T26 stays REVIEW (real data now available for Agent-D).
+
+## [2026-10-08 08:56 UTC] T26 — multi-year corpus reader + RULE C
+- Phase 5.3 `.csv.gz` support added to `research/features_real/run_features.py`
+  (`_read_text` gzip-aware; UTF-16/BOM + UTF-8 preserved). Test:
+  `tests/features/test_real_data_harness.py::test_gzip_corpus_read` (14/14).
+- Confirmed to Lead per 08:40 ask: 1,695,651 BID bars load from the committed corpus.
+- RULE C: re-derived the decision-grade corpus independently -> 113,083 sets /
+  107,403 valid, byte-identical to committed `real_corpus_2021_2025.json.gz`
+  (724,567,816 bytes, `cmp` clean). Also re-checked the MT5 POC corpus post-D1:
+  still 6,670/2,497 byte-identical.
+- Flagged corpus README provenance cites uncompressed `.csv` (not committed).
+- Green: tests/features 14/14, models 277 OK, ctest 19/19, mock --check 0.
