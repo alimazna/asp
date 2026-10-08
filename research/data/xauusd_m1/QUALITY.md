@@ -1,6 +1,6 @@
 # XAUUSD M1 — Data Quality Report (operator MT5 export)
 
-- Generated: 2026-10-08T07:47:45+00:00
+- Generated: 2026-10-08T08:00:24+00:00
 - Source: MetaTrader 5 broker export, uploaded by the operator (XAUUSDM1.csv, UTF-16, no header)
 - Converter: tools/convert_mt5.py -> xauusd_m1_real.csv
 - Columns: timestamp,open,high,low,close,volume (MT5 spread column dropped)
@@ -24,3 +24,10 @@
 
 **Verdict: PASS (hard checks) with a price-band WARN — the observed gold range is outside the directive's 1800-3000 band; this is a real market move, not a defect, and the operator's file is authoritative**
 
+## Coverage limitation (read before using these numbers)
+
+This corpus is a **single ~3.5-month window**; it supports a full real-data *proof-of-concept* run, **not** a decision-grade multi-regime walk-forward.
+
+- Only one calendar regime is present, so the T27 chronological development/validation/OOS year partition (2021-2025) does **not** apply. Any split of this window is a **causal, in-window** split; the numbers are in-sample-ish evidence, not out-of-sample proof.
+- A walk-forward at M15 cadence yields very few folds here; the T27 runner degrades honestly (records a note) rather than fabricating folds.
+- The T27 result on this corpus is therefore reported as a **PROOF-OF-CONCEPT**, not the mission's final publication verdict.

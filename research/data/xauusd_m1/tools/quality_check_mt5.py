@@ -130,6 +130,27 @@ def main() -> int:
         verdict = "PASS — no anomalies"
     lines.append(f"**Verdict: {verdict}**")
     lines.append("")
+    lines.append("## Coverage limitation (read before using these numbers)")
+    lines.append("")
+    lines.append(
+        "This corpus is a **single ~3.5-month window**; it supports a full real-data "
+        "*proof-of-concept* run, **not** a decision-grade multi-regime walk-forward."
+    )
+    lines.append("")
+    lines.append(
+        "- Only one calendar regime is present, so the T27 chronological "
+        "development/validation/OOS year partition (2021-2025) does **not** apply. "
+        "Any split of this window is a **causal, in-window** split; the numbers are "
+        "in-sample-ish evidence, not out-of-sample proof."
+    )
+    lines.append(
+        "- A walk-forward at M15 cadence yields very few folds here; the T27 runner "
+        "degrades honestly (records a note) rather than fabricating folds."
+    )
+    lines.append(
+        "- The T27 result on this corpus is therefore reported as a "
+        "**PROOF-OF-CONCEPT**, not the mission's final publication verdict."
+    )
     OUT.write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 1 if hard_fail else 0

@@ -42,3 +42,21 @@ python3 -m src.models.realdata --corpus research/features_real/corpus
 
 T28 resolver: `--corpus` > `AURA_FEATURES_DIR` > `ASTRA_FEATURE_CORPUS` >
 `<repo>/research/features_real`.
+
+## Limitation — bound to the operator's window
+
+This corpus is the **3.5-month, single-regime** window 2026-06-24 .. 2026-10-08.
+T27 calibration on it is a **proof-of-concept**: it proves the real-data pipeline
+runs and calibrates, but a chronological dev/val/OOS year split and a
+decision-grade walk-forward are **not supportable** by this window. The verdict
+must say so; it is not the mission's final publication verdict.
+
+## Using the gzip
+
+The committed artifact is `real_corpus.json.gz`; `src/models/realdata` should
+accept `.json.gz` directly (Agent-B). To use it manually:
+
+```
+gunzip -k research/features_real/corpus/real_corpus.json.gz
+python3 -m src.models.realdata --corpus research/features_real/corpus
+```

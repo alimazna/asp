@@ -126,3 +126,25 @@ absolute UTC label, only on ordering and gaps.
 - **2026-06-24 11:08 .. 2026-10-08 10:30** (broker time).
 - 0 duplicates, 0 OHLC violations, 0 NaN, 0 off-grid timestamps, 0 unexpected gaps.
 - Observed range 3942.48..4696.73 USD/oz.
+
+## Coverage limitation (read before using these numbers)
+
+This corpus is a **single ~3.5-month window** (2026-06-24 .. 2026-10-08), a
+couple of thousand M15 decision instants. It is enough to run the full pipeline
+end-to-end on **real gold** and to produce a **proof-of-concept** calibration
+number — it is **not** enough for a decision-grade, multi-regime walk-forward.
+
+- There is only **one calendar regime** in the window, so a chronological
+  development / validation / OOS split (the T27 year partition, 2021-2025) does
+  **not** apply. Any split of this window is a **causal, in-window** split, and
+  the numbers are **in-sample-ish** evidence, not out-of-sample proof.
+- A walk-forward folded at M15 cadence gives very few folds on ~3.5 months; the
+  T27 runner degrades honestly (records a note) rather than fabricating folds.
+- Therefore the T27 result on this corpus is reported as a **PROOF-OF-CONCEPT**
+  (does the real-data pipeline run and calibrate?), **not** as the mission's
+  final publication verdict. The final verdict requires a multi-year, multi-regime
+  corpus, which this window cannot supply.
+
+This limitation is a property of the operator's uploaded window, not a defect;
+the file is authoritative for what it covers and nothing is extrapolated beyond
+it.
