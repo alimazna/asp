@@ -62,3 +62,13 @@ D-1 tracked (snapshot UNOBSERVED quality string vs object). SIDE-EFFECT: the sch
 correction invalidated 4 Agent-A fixtures (shadow_positions/outcomes count-object;
 quality string) -> 4/51 fixture checks FAIL. Agent-C to refresh mock-derived fixtures
 in-zone (same change that moved the schema), then submit T17 to Agent-D.
+
+### [2026-10-08 06:20 UTC] T17/T19 → ACTIVE (resumed; partial fixes landed)
+Note: container returned after ~7h. Landed F17-0 (leading-verdict RULE C gate),
+F19-1/F19-2/E07 (mock fidelity + score_is_probability always false), F22-4b-v
+(validator NaN guard), schema match for shadow arrays + snapshot quality object,
+and the real-facade impl-vs-schema contract test (F17-1 base). Evidence: mock
+--check 0 failures, T19 39/39, CTest 18/18 (ProbabilityApiTests 16/16).
+Commits: 2f65b27, acc74f7. Open: F17-1 full (consume T22 fixtures + T23 checker),
+F17-2 (tag), D-1 (snapshot quality type, tracked known defect).
+
