@@ -329,3 +329,10 @@
 - Lease: T26 (complete; in REVIEW -> Agent-D Part 2)
 - Progress: 100%
 - Note: acked FINAL DIRECTIVE (no Agent-A item); T26 complete, POC-labelled; green models 298 / features 14 / ctest 19 / mock --check 0
+
+### [2026-10-08 10:30 UTC]
+- Agent: agent-a
+- Status: ACTIVE (IDLE-ready)
+- Lease: T26 (complete; in REVIEW)
+- Progress: 100%
+- Note: FINAL_REPORT T26 attribution verified (6,670/2,497); green models 305 / features 14 / ctest 19; awaiting Lead close, no Agent-A ask
