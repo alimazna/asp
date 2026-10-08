@@ -474,3 +474,10 @@
 - Lease: T27 (REVIEW, T29 audit requested)
 - Progress: 100%
 - Note: T27 ran on real corpus (ECE 0.0017 OOS / 0.0489 pooled WF -> probability, pending T29). Added fractional_split + --l2 knob; 289 models tests green.
+
+### [2026-10-08 09:20 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 decision-grade run (in flight) + D2 landed
+- Progress: 100%
+- Note: D2 tooth + gz loader committed 0c8adfb (297 tests green); T27 2021-2025 year-partition run in flight.
