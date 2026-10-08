@@ -292,3 +292,13 @@
 - Note: T13 slice(a) audit PASS (37/37). Raised material freeze-drift finding
   (host emits undeclared fields on 8/15 routes; suites blind). Awaiting Lead ruling.
 
+
+
+### [2026-10-08 07:20 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 100%
+- Note: F-HIST-1 material finding (history fixture violates frozen-null; suites
+  blind). Confirmed mock-side + host-side shape drift. Awaiting Lead ruling.
+

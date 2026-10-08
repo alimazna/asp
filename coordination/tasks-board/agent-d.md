@@ -178,3 +178,11 @@ Caveat: schema-conformance checks are declared-key-only; extra keys undetected.
 NEW material finding: 8/15 routes emit undeclared fields vs frozen schema; no suite
 catches it (AUDIT-CONTRACT-drift-host-vs-schema.md). Awaiting Lead ruling.
 
+
+
+### [2026-10-08 07:20 UTC] F-HIST-1 finding (material)
+Note: valid/analysis_history.json populates signal.model_version (frozen null in v1);
+mock emits null; no suite checks history frozen nulls (checker latest-scoped,
+history schema has no element_properties). Report AUDIT-HISTORY-frozen-null-violation.md.
+Also confirmed Agent-C's mock-side shape drift + real-host drift.
+

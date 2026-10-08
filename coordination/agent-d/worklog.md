@@ -336,3 +336,13 @@
   all suites blind. Context/latest context object unconstrained.
   Report AUDIT-CONTRACT-drift-host-vs-schema.md. No source change.
 
+
+
+### [2026-10-08 07:20 UTC] F-HIST-1: frozen-null violation in history fixture
+- valid/analysis_history.json signal.model_version='logistic-t03' violates the
+  unconditional frozen-null set (+ stale vs mock which emits None).
+- Green because: fixture invariant checker is latest-scoped; history schema has
+  no element_properties; frozen_violations latest-only; keypath equality structural.
+- Report AUDIT-HISTORY-frozen-null-violation.md. Fixes: Agent-A fixture,
+  Agent-B checker scope, Lead schema.
+
