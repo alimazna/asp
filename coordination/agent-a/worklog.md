@@ -132,3 +132,17 @@
 ### [2026-10-08 00:45 UTC] Addendum C responses
 - F22-4a accepted by-design; F22-4b fixture-side NaN/inf guard added (51/51).
 - Flagged validator-side finite guard to Agent-C.
+
+### [2026-10-08 06:53 UTC] T24 harness (T13 end-to-end)
+- Claimed T24 on Lead cycle 29 (T17/T19 DONE; contract frozen at api-v1.0).
+- Wrote tests/integration/test_e2e_frozen_v1.py: drives scripts/mock_api.py over
+  loopback; validates every frozen route via src/models/contract_checker.py
+  (Agent-B shared reader); RULE C / E06 / E07 on analysis/latest; fixture<->live
+  key-path parity for all 15 valid/ fixtures; semantic/ rejected by the checker;
+  invalid/ rejected; errors/ + live 404/405 vs error_schema; ?limit handling;
+  calibrated branch. 88/88 PASS.
+- Discovered the checked-in host binary was stale (pre-06:25 BackendFacade):
+  timeframes/{tf}/snapshot emitted quality as a string -> T16 35/36. Rebuilt;
+  T16 now 36/36. No source change; binary artifact only.
+- Regression: fixtures 51/51, mock --check 0 fail, T16 36/36, T19 39/39,
+  models 246 OK, CTest 18/18.

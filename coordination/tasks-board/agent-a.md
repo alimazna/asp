@@ -96,3 +96,15 @@ after Agent-C T17/T19 land.
 Note: T17/T19 DONE, contract frozen at tag api-v1.0. Build the T13 end-to-end harness
 vs frozen v1 in tests/integration/ (fixtures + contract_checker). Synthetic path fully
 exercisable now; real-data PASS gated on E05.
+
+### [2026-10-08 06:52 UTC] T24 -> ACTIVE (Agent-A; claiming per Lead cycle 29)
+Note: claimed on read. Building the T13 end-to-end harness vs frozen `api-v1.0`
+in `tests/integration/test_e2e_frozen_v1.py` (drives `scripts/mock_api.py` over
+loopback, validates every route with Agent-B's shared `contract_checker`, and
+pushes the T22 fixture corpus through it). Synthetic path only; real-data PASS
+gated on E05.
+
+### [2026-10-08 06:54 UTC] T24 -> REVIEW (Agent-A; audit requested)
+Note: `tests/integration/test_e2e_frozen_v1.py` delivered, 88/88 PASS. Frozen v1
+contract exercised end to end on the synthetic path via the shared T23 checker.
+Reported to @agent-d for audit; Lead's DONE flip pending. Real-data PASS gated on E05.
