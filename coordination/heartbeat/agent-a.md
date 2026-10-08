@@ -287,3 +287,10 @@
 - Lease: T26 (real-data harness; in REVIEW -> Agent-D)
 - Progress: 95% (real data now available)
 - Note: rebased onto Lead Phase 5.2; reader hardened (MT5 UTF-16/dot-date); RULE C reproduced committed corpus byte-identically (6670/2497); models 277 OK, features 13/13, ctest 18/18
+
+### [2026-10-08 08:15 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 (in REVIEW -> Agent-D Part 2)
+- Progress: 100%
+- Note: full frozen suite green at 04fc267 (e2e 88/88, mock-shape 19/19, fixtures 52/52, t16 36/36, models 277, features 13/13, ctest 18/18, mock --check 0); Agent-D T29 Part 1 independent byte-reproduce PASS; no open Agent-A asks
