@@ -37,6 +37,7 @@ uncalibrated (E05) until the T29 audit signs off.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import os
@@ -118,7 +119,7 @@ def _iter_json_files(corpus_dir: str) -> List[str]:
     paths: List[str] = []
     for root, _dirs, files in os.walk(corpus_dir):
         for name in sorted(files):
-            if name.endswith(".json"):
+            if name.endswith(".json") or name.endswith(".json.gz"):
                 paths.append(os.path.join(root, name))
     return sorted(paths)
 
@@ -132,23 +133,31 @@ def _coerce_rows(doc) -> List[Dict]:
 def load_corpus(
     corpus_dir: str, close_key: str = DEFAULT_CLOSE_KEY
 ) -> Tuple[List[FeatureSet], List[float]]:
-    """Load a corpus directory into ordered (feature_sets, closes).
+    """Load a corpus from a directory or a single file into ordered data.
 
-    Each document is a FeatureSet object (or an array of them) carrying its
-    decision-bar close as a top-level sibling key (`close_key`). Raises
-    `SplitError` on a missing directory, an empty corpus, a missing/non-finite
+    `corpus_dir` may be a directory of `*.json` / `*.json.gz` documents, or a
+    single such file. Each document is a FeatureSet object (or an array of them)
+    carrying its decision-bar close as a top-level sibling key (`close_key`).
+    Raises `SplitError` on a missing path, an empty corpus, a missing/non-finite
     close, or duplicate instants. Never interpolates.
     """
-    if not os.path.isdir(corpus_dir):
-        raise SplitError(f"corpus directory does not exist: {corpus_dir}")
-    paths = _iter_json_files(corpus_dir)
+    if os.path.isfile(corpus_dir):
+        paths = [corpus_dir]
+    elif os.path.isdir(corpus_dir):
+        paths = _iter_json_files(corpus_dir)
+    else:
+        raise SplitError(f"corpus path does not exist: {corpus_dir}")
     if not paths:
         raise SplitError(f"no .json feature files under {corpus_dir}")
 
     rows: List[Tuple[int, FeatureSet, float]] = []
     for path in paths:
-        with open(path, "r", encoding="utf-8") as handle:
-            doc = json.load(handle)
+        if path.endswith(".gz"):
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                doc = json.load(handle)
+        else:
+            with open(path, "r", encoding="utf-8") as handle:
+                doc = json.load(handle)
         for entry in _coerce_rows(doc):
             if not isinstance(entry, dict):
                 raise SplitError(f"{path}: feature entry is not an object")
@@ -745,9 +754,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     corpus = resolve_corpus_dir(args.corpus)
-    if not os.path.isdir(corpus):
+    if not os.path.exists(corpus):
         print(
-            f"no corpus at {corpus}: pass --corpus DIR or set AURA_FEATURES_DIR / "
+            f"no corpus at {corpus}: pass --corpus DIR|FILE or set AURA_FEATURES_DIR / "
             "ASTRA_FEATURE_CORPUS (T25 data has not landed).",
             file=sys.stderr,
         )

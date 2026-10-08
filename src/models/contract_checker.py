@@ -43,15 +43,16 @@ HISTORY_ENDPOINT = "GET /api/v1/analysis/history"
 # calibration; `BACKEND_FRONTEND_API_V1.md` ("Unavailable is not zero") lists
 # them. They populate additively in v1.x, never by removing or retyping.
 FROZEN_NULL_SIGNAL = ("horizon", "confidence_lo", "confidence_hi", "model_version")
-FROZEN_NULL_LEVELS = (
+# DEC-022 (D2): the value levels populate when a real risk proposal exists; the
+# method identifiers are a T15 decision and stay null in v1 regardless.
+FROZEN_VALUE_LEVELS = (
     "entry",
     "stop_loss",
     "take_profit",
     "reward_risk",
     "suggested_risk_pct",
-    "sl_method",
-    "tp_method",
 )
+FROZEN_NULL_LEVELS = FROZEN_VALUE_LEVELS + ("sl_method", "tp_method")
 FROZEN_NULL_META = ("data_freshness_sec",)
 FROZEN_NULL_CONTEXT = ("mtf_agreement",)
 
@@ -204,6 +205,58 @@ def validate_envelope(endpoint: str, spec: Dict[str, Any], payload: Any) -> None
 # --------------------------------------------------------------------------
 
 
+def _proposal_available(data: Dict[str, Any]) -> bool:
+    """True when the payload declares a populated risk proposal.
+
+    `risk/latest` carries an explicit boolean. Analysis surfaces do not, so the
+    posture is inferred from `levels` itself: an all-null levels object is the
+    no-proposal posture (DEC-022 default). A mixed object is left to
+    `_check_levels` to reject, not silently treated as no-proposal.
+    """
+    if data.get("proposal_available") is True:
+        return True
+    levels = data.get("levels")
+    if isinstance(levels, dict):
+        present = [levels[k] for k in FROZEN_VALUE_LEVELS if k in levels]
+        return bool(present) and any(v is not None for v in present)
+    return False
+
+
+def _check_levels(levels: Dict[str, Any], proposal_available: bool) -> List[str]:
+    """Two-sided DEC-022 check on `levels` (the D2 tooth).
+
+    No-proposal posture: every frozen level key must be present and null (the
+    original T17 freeze — unchanged and additive-only). Proposal-available
+    posture: the *value* levels must be present and populated; the method
+    identifiers (`sl_method`/`tp_method`) are still T15 and stay null. A mixed
+    value-level object (some populated, some null) is an incoherent proposal and
+    is rejected in either posture.
+    """
+    out: List[str] = []
+    for key in FROZEN_NULL_LEVELS:
+        if key not in levels:
+            requirement = (
+                "present"
+                if proposal_available and key in FROZEN_VALUE_LEVELS
+                else "present, null"
+            )
+            out.append(f"levels.{key} is absent (must be {requirement})")
+        elif key in FROZEN_VALUE_LEVELS:
+            if not proposal_available and levels[key] is not None:
+                out.append(
+                    f"levels.{key} is non-null in the no-proposal posture "
+                    "(frozen null this release)"
+                )
+            elif proposal_available and levels[key] is None:
+                out.append(f"levels.{key} is null while a proposal is available")
+        elif levels[key] is not None:
+            # sl_method / tp_method: frozen null this release, both postures.
+            out.append(
+                f"levels.{key} is non-null (method identifiers are frozen null)"
+            )
+    return out
+
+
 def frozen_violations(data: Any) -> List[str]:
     """Every frozen-contract invariant an `analysis` object violates (empty=clean).
 
@@ -236,14 +289,16 @@ def frozen_violations(data: Any) -> List[str]:
             elif container[key] is not None:
                 out.append(f"{name}.{key} is non-null (frozen null this release)")
 
+    # DEC-022 (D2): `levels` is conditional on a live proposal. The frozen-null
+    # default is preserved (a decision-less payload is unchanged), but a payload
+    # that advertises an available proposal must *populate* levels. Two-sided:
+    # null-by-default, present-and-populated when a proposal is available.
+    proposal_available = _proposal_available(data)
+
     if not isinstance(levels, dict):
         out.append("levels is missing or not an object")
     else:
-        for key in FROZEN_NULL_LEVELS:
-            if key not in levels:
-                out.append(f"levels.{key} is absent (must be present, null)")
-            elif levels[key] is not None:
-                out.append(f"levels.{key} is non-null (frozen null this release)")
+        out.extend(_check_levels(levels, proposal_available))
 
     if isinstance(meta, dict) and meta.get("score_is_probability") is not False:
         out.append("meta.score_is_probability is not false (E07)")

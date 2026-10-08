@@ -97,10 +97,10 @@ def _corpus_rows(per_year=30):
     return rows
 
 
-def _single_window_rows(n=200):
+def _single_window_rows(n=200, start=None):
     """M15-close instants inside one rolling window (2026) — no year partitions."""
     rows = []
-    start = datetime(2026, 6, 24, tzinfo=timezone.utc)
+    start = start or datetime(2026, 6, 24, tzinfo=timezone.utc)
     for i in range(n):
         ts = int((start + timedelta(minutes=15 * i)).timestamp())
         close = 4000.0 + (5.0 if i % 2 == 0 else -5.0)
@@ -353,6 +353,38 @@ class SingleWindowPartitionTest(unittest.TestCase):
         self.assertAlmostEqual(s["development"] / 199, 0.5, delta=0.02)
         self.assertAlmostEqual(s["validation"] / 199, 0.25, delta=0.02)
         self.assertAlmostEqual(s["oos"] / 199, 0.25, delta=0.02)
+
+
+class GzipCorpusTest(unittest.TestCase):
+    """The committed `.json.gz` corpus must load (Lead directive, T27)."""
+
+    def test_loads_single_json_gz_file(self):
+        import gzip
+
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "corpus.json.gz")
+            with gzip.open(path, "wt", encoding="utf-8") as handle:
+                json.dump(_single_window_rows(50), handle)
+            fs, closes = realdata.load_corpus(path)
+        self.assertEqual(len(fs), 50)
+        self.assertEqual(len(closes), 50)
+
+    def test_loads_gz_in_directory_alongside_plain(self):
+        import gzip
+
+        a = _single_window_rows(20)
+        # Start the second document after the first so instants stay disjoint.
+        b = _single_window_rows(10, start=datetime(2026, 6, 26, tzinfo=timezone.utc))
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(a, d, "a.json")
+            with gzip.open(os.path.join(d, "b.json.gz"), "wt", encoding="utf-8") as h:
+                json.dump(b, h)
+            fs, _ = realdata.load_corpus(d)
+        self.assertEqual(len(fs), 30)
+
+    def test_missing_path_is_an_error(self):
+        with self.assertRaises(realdata.SplitError):
+            realdata.load_corpus("/no/such/file.json.gz")
 
 
 class L2KnobTest(unittest.TestCase):

@@ -275,6 +275,51 @@ class SemanticLayerTest(unittest.TestCase):
         violations = cc.frozen_violations(bad["data"])
         self.assertTrue(any("levels.sl_method" in v for v in violations))
 
+    # DEC-022 / D2: `levels` is conditional on a live proposal.
+
+    def test_populated_levels_accepted_when_proposal_available(self):
+        """Positive posture: a fully-populated value-level object is clean."""
+        good = analysis_default()
+        for key in cc.FROZEN_VALUE_LEVELS:
+            good["data"]["levels"][key] = 1900.0
+        self.assertEqual(cc.frozen_violations(good["data"]), [])
+
+    def test_proposal_available_flag_accepts_populated_levels(self):
+        """Explicit `proposal_available:true` also opens the populated posture."""
+        good = analysis_default()
+        good["data"]["proposal_available"] = True
+        for key in cc.FROZEN_VALUE_LEVELS:
+            good["data"]["levels"][key] = 1900.0
+        self.assertEqual(cc.frozen_violations(good["data"]), [])
+
+    def test_partially_populated_levels_still_rejected(self):
+        """A mixed value-level object is incoherent in either posture."""
+        bad = analysis_default()
+        bad["data"]["levels"]["stop_loss"] = 1900.0  # only one populated
+        violations = cc.frozen_violations(bad["data"])
+        self.assertTrue(violations)
+        self.assertTrue(any("take_profit" in v or "no-proposal" in v for v in violations))
+
+    def test_null_value_level_with_proposal_is_rejected(self):
+        """With a proposal available, a null value level is the reverse violation."""
+        bad = analysis_default()
+        bad["data"]["proposal_available"] = True
+        for key in cc.FROZEN_VALUE_LEVELS:
+            bad["data"]["levels"][key] = 1900.0
+        bad["data"]["levels"]["take_profit"] = None
+        violations = cc.frozen_violations(bad["data"])
+        self.assertTrue(any("take_profit" in v and "null" in v for v in violations))
+
+    def test_method_identifiers_frozen_in_both_postures(self):
+        """sl_method/tp_method stay null even when a proposal is available."""
+        bad = analysis_default()
+        bad["data"]["proposal_available"] = True
+        for key in cc.FROZEN_VALUE_LEVELS:
+            bad["data"]["levels"][key] = 1900.0
+        bad["data"]["levels"]["sl_method"] = "atr"
+        violations = cc.frozen_violations(bad["data"])
+        self.assertTrue(any("sl_method" in v for v in violations))
+
 
 class HistoryScopeTest(unittest.TestCase):
     """F23-2 / AUDIT-HISTORY: the frozen-null set applies per history entry."""
