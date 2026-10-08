@@ -1,0 +1,67 @@
+name: Build Windows .exe
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/qt/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6.5
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: 6.5.1
+          modules: qtbase qtsvg
+          arch: win64_msvc
+          dir: ${{ runner.temp }}\Qt
+          cache: true
+
+      - name: Configure CMake
+        run: |
+          cmake -B build ^
+            -G "Visual Studio 17 2022" ^
+            -A x64 ^
+            -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\x64\6.5.1\msvc2019_64" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DBUILD_ASTRA_DESKTOP=ON
+        working-directory: frontend/qt
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+        working-directory: frontend/qt
+
+      - name: Deploy with windeployqt
+        run: |
+          $exe = "build/bin/Release/astra_desktop.exe"
+          if (-Not (Test-Path $exe)) {
+            Write-Error "Executable not found at $exe"
+            Get-ChildItem -Path build -Recurse -Include "*.exe"
+            exit 1
+          }
+          & "${{ runner.temp }}\Qt\x64\6.5.1\msvc2019_64\bin\windeployqt.exe" --release --no-compiler-runtime --no-svg --no-webengine $exe
+          Write-Host "windeployqt completed for $exe"
+
+      - name: Package deployment folder
+        run: |
+          $deployDir = "build/bin/Release"
+          $zipPath = "build/ASTRA-windows.zip"
+          Compress-Archive -Path "$deployDir\*" -DestinationPath $zipPath -Force
+          Write-Host "Packaged to $zipPath"
+          Get-Item $zipPath | Select-Object Name, Length
+        working-directory: frontend/qt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASTRA-windows
+          path: frontend/qt/build/ASTRA-windows.zip
+          retention-days: 30
+          if-no-files-found: error
