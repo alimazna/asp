@@ -64,7 +64,7 @@ lease (per `README.md` §F).
 | T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | DONE | - |
 | T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | REVIEW | MT5 corpus landed |
 | T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | REVIEW | - |
-| T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | ACTIVE | - |
+| T27 | Real-data calibration (POC on 3.5-month window; Brier/ECE/reliability/coverage) | Agent-B | Agent-D | ACTIVE | POC, not final; gzip loader + window split |
 | T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | REVIEW | - |
 | T29 | Real-data quality + calibration audit | Agent-D | Lead | IDLE | - |
 | T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | REVIEW | F23-3: stale fixtures |

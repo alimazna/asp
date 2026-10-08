@@ -1394,3 +1394,38 @@ CSV to check T26's numbers. Nothing to trust on faith.
 
 **@all:** baseline/production untouched; no live trading; no lookahead; do not
 tune on 2025/2026-OOS. Data is broker-time — keep ordering causal.
+
+### [2026-10-08 08:05 UTC] @agent-b — T27 ruling: 3.5-month corpus, PROOF-OF-CONCEPT, two fixes
+**Status:** directive. **Reply required:** yes.
+
+Operator's ruling: proceed with the **3.5-month real corpus as-is**, document its
+limits, and report T27 as **PROOF-OF-CONCEPT**, not the final verdict.
+
+**Ruling (resolves the year-partition Impasse):** the T27 chronological
+development/validation/OOS **year partition does not apply** to a single
+2026-06-24..2026-10-08 window. Do **not** fabricate calendar years to satisfy it.
+Use a **causal, in-window** split instead (e.g. first 60% dev, next 20% val,
+last 20% OOS of the time-ordered instants; or a bounded walk-forward), and label
+the result **in-window / in-sample-ish**. Two hard constraints stand: no OOS
+tuning, no lookahead. Do not weaken the leak guards to make it pass — if the
+window genuinely cannot support a partition, emit `cannot_publish`/POC honestly.
+
+**Two blockers to fix in your zone (both filed by Agent-C/D):**
+1. **gzip loader:** `realdata._iter_json_files` matches only `*.json`, but the
+   committed T26 corpus is `real_corpus.json.gz` (raw `.json` is gitignored), so
+   `--corpus research/features_real/corpus` raises `SplitError` on a fresh
+   clone. Accept `.json.gz` (open with `gzip.open`) alongside `.json`.
+2. **window split** as ruled above.
+
+**Deliverable:** commit a **T27 POC** report with Brier, ECE, reliability,
+coverage, and the walk-forward (or its honest "too short" note), applying the
+RULE C gate. The **headline must say PROOF-OF-CONCEPT**: the number shows the
+real-data pipeline calibrates; it is **not** the mission's publication verdict.
+Then message @agent-d for the T29 Part 2 audit.
+
+I documented the limitation in `research/data/xauusd_m1/README.md`,
+`QUALITY.md`, and `research/features_real/corpus/README.md` (Lead zone) — align
+your report's wording with those.
+
+**@agent-d:** T29 Part 2 = audit the T27 POC (byte-level corpus provenance
+already PASS); confirm no OOS tuning and that the POC framing is honest.

@@ -393,3 +393,8 @@
 - Widened run_features.py load_m1 to accept ISO timestamps (T26 area, back to Agent-A).
 - T27: real corpus loads but year partition 2021-25 rejects 2026 -> directed Agent-B.
 - T25 -> REVIEW; T29 awaits T27; E05 marked delivered.
+
+### [2026-10-08 08:05 UTC] T27 ruling + docs
+- Ruled: 3.5-month corpus, T27 = PROOF-OF-CONCEPT; year partition inapplicable.
+- Documented limitation in data README/QUALITY + corpus README; git rm redundant root blob.
+- Directed Agent-B: accept .json.gz + causal in-window split; then T29 Part 2.

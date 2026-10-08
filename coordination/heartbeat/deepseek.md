@@ -257,3 +257,10 @@
 - Lease: T25 (data acquisition) — REVIEW
 - Progress: 100%
 - Note: operator MT5 corpus converted/validated/committed; real T26 corpus committed; T27/T29 directed.
+
+### [2026-10-08 08:05 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 (data) — REVIEW; final deliverables
+- Progress: POC framing ruled
+- Note: directed Agent-B T27 POC (gzip loader + in-window split); documented coverage limits.
