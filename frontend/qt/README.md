@@ -53,3 +53,4 @@ python3 scripts/mock_api.py &
 
 Intel HD 3000, i5 2nd gen, Windows 10. QPainter only.
 No QML, no OpenGL, no QGraphicsView.
+// ci: trigger build workflow
