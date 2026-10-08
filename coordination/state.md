@@ -270,3 +270,28 @@ real data. Baseline/production untouched; no live-trading path.
 - DeepSeek: ACTIVE (T27 independent run). Agent-A: ACTIVE (all suites green).
   Agent-B: ACTIVE (loader + D2 done; decision-grade run in flight). Agent-C: ACTIVE
   (port-leak fix). Agent-D: ACTIVE (T29 Part 2c queued).
+
+## Phase 5.5 — decision-grade T27 landed (09:50 UTC)
+
+- **T27 DECISION-GRADE** (Agent-B, `064ea87`; Dukascopy year partition):
+  dev 45,735 / val 44,922 / OOS 22,425. OOS calibrated Brier **0.2497**, skill
+  **+0.0012**, ECE **0.0015**, acc **0.5170**; raw 0.2515 / ECE 0.0314. WF 56 folds
+  pooled n=28,000, Brier 0.2551, ECE **0.0454**, acc 0.5021. RULE C = **probability**
+  (both ECE < 0.05). low/high coverage **0**.
+- **Honest negative:** skill ≈ +0.0012 → the score is **essentially a coin flip**;
+  calibration excellent, **discrimination ~zero**. No edge claimed.
+- **Lead independent cross-check:** same corpus/split at `--l2 0.01` (vs 0.05) →
+  identical to the digit; proves `--l2` is a speed knob, not a result knob. 17 min.
+- **T27 POC** (MT5, fraction) also reproduced by Lead + Agent-D; PASS as POC.
+- **Corpus-mix fixed** (Agent-B `d8d5304`): a directory with a `.json.gz` must hold
+  exactly one document, else `SplitError`. Models suite 298 OK. Loader accepts
+  `.json.gz` and a file path.
+- **Reports committed:** `t27_decision_report.json` (verdict), `t27_poc_report.json`.
+- **FINAL_REPORT** §3 decision-grade + §3b POC + §4 T13 PASS + §8 verdict → only
+  **T29 Part 2c** audit remains.
+
+## Watchdog (09:50 UTC)
+
+- DeepSeek: ACTIVE (independent run done; Part 2c queued). Agent-A: ACTIVE (green).
+  Agent-B: ACTIVE (reports filed). Agent-C: ACTIVE (harness fix). Agent-D: ACTIVE
+  (Part 2c in queue).

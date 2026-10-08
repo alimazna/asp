@@ -310,3 +310,9 @@
 - Status: ACTIVE
 - Lease: T27 independent run; T25 REVIEW
 - Progress: T13 96/96 accepted; report+state updated.
+
+### [2026-10-08 09:50 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T27/T25 review
+- Progress: Independent decision-grade run done; report finalized; Part 2c queued.

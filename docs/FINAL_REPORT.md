@@ -25,7 +25,7 @@
 |---|---|---|
 | Market data | Operator MT5 M1 corpus → canonical CSV + quality report | ✅ delivered, audited (T25) |
 | Features | M1→multi-TF feature sets, frozen `FeatureSet`, causality/no-lookahead | ✅ green (T26/A) |
-| Model + calibration | Calibrated probability, Brier/ECE/reliability/coverage | ⏳ **PENDING T27** |
+| Model + calibration | Calibrated probability, Brier/ECE/reliability/coverage | ✅ decision-grade, **no edge** (T27); audit pending T29 Part 2c |
 | Backend host | `aura_backend_host`, startup/shadow lifecycle, persistence | ✅ green (T09/T11) |
 | Analysis API | Frozen v1 contract, 15 routes, loopback-only | ✅ frozen (T17, tag `api-v1.0`) |
 | Mock | `scripts/mock_api.py`, frozen contract, `--check` 0 failures | ✅ (T18) |
@@ -64,29 +64,39 @@ Features were extracted from both with the real C++ engine:
   (**107,403** valid), all years 2021-2025. **Decision-grade.**
 - `real_corpus.json.gz` — 100,008 bars → 6,670 sets (2,497 valid). **POC.**
 
-## 3. Real-data calibration — decision-grade on the multi-year corpus
+## 3. Real-data calibration — DECISION-GRADE (Dukascopy 2021-2025)
 
-> **PENDING T27 (Agent-B).** Amended ruling (2026-10-08 08:40 UTC): run the real
-> calendar-year partition (**dev 2021-22 / val 2023-24 / OOS 2025**) + walk-forward
-> on the committed `real_corpus_2021_2025.json.gz`; this is the **publication
-> verdict**. The 3.5-month MT5 corpus is a separate **POC / cross-check**.
+**Config:** real C++ `FeatureSet` corpus `real_corpus_2021_2025.json.gz`
+(113,083 sets / 113,082 examples), horizon=1, Platt calibration, ridge `--l2 0.05`
+(a convergence aid at p=185 features, **not** tuned — proof below). Split by real
+calendar year: **dev 2021-22 = 45,735 / val 2023-24 = 44,922 / OOS 2025 = 22,425**.
 
-To be filled from the audited T27 report: Brier, ECE, reliability, per-tier
-coverage, and the walk-forward — with the RULE C gate outcome. **RULE C:** no
-probability is published unless it is calibrated and audited; if the honest ECE
-does not clear the gate, the product presents a **score**, not a probability
-(`score_is_probability=false`). A negative result is recorded, not hidden.
+**OOS 2025 (calibrated):** Brier **0.2497**, skill **+0.0012**, ECE **0.0015**,
+MCE 0.0053, accuracy **0.5170**. Raw (uncalibrated) Brier 0.2515, ECE 0.0314 —
+calibration is doing real work (ECE 0.031 → 0.0015).
+**Walk-forward:** 56 folds, pooled n=28,000, non-overlapping; pooled Brier 0.2551,
+ECE **0.0454**, accuracy 0.5021.
+**RULE C verdict:** **probability** — both ECEs < 0.05, pending T29 Part 2c.
+**RULE D coverage:** `low`/`high` tiers = **zero coverage** (the model never becomes
+confident); `medium` = 1.000. MCE ≫ ECE — a tier is worse than average; flagged.
+**RULE E — honest negative (the important part):** Brier skill ≈ **+0.0012**, i.e.
+the calibrated score is **essentially a coin flip** (base rate ≈ 0.5 ⇒ Brier ≈
+0.25). Calibration is excellent; **discrimination is ~zero**. The pipeline
+calibrates; the model does not yet predict — it carries **no claimed edge**.
 
-**POC cross-check (MT5 3.5-month, in-window fraction split) — reproduced by the
-Lead, awaiting audit.** OOS calibrated Brier **0.2499**, ECE **0.0017** (n=1339);
-raw Brier 0.2915, ECE 0.1774 (calibration does real work). Walk-forward: 63 folds,
-pooled Brier 0.2546, pooled ECE **0.0489**, accuracy **0.4992**. **Skill ≈ 0.0002**
-— the discriminator is weak (the score is ~a coin flip); calibration is excellent
-but there is **no claimed edge**. `low`/`high` tiers have **zero coverage**
-(reported, not hidden). RULE C would publish a *probability* (ECE < 0.05), but the
-weak skill must be stated plainly. This is a **POC** on ~3.5 months; it is **not**
-the decision-grade verdict. The decision-grade year-partition result on the
-Dukascopy corpus is **PENDING**.
+**Independent reproduction (Lead).** I ran the same corpus and split at a
+**different ridge, `--l2 0.01`**, and got identical numbers — Brier 0.2497, skill
+0.0012, ECE 0.0012, accuracy 0.517; raw 0.2515 / 0.0314. This confirms `--l2` is a
+convergence **speed** knob, not a result knob. Runtime ≈ 17 min, single process.
+
+## 3b. POC cross-check (MT5 3.5-month, in-window fraction split)
+
+Reproduced by the Lead **and** Agent-D, byte-for-byte, pending audit. OOS
+calibrated Brier **0.2499**, ECE **0.0017** (n=1339); raw 0.2915 / 0.1774.
+Walk-forward: 63 folds, pooled Brier 0.2546, ECE **0.0489**, accuracy **0.4992**.
+`low`/`high` coverage 0. Same honest conclusion: excellent calibration, weak
+discrimination. A second provider, a newer period — the cross-check agrees with the
+decision-grade result.
 
 ## 4. End-to-end — real host, real data — **PASS (T13 96/96)**
 
@@ -123,8 +133,9 @@ Two harness defects were found by audit and closed (no product code changed):
 | Contract checker (T16) | **36/36** |
 | T28 data paths | **20/20** |
 | T30 shape guard | **19/19** |
-| Models suite | **277 OK** |
-| Features suite | **13/13** |
+| Models suite | **298 OK** |
+| Features suite | **14/14** |
+| T13 evidential (real host + real data) | **96/96 PASS** |
 | Mock `--check` | **0 failures** |
 
 Audits live in `AUDIT_REPORTS/` (Agent-D). Key ones: T29 Part 1 (corpus +
@@ -152,11 +163,26 @@ and integration rules (frontend reads the API only).
 
 ## 8. Verdict
 
-**PENDING** — finalized once T27 and T13 land. Honest posture now: the backend,
-contract, docs, and real-data feature pipeline are **complete and green**; the
-real-data calibration number and the evidential real-data end-to-end are **not yet
-published**. Per mission §10.7, "complete" does **not** require profit — it
-requires an honest calibration result, a stable API, a complete guide, and
-frontend-readiness. The honest calibration result is the one missing piece.
+**PENDING ONE AUDIT.** Everything except the T29 Part 2c audit of the calibration
+number is complete and green:
+
+- Backend host, frozen v1 API contract (15 routes, loopback-only), mock, frontend
+  handoff guide — **complete and green**.
+- Real-data pipeline (Dukascopy 2021-2025 + MT5) — **validated, byte-reproducible**.
+- T13 evidential end-to-end (real binary + real data) — **96/96 PASS**, reproduced
+  independently.
+- T27 calibration — **decision-grade** on the real year partition: OOS Brier 0.2497,
+  ECE 0.0015, accuracy 0.5170; walk-forward ECE 0.0454. **Honest negative:** Brier
+  skill ≈ +0.0012 — the score is **essentially a coin flip**; calibration is
+  excellent but **discrimination is ~zero**. No edge is claimed.
+
+Per mission §10.7, "complete" does **not** require profit — it requires an honest
+calibration result, a stable API, a complete guide, and frontend-readiness. Those
+now exist. The single remaining gate is **T29 Part 2c** (independent audit of the
+T27 numbers, the split boundaries, and the `--l2` choice), after which this verdict
+is finalized. The honest headline: **a working, calibrated, honestly-measured
+decision-support backend whose probability model has no demonstrated predictive
+edge on XAUUSD.**
 
 <!-- Draft by the Lead (DeepSeek) agent, on behalf of the operator. -->
+

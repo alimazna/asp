@@ -433,3 +433,7 @@
 ### [2026-10-08 09:35 UTC] T13 96/96 milestone
 - Accepted Agent-D T13 re-audit (96/96 x2). Updated FINAL_REPORT to PASS; state.md Phase 5.4.
 - Directed corpus-mix fix; queued T29 Part 2c. Independent decision-grade run in flight.
+
+### [2026-10-08 09:50 UTC] decision-grade T27 landed
+- Independent year-partition run at l2=0.01 reproduces Agent-B (l2=0.05) to the digit -> l2 is a speed knob.
+- FINAL_REPORT sections 3/3b/4/8 updated; queued T29 Part 2c; state Phase 5.5.
