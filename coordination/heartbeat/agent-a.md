@@ -273,3 +273,10 @@
 - Lease: T26 (real-data feature harness) -> REVIEW
 - Progress: 85% (real sample pending T25 data)
 - Note: engine-only compute; causal+deterministic; 3/3 new, 252 py OK, ctest 18/18
+
+### [2026-10-08 08:00 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 -> REVIEW (Agent-D)
+- Progress: 90% (real sample pending T25)
+- Note: contract pinned; T27 interop green; 10/10 harness, 277 py, ctest 18/18

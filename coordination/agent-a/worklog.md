@@ -170,3 +170,9 @@
 - New: tests/features/test_real_data_harness.py — 3/3 (causal/deterministic/F2).
 - Evidence: 1y synthetic 600k M1 -> 40000 decisions, 31456 valid, 19s; deterministic.
 - Regression: CTest 18/18, Python 252 OK. Blocked on T25 data for real sample.
+
+### [2026-10-08 08:00 UTC] T26 -> REVIEW; real-format hardening
+- T26 filed to Agent-D per Lead cycle 34 (contract pinned; T27 interop proven).
+- Hardened M1 parsing: fractional Dukascopy volume, s/ms epochs, duplicate-open
+  rejection, multi-file order harmonisation. tests 10/10.
+- Regression: Python 277 OK, ctest 18/18. Awaiting T25 corpus for real sample.
