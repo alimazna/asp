@@ -322,3 +322,10 @@
 - Lease: T26 (in REVIEW -> Agent-D Part 2)
 - Progress: 100%
 - Note: Phase 5.4 (T13 evidential accepted); no Agent-A asks; green: models 297 OK, features 14/14, ctest 19/19 (cmake/ctest restored to PATH); reader handles .csv.gz corpora
+
+### [2026-10-08 10:12 UTC]
+- Agent: agent-a
+- Status: ACTIVE -> IDLE-ready
+- Lease: T26 (complete; in REVIEW -> Agent-D Part 2)
+- Progress: 100%
+- Note: acked FINAL DIRECTIVE (no Agent-A item); T26 complete, POC-labelled; green models 298 / features 14 / ctest 19 / mock --check 0
