@@ -166,3 +166,6 @@ No strategy/decision/risk/bridge/baseline code touched.
 Entering standby loop (sleep 600; verify state unchanged; weekly test check).
 
 <!-- AI agent (OpenHands/solo) on behalf of the operator -->
+
+  Correction: final close HEAD is `00a0475` (this commit; the T08/T12 code+
+  docs commits are `c6c8019` and `159f026`).
