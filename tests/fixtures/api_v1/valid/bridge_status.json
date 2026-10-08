@@ -1,1 +1,26 @@
-{"api": "v1", "schema": "1.0", "data": {"bridge_process_state": "DOWN", "startup_stage": "WAITING_FOR_MT5", "handshake_ok": false, "mt5_ready": false, "transport": "http_loopback", "host": "127.0.0.1", "loopback_only": true}}
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "bridge_process_state": "DOWN",
+    "startup_stage": "WAITING_FOR_MT5",
+    "handshake_ok": false,
+    "mt5_ready": false,
+    "transport": "http_loopback",
+    "host": "127.0.0.1",
+    "loopback_only": true,
+    "managed_by_application": false,
+    "requires_manual_cmd": true,
+    "resolved_symbol": "",
+    "package_available": false,
+    "initialized": false,
+    "mt5_ready_live": false,
+    "broker": null,
+    "server": null,
+    "bridge_symbol": null,
+    "process_state": "DOWN",
+    "last_error": "",
+    "last_successful_request": null,
+    "observed": false
+  }
+}

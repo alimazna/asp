@@ -1,1 +1,10 @@
-{"api": "v1", "schema": "1.0", "data": {"count": 0}}
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "count": 0,
+    "audit_stream_size": 0,
+    "audit_records": [],
+    "active_incidents": []
+  }
+}
