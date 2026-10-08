@@ -368,3 +368,12 @@
 - Progress: 50% (T29 Part 2 pending T27/D1)
 - Note: T13 evidential audited; D1 confirmed + escalated. Awaiting T27 report.
 
+
+
+### [2026-10-08 10:06 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none
+- Progress: 60%
+- Note: T29 Part 2a done — Dukascopy checker defect escalated. Awaiting T27 report.
+

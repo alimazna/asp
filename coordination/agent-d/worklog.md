@@ -432,3 +432,12 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 - D2/D3 plausible, gated behind D1; need T17/Lead rulings; carry into T29 Part 2.
 - Report AUDIT_REPORTS/AUDIT-T13-evidential.md.
 
+
+
+### [2026-10-08 10:06 UTC] T29 Part 2a — Dukascopy checker defect
+- Corpus data PASS (rows/checksums/hard checks re-derived). Defect: quality_check.py
+  check_year sets prev=ts before gap -> r["gaps"] always empty -> "0 unexpected" vacuous.
+- True: 10-19 non-weekend gaps/yr (holidays + ~24h midweek), unreported. FINAL_REPORT
+  cites the false-green. MT5 checker correct (asymmetry).
+- Report AUDIT_REPORTS/AUDIT-T29-dukascopy-corpus.md.
+

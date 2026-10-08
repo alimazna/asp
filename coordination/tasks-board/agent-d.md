@@ -229,3 +229,9 @@ Await T27 calibration report for Part 2 (Brier/ECE/walk-forward, RULE C).
 ### [2026-10-08 09:46 UTC] T13 evidential → audited: D1 CONFIRMED (escalated)
 D1 production JSON number-type bug reproduced independently. D2/D3 need rulings.
 
+
+
+### [2026-10-08 10:06 UTC] T29 Part 2a → corpus PASS, tooling DEFECT (escalated)
+Dukascopy quality_check.py gap loop is dead (prev=ts); "0 unexpected" vacuous.
+Real holiday/24h closures unreported; FINAL_REPORT cites it. Lead-zone fix needed.
+
