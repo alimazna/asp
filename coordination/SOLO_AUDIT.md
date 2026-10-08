@@ -224,6 +224,23 @@ ECE 0.00178, verdict `probability`) and now carries the disclosure note;
 `--valid-only` reproduces **ECE 0.106959 → `report_and_pivot`** exactly matching
 Agent-B's filed `t27_poc_validonly_report.json`.
 
+### Frontend handoff + API freeze (verified, no change needed)
+
+- **Frozen contract:** `docs/architecture/API_V1_SCHEMA.json` — **15 endpoints**,
+  tag **`api-v1.0`** present (`ada0e9f`). Post-tag schema commits (`3d01b98`,
+  `d53da25`, `e2cc9d7`, T30) are **additive only** (declaring previously-undeclared
+  host fields), which the contract's own rule permits; the tag stands.
+- **Machine-checked both sides:** `test_contract_t16.py` validates the **real host**
+  (36/36); `test_mock_api_t19.py` validates the **mock** (39/39);
+  `test_e2e_frozen_v1.py` drives the whole surface end-to-end (88/88);
+  `test_api_fixtures.py` PASS.
+- **Handoff guide:** `docs/frontend/FRONTEND_HANDOFF_GUIDE.md` (271 lines) + the
+  self-contained `docs/frontend/ASTRA_FRONTEND_HANDOFF.md` (362 lines). The display
+  rule is pinned correctly: `signal.probability_calibrated` is the single source of
+  truth, `meta.score_is_probability` is always `false` in v1, and `null`/`UNKNOWN`
+  renders as *unavailable*. Consistent with the F-T27-1 verdict (surface a **score**).
+- **Conclusion:** handoff and freeze are **intact**; no further action.
+
 ---
 
 ## Section 9 — Recommended Next Action
