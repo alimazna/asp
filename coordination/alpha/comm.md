@@ -566,3 +566,96 @@ Once Actions is enabled, the workflow will:
 
 This is an infrastructure blocker, not a code issue. The workflow file is correct and committed. The build cannot start until the human enables Actions for the repository.
 
+
+---
+
+## Windows CI — Latest
+
+**Status:** escalated — cannot monitor/fix without GITHUB_TOKEN
+**Latest commit:** `32a54b40ec` — `ci: trigger Windows build workflow`
+**Latest error:** N/A (no run was triggered or visible)
+**Artifacts:** N/A
+
+### Current state
+
+- Workflow file `.github/workflows/build-windows.yml` is committed and active on GitHub
+- Workflow ID: 378873658, state: active
+- Badge: https://github.com/alimazna/asp/workflows/Build%20Windows%20.exe/badge.svg (returns 200)
+- Latest commit `32a54b4` pushed to main (triggers path filter `frontend/qt/**`)
+- **No workflow runs visible** via unauthenticated API (returns 0 runs)
+
+### Authentication problem
+
+The sandbox has **no GITHUB_TOKEN** available:
+- `GITHUB_TOKEN` env var: empty
+- No `.github_token` file in workspace
+- No GitHub CLI (`gh`) installed
+- All authenticated API calls return **401 Bad credentials**
+
+Without a token, I cannot:
+- See if Actions is actually enabled for the repo
+- List workflow runs (authenticated API required for full run data)
+- Download logs from failed runs
+- Re-trigger workflow_dispatch via API
+- Verify the workflow file was registered correctly after the push
+
+### What IS confirmed (unauthenticated)
+
+✓ Workflow file exists at `.github/workflows/build-windows.yml`
+✓ Workflow is registered on GitHub (id=378873658, state=active)
+✓ Badge returns HTTP 200
+✓ Latest commits are on main (visible without auth)
+
+### What is NOT confirmed (requires auth)
+
+✗ Whether Actions is enabled for the repo
+✗ Whether any run was triggered after the push
+✗ Whether a run failed (or succeeded, or was never queued)
+✗ The content of any failed run logs
+✗ Whether the workflow file syntax is valid (GitHub would reject it silently)
+
+### Scenario analysis
+
+**Scenario A — Actions IS enabled, run triggered but invisible to unauthenticated API:**
+The workflow may have run and failed. I just can't see it. The human can check:
+- https://github.com/alimazna/asp/actions
+- Look for "Build Windows .exe" workflow runs
+- If failed, click the run → view logs → identify the error
+
+**Scenario B — Actions NOT enabled despite earlier report:**
+The human may have thought they enabled it but the setting didn't stick. Check:
+- https://github.com/alimazna/asp/settings/actions
+- Should show "Enabled" for the repository
+
+**Scenario C — Workflow file has a syntax error:**
+GitHub Actions would silently ignore a malformed workflow. But the API shows it as `active` with id 378873658, which means it was parsed successfully at registration time. This is unlikely to be the issue.
+
+### What the human should do
+
+1. Check if the workflow ran:
+   https://github.com/alimazna/asp/actions
+
+2. If a run failed, view the logs and identify the error
+
+3. If no run appeared at all, Actions may still be disabled:
+   https://github.com/alimazna/asp/settings/actions
+
+4. If a run failed with a build error, share the error and I can fix it
+   (I have access to fix `.github/workflows/build-windows.yml` and `frontend/qt/`)
+
+### What I need to continue
+
+A GitHub Personal Access Token (PAT) with `repo` scope, written to a file in the workspace that I can read. Then I can:
+- Authenticate API calls
+- See run status and logs
+- Trigger workflow_dispatch if needed
+- Diagnose and fix failures autonomously
+
+### Escalation
+
+This task cannot proceed without either:
+- A GITHUB_TOKEN in the environment, OR
+- The human checking the Actions tab and reporting the error
+
+The workflow file and all fix commits are ready. The build logic is sound (Qt 6.5.3, pinned deps, correct paths). It just needs a token to monitor and a running Actions environment to execute.
+
