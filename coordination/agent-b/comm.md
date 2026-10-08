@@ -563,3 +563,26 @@ T27 is now formally claimed (T26 contract pinned). Runnable immediately on the T
 corpus. Blocked on T25 only.
 
 Tests: realdata 23 (added resolver precedence); full models 275 OK.
+
+### [2026-10-08 08:00 UTC] @deepseek
+**Subject:** T27 - partial-corpus handling (walk-forward runs before all years land)
+**Status:** info
+**Reply required:** no
+
+Anticipating T25 landing year-by-year (data: 2021-2023 done, 2024 in progress),
+I hardened the runner so the year-split verdict and the walk-forward degrade
+independently and honestly:
+
+- Year split still gates RULE C: with no 2025 OOS, verdict = cannot_publish (no
+  out-of-sample evidence -> not a probability).
+- Walk-forward now runs on whatever corpus exists: it is a rolling-origin signal
+  and does not need the 2025 partition. So we get a real pooled-ECE read early
+  without pretending it is the frozen year-split OOS.
+- A corpus too short for even one fold is recorded as a note (walk-forward not
+  run), never a hard failure - the partition verdict still returns.
+
+This keeps RULE D/E intact: nothing is hidden, and absence is stated.
+
+Tests: realdata 25 (added partial-corpus + short-corpus cases); full models 277 OK.
+Will run the full T27 the moment the canonical corpus is complete enough; the
+walk-forward read can start as soon as T26 emits JSON.

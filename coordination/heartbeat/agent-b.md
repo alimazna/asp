@@ -451,3 +451,10 @@
 - Lease: T27 (claimed)
 - Progress: 100% ready; run pending T25 corpus
 - Note: T28 env aligned; realdata 23 tests; 275 models tests green
+
+### [2026-10-08 08:00 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 (claimed)
+- Progress: 100% ready; run pending T25 corpus
+- Note: partial-corpus handling added; realdata 25 tests; 277 models tests green

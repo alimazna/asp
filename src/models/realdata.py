@@ -481,6 +481,29 @@ def _to_examples(
     return build_labeled_examples(feature_sets, closes, horizon=label_horizon)
 
 
+def _maybe_walk_forward(
+    feature_sets, closes, label_horizon, method, model_factory,
+    train, test, step, notes,
+) -> Optional[WalkForwardSummary]:
+    """Run the walk-forward when configured; degrade honestly if the corpus is short.
+
+    A corpus that is too short for even one fold is recorded as a note, not raised:
+    the caller still gets the partition verdict. This keeps the runner usable on a
+    partial corpus (e.g. T25 landing year by year) without hiding the fact that the
+    walk-forward could not run.
+    """
+    if train <= 0 or test <= 0:
+        return None
+    try:
+        return walk_forward_calibration(
+            feature_sets, closes, label_horizon=label_horizon, method=method,
+            model_factory=model_factory, train_size=train, test_size=test, step=step,
+        )
+    except SplitError as exc:
+        notes.append(f"walk-forward not run (corpus too short): {exc}")
+        return None
+
+
 def _partition(
     examples: Sequence[LabeledExample],
     development_years: Sequence[int],
@@ -536,6 +559,11 @@ def run_real_calibration(
     }
 
     notes: List[str] = []
+    wf = _maybe_walk_forward(
+        feature_sets, closes, label_horizon, method, model_factory,
+        walk_forward_train, walk_forward_test, walk_forward_step, notes,
+    )
+
     if not development or not validation:
         note = (
             "cannot fit/calibrate: development and/or validation partition is "
@@ -555,6 +583,7 @@ def run_real_calibration(
             verdict=CANNOT_PUBLISH,
             note=note,
             notes=tuple(notes),
+            walk_forward=wf,
         )
 
     report: CalibratedReport = run_calibrated(
@@ -579,25 +608,13 @@ def run_real_calibration(
             verdict=CANNOT_PUBLISH,
             note="no OOS partition: out-of-sample evidence is required to publish.",
             notes=tuple(notes),
+            walk_forward=wf,
         )
 
     raw_oos = report.raw.get("oos")
     calibrated_oos = report.calibrated.get("oos")
     if calibrated_oos is None:
         raise SplitError("calibrated report is missing the OOS partition")
-
-    wf = None
-    if walk_forward_train > 0 and walk_forward_test > 0:
-        wf = walk_forward_calibration(
-            feature_sets,
-            closes,
-            label_horizon=label_horizon,
-            method=method,
-            model_factory=model_factory,
-            train_size=walk_forward_train,
-            test_size=walk_forward_test,
-            step=walk_forward_step,
-        )
 
     ece = calibrated_oos.calibration.ece
     verdict, note = rule_c_verdict(ece)

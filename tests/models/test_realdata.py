@@ -271,6 +271,30 @@ class WalkForwardTest(unittest.TestCase):
                     *realdata.load_corpus(d), train_size=100, test_size=20
                 )
 
+    def test_partial_corpus_cannot_publish_but_still_walk_forwards(self):
+        """Year-split OOS empty (corpus stops 2023) but walk-forward still runs."""
+        rows = _corpus_rows(per_year=40)
+        rows = [r for r in rows if datetime.fromtimestamp(
+            r["asOfBarOpenSec"], tz=timezone.utc).year <= 2024]
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            report = realdata.run_real_calibration(
+                d, walk_forward_train=60, walk_forward_test=20
+            )
+        self.assertEqual(report.verdict, realdata.CANNOT_PUBLISH)  # no 2025 OOS
+        self.assertIsNotNone(report.walk_forward)  # rolling signal still available
+        self.assertGreaterEqual(len(report.walk_forward.folds), 1)
+
+    def test_short_corpus_records_walk_forward_unavailable(self):
+        rows = _corpus_rows(per_year=1)  # 5 instants
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(rows, d)
+            report = realdata.run_real_calibration(
+                d, walk_forward_train=100, walk_forward_test=20
+            )
+        self.assertIsNone(report.walk_forward)
+        self.assertTrue(any("walk-forward not run" in n for n in report.notes))
+
     def test_run_real_calibration_includes_walk_forward(self):
         rows = _corpus_rows(per_year=40)
         with tempfile.TemporaryDirectory() as d:
