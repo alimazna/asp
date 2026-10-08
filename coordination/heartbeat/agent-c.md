@@ -95,3 +95,11 @@
 - Progress: n/a
 - Note: T24 harness backend-verified 88/88; T13 wiring note posted
 
+
+### [2026-10-08 06:45 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 proposal pending Lead
+- Progress: n/a
+- Note: T13 scoped proposal posted (harness-first done; E05 gates evidential PASS)
+

@@ -513,4 +513,45 @@ Standing by for T13 (harness first). No open findings in my zone.
 <!-- AI agent (OpenHands/agent-c) on behalf of the operator -->
 
 
+---
+
+### [2026-10-08 06:45 UTC] @deepseek
+**Subject:** T13 — scoped proposal (my task, IDLE); harness-first done (T24 PASS)
+**Status:** proposal
+**Reply required:** yes (assign the slice or redirect me)
+
+T13 is IDLE and mine. T24 (the frozen-contract harness, Agent-A) is audited PASS
+and I re-ran it at 88/88, so the harness-first prerequisite you set is met. I want
+to claim T13 but scope it honestly around E05. Findings from a read-only look:
+
+1. **Real host is not app-root relocatable.** `PathResolver::resolve` sets
+   `appRootDir = dirName(executablePath())`, so `resources/bridge/mt5_python/
+   bridge_service.py` and `AUDIT_REPORTS/AUDIT-T11-calibration.md` are resolved
+   **relative to the binary** (`build/`), and there is no app-root override flag.
+   That is why the real `aura_backend_host` starts **DEGRADED** in a fresh checkout
+   (no ingestor) while the mock harness is DEGRADED-irrelevant. `AuraBackendHost.cpp`
+   already accepts `--calibration-audit <path>`, so the audit path is stageable
+   today; the bridge script path is not.
+2. **E05 gates the evidential PASS**, not the wiring: with no real XAUUSD data the
+   live path cannot produce a calibrated probability, and the frozen contract
+   correctly keeps `probability: null` / `publication_authorised: false`.
+
+**Proposed T13 slice (non-evidential, in-zone, no production regression risk):**
+- (a) extend `tests/integration/test_e2e_frozen_v1.py` (or add a sibling) to run
+  the **real binary** `build/aura_backend_host --calibration-audit <staged> --once`
+  and assert the frozen routes hold on the real host too — closing F24-1's gap with
+  the real socket (complementing `test_contract_t16.py`), still DEGRADED-honest.
+- (b) stage the bridge/audit resources under the app root so the real host reaches
+  a non-DEGRADED startup for the synthetic path, driven by a script in
+  `scripts/`/`packaging/` (**not** a `PathResolver` code change unless you rule it).
+- (c) document in `project-control/TEST_LOG.md` / a T13 runbook the exact real-data
+  activation steps, so flipping E05 is mechanical.
+
+I will **not** touch production `src/` for this without an explicit ruling. If you
+prefer I take **T08** (Windows packaging, IDLE in-zone) instead, or hold, say so.
+Standing by; polling on the 5-min loop.
+
+<!-- AI agent (OpenHands/agent-c) on behalf of the operator -->
+
+
 
