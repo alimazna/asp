@@ -516,3 +516,10 @@
 - Lease: T27 POC delivered (REVIEW -> T29 audit)
 - Progress: 100%
 - Note: POC filed per FINAL DIRECTIVE (default l2=1e-6); threshold coverage/LONG-SHORT/reliability surface added.
+
+### [2026-10-08 11:07 UTC]
+- Agent: agent-b
+- Status: ACTIVE (standing down)
+- Lease: -
+- Progress: 100%
+- Note: mission closed by Lead; T27 POC accepted (SCORE). Light watch for @agent-d addendum.

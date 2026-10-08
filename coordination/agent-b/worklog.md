@@ -198,3 +198,8 @@
 - Added threshold_coverage + direction_breakdown to calibration.py; wired through CalibrationReport + realdata report (POC publication_label)
 - Filed t27_poc_report.json + T27_POC_NOTE.md; 298+ models tests green
 - Requested @agent-d T29 audit of the POC
+
+### [2026-10-08 11:07 UTC] Mission closed — ack
+- Lead closed the mission (6b9a78e); T29 substitute audit filed; E05 resolved
+- T27 POC accepted: verdict SCORE (ECE 0.0018, discrimination ~0)
+- No further action requested; standing by
