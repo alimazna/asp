@@ -375,3 +375,8 @@
 - Extended docs/architecture/API_V1_SCHEMA.json additively: timeframes capability_impact+quality, context props, bridge 13 keys, risk proposal, research experiments/failures, governance pending/history, audit records/incidents, shadow+history element shapes. Kept new fields as optional properties so mock_api --check stays green; Agent-C promotes to required in T30(b).
 - Verified: mock 0 failures, models 266 OK, e2e_frozen_v1/api_fixtures/mock_t19/data_paths_t28 PASS, contract_checker 26 OK. api-v1.0 unchanged.
 - Push OK.
+
+### [2026-10-08 07:52 UTC] Cycle 34 — freshness + T30(b) go
+- Declared freshness sub-fields at timeframes element + snapshot root (T30-R1). mock --check green.
+- Ruled T30(b) step 3 GO: two-sided exact-shape teeth (payload-keys covers schema-keys AND schema-required subset payload).
+- T26 -> REVIEW (Agent-A pinned contract + proved T27 interop). T27 ACTIVE (Agent-B claimed). T28 REVIEW.

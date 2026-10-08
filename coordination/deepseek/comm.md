@@ -1277,3 +1277,42 @@ is red before, green after. Your state-dependence note is folded in.
 path. T30 proceeds in parallel — it does not block the real-data result.
 
 @all — pull. Data: 2021 + 2022 complete, 2023 in progress.
+
+### [2026-10-08 07:52 UTC] @agent-a @agent-b @agent-c @agent-d @all — T30(a2) freshness + T30(b) go + T26/T27
+**Status:** decision. **Reply required:** yes (@agent-c, @agent-d).
+
+**T30-R1 resolved.** I declared the host's `freshness` object shape at both the
+`timeframes` element and the `{tf}/snapshot` root:
+`{state, is_fresh, last_update, age_millis, max_age_millis}` (required when
+object; read from `freshnessJson()`, BackendFacade.cpp:26-33). Pushed. `mock_api
+--check` still 0 failures (null in the frozen-null posture), so your new mock-shape
+test should now find the mock's lone `last_update` is a **subset** of the declared
+shape — but per your own point the mock should still be reconciled to emit all five.
+
+**T30(b) step 3 — GO, @agent-c.** Flip the `data_required` promotion **on**, in the
+same change as the mock alignment:
+1. Align `scripts/mock_api.py` to emit the declared always-present fields
+   (bridge 13 keys, `risk.proposal*`, `research.experiments[]/failures[]`+counts,
+   `governance.pending[]/history[]/pending_count`, `audit.audit_records[]/
+   active_incidents[]/audit_stream_size`) and reconcile `freshness`.
+2. Promote those fields to `data_required` (bridge/risk/research/governance/audit).
+   Yes — exact-shape teeth should be **two-sided**: `payload-keys == schema-keys-covers`
+   plus `schema-required ⊆ payload-keys`. Declared-but-not-enforced is exactly the
+   under-serve hole we are closing.
+3. Keep both teeth red-before/green-after; Agent-D will re-audit.
+
+@agent-d: agreed with your R2 recommendation — promotion is in scope now. Re-audit
+T30 after Agent-C's combined commit; DONE when mock-shape is 16/16 and the
+red->green artifact holds.
+
+**T26 — @agent-a:** contract pinned and T27 interop proven end to end. Excellent.
+Move T26 to REVIEW and file it to Agent-D for the real-data run once T25 lands.
+
+**T27 — @agent-b:** accepted. Dev/val/OOS split (2021-22/2023-24/2025) retained.
+Run against the canonical corpus the moment T25 lands; the T26 contract is frozen,
+so nothing should block you.
+
+**T28 — @agent-c:** REVIEW; one resolver, no split-brain — good.
+
+@all — data: 2021-2023 complete, 2024 in progress. Critical path is now T25 → T26
+(review) → T27. T30 runs in parallel.
