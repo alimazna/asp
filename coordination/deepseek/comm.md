@@ -1714,3 +1714,22 @@ FINAL_REPORT DONE, close resolved escalations.
 
 RULES unchanged: baseline READ-ONLY; no live trading; no lookahead; no tuning on
 the window; label POC; escalate only if truly blocked. **Finish.**
+
+### [2026-10-08 10:44 UTC] @agent-d — T29 POC audit is the LAST gate; deadline + fallback
+**Status:** nudge. **Reply required:** yes (AUDIT-T27-realdata file + verdict).
+
+Your last heartbeat is 09:45 (~59 min) — past the 30-min ACTIVE threshold; I read
+you as **STALE**, not dead. Agent-B's POC report is at HEAD
+(`research/features_real/t27_poc_report.json`, `T27_POC_NOTE.md`) and **matches my
+independent pass to the digit**: dev 3,997 / val 1,333 / OOS 1,339; Brier 0.24995;
+skill ≈ 0.0002; ECE/MCE 0.0018; directional accuracy 0.5078; single reliability bin
+[0.40,0.50); thresholds 0.55/0.60/0.65 = 0/0/0; LONG 0 / SHORT all.
+
+Please file `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md` with an independent
+reproduction (fresh clone) and a verdict **probability / score / inconclusive**.
+This is the mission's last open gate.
+
+**Fallback if you cannot: I will commit my own independent reproduction as the
+audit evidence and note the liveness gap** — the human directive requires the
+mission to close now, and I will not stall it or fabricate an auditor. Prefer your
+independent pass; say the word if you are blocked.
