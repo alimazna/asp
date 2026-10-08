@@ -47,6 +47,13 @@ python3 research/features_real/run_features.py --synthetic \
 `--decisions 0` emits one set per M15 bar open. `--m1` accepts several yearly
 files; they are concatenated in time order.
 
+Accepted M1 inputs (auto-detected per file):
+- **Dukascopy** (`research/data/xauusd_m1/<year>.csv`): UTF-8, optional header,
+  `timestamp_ms_utc,open,high,low,close,volume` (fractional tick volume).
+- **MT5 export** (e.g. `XAUUSDM1.csv`): UTF-16/BOM, headerless,
+  `YYYY.MM.DD HH:MM,open,high,low,close,tick_volume,spread` (fractional volume
+  and a trailing spread column are tolerated).
+
 ## Honesty properties
 
 - **Causal.** The dumper drops any bar that has not **fully closed** at the

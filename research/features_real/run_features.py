@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -79,20 +80,30 @@ def bucket_start(sec: int, tf: str) -> int:
 
 
 def _to_secs(ts: int) -> int:
-    """Normalise an epoch timestamp to seconds (accepts s, ms; not us)."""
+    """Normalise an epoch timestamp to seconds (accepts s or ms)."""
     return ts // 1000 if ts >= 100_000_000_000 else ts
 
 
-_ISO_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
-                "%Y-%m-%dT%H:%M:%S")
+def _read_text(path: str) -> str:
+    """Decode a bar file: UTF-16 (MT5 export, BOM) or UTF-8/Dukascopy."""
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    return raw.decode("utf-8-sig")
+
+
+# ISO (canonical Phase 5.2 corpus) and dot-date (raw MT5 export) forms.
+_TIME_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S",
+                 "%Y.%m.%d %H:%M:%S", "%Y.%m.%d %H:%M")
 
 
 def _parse_open_time(text: str) -> int:
-    """Bar-open time -> epoch seconds. Accepts epoch (s/ms) or ISO datetime.
+    """Bar-open time -> epoch seconds (UTC). Accepts epoch (s/ms) or a datetime.
 
     The canonical Phase 5.2 corpus (research/data/xauusd_m1/xauusd_m1_real.csv)
-    carries ISO timestamps, so the harness accepts them here rather than forcing
-    every caller to pre-convert.
+    carries ISO timestamps and a raw MT5 export carries 'YYYY.MM.DD HH:MM', so
+    both are accepted here rather than forcing callers to pre-convert.
     """
     text = text.strip()
     if not text:
@@ -101,45 +112,44 @@ def _parse_open_time(text: str) -> int:
         return _to_secs(int(text))
     except ValueError:
         pass
-    try:
-        return int(datetime.strptime(text, _ISO_FORMATS[0]).timestamp())
-    except ValueError:
-        pass
-    for fmt in _ISO_FORMATS[1:]:
+    for fmt in _TIME_FORMATS:
         try:
-            return int(datetime.strptime(text, fmt).timestamp())
+            stamp = datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
+            return int(stamp.timestamp())
         except ValueError:
             continue
     raise ValueError(f"unrecognised timestamp {text!r}")
 
 
 def load_m1(paths):
-    """Read M1 CSVs. A header may be present on each file.
-
-    Timestamps may be epoch (s/ms) or ISO datetimes; both the Dukascopy yearly
-    files and the operator MT5 corpus are accepted.
-    """
+    """Read M1 CSVs: Dukascopy, canonical MT5 corpus, or raw MT5 export."""
     rows = []
     for path in paths:
-        started = False
-        with open(path, newline="") as handle:
-            for raw in handle:
-                raw = raw.strip()
-                if not raw:
-                    continue
-                cols = [c.strip() for c in raw.split(",")]
-                if not started:
-                    try:
-                        _parse_open_time(cols[0])
-                    except (ValueError, IndexError):
-                        continue  # header line
-                    started = True
+        for raw in _read_text(path).splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            cols = [c.strip() for c in line.split(",")]
+            # A leading non-numeric token is a header; anything else that fails
+            # to parse is real corruption and must be loud, not silently dropped
+            # (dropping a bar would fabricate a gap).
+            if not re.match(r"^[0-9]", cols[0]):
+                continue  # header line
+            if len(cols) < 5:
+                raise SystemExit(f"malformed M1 row in {path}: {line!r}")
+            try:
                 sec = _parse_open_time(cols[0])
-                # Dukascopy tick volume is fractional (millions of units); it is
-                # an activity proxy, so round to a whole tick count.
-                rows.append((sec, float(cols[1]), float(cols[2]),
-                             float(cols[3]), float(cols[4]),
-                             int(round(float(cols[5])))))
+                ohlc = [float(cols[i]) for i in (1, 2, 3, 4)]
+            except ValueError as exc:
+                raise SystemExit(f"malformed M1 row in {path}: {line!r} ({exc})")
+            # Volume is optional (some MT5 tick exports omit it). Where present it
+            # may be fractional (Dukascopy, millions of units) - an activity proxy,
+            # so round to a whole tick count. Extra columns (MT5 spread) ignored.
+            try:
+                vol = int(round(float(cols[5]))) if len(cols) >= 6 else 0
+            except ValueError:
+                vol = 0
+            rows.append((sec, ohlc[0], ohlc[1], ohlc[2], ohlc[3], vol))
     rows.sort(key=lambda r: r[0])
     # Multiple files may be supplied out of order; sorting harmonises them.
     # Duplicate open times, however, are ambiguous bars — reject, never silently

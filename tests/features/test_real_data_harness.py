@@ -183,6 +183,42 @@ class M1FormatTest(unittest.TestCase):
         self.assertLessEqual(start, wed)
         self.assertLess(wed - start, 7 * 24 * 3600)
 
+    def test_mt5_export_utf16_dotdate(self):
+        # MT5 tick export: UTF-16, 'YYYY.MM.DD HH:MM', no header, 7 columns
+        # (OHLC + tick volume + spread).
+        text = ("2026.06.24 11:08,4076.56000,4077.37000,4075.81000,4076.67000,342,0\n"
+                "2026.06.24 11:09,4076.72000,4077.04000,4075.19000,4075.55000,344,0\n")
+        with tempfile.NamedTemporaryFile("wb", suffix=".csv", delete=False) as fh:
+            fh.write(text.encode("utf-16"))
+            path = fh.name
+        try:
+            rows = R.load_m1([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(rows[0][:5], (1782299280, 4076.56, 4077.37, 4075.81, 4076.67))
+        self.assertEqual(rows[0][5], 342)  # volume; spread column ignored
+        self.assertEqual(rows[1][5], 344)
+
+    def test_missing_volume_column_allowed(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as fh:
+            fh.write("1735689600,1800,1801,1799,1800.5\n")
+            path = fh.name
+        try:
+            rows = R.load_m1([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(rows[0][5], 0)
+
+    def test_corrupt_numeric_row_raises(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as fh:
+            fh.write("1735689600,1800,1801,1799,not_a_price,1\n")
+            path = fh.name
+        try:
+            with self.assertRaises(SystemExit):
+                R.load_m1([path])
+        finally:
+            os.unlink(path)
+
 
 if __name__ == "__main__":
     unittest.main()
