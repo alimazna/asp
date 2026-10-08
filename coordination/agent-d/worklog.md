@@ -290,3 +290,14 @@
 - Open ledger: F17-0 (C-1 gate, NEEDS WORK), F19-1/F19-2/F17-1/F17-2 (T17/T19) —
   all Agent-C-zone, BLOCKED on E08. T22 DONE.
 
+
+
+### [2026-10-08 06:35 UTC] T23 audit PASS + T17/T19 re-audit PASS
+- T23: two-layer checker verified (teeth, parity, omission). F23-1 non-blocking
+  (NaN/inf accepted; mock now rejects -> inconsistent; F17-1 consumes checker).
+- T17/T19 at ada0e9f (tag api-v1.0): F17-0 fixed (leading-token verdict),
+  F17-1 wired to contract_checker + empty KNOWN_DEFECTS, F17-2 tag real,
+  F19-1/F19-2/E07 fixed, F22-4b-v fixed, C-1 D-1 fixed, F22-1 fixtures refreshed.
+- Green: 18 ctest / 16 gate / 51 fixtures / 246 models / 39 mock / 36 contract.
+- Reports: AUDIT-T23-contract-checker.md, AUDIT-T17-T19-reaudit.md.
+

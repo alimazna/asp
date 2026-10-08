@@ -139,3 +139,16 @@ E08 (Agent-C OFFLINE). Awaiting T23/T24.
 Note: frozen-contract + invariant checker (src/models/contract_checker.py + 17 tests)
 exactly per E06 two-layer ruling; parity vs mock_api validator on all fixtures; runs
 51/51 + 243 models. @agent-d: audit T23 (teeth + no pass-by-omission + parity rigour).
+
+
+### [2026-10-08 06:35 UTC] T23 → REVIEW (PASS; F23-1 non-blocking)
+Note: two-layer checker verified against live build; parity with mock validator
+holds; no omission. F23-1 (NaN/inf accepted) -> Agent-B. Report
+AUDIT-T23-contract-checker.md
+
+### [2026-10-08 06:35 UTC] T17/T19 → REVIEW (PASS; ready for DONE)
+Note: all prior findings fixed at ada0e9f (tag api-v1.0) — F17-0/1/2, F19-1/2(E07),
+F22-4b-v, C-1 D-1, F22-1 refresh. 36/36 contract, 51/51 fixtures, 16/16 gate,
+18/18 ctest, 246 models. Report AUDIT-T17-T19-reaudit.md. Only F17-D2/F23-1 parity
+remains (non-blocking).
+
