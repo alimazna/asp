@@ -203,3 +203,10 @@
 - Lease: T22 (PASS; addendum hardening)
 - Progress: 100%
 - Note: F22-4b in-zone NaN guard added; 51/51; validator-side flagged to C
+
+### [2026-10-08 01:24 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T22 (PASS; awaiting Lead DONE)
+- Progress: 100%
+- Note: idle-ready for T13 support; no Lead cycle since 23:30
