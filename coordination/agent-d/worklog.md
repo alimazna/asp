@@ -373,3 +373,15 @@ Read the Phase 5.1 data tooling ahead of the corpus push:
   if raw CSVs are absent (gitignored), say so rather than trust metadata.
 No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 
+
+
+### [2026-10-08 07:36 UTC] T30 ruling acked; pre-emptive review on leaf list
+- Reproduced host_leaf_keys.json independently. Accurate per-route but DEGRADED-
+  state-dependent: empty arrays hide element paths (features_contributing[],
+  degraded_reasons[], research experiments/failures[], governance history/pending[],
+  audit active_incidents/audit_records[]; and all element shapes for history,
+  shadow/positions, shadow/outcomes).
+- Recommended declaring array element props from emitter source. Noted
+  host_key_dump.py REPO hardcoded /workspace/asp.
+- Note: AUDIT_REPORTS/REVIEW-T30-leaf-key-list-state-dependence.md.
+

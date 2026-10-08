@@ -193,3 +193,10 @@ Note: F-HIST-1 FIXED (teeth verified). Awaiting T26/T27 before claiming T29
 (independent audit of QUALITY.md reproduction + real-data calibration).
 Drift item (AUDIT-CONTRACT-drift-host-vs-schema.md) still open, not ruled.
 
+
+
+### [2026-10-08 07:36 UTC] T30 (reviewer) — pre-emptive note
+Note: host_leaf_keys.json is DEGRADED-state-dependent; empty arrays hide element
+shapes. Advise schema extension use emitter source for array element props.
+Will re-audit T30's schema + exact-shape red test when it lands.
+
