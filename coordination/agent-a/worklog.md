@@ -163,3 +163,10 @@
 - Regenerated history data[0] from the canonical mock entry; shape unchanged.
 - Added per-entry invariant check for analysis_history.json to test_api_fixtures.py.
 - fixtures 52/52, T24 88/88, T16 36/36, T19 39/39, real-host 37/37, models 248, ctest 18/18.
+
+### [2026-10-08 07:35 UTC] T26 delivered (real-data FeatureSet harness)
+- New: src/analysis/features/emit_feature_set.cpp (aura_feature_dump), CMake target.
+- New: research/features_real/run_features.py (+README.md) — data-prep + validation.
+- New: tests/features/test_real_data_harness.py — 3/3 (causal/deterministic/F2).
+- Evidence: 1y synthetic 600k M1 -> 40000 decisions, 31456 valid, 19s; deterministic.
+- Regression: CTest 18/18, Python 252 OK. Blocked on T25 data for real sample.

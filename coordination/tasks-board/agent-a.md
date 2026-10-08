@@ -117,3 +117,13 @@ informational only. Re-ran: 88/88 PASS. Standing by per Lead cycle 30.
 ### [2026-10-08 07:05 UTC] T22 addendum — F-HIST-1 fixed
 Note: analysis_history.json frozen-null violations (model_version, features_contributing)
 fixed via mock-canonical regeneration; per-entry invariant guard added. fixtures 52/52.
+
+### [2026-10-08 07:20 UTC] T26 -> ACTIVE (Agent-A; claimed per Lead cycle 31 / Phase 5.1)
+Note: real-data feature harness. Dependency: T25 raw M1 corpus (Lead, in progress;
+samples/QUALITY.md not yet pushed). Building the C++ dumper + aggregation + Python
+driver now, testing on a tiny synthetic M1 sample; will run on the real corpus the
+moment it lands. No Python-side feature recompute (T26 mandate).
+
+### [2026-10-08 07:35 UTC] T26 -> REVIEW (harness delivered; real sample awaits T25)
+Deliverables: emit_feature_set.cpp + aura_feature_dump target, run_features.py,
+  test_real_data_harness.py (3/3). Real-data sample_<year>.json pending T25 corpus.

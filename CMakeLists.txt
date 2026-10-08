@@ -27,6 +27,8 @@ file(GLOB_RECURSE AURA_CORE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/*.cpp")
 list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
   ".*/platform/windows/AuraBackendHost\\.cpp$")
+list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
+  ".*/analysis/features/emit_feature_set\\.cpp$")
 
 add_library(aura_core STATIC ${AURA_CORE_SOURCES})
 target_include_directories(aura_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -42,6 +44,14 @@ endif()
 add_executable(aura_backend_host
   "${CMAKE_SOURCE_DIR}/src/platform/windows/AuraBackendHost.cpp")
 target_link_libraries(aura_backend_host PRIVATE aura_core)
+
+# ---------------------------------------------------------------------------
+# Offline FeatureSet dumper (T26): runs the real feature engine over CSV bars
+# and emits the frozen FeatureSet JSON. Excluded from aura_core (own main()).
+# ---------------------------------------------------------------------------
+add_executable(aura_feature_dump
+  "${CMAKE_SOURCE_DIR}/src/analysis/features/emit_feature_set.cpp")
+target_link_libraries(aura_feature_dump PRIVATE aura_core)
 
 # ---------------------------------------------------------------------------
 # Deterministic tests.

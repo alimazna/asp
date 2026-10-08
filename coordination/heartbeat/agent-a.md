@@ -266,3 +266,10 @@
 - Lease: T24 (audit PASS; F-HIST-1 fixed)
 - Progress: 100%
 - Note: history fixture frozen-null violation fixed + guarded; 52/52 fixtures
+
+### [2026-10-08 07:35 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 (real-data feature harness) -> REVIEW
+- Progress: 85% (real sample pending T25 data)
+- Note: engine-only compute; causal+deterministic; 3/3 new, 252 py OK, ctest 18/18
