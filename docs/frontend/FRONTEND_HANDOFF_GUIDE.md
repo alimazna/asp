@@ -50,6 +50,33 @@ v1 (local process only). Additive changes only within v1.
 object only**; wrap it in the envelope. Error responses are **not** enveloped
 (see "Error schema"). `API_V1_SCHEMA.json` is authoritative for both.
 
+### C.0 Complete endpoint index (all 15 routes)
+
+The sections below detail the core analysis routes a dashboard needs first. The
+frozen contract exposes **15** routes; all are loopback-only, enveloped, and
+validated by `API_V1_SCHEMA.json`. A frontend may build against any of them.
+
+| Route | What it returns |
+|---|---|
+| `GET /api/v1/system/state` | startup posture (READY/DEGRADED/FAILED), shadow_only, mode |
+| `GET /api/v1/health` | monitor-aggregate health |
+| `GET /api/v1/health/v1` | frontend liveness surface (`status`,`bridge`,`version`,`uptime_sec`) |
+| `GET /api/v1/timeframes` | capability/quality/freshness per timeframe |
+| `GET /api/v1/timeframes/{tf}/snapshot` | latest bars + context for one timeframe (`tf` ∈ M1..MN1) |
+| `GET /api/v1/analysis/latest` | context + signal + levels + meta (the primary screen) |
+| `GET /api/v1/analysis/history?limit=N` | recent signals, most-recent-first |
+| `GET /api/v1/context/latest` | market context only |
+| `GET /api/v1/bridge/status` | Python/MT5 bridge lifecycle + last handshake |
+| `GET /api/v1/risk/latest` | current risk/position-sizing posture |
+| `GET /api/v1/shadow/positions` | shadow-mode positions (array) |
+| `GET /api/v1/shadow/outcomes` | shadow-mode realised outcomes (array) |
+| `GET /api/v1/research/status` | research/experiment status |
+| `GET /api/v1/governance/status` | governance/pending-decision status |
+| `GET /api/v1/audit/recent` | recent audit events |
+
+`null`/`UNKNOWN` on any field means **unavailable** — render it as such, never as
+zero or healthy (see §D).
+
 ### `GET /api/v1/analysis/latest`
 
 > **This is the frozen v1 default (uncalibrated) shape.** `signal.probability` is
@@ -231,7 +258,7 @@ from there. **Do not invent new branding.**
 ## K. Frozen artifact & mock validation
 
 - **Frozen spec:** `docs/architecture/BACKEND_FRONTEND_API_V1.md` — API v1,
-  schema `1.0`; tag `api-v1.0` applied at handoff (F17-2, not yet present).
+  schema `1.0`; tag **`api-v1.0` is applied** at the handoff freeze point (T17).
 - **Authoritative machine-readable contract:** `docs/architecture/API_V1_SCHEMA.json`.
   If the prose here and the schema ever disagree, **the schema wins**; report the
   drift so the prose is corrected. Both successful-response envelopes
@@ -241,8 +268,4 @@ from there. **Do not invent new branding.**
   shape (`probability: null`, `score` present); `--calibrated` exercises the
   calibrated branch. `--check` validates every payload against the schema
   (0 failures required). The mock can never serve a probability in uncalibrated
-  mode — that is RULE C by construction. **Caveat pending T19 F19-1:** until the
-  mock's frozen-null fidelity fix lands, the mock may still populate fields §D
-  declares `null` (`horizon`, `levels.sl_method/tp_method`,
-  `meta.data_freshness_sec`, `context.mtf_agreement`); do not treat a populated
-  value there as contract-guaranteed.
+  mode — that is RULE C by construction.
