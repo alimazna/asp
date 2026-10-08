@@ -80,6 +80,7 @@ struct HealthData {
     QString bridge;          // "ok" | "stale" | "offline"
     QString version;         // "v1"
     std::optional<int> uptimeSec;
+    std::optional<QString> coverageTier;  // absent when the route does not report it
 };
 
 struct HealthResponse {
@@ -113,7 +114,7 @@ constexpr int NUM_TIMEFRAMES = 9;
 
 // Helpers
 [[nodiscard]] inline bool isNullOrMissing(const QJsonValue& v) {
-    return !v.isDefined() || v.isNull();
+    return v.isUndefined() || v.isNull();
 }
 
 inline QString scoreToPercent(double score) {

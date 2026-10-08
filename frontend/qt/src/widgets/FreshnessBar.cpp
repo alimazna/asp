@@ -1,4 +1,5 @@
 #include "FreshnessBar.h"
+#include <QVBoxLayout>
 
 namespace astra {
 

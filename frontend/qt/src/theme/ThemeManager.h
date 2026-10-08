@@ -37,6 +37,9 @@ signals:
     void qssApplied(const QString& qss);
 
 private:
+    QString defaultDarkQss() const;
+    QString defaultLightQss() const;
+
     Theme mCurrentTheme = Theme::Dark;
     QString mCurrentQss;
     QTimer mFadeTimer;

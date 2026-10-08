@@ -96,7 +96,7 @@ void CandleChart::goToLive() {
 }
 
 void CandleChart::updateGeometry() {
-    if (wCandles.isEmpty()) return;
+    if (mCandles.isEmpty()) return;
 
     mChartLeft = 0;
     mChartTop = 0;
@@ -461,7 +461,7 @@ void CandleChart::mouseReleaseEvent(QMouseEvent* /*event*/) {
 
 void CandleChart::wheelEvent(QWheelEvent* event) {
     // Zoom
-    if (event->delta() > 0) {
+    if (event->angleDelta().y() > 0) {
         zoomIn();
     } else {
         zoomOut();

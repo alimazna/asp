@@ -17,7 +17,6 @@ public:
     explicit MtfMeter(QWidget* parent = nullptr);
 
     void setAgreement(double value);  // 0.0 to 1.0
-    void setVisible(bool visible);
 
 private:
     QLabel* mBar = nullptr;

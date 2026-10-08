@@ -173,7 +173,7 @@ void HealthPage::updateFromHealth(const HealthResponse& resp) {
     for (int i = 0; i < 9; ++i) {
         QLayoutItem* item = mTimeframeGrid->itemAtPosition(i / 3, i % 3);
         if (item) {
-            QFrame* frame = item->widget();
+            QFrame* frame = qobject_cast<QFrame*>(item->widget());
             if (frame) {
                 QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(frame->layout());
                 if (layout) {
@@ -252,8 +252,14 @@ void HealthPage::updateSystemStatus(const HealthResponse& resp) {
     mStatusLabels[3]->setStyleSheet("QLabel { color: #E8EEF5; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
     mStatusDots[3]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
 
-    // Coverage Tier (row 5)
-    QString tier = resp.data.coverageTier.toUpper();
+    // Coverage Tier (row 5) — the route may omit it; show "unavailable" then.
+    if (!resp.data.coverageTier.has_value()) {
+        mStatusLabels[5]->setText("UNAVAILABLE");
+        mStatusLabels[5]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
+        mStatusDots[5]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
+        return;
+    }
+    QString tier = resp.data.coverageTier->toUpper();
     QColor tierColor;
     if (tier == "HIGH") tierColor = QColor("#4CAF7A");
     else if (tier == "MEDIUM") tierColor = QColor("#D9A14A");

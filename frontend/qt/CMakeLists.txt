@@ -11,6 +11,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
 
+# Enable AUTOMOC/AUTOUIC/AUTORCC before any target is created.
+qt_standard_project_setup()
+
 set(ASTRA_SOURCES
     src/main.cpp
     src/MainWindow.cpp
@@ -64,29 +67,12 @@ target_link_libraries(astra_desktop PRIVATE
     Qt6::Network
 )
 
-# Resources — compile .qrc into binary
+# Resources — compile the .qrc into the binary.
+# The .qrc lists files with paths relative to itself and declares prefix "/",
+# so resources resolve as :/theme/theme-dark.qss, :/astra-lockup.svg, etc.
 qt_add_resources(astra_desktop "resources"
-    PREFIX "/"
-    FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/astra-symbol.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/astra-lockup.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/dashboard.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/chart.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/history.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/health.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/settings.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/exit.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/sun.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/moon.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/refresh.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/fullscreen.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/close.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/theme/theme-dark.qss
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/theme/theme-light.qss
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/resources/resources.qrc"
 )
-
-# Qt standard project setup (auto-includes, auto-moc, auto-rcc)
-qt_standard_project_setup()
 
 if(WIN32)
     set_target_properties(astra_desktop PROPERTIES

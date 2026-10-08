@@ -7,6 +7,7 @@
 #include "dialogs/ConfirmExitDialog.h"
 #include <QApplication>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QMessageBox>
 #include <QFile>
 #include <QTimer>
@@ -753,42 +754,42 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_Q)) {
+    if ((event->key() == Qt::Key_Q && event->modifiers().testFlag(Qt::ControlModifier))) {
         showExitConfirmation();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_R)) {
+    if ((event->key() == Qt::Key_R && event->modifiers().testFlag(Qt::ControlModifier))) {
         onRefreshClicked();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_T)) {
+    if ((event->key() == Qt::Key_T && event->modifiers().testFlag(Qt::ControlModifier))) {
         onThemeToggled();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_Comma)) {
+    if ((event->key() == Qt::Key_Comma && event->modifiers().testFlag(Qt::ControlModifier))) {
         onNavClicked(Settings);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_D)) {
+    if ((event->key() == Qt::Key_D && event->modifiers().testFlag(Qt::ControlModifier))) {
         onNavClicked(Dashboard);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_H)) {
+    if ((event->key() == Qt::Key_H && event->modifiers().testFlag(Qt::ControlModifier))) {
         onNavClicked(Chart);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_L)) {
+    if ((event->key() == Qt::Key_L && event->modifiers().testFlag(Qt::ControlModifier))) {
         onNavClicked(History);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_K)) {
+    if ((event->key() == Qt::Key_K && event->modifiers().testFlag(Qt::ControlModifier))) {
         onNavClicked(Health);
         return;
     }
@@ -823,7 +824,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         } else if (event->key() == Qt::Key_Minus) {
             auto* chart = qobject_cast<ChartPage*>(mPages[Chart]);
             if (chart) chart->zoomOut();
-        } else if (event->matches(QKeySequence(Qt::CTRL | Qt::Key_0))) {
+        } else if ((event->key() == Qt::Key_0 && event->modifiers().testFlag(Qt::ControlModifier))) {
             auto* chart = qobject_cast<ChartPage*>(mPages[Chart]);
             if (chart) chart->resetZoom();
         }

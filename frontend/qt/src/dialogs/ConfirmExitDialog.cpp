@@ -96,8 +96,8 @@ ConfirmExitDialog::ConfirmExitDialog(QWidget* parent)
 
     mainLayout->addLayout(btnLayout);
 
-    // ESC key cancels
-    setEscapeButton(mCancelBtn);
+    // ESC key cancels: QDialog::reject() is the default ESC action, and
+    // Cancel is already wired to reject().
     open();
 }
 
