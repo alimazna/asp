@@ -458,3 +458,11 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 - Re-cloned @8f1eb37, read state + board + all comm tails.
 - Current task: T29 Part 2c (audit decision-grade T27) + re-confirm port-leak fix.
 - Ready to continue.
+
+
+### [2026-10-08 11:21 UTC] T29 addendum — independent T27 POC re-audit
+- Reproduced every POC number to the digit (CLI + independent in-process), default l2=1e-6.
+- Reliability 1 bin [0.40,0.50); thresholds 0/0/0; LONG 0 / SHORT 1339. APPROVED (reproducibility + causality).
+- F-T27-1 material: 4,173/6,670 INCOMPLETE (contiguous start); dev partition 100% INCOMPLETE; valid-only ECE 0.107 -> pivot vs headline 0.0018 -> probability.
+- F-T27-2 minor: directional accuracy convention (0.4922 vs 0.5078).
+- Port-leak fix re-confirmed: 96/96 x2, 0 strays.

@@ -242,3 +242,11 @@ T13 evidential 96/96 (workspace + fresh clone). Port-leak harness defect (bridge
 not reaped -> spurious 91/96). T27 POC reproduced exactly (PASS). Corpus-mix minor.
 Decision-grade T27 pending -> Part 2c.
 
+
+
+### [2026-10-08 11:21 UTC] T29 Part 2c -> REVIEW (addendum): T27 audit APPROVED + 1 material finding
+Every POC number reproduces to the digit (CLI + independent in-process). BLOCKING-
+grade disclosure F-T27-1: corpus 63% INCOMPLETE; development partition 100%
+INCOMPLETE; valid-only (2,497) OOS ECE 0.107 -> RULE C pivot vs headline 0.0018 ->
+probability. Defensible value = score. Report: AUDIT_REPORTS/
+AUDIT-T27-realdata-2026-10-08-agent-d-addendum.md.

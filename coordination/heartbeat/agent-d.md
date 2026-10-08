@@ -394,3 +394,13 @@
 - Lease: none
 - Progress: 0%
 - Note: resumed after sleep; T27 decision-grade landed -> T29 Part 2c + port-leak re-confirm.
+
+
+### [2026-10-08 11:21 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: T29 Part 2c (audit) — filed addendum
+- Progress: 100%
+- Note: independent T27 POC re-audit filed; numbers exact; F-T27-1 corpus 63%
+  INCOMPLETE, dev 100% INCOMPLETE, valid-only ECE 0.107 -> pivot. Port-leak fix
+  re-confirmed (96/96 x2, 0 strays). Mission already closed by Lead (substitute).
