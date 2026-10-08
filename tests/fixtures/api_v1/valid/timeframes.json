@@ -12,7 +12,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -26,7 +30,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -40,7 +48,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -54,7 +66,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -68,7 +84,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -82,7 +102,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -96,7 +120,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -110,7 +138,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     },
@@ -124,7 +156,11 @@
       },
       "decision_grade": true,
       "freshness": {
-        "last_update": 1760000000000
+        "state": "FRESH",
+        "is_fresh": true,
+        "last_update": 1760000000000,
+        "age_millis": 0,
+        "max_age_millis": 60000
       },
       "last_successful_update": 1760000000
     }
