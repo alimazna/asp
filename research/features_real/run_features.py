@@ -190,16 +190,18 @@ def main() -> int:
 
     bars_dir = args.write_bars or workdir
     os.makedirs(bars_dir, exist_ok=True)
-    m15_open_secs = []
+    m15_close_secs = []
     for tf in TIMEFRAMES:
         bars = aggregate(m1, tf)
         write_bars(os.path.join(bars_dir, f"{tf}.csv"), bars)
         if tf == "M15":
-            m15_open_secs = [b for b, _ in bars]
+            # The decision instant is the bar's CLOSE: the moment the last M15
+            # bar becomes knowable. The engine snapshots the closed history and
+            # the dumper emits that bar's close as the T27 label.
+            m15_close_secs = [b + 15 * 60 for b, _ in bars]
 
-    # Decision instants = M15 bar opens (features use only closed history).
-    decisions = m15_open_secs if args.decisions in (0, None) \
-        else m15_open_secs[:args.decisions]
+    decisions = m15_close_secs if args.decisions in (0, None) \
+        else m15_close_secs[:args.decisions]
     if not decisions:
         print("no M15 bars to derive decisions from", file=sys.stderr)
         return 3
@@ -227,6 +229,10 @@ def main() -> int:
         if parsed.asOfBarOpenSec != decisions[i]:
             print(f"set[{i}] asOfBarOpenSec {parsed.asOfBarOpenSec} != "
                   f"decision {decisions[i]}", file=sys.stderr)
+            return 4
+        if "close" not in raw or not isinstance(raw["close"], (int, float)):
+            print(f"set[{i}] missing numeric 'close' (T27 contract)",
+                  file=sys.stderr)
             return 4
         validated += 1
 

@@ -254,8 +254,23 @@ int main(int argc, char** argv) {
             closed[tf].assign(win.begin(), win.end());
         }
         const auto set = engine.computeAll(closed, asOf);
+        // T27 contract: the decision-bar close (last M15 bar closed at `asOf`)
+        // is emitted as a top-level sibling key so the calibration layer can
+        // label without re-reading the corpus. Causal: it is the most recent
+        // close known at the decision instant. Absent only before the first M15
+        // close, which callers exclude.
+        const auto& m15 = retained[aura::Timeframe::M15];
+        if (m15.empty()) {
+            std::fprintf(stderr,
+                         "decision %lld precedes the first closed M15 bar; "
+                         "start decisions after it\n",
+                         (long long)asOf);
+            return 2;
+        }
+        const double decisionClose = m15.back().close;
         out << "  {";
         out << "\"asOfBarOpenSec\":" << set.asOfBarOpenSec << ",";
+        out << "\"close\":" << num(decisionClose) << ",";
         out << "\"quality\":\"" << aura::toString(set.quality) << "\",";
         out << "\"valid\":" << (set.valid ? "true" : "false") << ",";
         out << "\"perTimeframe\":[";

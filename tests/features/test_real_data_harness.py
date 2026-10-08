@@ -49,7 +49,7 @@ def _run(tmp, m1, decisions, tag):
         bars = R.aggregate(m1, tf)
         R.write_bars(os.path.join(bars_dir, f"{tf}.csv"), bars)
         if tf == "M15":
-            m15 = [b for b, _ in bars]
+            m15 = [b + 15 * 60 for b, _ in bars]  # decision = M15 close
     chosen = m15 if decisions == 0 else m15[:decisions]
     dec = os.path.join(bars_dir, "decisions.csv")
     with open(dec, "w") as handle:
@@ -81,6 +81,22 @@ class RealDataHarnessTest(unittest.TestCase):
                 instants = {v.asOfBarOpenSec for v in parsed.perTimeframe}
                 instants.add(parsed.cross.asOfBarOpenSec)
                 self.assertEqual(instants, {decisions[i]})  # F2
+                self.assertIsInstance(raw["close"], (int, float))
+
+    def test_output_is_consumable_by_t27_loader(self):
+        # The T26 output contract is exactly what Agent-B's T27 corpus loader
+        # expects: FeatureSet objects + a top-level decision-bar `close`.
+        from src.models.realdata import load_corpus
+        with tempfile.TemporaryDirectory() as tmp:
+            _, _, out = _run(tmp, self.m1, 200, "c")
+            corpus = os.path.join(tmp, "corpus")
+            os.makedirs(corpus)
+            with open(out) as src, open(os.path.join(corpus, "sets.json"), "w") as dst:
+                dst.write(src.read())
+            feature_sets, closes = load_corpus(corpus)
+            self.assertEqual(len(feature_sets), 200)
+            self.assertEqual(len(closes), 200)
+            self.assertTrue(all(isinstance(c, float) for c in closes))
 
     def test_causality_later_bars_do_not_alter_early_sets(self):
         with tempfile.TemporaryDirectory() as tmp:
