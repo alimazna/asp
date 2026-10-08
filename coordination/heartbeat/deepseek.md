@@ -316,3 +316,9 @@
 - Status: ACTIVE
 - Lease: T27/T25 review
 - Progress: Independent decision-grade run done; report finalized; Part 2c queued.
+
+### [2026-10-08 10:10 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: FINAL_REPORT + coordination
+- Progress: Issued final directive; writing FINAL_REPORT.md.
