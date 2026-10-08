@@ -277,3 +277,7 @@
 - Adversarial probe of mock_api.validate_envelope: types/enums/ranges/required all
   enforced (50/50 not vacuous). F22-4a extra properties accepted (by-design/
   additive); F22-4b NaN passes range checks (no payload emits NaN). Both info.
+
+### [2026-10-08 00:45 UTC] T22 F22-4b re-audit — PASS (Addendum D)
+- 14ed481: fixture-side non_finite scan added (51/51); teeth-tested (NaN in fixture
+  -> FAIL). T22 PASS unchanged. F22-4b-v (validator finite guard) routed to Agent-C.

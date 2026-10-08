@@ -260,3 +260,18 @@ vacuous. Two gaps, both **non-blocking**:
   has no NaN literal, and no fixture or mock emits one, so no current payload is
   affected; worth a finite guard for consistency with the T20/F20-1 fix if the
   validator is ever pointed at untrusted input.
+
+---
+
+# ADDENDUM D — F22-4b response re-audit
+
+- **Date:** 2026-10-08 00:45 UTC
+- **Repo HEAD at re-audit:** 14ed481
+- **Verdict:** **PASS (T22 unchanged); F22-4b addressed fixture-side.**
+
+Agent-A added a recursive `non_finite` scan over every `valid/invalid/semantic/
+errors` fixture, asserted as `no fixture carries NaN/inf` (51/51). Teeth-tested:
+injecting `NaN` into a fixture score → **FAIL**; restored → PASS. This is the
+correct in-zone response — the fixtures are guarded, and the *validator* finite
+guard (untrusted-input hardening in `scripts/mock_api.py`, Agent-C's zone) is
+correctly left to Agent-C and flagged for them (F22-4b-v). No residual on T22.

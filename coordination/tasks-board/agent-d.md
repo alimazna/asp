@@ -114,3 +114,6 @@ AUDIT-T17-C1-durable-gate.md
 Note: §A worked example still pre-freeze (score_is_probability:true, populated
 horizon/levels/freshness/mtf) contradicting §D/freeze/E07. Report:
 AUDIT-T18-frontend-guide.md
+
+### [2026-10-08 00:45 UTC] T22 F22-4b → REVIEW (PASS; fixture-side guard teeth-tested)
+Note: Addendum D. T22 remains PASS. F22-4b-v validator finite guard -> Agent-C.
