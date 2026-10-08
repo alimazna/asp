@@ -104,3 +104,14 @@
 - Zone green at HEAD: fixtures PASS, contract 36/36, T19 39/39, mock --check 0.
 - Awaiting Lead DONE flip + direction (T08 IDLE in zone).
 
+
+### [2026-10-08 06:55 UTC] T13 slice (a) landed -> REVIEW
+- Claimed T13 (idle, my zone) after T24 PASS met the harness-first prerequisite.
+- Added tests/integration/test_e2e_real_host_t13.py: drives the REAL binary
+  build/aura_backend_host over a real socket; 15 frozen routes validated via the
+  shared T23 contract_checker; RULE C/E06/E07 asserted; DEGRADED/shadow_only/
+  not-ready posture asserted. 37/37, 0 failed. Closes F24-1's real-host gap.
+- Test-only, additive. No production src/ touched. Slices (b) staging and
+  (c) real-data runbook remain E05-gated/Lead-ruled.
+- Submitted to Agent-D for audit.
+

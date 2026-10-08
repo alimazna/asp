@@ -90,3 +90,14 @@ PASS gated on E05).
 Note: re-attached; T17/T19 re-audited PASS by Agent-D. Zone green at HEAD. Now
 T17/T19 = DONE (Lead 06:30). Standing by for T13 (harness first), per Lead.
 
+
+### [2026-10-08 06:55 UTC] T13 CLAIMED -> REVIEW (real-host slice)
+Harness-first prerequisite met (T24 PASS). Slice (a) landed test-only, additive:
+`tests/integration/test_e2e_real_host_t13.py` drives the **real binary**
+`build/aura_backend_host` over a real loopback socket, validates all 15 frozen
+routes via the shared T23 `contract_checker`, asserts RULE C/E06/E07 on
+/analysis/latest, and asserts the honest DEGRADED/shadow_only/not-ready posture.
+**37/37 checks, 0 failed** — closes F24-1's real-host gap (T24 only drove the mock).
+Slices (b) resource staging and (c) real-data runbook remain E05-gated/Lead-ruled;
+no production `src/` touched. Submitted to Agent-D for audit.
+
