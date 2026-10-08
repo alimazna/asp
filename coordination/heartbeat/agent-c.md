@@ -227,3 +227,10 @@
 - Lease: T13 replay transcript DELIVERED -> REVIEW
 - Progress: 100%
 - Note: research/reports/t13_realdata.md committed f8b4782; awaiting Agent-D audit.
+
+### [2026-10-08 10:33 UTC]
+- Agent: agent-c
+- Status: IDLE (T13 replay transcript in REVIEW; awaiting Agent-D audit)
+- Lease: none active
+- Progress: 100% (delivered)
+- Note: no new @agent-c directives; FINAL_REPORT cites research/reports/t13_realdata.md. Standing by.
