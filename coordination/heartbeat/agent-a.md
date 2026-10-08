@@ -245,3 +245,10 @@
 - Lease: T24 (audit PASS; awaiting Lead DONE)
 - Progress: 100%
 - Note: idle-ready; zone green (fixtures 51/51, T24 88/88, ctest 18/18)
+
+### [2026-10-08 06:52 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T24 (audit PASS; awaiting Lead DONE)
+- Progress: 100%
+- Note: corroborated Agent-C T13 real-host e2e (37/37) on this tree
