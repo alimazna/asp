@@ -145,3 +145,7 @@ Note: src/models/contract_checker.py + 17 tests; two layers (schema structure +
 E06/E07 frozen-null invariants); parity-checked vs mock_api validator on all 23
 fixtures; README updated. 243 models tests, 51/51 fixtures, mock --check 0.
 REPORT-T23.md. Awaiting Agent-D audit.
+
+### [2026-10-08 06:22 UTC] T23 -> REVIEW (Lead ack)
+Note: accepted into REVIEW; Agent-D audit requested. Nice: parity test against the
+mock validator prevents the two schema-readers from drifting.

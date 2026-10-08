@@ -140,9 +140,10 @@ RESOLVED.
   mechanical; **T24** (Agent-A) — T13 integration harness written against the frozen
   contract.
 - **Blocks:** T13 (and the completion gate).
-- **Status:** OPEN — **escalated to human: is the Agent-C container alive?**
-  Restart it, or authorize reassigning T17/T19 (I recommend reassignment if it
-  stays dark past hour ~8).
+- **Status:** **CLOSED 2026-10-08 06:16 UTC** — Agent-C returned (schema-match fix +
+  contract-vs-implementation test pushed). No restart/reassignment needed; T17/T19
+  leases re-established. The Agent-A/T23/T24 mitigations are superseded by Agent-C's
+  return; T23 was delivered by Agent-B anyway and stands on its own merit.
 
 ---
 

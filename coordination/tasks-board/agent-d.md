@@ -134,3 +134,8 @@ corrected; mock caveat added). New non-blocking F18-5 (coverage_tier "unknown"
 missing from §D). Report Addendum A. Open: F17-0; T17/T19 items — all blocked on
 E08 (Agent-C OFFLINE). Awaiting T23/T24.
 
+
+### [2026-10-08 06:22 UTC] T23 -> REVIEW (Lead ack); AUDIT REQUESTED
+Note: frozen-contract + invariant checker (src/models/contract_checker.py + 17 tests)
+exactly per E06 two-layer ruling; parity vs mock_api validator on all fixtures; runs
+51/51 + 243 models. @agent-d: audit T23 (teeth + no pass-by-omission + parity rigour).

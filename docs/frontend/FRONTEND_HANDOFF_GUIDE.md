@@ -159,7 +159,7 @@ bridge/health **condition**, not an HTTP error code.
 | `context.mtf_agreement` | 0–1 multi-TF agreement | meter | yes (null in v1) |
 | `levels.*` | suggested levels | **suggestions**, clearly labelled | yes (null in v1) |
 | `levels.reward_risk` | derived RR | number | yes (null in v1) |
-| `meta.coverage_tier` | `high/medium/low` | coverage badge (RULE D) | no |
+| `meta.coverage_tier` | `high/medium/low/unknown` | coverage badge (RULE D) | no |
 | `meta.degraded` | backend degraded | banner; suppress confident styling | no |
 | `meta.score_is_probability` | literal: is the surfaced number a calibrated probability? | always `false` in v1 — not a display switch | no |
 

@@ -54,13 +54,13 @@ lease (per `README.md` §F).
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |
-| T17 | Freeze API v1           | Agent-C  | Agent-D  | BLOCKED | owner OFFLINE (E08) |
-| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 06:40 UTC   |
-| T19 | Mock data generator     | Agent-C  | Agent-D  | BLOCKED | owner OFFLINE (E08) |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | REVIEW | -           |
+| T18 | Frontend handoff guide  | Lead     | Agent-D  | REVIEW | -           |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 06:52 UTC   |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
-| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | IDLE | -   |
+| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | REVIEW | -   |
 | T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | IDLE | - |
 
 ---
@@ -156,3 +156,9 @@ lease (per `README.md` §F).
 | 2026-10-08 00:43   | Agent-D  | T22 Addendum D re-audit PASS (F22-4b fixture guard).         |
 | 2026-10-08 06:11   | DeepSeek | RESUMED. T22 → DONE; T17/T19 → BLOCKED (Agent-C OFFLINE, E08); |
 | 2026-10-08 06:11   | DeepSeek | E05 re-escalated; T23 (Agent-B) + T24 (Agent-A) queued.      |
+| 2026-10-08 06:15   | Agent-B  | T23 delivered -> REVIEW (contract checker, 17 tests, parity).|
+| 2026-10-08 06:14   | Agent-D  | T18 re-audit PASS (F18-1/2/3/4); F18-5 non-blocking.        |
+| 2026-10-08 06:16   | Agent-C  | T17 contract-vs-impl test; corrected schema (shadow arrays,  |
+|                    |          | quality object); D-1 tracked. **Broke 4 Agent-A fixtures.**  |
+| 2026-10-08 06:22   | DeepSeek | T17 -> REVIEW (Agent-C refreshes fixtures); T18 -> REVIEW;    |
+|                    |          | T23 -> REVIEW (Agent-D to audit); T19 lease 06:52 (F19-*).  |

@@ -54,3 +54,11 @@ Note: Agent-C silent since 2026-10-07 23:10 UTC (~7h) — OFFLINE (E08). Leases 
 NOT abandoned; resumes on return. Open items waiting: F17-0 (durable-gate substring),
 F17-1 (two-layer impl-vs-schema), F17-2 (tag); F19-1 (frozen-null fidelity), F19-2
 (score_is_probability always false); F22-4b-v (validator finite guard); D-1.
+
+### [2026-10-08 06:22 UTC] T17 -> REVIEW (Agent-C returned; contract test)
+Note: test_contract_t16.py drives the real host vs API_V1_SCHEMA.json; found 2 real
+freeze-vs-impl divergences (shadow/* arrays; quality object), corrected schema+mock.
+D-1 tracked (snapshot UNOBSERVED quality string vs object). SIDE-EFFECT: the schema
+correction invalidated 4 Agent-A fixtures (shadow_positions/outcomes count-object;
+quality string) -> 4/51 fixture checks FAIL. Agent-C to refresh mock-derived fixtures
+in-zone (same change that moved the schema), then submit T17 to Agent-D.

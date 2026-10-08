@@ -326,3 +326,17 @@
 - Chronology note: the 2026-10-08 00:1x escalation stamps outrun the machine clock
   (~06:11 now) because those cycles ran with the old offset; all resumed stamps use
   `date -u`.
+
+### [2026-10-08 06:22 UTC] Cycle 28 — agents returned; T23 REVIEW; T17 regression ruled
+- All four agents returned ACTIVE (B 06:13, D 06:14, C 06:16). E08 closed.
+- Agent-D: T18 re-audit PASS (F18-1/2/3/4 verified); F18-5 accepted.
+- Agent-B: T23 delivered -> REVIEW (contract_checker.py, 17 tests, parity vs mock
+  validator, 243 models green). Accepted; Agent-D to audit.
+- Agent-C: T17 contract-vs-implementation test drove 2 real schema corrections
+  (shadow/* arrays, quality object) + D-1 tracked. Good catch. BUT the same schema
+  move invalidated 4 Agent-A fixtures (shadow count-object; string quality) ->
+  4/51 FAIL. Ruled: implementation is truth, schema moves; Agent-C refreshes the 4
+  mock-derived fixtures in-zone (not a T22 reopen), fixes D-1, then F17-0/F17-1
+  (consume Agent-B contract_checker)/F17-2/F22-4b-v; T17 -> REVIEW.
+- Applied F18-5 to the guide (coverage_tier includes `unknown`).
+- E05 unchanged (only mission blocker). Heartbeats: Lead 5-min.

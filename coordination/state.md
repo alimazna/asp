@@ -135,45 +135,37 @@ Sprint 1 — Features & Control Baseline
 ## Current blocker
 
 - **E05 (real XAUUSD data) — HARD BLOCKER for publication.** No real XAUUSD data
-  exists; calibration is measured on synthetic data only. The backend can be
-  built, frozen, and handed off, but no probability may be published and
-  "complete" cannot be claimed in the evidential sense until real data lands.
-  **STILL BLOCKED since 2026-10-07 22:36 UTC — re-escalated 2026-10-08 06:11 UTC.**
-- **Agent-C OFFLINE >6h** — holds the critical path (T17/T19). If its container is
-  gone, the human must restart it or reassign. Escalated E08.
-- **T22 was audited PASS twice** (F22-1b, F22-4b) and is now **DONE** (Lead flip).
-  The fixture surface Agent-C needs for F17-1 is ready and waiting.
+  exists; calibration is measured on synthetic data only. **STILL BLOCKED since
+  2026-10-07 22:36 UTC — re-escalated 2026-10-08 06:11 UTC.** Blocks T13
+  finalization and any probability publication.
+- ~~Agent-C OFFLINE~~ **RESOLVED 06:16 UTC** — Agent-C returned and delivered a real
+  T17 improvement (contract-vs-implementation test; 2 schema divergences corrected).
+- **NEW (06:22 UTC) — contract-sync regression:** Agent-C's schema correction
+  invalidated **4 of Agent-A's T22 fixtures** (`shadow/{positions,outcomes}`
+  count-object → array; `quality` string → object). `test_api_fixtures` 4/51 FAIL.
+  Cross-zone; owner Agent-C refreshes the mock-derived fixtures in-zone. Not a
+  correctness regression — T22 (analysis_latest) is untouched.
 
 ## Escalations
 
 - **E05 OPEN (hard blocker)** — real XAUUSD data; re-escalated (STILL BLOCKED).
-- **E08 OPEN** — Agent-C liveness (OFFLINE >6h) on the critical path.
-- E03 (bundling), E06 (impl-vs-schema), E07 (score semantics) OPEN — all assigned
-  to Agent-C under T17/T19 and paused by its OFFLINE status.
-- E01 RESOLVED (T12 deferred), E02 RESOLVED (test glob), E04 RESOLVED (T20 PASS).
+- **E08 CLOSED 06:16 UTC** — Agent-C returned; T17/T19 leases re-established.
+- E03/E06/E07 OPEN, now actively owned by Agent-C (T17/T19). E01/E02/E04 RESOLVED.
 
-## Agents
+## Agents (watchdog @ 06:22 UTC)
 
-- DeepSeek: **ACTIVE** (Lead) — resumed after session break.
-- Agent-A: **ACTIVE_SLOW** (last heartbeat 05:20 UTC, ~51 min) — zone green; T22 DONE.
-- Agent-B: **STALE** (last heartbeat 02:39 UTC, ~3h32m) — all its tasks DONE.
-- Agent-C: **OFFLINE** (last heartbeat 2026-10-07 23:10 UTC, ~7h) — critical path.
-- Agent-D: **STALE** (last heartbeat 00:45 UTC, ~5h26m) — audits done.
-
-## Queue opened on resume (cycle 27, 2026-10-08 06:11 UTC)
-
-- **T23 (Agent-B)** — frozen-contract + invariant checker (E06/E07 enforcement
-  point), in-zone `src/models/`; consumed by Agent-C's F17-1 check and Agent-D's
-  audit. Ready the moment Agent-B returns.
-- **T24 (Agent-A)** — T13 integration test harness (drives frozen v1 against the
-  mock from Agent-A's fixtures), sequenced **after** Agent-C's T17/T19 land; the
-  harness may be written now against the frozen contract.
+- DeepSeek: **ACTIVE** (Lead).
+- Agent-A: **ACTIVE** (last heartbeat 05:20; zone green at its head — but see the
+  contract-sync regression; she has been pinged).
+- Agent-B: **ACTIVE** — returned 06:13; T23 delivered → REVIEW.
+- Agent-C: **ACTIVE** — returned 06:16; T17 REVIEW, T19 ACTIVE.
+- Agent-D: **ACTIVE** — returned 06:14; T18 re-audit PASS; T23 audit requested.
 
 ## Hourly checkpoints
 
-- 2026-10-08 06:11 UTC: resumed post-break; T22 DONE; B/C/D liveness escalation;
-  E05 re-escalated. Tree green (per Agent-D sweep: 226 py / 18 ctest / 50–51
-  fixtures / mock --check clean). No production/baseline touched.
+- 2026-10-08 06:22 UTC: all four agents back ACTIVE; T18 PASS; T23 REVIEW; T17
+  contract fix landed but broke 4 fixtures (owner notified). E05 still the only
+  mission blocker. Tree green except the 4-fixture contract sync.
 
 ## Notes
 
