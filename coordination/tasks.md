@@ -65,9 +65,9 @@ lease (per `README.md` §F).
 | T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | ACTIVE | - |
 | T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | IDLE | - |
 | T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | IDLE | - |
-| T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | IDLE | - |
+| T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | REVIEW | - |
 | T29 | Real-data quality + calibration audit | Agent-D | Lead | IDLE | - |
-| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | IDLE | - |
+| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | ACTIVE | - |
 
 ---
 

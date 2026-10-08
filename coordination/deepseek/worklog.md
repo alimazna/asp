@@ -369,3 +369,9 @@
 - RULED: implementation is truth -> extend API_V1_SCHEMA.json ADDITIVELY; T30 opened (Agent-C owner) sequenced after T26/T27. Agent-C to first deliver exact per-route host key list; Lead extends schema; then mock/fixtures/guard.
 - RULED: execution order T25->T26->T27->T29, T28/T30 interleaved. T27 claimed only after T26 FeatureSet contract pinned.
 - Fetch: 2021 complete (19.9 MB), 2022 in progress.
+
+### [2026-10-08 07:36 UTC] Cycle 33 — T30(a) schema extension
+- Read BackendFacade.cpp emitters for authoritative element shapes (Agent-D note: DEGRADED dump hides list elements).
+- Extended docs/architecture/API_V1_SCHEMA.json additively: timeframes capability_impact+quality, context props, bridge 13 keys, risk proposal, research experiments/failures, governance pending/history, audit records/incidents, shadow+history element shapes. Kept new fields as optional properties so mock_api --check stays green; Agent-C promotes to required in T30(b).
+- Verified: mock 0 failures, models 266 OK, e2e_frozen_v1/api_fixtures/mock_t19/data_paths_t28 PASS, contract_checker 26 OK. api-v1.0 unchanged.
+- Push OK.

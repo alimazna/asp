@@ -229,3 +229,10 @@
 - Lease: T25 (data acquisition) — self
 - Progress: 99%
 - Note: cycle 32 — rulings: (1) contract shape drift -> ADDITIVE schema extension (T30, Agent-C); (2) order confirmed T25->T26->T27->T29. F-HIST-1 closed. Fetch: 2021 done, 2022 in progress.
+
+### [2026-10-08 07:36 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 (data acquisition) — self
+- Progress: 99%
+- Note: cycle 33 — T30(a) landed: extended API_V1_SCHEMA.json additively (all host leaves); mock/e2e green. Agent-C T30(b) unblocked (mock align + required promotion + exact-shape guard). Data: 2021,2022 done; 2023 running.
