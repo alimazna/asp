@@ -136,3 +136,11 @@
 - Progress: 100% (Stage 1)
 - Note: configurable data-path surface landed 17/17; T13 slice(a) also REVIEW
 
+### [2026-10-08 07:45 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T28 REVIEW; T30 prep delivered (schema extension pending Lead)
+- Progress: n/a
+- Note: host_leaf_keys.json (all 15 routes) + scripts/host_key_dump.py delivered per RULING 1
+
+

@@ -1,0 +1,419 @@
+{
+  "note": "exact key paths the real host emits, for additive API_V1_SCHEMA.json extension (T30)",
+  "routes": {
+    "GET /api/v1/analysis/history": {
+      "leaf_paths": [
+        "api",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "array",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/analysis/latest": {
+      "leaf_paths": [
+        "api",
+        "data.context.h4_bias",
+        "data.context.m15_trigger",
+        "data.context.mtf_agreement",
+        "data.context.regime",
+        "data.context.volatility_state",
+        "data.levels.entry",
+        "data.levels.reward_risk",
+        "data.levels.sl_method",
+        "data.levels.stop_loss",
+        "data.levels.suggested_risk_pct",
+        "data.levels.take_profit",
+        "data.levels.tp_method",
+        "data.meta.coverage_tier",
+        "data.meta.data_freshness_sec",
+        "data.meta.degraded",
+        "data.meta.disclaimer",
+        "data.meta.score_is_probability",
+        "data.signal.confidence_hi",
+        "data.signal.confidence_lo",
+        "data.signal.direction",
+        "data.signal.horizon",
+        "data.signal.model_version",
+        "data.signal.probability",
+        "data.signal.probability_calibrated",
+        "data.signal.score",
+        "data.symbol",
+        "data.timestamp",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.context": "object",
+        "data.context.h4_bias": "str",
+        "data.context.m15_trigger": "str",
+        "data.context.mtf_agreement": "null",
+        "data.context.regime": "str",
+        "data.context.volatility_state": "str",
+        "data.levels": "object",
+        "data.levels.entry": "null",
+        "data.levels.reward_risk": "null",
+        "data.levels.sl_method": "null",
+        "data.levels.stop_loss": "null",
+        "data.levels.suggested_risk_pct": "null",
+        "data.levels.take_profit": "null",
+        "data.levels.tp_method": "null",
+        "data.meta": "object",
+        "data.meta.coverage_tier": "str",
+        "data.meta.data_freshness_sec": "null",
+        "data.meta.degraded": "boolean",
+        "data.meta.disclaimer": "str",
+        "data.meta.score_is_probability": "boolean",
+        "data.signal": "object",
+        "data.signal.confidence_hi": "null",
+        "data.signal.confidence_lo": "null",
+        "data.signal.direction": "str",
+        "data.signal.features_contributing": "array",
+        "data.signal.horizon": "null",
+        "data.signal.model_version": "null",
+        "data.signal.probability": "null",
+        "data.signal.probability_calibrated": "boolean",
+        "data.signal.score": "null",
+        "data.symbol": "str",
+        "data.timestamp": "null",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/audit/recent": {
+      "leaf_paths": [
+        "api",
+        "data.audit_stream_size",
+        "data.count",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.active_incidents": "array",
+        "data.audit_records": "array",
+        "data.audit_stream_size": "integer",
+        "data.count": "integer",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/bridge/status": {
+      "leaf_paths": [
+        "api",
+        "data.bridge_process_state",
+        "data.bridge_symbol",
+        "data.broker",
+        "data.handshake_ok",
+        "data.host",
+        "data.initialized",
+        "data.last_error",
+        "data.last_successful_request",
+        "data.loopback_only",
+        "data.managed_by_application",
+        "data.mt5_ready",
+        "data.mt5_ready_live",
+        "data.observed",
+        "data.package_available",
+        "data.process_state",
+        "data.requires_manual_cmd",
+        "data.resolved_symbol",
+        "data.server",
+        "data.startup_stage",
+        "data.transport",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.bridge_process_state": "str",
+        "data.bridge_symbol": "null",
+        "data.broker": "null",
+        "data.handshake_ok": "boolean",
+        "data.host": "str",
+        "data.initialized": "boolean",
+        "data.last_error": "str",
+        "data.last_successful_request": "null",
+        "data.loopback_only": "boolean",
+        "data.managed_by_application": "boolean",
+        "data.mt5_ready": "boolean",
+        "data.mt5_ready_live": "boolean",
+        "data.observed": "boolean",
+        "data.package_available": "boolean",
+        "data.process_state": "str",
+        "data.requires_manual_cmd": "boolean",
+        "data.resolved_symbol": "str",
+        "data.server": "null",
+        "data.startup_stage": "str",
+        "data.transport": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/context/latest": {
+      "leaf_paths": [
+        "api",
+        "data.context.h4_bias",
+        "data.context.m15_trigger",
+        "data.context.mtf_agreement",
+        "data.context.regime",
+        "data.context.volatility_state",
+        "data.symbol",
+        "data.timestamp",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.context": "object",
+        "data.context.h4_bias": "str",
+        "data.context.m15_trigger": "str",
+        "data.context.mtf_agreement": "null",
+        "data.context.regime": "str",
+        "data.context.volatility_state": "str",
+        "data.symbol": "str",
+        "data.timestamp": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/governance/status": {
+      "leaf_paths": [
+        "api",
+        "data.live_trading_authorised",
+        "data.pending_count",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.history": "array",
+        "data.live_trading_authorised": "boolean",
+        "data.pending": "array",
+        "data.pending_count": "integer",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/health": {
+      "leaf_paths": [
+        "api",
+        "data.aggregate",
+        "data.decision_grade_data",
+        "data.observed_at",
+        "data.unknown_is_not_safe",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.aggregate": "str",
+        "data.decision_grade_data": "boolean",
+        "data.degraded_reasons": "array",
+        "data.observed_at": "integer",
+        "data.unknown_is_not_safe": "boolean",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/health/v1": {
+      "leaf_paths": [
+        "api",
+        "data.bridge",
+        "data.status",
+        "data.uptime_sec",
+        "data.version",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.bridge": "str",
+        "data.status": "str",
+        "data.uptime_sec": "integer",
+        "data.version": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/research/status": {
+      "leaf_paths": [
+        "api",
+        "data.available",
+        "data.experiment_count",
+        "data.failure_count",
+        "data.mode",
+        "data.note",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.available": "boolean",
+        "data.experiment_count": "integer",
+        "data.experiments": "array",
+        "data.failure_count": "integer",
+        "data.failures": "array",
+        "data.mode": "str",
+        "data.note": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/risk/latest": {
+      "leaf_paths": [
+        "api",
+        "data.aggregate_open_risk_fraction",
+        "data.available",
+        "data.open_positions",
+        "data.proposal",
+        "data.proposal_available",
+        "data.proposal_reason",
+        "data.risk_bounded_by_guardian",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.aggregate_open_risk_fraction": "integer",
+        "data.available": "boolean",
+        "data.open_positions": "integer",
+        "data.proposal": "null",
+        "data.proposal_available": "boolean",
+        "data.proposal_reason": "str",
+        "data.risk_bounded_by_guardian": "boolean",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/shadow/outcomes": {
+      "leaf_paths": [
+        "api",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "array",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/shadow/positions": {
+      "leaf_paths": [
+        "api",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "array",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/system/state": {
+      "leaf_paths": [
+        "api",
+        "data.api",
+        "data.bridge_state",
+        "data.mode",
+        "data.ready",
+        "data.schema",
+        "data.shadow_only",
+        "data.startup_stage",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.api": "str",
+        "data.bridge_state": "str",
+        "data.mode": "str",
+        "data.ready": "boolean",
+        "data.schema": "str",
+        "data.shadow_only": "boolean",
+        "data.startup_stage": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/timeframes": {
+      "leaf_paths": [
+        "api",
+        "data[].capability_impact[].capability",
+        "data[].capability_impact[].impact",
+        "data[].capability_impact[].reason",
+        "data[].decision_grade",
+        "data[].freshness",
+        "data[].has_closed_bar",
+        "data[].last_successful_update",
+        "data[].observed",
+        "data[].quality.decision_grade",
+        "data[].quality.state",
+        "data[].timeframe",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "array",
+        "data[]": "object",
+        "data[].capability_impact": "array",
+        "data[].capability_impact[]": "object",
+        "data[].capability_impact[].capability": "str",
+        "data[].capability_impact[].impact": "str",
+        "data[].capability_impact[].reason": "str",
+        "data[].decision_grade": "boolean",
+        "data[].freshness": "null",
+        "data[].has_closed_bar": "boolean",
+        "data[].last_successful_update": "null",
+        "data[].observed": "boolean",
+        "data[].quality": "object",
+        "data[].quality.decision_grade": "boolean",
+        "data[].quality.state": "str",
+        "data[].timeframe": "str",
+        "schema": "str"
+      }
+    },
+    "GET /api/v1/timeframes/{tf}/snapshot": {
+      "leaf_paths": [
+        "api",
+        "data.capability_impact[].capability",
+        "data.capability_impact[].impact",
+        "data.capability_impact[].reason",
+        "data.freshness",
+        "data.has_closed_bar",
+        "data.last_successful_update",
+        "data.observed",
+        "data.quality.decision_grade",
+        "data.quality.state",
+        "data.timeframe",
+        "schema"
+      ],
+      "returned_paths": {
+        "$": "object",
+        "api": "str",
+        "data": "object",
+        "data.capability_impact": "array",
+        "data.capability_impact[]": "object",
+        "data.capability_impact[].capability": "str",
+        "data.capability_impact[].impact": "str",
+        "data.capability_impact[].reason": "str",
+        "data.freshness": "null",
+        "data.has_closed_bar": "boolean",
+        "data.last_successful_update": "null",
+        "data.observed": "boolean",
+        "data.quality": "object",
+        "data.quality.decision_grade": "boolean",
+        "data.quality.state": "str",
+        "data.timeframe": "str",
+        "schema": "str"
+      }
+    }
+  },
+  "schema_path": "docs/architecture/API_V1_SCHEMA.json",
+  "source": "real host build/aura_backend_host (read-only)"
+}
