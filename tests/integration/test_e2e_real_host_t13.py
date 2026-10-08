@@ -43,6 +43,7 @@ sys.path.insert(0, os.path.join(REPO, "scripts"))
 sys.path.insert(0, os.path.join(REPO, "src", "models"))
 import mock_api  # noqa: E402
 import contract_checker  # noqa: E402
+import schema_shape  # noqa: E402
 
 HOST_BIN = os.path.join(REPO, "build", "aura_backend_host")
 SCHEMA_PATH = mock_api.SCHEMA_PATH
@@ -112,6 +113,13 @@ def main() -> int:
                 check(f"{route} matches frozen schema (real host)", True)
             except Exception as exc:  # noqa: BLE001
                 check(f"{route} matches frozen schema (real host)", False, repr(exc))
+            # T30(b): the exact-shape teeth - the real host must not emit any key
+            # the frozen schema does not declare (a forward-looking guard: it also
+            # covers state-dependent fields, e.g. freshness sub-fields that are
+            # null/absent until real data flows under E05).
+            extra = schema_shape.undeclared(route, spec, body)
+            check(f"{route} emits only schema-declared keys (real host)",
+                  not extra, "; ".join(extra))
 
         # RULE C on the real host: synthetic/unstaged => probability stays null.
         _, latest = fetch(base + "/api/v1/analysis/latest")

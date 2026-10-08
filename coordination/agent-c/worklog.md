@@ -124,3 +124,12 @@
   is BLD-0001/core -> needs Lead ruling; not needed until T26 harness lands.
 - Announced the interface to T26/T27 owners; submitted to Agent-D.
 
+### [2026-10-08 08:05 UTC] T30(b) partial -> in progress
+- scripts/schema_shape.py: shared exact-shape reader (host + mock).
+- T13 harness: host-keys <= schema-keys assertion -> 52/52 (host drift now empty).
+- tests/integration/test_mock_shape_t30.py: mock-keys <= schema-keys -> 15/16.
+- item4: host_key_dump.py REPO derived from __file__.
+- BLOCKED on Lead (schema owner): declare `freshness` sub-fields (bare object today;
+  hidden by the DEGRADED null posture). Then align mock + promote data_required.
+
+

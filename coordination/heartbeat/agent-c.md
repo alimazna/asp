@@ -151,5 +151,14 @@
 - Note: found T28/T27 env-name divergence (AURA_FEATURES_DIR vs ASTRA_FEATURE_CORPUS);
   added compat alias (20/20) and proposed convergence to Agent-B
 
+### [2026-10-08 08:05 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T30(b) in progress
+- Progress: items 1(partial)/3/4 done
+- Note: schema_shape.py + host teeth (52/52) + mock teeth (15/16); reported freshness
+  bare-object gap to Lead (state-dependent, hidden by DEGRADED dump)
+
+
 
 
