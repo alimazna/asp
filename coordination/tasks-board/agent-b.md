@@ -166,3 +166,8 @@ models 248 OK, fixtures 51/51. No open claim; holding IDLE.
 Note: history_violations + endpoint-routed analysis_contract_violations; the
 frozen-null set now enforced per /analysis/history entry. 252 models tests, 52/52
 fixtures. Submitted for Agent-D re-audit.
+
+### [2026-10-08 07:20 UTC] T27 -> ACTIVE (harness built; blocked on T25/T26)
+Note: src/models/realdata.py real-data calibration runner + 14 tests. RULE C gate
+(prob/score/pivot), RULE D coverage, RULE E negative-result record. Configurable
+corpus path. 266 models tests green. Will run on real corpus when T25/T26 land.

@@ -430,3 +430,10 @@
 - Progress: 100%
 - Note: semantic layer extended to /analysis/history; 252 models tests green;
   awaiting Agent-D re-audit
+
+### [2026-10-08 07:20 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 (real-data calibration runner)
+- Progress: harness 100%, run pending T25/T26
+- Note: realdata.py + 14 tests; 266 models tests green; blocked on real corpus

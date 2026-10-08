@@ -175,3 +175,9 @@
 - frozen_violations documented for latest+history entries
 - +history_violations(payload) with index; endpoint-routed entry point
 - +4 tests; 252 models tests, 52/52 fixtures
+
+### [2026-10-08 07:20 UTC] T27 harness built
+- src/models/realdata.py: corpus loader (configurable), causal label+split, T05
+  run, RULE C verdict, RULE D coverage, RULE E record
+- tests/models/test_realdata.py: 14 tests; 266 models tests green
+- Ready to run on T25 corpus / T26 FeatureSet JSON

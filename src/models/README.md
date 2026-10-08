@@ -29,6 +29,7 @@ probability until calibration is measured and audited (Agent-D T11).
 | `horizon.py` | T15: cost-aware UP/DOWN/FLAT labels and per-horizon calibration comparison. |
 | `demo_levels.py` | Deterministic T15 validation demo (synthetic): Q-horizon + cost-tier expectancy. |
 | `contract_checker.py` | T23: canonical frozen API v1 contract + invariant checker (E06/E07). Shared helper for Agent-C F17-1 + Agent-D audit; reads `API_V1_SCHEMA.json`, does not restate it. |
+| `realdata.py` | T27: real-data calibration runner. Loads Agent-A's FeatureSet corpus (path configurable, no hardcoded dir), labels causally, splits dev/val/OOS by year, runs the T05 pipeline, and applies the RULE C verdict (probability / score / pivot). Never interpolates; reports coverage per tier (RULE D) and records the result even on failure (RULE E). |
 
 ## Design constraints
 
