@@ -24,6 +24,7 @@
 
 #include "analysis/features/AnalyticalFeatureEngine.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -99,7 +100,7 @@ bool readBars(const std::string& path, aura::Timeframe tf,
         b.high = std::stod(f[2]);
         b.low = std::stod(f[3]);
         b.close = std::stod(f[4]);
-        b.tickVolume = std::stoll(f[5]);
+        b.tickVolume = static_cast<std::int64_t>(std::llround(std::stod(f[5])));
         b.realVolume = 0;
         b.spread = 0;
         b.quality = aura::DataQualityState::VALID;

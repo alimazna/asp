@@ -114,5 +114,75 @@ class RealDataHarnessTest(unittest.TestCase):
                 self.assertEqual(fa.read(), fb.read())
 
 
+class M1FormatTest(unittest.TestCase):
+    """The reader must accept real Dukascopy quirks without fabricating data."""
+
+    def test_fractional_volume_and_seconds_timestamps(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as fh:
+            fh.write("timestamp,open,high,low,close,volume\n")
+            # seconds epoch; fractional volume (millions of units)
+            fh.write("1735689600,1800.0,1801.0,1799.0,1800.5,43.2\n")
+            fh.write("1735689660,1800.5,1802.0,1800.0,1801.0,0.0\n")
+            path = fh.name
+        try:
+            rows = R.load_m1([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual([r[0] for r in rows], [1735689600, 1735689660])
+        self.assertEqual(rows[0][5], 43)   # 43.2 -> 43
+        self.assertEqual(rows[1][5], 0)
+
+    def test_millisecond_timestamps_normalised(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as fh:
+            fh.write("1735689600000,1800,1801,1799,1800,1\n")
+            path = fh.name
+        try:
+            rows = R.load_m1([path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(rows[0][0], 1735689600)
+
+    def test_duplicate_timestamps_rejected(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as fh:
+            fh.write("1735689600,1,1,1,1,1\n1735689600,1,1,1,1,1\n")
+            path = fh.name
+        try:
+            with self.assertRaises(SystemExit):
+                R.load_m1([path])
+        finally:
+            os.unlink(path)
+
+    def test_multifile_order_harmonised(self):
+        # Two files supplied newest-first are sorted into time order (not rejected).
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as a, \
+                tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as b:
+            a.write("1735689660,1,1,1,1,1\n")
+            b.write("1735689600,1,1,1,1,1\n")
+            pa, pb = a.name, b.name
+        try:
+            rows = R.load_m1([pa, pb])
+        finally:
+            os.unlink(pa)
+            os.unlink(pb)
+        self.assertEqual([r[0] for r in rows], [1735689600, 1735689660])
+
+    def test_aggregation_ohlcv_first_last(self):
+        # Two M1 bars inside one H1 bucket -> one H1 bar: first open, max high,
+        # min low, last close, summed volume.
+        m1 = [(3600, 1.0, 2.0, 0.5, 1.5, 10),
+              (3660, 1.5, 3.0, 1.0, 2.5, 20)]
+        h1 = R.aggregate(m1, "H1")
+        self.assertEqual(h1, [(3600, [1.0, 3.0, 0.5, 2.5, 30])])
+
+    def test_weekly_bucket_starts_monday(self):
+        # 2025-01-01 (Wed) is in the week beginning Monday 2024-12-30.
+        from datetime import datetime, timezone
+        wed = 1735689600
+        start = R.bucket_start(wed, "W1")
+        self.assertEqual(datetime.fromtimestamp(start, tz=timezone.utc).weekday(), 0)
+        self.assertLessEqual(start, wed)
+        self.assertLess(wed - start, 7 * 24 * 3600)
+
+
 if __name__ == "__main__":
     unittest.main()

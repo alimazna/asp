@@ -60,8 +60,9 @@ files; they are concatenated in time order.
   `valid=false`, `quality=INCOMPLETE/DEGRADED`; nothing is fabricated. Young
   corpora (e.g. the first months of a series) yield a `DEGRADED` set — that is
   correct, not a bug.
-- **No silent interpolation.** The M1 reader rejects duplicate / out-of-order
-  timestamps rather than repairing them.
+- **No silent interpolation.** The M1 reader rejects duplicate open times
+  (ambiguous bars) rather than picking one, and sorts multiple input files into
+  time order.
 
 ## Limits (stated, not hidden)
 

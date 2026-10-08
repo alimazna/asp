@@ -78,6 +78,11 @@ def bucket_start(sec: int, tf: str) -> int:
     raise ValueError(f"unknown timeframe {tf!r}")
 
 
+def _to_secs(ts: int) -> int:
+    """Normalise an epoch timestamp to seconds (accepts s, ms; not us)."""
+    return ts // 1000 if ts >= 100_000_000_000 else ts
+
+
 def load_m1(paths):
     """Read M1 CSVs. A header may be present on each file."""
     rows = []
@@ -95,15 +100,19 @@ def load_m1(paths):
                     except (ValueError, IndexError):
                         continue  # header line
                     started = True
-                sec = int(cols[0]) // 1000  # ms -> s
+                sec = _to_secs(int(cols[0]))
+                # Dukascopy tick volume is fractional (millions of units); it is
+                # an activity proxy, so round to a whole tick count.
                 rows.append((sec, float(cols[1]), float(cols[2]),
-                             float(cols[3]), float(cols[4]), int(cols[5])))
+                             float(cols[3]), float(cols[4]),
+                             int(round(float(cols[5])))))
     rows.sort(key=lambda r: r[0])
-    # Reject duplicate/open-time regressions — silent dedup would fabricate data.
+    # Multiple files may be supplied out of order; sorting harmonises them.
+    # Duplicate open times, however, are ambiguous bars — reject, never silently
+    # pick one (that would fabricate a bar).
     for i in range(1, len(rows)):
-        if rows[i][0] <= rows[i - 1][0]:
-            raise SystemExit(f"non-monotonic M1 timestamps at row {i}: "
-                             f"{rows[i - 1][0]} >= {rows[i][0]}")
+        if rows[i][0] == rows[i - 1][0]:
+            raise SystemExit(f"duplicate M1 open time at row {i}: {rows[i][0]}")
     return rows
 
 
