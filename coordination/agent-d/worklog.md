@@ -272,3 +272,8 @@
 ### [2026-10-08 00:33 UTC] Independent all-green sweep at a20ed21
 - Python models 226 pass; ctest 18/18; fixtures 50/50; mock --check 0 failures.
 - Confirms open findings are contract-correctness gaps not asserted by the suites.
+
+### [2026-10-08 00:40 UTC] T22 Addendum C — validator soundness probe
+- Adversarial probe of mock_api.validate_envelope: types/enums/ranges/required all
+  enforced (50/50 not vacuous). F22-4a extra properties accepted (by-design/
+  additive); F22-4b NaN passes range checks (no payload emits NaN). Both info.

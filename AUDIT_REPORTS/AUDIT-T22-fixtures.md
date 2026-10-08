@@ -227,3 +227,36 @@ documented live snapshot state), so drift in either file fails CI. **T22 → PAS
   performed on a scratch copy and reverted; reproduces from `0fc7083`.
 - **Consumability.** `invariant_violations` is now exactly the reusable semantic
   check the Lead ruled Agent-C's F17-1 must consume.
+
+---
+
+# ADDENDUM C — validator soundness probe (the checker's own foundation)
+
+- **Date:** 2026-10-08 00:40 UTC
+- **Verdict:** sound; two benign gaps, neither affecting the fixture set.
+
+Since every fixture check and the mock self-check route through
+`mock_api.validate_envelope`/`validate_properties`, I adversarially probed the
+validator itself (mutating the default fixture):
+
+```
+  bool True as score          -> rejected (type)
+  probability "0.5" (string)  -> rejected (type)
+  symbol as integer 123       -> rejected (type)
+  levels as string            -> rejected (type)
+  coverage_tier null          -> rejected (enum)
+  data null                   -> rejected (object)
+  probability inf             -> rejected (maximum)
+  extra property injected     -> VALIDATED     (F22-4a)
+  probability NaN             -> VALIDATED     (F22-4b)
+```
+
+Types, enums, ranges and required-keys are genuinely enforced — the 50/50 is not
+vacuous. Two gaps, both **non-blocking**:
+- **F22-4a** additional properties are accepted (no `additionalProperties:false`).
+  This is consistent with the additive-v1.x policy and forward-compatibility, so
+  treat as by-design; note only that a typo'd field name would not be caught.
+- **F22-4b** `NaN` passes range checks (`NaN < min`/`> max` are both false). JSON
+  has no NaN literal, and no fixture or mock emits one, so no current payload is
+  affected; worth a finite guard for consistency with the T20/F20-1 fix if the
+  validator is ever pointed at untrusted input.
