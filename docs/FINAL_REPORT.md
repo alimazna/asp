@@ -4,6 +4,11 @@
 > construction: every number is either cited to an audited artifact or marked
 > **PENDING**. Nothing here is estimated. It is finalized when T27 (real-data
 > calibration) and T13 (evidential end-to-end) land and are audited.
+>
+> **Update 2026-10-08 08:40 UTC:** the multi-regime **Dukascopy 2021-2025**
+> corpus was found complete (it had been gitignored/invisible) and committed, so
+> T27 is now **decision-grade** on the real year partition — not a POC-only run.
+> The 3.5-month MT5 window becomes the POC / independent cross-check.
 
 - **Repo:** `alimazna/asp` @ `main`
 - **Mission:** AURA (technical) / ASTRA (product) — a decision-support backend for
@@ -30,40 +35,43 @@
 
 ## 2. Data — what we actually have
 
-The operator uploaded a MetaTrader 5 **XAUUSD M1** export. It was converted with a
-stdlib tool (`research/data/xauusd_m1/tools/convert_mt5.py`) to a canonical,
-sorted, deduplicated CSV and validated (`quality_check_mt5.py` → `QUALITY.md`):
+Two real corpora, both validated with a stdlib tool and documented (never
+silently repaired):
 
-- **100,008** M1 bars, **2026-06-24 11:08 .. 2026-10-08 10:30** (broker time).
-- **0** duplicates, **0** OHLC violations, **0** NaN, **0** off-grid timestamps,
-  **0** unexpected gaps.
-- Price band WARN: observed 3942.48..4696.73, outside the directive's
-  1800..3000 — a real gold move, **reported, not repaired**.
+- **Dukascopy 2021-2025** (BID+ASK) — the **decision-grade** corpus:
+  1,695,651 M1 BID bars, 2021-01-03..2025-12-30, spanning several gold regimes
+  (~1680..~4400 USD/oz). 0 duplicates, 0 OHLC violations, 0 non-monotonic
+  timestamps, 0 unexpected gaps. Committed as deterministic per-year gzip
+  (`2021..2025.csv.gz`, BID+ASK). (`QUALITY_dukascopy_2021_2025.md`.)
+- **Operator MT5 2026** — an independent, newer 3.5-month window:
+  100,008 M1 bars, 2026-06-24 11:08..2026-10-08 10:30 (broker time), 0 dups /
+  0 OHLC violations / 0 NaN / 0 off-grid / 0 unexpected gaps. Price band WARN:
+  observed 3942..4697, outside the directive's 1800..3000 — a real gold move,
+  reported not repaired. (`QUALITY.md`.)
 
-**Coverage honesty (RULE D).** This is a **single ~3.5-month, single-regime
-window**. It supports a **proof-of-concept** run of the whole pipeline on real
-gold. It does **not** support a multi-regime chronological development /
-validation / OOS split or a decision-grade walk-forward. Any split of this window
-is a **causal, in-window** split and the numbers are in-sample-ish evidence, not
-out-of-sample proof. This limitation is documented in the data `README.md`,
-`QUALITY.md`, and the corpus `README.md`.
+The Dukascopy corpus is the one T27's chronological **development (2021-22) /
+validation (2023-24) / OOS (2025)** partition was designed for; it supports a
+multi-regime walk-forward. The MT5 window is the **proof-of-concept / independent
+cross-check** on a second provider and a newer period.
 
-Features were extracted from the real corpus with the real C++ engine:
-**6,670** decision sets, **2,497** valid, committed as
-`research/features_real/corpus/real_corpus.json.gz`.
+Features were extracted from both with the real C++ engine:
 
-## 3. Real-data calibration — PROOF-OF-CONCEPT
+- `real_corpus_2021_2025.json.gz` — 1,695,651 bars → **113,083** decision sets
+  (**107,403** valid), all years 2021-2025. **Decision-grade.**
+- `real_corpus.json.gz` — 100,008 bars → 6,670 sets (2,497 valid). **POC.**
 
-> **PENDING T27 (Agent-B).** Ruled by the Lead (2026-10-08 08:05 UTC): the
-> year partition (2021-2025) does **not** apply to a 2026-only window; T27 must use
-> a **causal, in-window** split, apply the RULE C gate, and report the result as a
-> **PROOF-OF-CONCEPT**, explicitly **not** the mission's publication verdict.
+## 3. Real-data calibration — decision-grade on the multi-year corpus
 
-To be filled from the audited T27 report (Brier, ECE, reliability, coverage,
-walk-forward or its honest "window too short" note), with the RULE C gate outcome.
-**RULE C:** no probability is published unless it is calibrated and audited; if
-the honest ECE does not clear the gate, the product presents a **score**, not a
-probability (`score_is_probability=false`).
+> **PENDING T27 (Agent-B).** Amended ruling (2026-10-08 08:40 UTC): run the real
+> calendar-year partition (**dev 2021-22 / val 2023-24 / OOS 2025**) + walk-forward
+> on the committed `real_corpus_2021_2025.json.gz`; this is the **publication
+> verdict**. The 3.5-month MT5 corpus is a separate **POC / cross-check**.
+
+To be filled from the audited T27 report: Brier, ECE, reliability, per-tier
+coverage, and the walk-forward — with the RULE C gate outcome. **RULE C:** no
+probability is published unless it is calibrated and audited; if the honest ECE
+does not clear the gate, the product presents a **score**, not a probability
+(`score_is_probability=false`). A negative result is recorded, not hidden.
 
 ## 4. End-to-end — real host, real data
 
