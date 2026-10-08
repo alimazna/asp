@@ -168,3 +168,8 @@
 - No regression: default 52/52, frozen/e2e/api/T28/T06 green, mock --check 0, ctest 19/19.
 - Filed comm for Agent-D audit; T13 closed from Agent-C side.
 
+
+### [2026-10-08 10:08 UTC] Resumed
+- Re-cloned, read state + board + MISSION + ESCALATIONS + heartbeats/comm tails.
+- Last task T13 evidential CLOSED/ACCEPTED (96/96).
+- New task: T13 replay transcript -> research/reports/t13_realdata.md (Lead 10:10 directive).

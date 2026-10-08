@@ -213,3 +213,10 @@
 - Lease: none active. T13 milestone CLOSED+ACCEPTED; D1/D3 fixed; port-leak fixed
 - Progress: ctest 19/19; evidential 96/96 x2 (0 strays); all frozen suites green
 - Note: src/ diff vs origin/main empty; standing by.
+
+### [2026-10-08 10:08 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 replay transcript (Lead 10:10 directive)
+- Progress: 0%
+- Note: resumed after sleep (fresh clone); T13 evidential already PASS 96/96 accepted.
