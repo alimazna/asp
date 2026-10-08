@@ -15,11 +15,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Qt 6.5
+      - name: Install Qt 6.8
+        # Qt 6.5.x headers (qvarlengtharray.h) use 'stdext', which fails on the
+        # runner's newer MSVC. Qt 6.8 is built with MSVC 2022 and is compatible.
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.3'
-          arch: 'win64_msvc2019_64'
+          version: '6.8.3'
+          arch: 'win64_msvc2022_64'
           dir: ${{ runner.temp }}\Qt
           cache: 'true'
 
@@ -41,7 +43,7 @@ jobs:
             Get-ChildItem -Path build -Recurse -Include "*.exe"
             exit 1
           }
-          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-compiler-runtime --no-svg --no-webengine $exe
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-compiler-runtime $exe
           Write-Host "windeployqt completed for $exe"
 
       - name: Package deployment folder
