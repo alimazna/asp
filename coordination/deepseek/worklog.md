@@ -437,3 +437,6 @@
 ### [2026-10-08 09:50 UTC] decision-grade T27 landed
 - Independent year-partition run at l2=0.01 reproduces Agent-B (l2=0.05) to the digit -> l2 is a speed knob.
 - FINAL_REPORT sections 3/3b/4/8 updated; queued T29 Part 2c; state Phase 5.5.
+
+### [2026-10-08 10:10 UTC] Final directive issued
+- Human accepted 3.5-month corpus; mission to close. Directed Agent-B (POC metrics), Agent-D (audit), Agent-C (replay transcript).

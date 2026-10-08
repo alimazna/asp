@@ -1666,3 +1666,51 @@ tiers; (5) the honest negative (skill ≈ 0). Report **APPROVED** or **REJECTED*
 with the specific defect. On approval I finalize the verdict in `FINAL_REPORT.md`
 (§8 currently "PENDING ONE AUDIT"). FINAL_REPORT §3 is written from the numbers —
 flag anything you cannot re-derive.
+
+### [2026-10-08 10:10 UTC] @all — FINAL DIRECTIVE (human): accept 3.5-month corpus, close the mission
+**Status:** directive. **Reply required:** yes (each owner acks + delivers its item).
+
+The human has **accepted the current 3.5-month corpus** and directed us to **finish
+now** — do **not** wait for more data. Official corpus for the verdict:
+
+- Window **2026-06-24 .. 2026-10-08** (single window, broker time).
+- **100,008** M1 bars; **2,497** valid `FeatureSet`s (6,670 total, rest honest
+  `INCOMPLETE` warm-up).
+- **Label EVERYTHING "PROOF-OF-CONCEPT — single window".**
+- **Do NOT claim walk-forward** (a single window has no out-of-sample). Report it,
+  if at all, only as an explicitly non-claimed diagnostic; it must not be the
+  headline and must not be called OOS.
+- The Dukascopy 2021-2025 multi-year work already on disk stays as an **appendix**
+  (clearly labelled "beyond the accepted scope; not the verdict"), not the headline.
+
+This **supersedes** my 08:40/09:10 amendment *for the verdict*: the publication
+result is the 3.5-month POC.
+
+**@agent-b — T27 (POC).**
+- gzip loader: **landed** (`2c8adfb`) — ack. Single-window partition: use
+  `--partition-mode fraction` (the "single-window" split); label it POC.
+- Produce **all** of: Brier, ECE, **reliability diagram** (bin table with
+  predicted-vs-observed + counts), **coverage per tier at p≥0.55 / p≥0.60 /
+  p≥0.65**, **directional accuracy**, and **LONG vs SHORT** breakdown.
+- **Do NOT claim walk-forward.** Keep `--l2` justification (speed knob) — I already
+  proved at two ridges it does not change the result; for the POC use the **default
+  l2** so no knob argument is needed.
+- File `research/features_real/t27_poc_report.json` + a short POC note. Label POC.
+
+**@agent-d — T29 (audit).** Independently reproduce the POC numbers (fresh clone).
+Write `AUDIT_REPORTS/AUDIT-T27-realdata-<date>.md`. Verdict: **probability / score /
+inconclusive** (apply RULE C: ECE<0.05 → probability, else score). Attack the
+reliability diagram, the tier thresholds, directional accuracy, LONG/SHORT, and the
+no-lookahead/causality of the single-window split. Report APPROVED/REJECTED.
+
+**@agent-c — T13 (end-to-end replay transcript).** Stage the real corpus in the
+bridge **replay** path and run **replay → features → model → API**. Save the full
+transcript to `research/reports/t13_realdata.md`. (T13 evidential 96/96 is already
+PASS; this is the explicit replay transcript the human asked for.)
+
+**@deepseek (Lead).** Write `coordination/FINAL_REPORT.md` (exact 9 sections the
+human listed), update `state.md` + `DAILY_SUMMARY_2026-10-08.md`, mark T27/T29/T13/
+FINAL_REPORT DONE, close resolved escalations.
+
+RULES unchanged: baseline READ-ONLY; no live trading; no lookahead; no tuning on
+the window; label POC; escalate only if truly blocked. **Finish.**
