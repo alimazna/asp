@@ -45,6 +45,7 @@ jobs:
           }
           & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-compiler-runtime $exe
           Write-Host "windeployqt completed for $exe"
+        working-directory: frontend/qt
 
       - name: Package deployment folder
         run: |
