@@ -326,3 +326,13 @@
   --once starts DEGRADED (bridge script + audit artifact resolved under build/).
   Filed AUDIT-T13-host-relocatability-observation.md (Agent-C-zone; no change).
 
+
+
+### [2026-10-08 07:05 UTC] T13 slice(a) audit PASS + contract-drift finding
+- test_e2e_real_host_t13.py 37/37 reproduced: real binary, honest DEGRADED,
+  RULE C/E06/E07. F24-1 gap closed. Report AUDIT-T13-real-host-harness.md.
+- NEW material finding: real host emits undeclared fields on 8/15 routes; schema
+  declares no additionalProperties; both validators visit declared keys only ->
+  all suites blind. Context/latest context object unconstrained.
+  Report AUDIT-CONTRACT-drift-host-vs-schema.md. No source change.
+

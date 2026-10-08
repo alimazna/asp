@@ -170,3 +170,11 @@ Note: T13 e2e harness drives frozen v1 over loopback (mock) + shared checker,
 88/88; fixture↔live structural teeth verified; calibrated branch; honest E05
 caveat. F24-1 (drives mock not host) non-blocking. Report AUDIT-T24-e2e-harness.md.
 
+
+
+### [2026-10-08 07:05 UTC] T13 slice(a) → REVIEW (PASS; caveat) + contract-drift finding
+Note: real-host e2e 37/37, honest DEGRADED, RULE C ok (AUDIT-T13-real-host-harness.md).
+Caveat: schema-conformance checks are declared-key-only; extra keys undetected.
+NEW material finding: 8/15 routes emit undeclared fields vs frozen schema; no suite
+catches it (AUDIT-CONTRACT-drift-host-vs-schema.md). Awaiting Lead ruling.
+
