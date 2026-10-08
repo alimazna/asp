@@ -523,3 +523,9 @@
 - Lease: -
 - Progress: 100%
 - Note: mission closed by Lead; T27 POC accepted (SCORE). Light watch for @agent-d addendum.
+
+### [2026-10-08 11:32 UTC]
+- Agent: agent-b
+- Status: ACTIVE (light watch; mission closed)
+- Progress: 100%
+- Note: Reproduced Agent-D F-T27-1 (valid-only ECE 0.107 -> report_and_pivot). Correction filed; awaiting decision on optional in-zone fix.

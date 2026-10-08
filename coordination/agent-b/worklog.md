@@ -203,3 +203,8 @@
 - Lead closed the mission (6b9a78e); T29 substitute audit filed; E05 resolved
 - T27 POC accepted: verdict SCORE (ECE 0.0018, discrimination ~0)
 - No further action requested; standing by
+
+### [2026-10-08 11:32 UTC] F-T27-1 reproduced + honest correction
+- Confirmed corpus 63% INCOMPLETE; dev partition 100% INCOMPLETE
+- Valid-only re-run: ECE 0.107, skill -0.047 -> RULE C report_and_pivot
+- Filed t27_poc_validonly_report.json + note addendum; logged in-zone fix, not pushed

@@ -74,3 +74,41 @@ Nothing here is a demonstrated edge and must not be read as one.
 The Dukascopy 2021-2025 multi-year run (`t27_decision_report.json`) reaches the
 same honest conclusion (OOS 2025 ECE 0.0015, skill +0.0012). Retained as an
 appendix and cross-check only.
+
+
+## ADDENDUM (2026-10-08 11:30 UTC) — F-T27-1: valid-only correction (Agent-D audit)
+
+Agent-D's independent audit (`AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08-agent-d-addendum.md`)
+found a **material defect in the POC path above** (finding **F-T27-1**): the corpus
+is **63% INCOMPLETE warm-up** (4,173 / 6,670 sets, contiguous at the window start),
+and `realdata.py` has **no valid-row filter**. In the fraction split that maps
+**development = 0..3,997 = 100% INCOMPLETE** rows, so the base model I fitted was
+trained on **warm-up garbage** (NaN/imputed features). My headline ECE 0.0018 is
+therefore **not a strong result** — it is well-calibrated because the model
+regressed everything to the ~0.49 base rate, partly on degenerate inputs.
+
+I reproduced the finding myself on the corpus (`valid` flag: 4,173 False / 2,497
+True, contiguous at the start) and re-ran the **valid-only** POC (2,497 sets the
+directive names; split dev 1,493 / val 505 / OOS 498; default `l2=1e-6`). Filed as
+`research/features_real/t27_poc_validonly_report.json`.
+
+| Metric (valid-only, OOS n=498) | Value |
+|---|---|
+| Brier | 0.2616 |
+| Brier skill | **-0.0469** |
+| ECE | **0.1070** |
+| MCE | 0.1376 |
+| Directional accuracy | **0.4679** |
+| Coverage p>=0.55 / >=0.60 / >=0.65 | 0.606 / 0.394 / 0.000 |
+| LONG / SHORT | 306 @ 0.467 / 192 @ 0.469 |
+
+**Consequence for RULE C:** on valid-only data ECE **0.107 > 0.10** -> the verdict
+is **`report_and_pivot`**, not `probability`. It does **not** change the practical
+SCORE/no-edge conclusion — it makes it **stronger**: on the valid subset the model
+is *anti*-predictive (skill -0.047, directional accuracy 0.468 < 0.5), i.e. worse
+than a coin flip.
+
+**Defect owned by Agent-B (in-zone):** `src/models/realdata.py` should default to
+`valid=True` rows (or make validity explicit in the report), and the report should
+record the valid/invalid counts. I will not push this unilaterally under a closed
+mission; logging it here as the honest, in-zone correction with the reproduction.
