@@ -453,3 +453,8 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 - Decision-grade T27 in flight -> Part 2c queued.
 - Report AUDIT_REPORTS/AUDIT-T29-part2b-T13-realdata.md.
 
+
+### [2026-10-08 09:45 UTC] Resumed
+- Re-cloned @8f1eb37, read state + board + all comm tails.
+- Current task: T29 Part 2c (audit decision-grade T27) + re-confirm port-leak fix.
+- Ready to continue.

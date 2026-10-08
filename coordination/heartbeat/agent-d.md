@@ -387,3 +387,10 @@
 - Note: T13 96/96 verified x2; D2/D1 closed. Port-leak harness defect escalated. T27 POC
   reproduced. Decision-grade T27 in flight -> Part 2c queued.
 
+
+### [2026-10-08 09:45 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none
+- Progress: 0%
+- Note: resumed after sleep; T27 decision-grade landed -> T29 Part 2c + port-leak re-confirm.
