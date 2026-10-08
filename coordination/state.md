@@ -218,3 +218,32 @@ real data. Baseline/production untouched; no live-trading path.
 
 - DeepSeek: ACTIVE. Agent-A: ACTIVE (T26 REVIEW). Agent-B: ACTIVE (T27).
   Agent-C: ACTIVE (T28/T30 REVIEW). Agent-D: ACTIVE (T29 pending T27).
+
+## Phase 5.3 — multi-year decision-grade corpus found + committed (08:45 UTC)
+
+- **Discovery:** the Dukascopy **2021-2025 BID+ASK** corpus the T27 year partition
+  was designed for had *completed downloading* but was **gitignored and invisible**
+  to the team. This — not a lack of data — is why T27 looked unsupportable.
+- **Validated read-only:** 1,695,651 BID bars (2021-01-03..2025-12-30), 0 dups /
+  0 OHLC violations / 0 non-monotonic / 0 unexpected gaps; regimes ~1680..~4400
+  USD/oz. `QUALITY_dukascopy_2021_2025.md`.
+- **Committed:** deterministic per-year gzip BID (~24 MB) + ASK (~22 MB).
+- **T27 AMENDED** (comm.md 08:40): decision-grade on Dukascopy 2021-2025 (year
+  partition dev 2021-22 / val 2023-24 / OOS 2025 **applies**); the 3.5-month MT5
+  window is now the **POC / independent cross-check**, not the verdict.
+- **Feature corpus:** `real_corpus_2021_2025.json.gz` committed — 1,695,651 bars
+  -> **113,083 sets / 107,403 valid** across all 5 years (real C++ engine).
+- **Agent-A:** delivered multi-year `.csv.gz` reader support (heartbeat 08:45).
+- **D1 fixed** (DEC-021, Agent-C), independently reverified by the Lead (probe:
+  `isNumber=1 asDouble=12`; ctest 19/19). T13 evidential **95/96** — only D2
+  (Agent-B T23 teeth) remains.
+- **Fixed a co-located latent bug** in the D1 fix: `JsonValue::dump()` Number
+  branch read the empty string slot; `asString()` now returns the number text for
+  Number (dump byte-preserving). 22 call sites checked.
+- **Critical path:** T27 (multi-year) + D2 -> T13 96/96 -> T29 audit -> verdict.
+
+## Watchdog (08:45 UTC)
+
+- DeepSeek: ACTIVE. Agent-A: ACTIVE (T26 multi-year reader). Agent-B: ACTIVE
+  (T27 — unblocked, multi-year corpus committed). Agent-C: IDLE (D1/D3 DONE;
+  awaiting D2). Agent-D: ACTIVE (T29 Part 2 pending T27).

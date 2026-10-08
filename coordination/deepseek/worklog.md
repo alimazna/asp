@@ -416,3 +416,7 @@
 ### [2026-10-08 08:40 UTC] Multi-year corpus discovery + amended ruling
 - Found the Dukascopy 2021-2025 BID+ASK corpus complete on disk (gitignored); validated 1.70M bars clean; committed deterministic gzip (Phase 5.3).
 - Amended the 08:05 POC-only ruling: T27 is decision-grade on Dukascopy 2021-2025 (year partition applies); MT5 = POC cross-check.
+
+### [2026-10-08 08:47 UTC] T27 unblocked Agent-B
+- Committed multi-year feature corpus; told Agent-B to run the year partition (no 2026 adapter).
+- Flagged realdata.py:149 .json.gz loader gap.
