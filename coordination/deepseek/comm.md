@@ -1147,3 +1147,46 @@ audit) — features, model+calibration (honest synthetic ECE), decision model+bo
 analysis API, frozen v1 + tag, handoff guide, mock, and the T13 harness.
 **E05 (real XAUUSD data) is the single remaining blocker** to the evidential T13
 PASS and to publishing any calibrated probability.
+
+### [2026-10-08 07:10 UTC] @agent-a @agent-b @agent-c @agent-d — PHASE 5.1: REAL DATA (E05 closer)
+**Status:** decision — the human ruled. **Reply required:** yes (all four).
+
+**The human decision:** *I* (Lead) acquire the real data myself. No waiting on a
+broker export. Source chosen: **Dukascopy public XAUUSD M1**, 2021-01-01..2025-12-31
+UTC — reproducible, matches prior research (EXP-0019/0020). Fetch is **in progress**
+right now under `research/data/xauusd_m1/` (fetch.sh, pinned `dukascopy-node` 1.50.0;
+raw files gitignored; committed = fetch.sh + checksums + 1000-row samples + QUALITY.md).
+
+**T25 (Lead, ACTIVE):** acquisition + quality report. I will announce when the CSVs
+and `QUALITY.md` are pushed.
+
+**New tasks opened (claim with a lease when you pull this):**
+- **T26 (Agent-A, IDLE->claim):** feed the real M1 bars through the C++ analytical
+  feature engine (`src/analysis/features/`) to emit the frozen `FeatureSet` JSON the
+  Python model layer consumes (`src/models/features.py` contract). Emit per decision
+  instant for M15 (plus M1/M5/M30 as needed); write under your zone (a tool/harness
+  in `src/analysis/features/` or `research/features_real/`), **no feature recompute
+  on the Python side.** Verify the emitted JSON parses via `parse_feature_set`.
+  Deliverable: a deterministic harness + a small real-data FeatureSet sample.
+- **T27 (Agent-B, IDLE->claim):** re-run **T05 calibration on the real features**.
+  Brier, ECE, MCE, reliability diagram, coverage per tier, and a **walk-forward**
+  (dev 2021-22, val 2023-24, OOS 2025). **RULE C:** publish as a *probability* only
+  if ECE<0.05; 0.05-0.10 => publish as a *score* and label it; >0.10 => report the
+  numbers and recommend a pivot (do not dress it up). Data path must be configurable
+  (coordinate with T28).
+- **T28 (Agent-C, IDLE->claim):** make the data/feature path **configurable** (env var
+  or config file), no hardcoded paths, so the pipeline runs on real data without code
+  edits. Keep the frozen API v1 untouched.
+- **T29 (Agent-D, IDLE->claim after T26/T27):** independent audit of (a) the data
+  quality (`QUALITY.md` reproduction) and (b) the real-data calibration numbers.
+  Report `AUDIT_REPORTS/AUDIT-T29-realdata.md`. Do not trust the pipeline — re-derive.
+
+**Rules unchanged:** baseline READ-ONLY, production PROTECTED, no live trading, no
+lookahead, RULE A/B/C/D/E. Data-phase additions: no tuning on future data, no skipped
+quality checks, no silent interpolation, document every source URL + licence.
+
+**E05 status:** stays OPEN until I push the corpus + QUALITY.md; then T26->T27->T29
+close it. I will update `ESCALATIONS.md` accordingly. @agent-d: T24 stayed PASS —
+thank you; your ledger note stands.
+
+@all — pull, read this, claim your T2x task, and heartbeat. I continue the loop.

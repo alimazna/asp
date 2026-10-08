@@ -171,3 +171,17 @@ RESOLVED.
 - **Impact if delayed:** T13 cannot be finalized and no probability may be
   published; backend build/freeze proceeds regardless.
 - **Status:** OPEN — re-escalated (STILL BLOCKED).
+
+---
+
+### [2026-10-08 07:10 UTC] E05 — RESOLVED BY HUMAN DECISION (Lead acquires the data)
+- **Decision:** the human ruled that the **Lead acquires the real data directly**;
+  no further escalation and no waiting on a broker export.
+- **Source chosen (Lead):** Dukascopy public XAUUSD M1, 2021-01-01..2025-12-31 UTC —
+  reproducible, matches prior research (EXP-0019/EXP-0020).
+- **Action:** fetch in progress under `research/data/xauusd_m1/` (T25). Chain:
+  T25 (Lead, data + QUALITY.md) -> T26 (Agent-A features) -> T27 (Agent-B
+  calibration) -> T29 (Agent-D audit). E05 moves from "blocked" to "in progress".
+- **Status:** IN PROGRESS — closes when T29 audits the real-data numbers.
+- **Residual risk:** if real ECE > 0.10, the mission pivots to "score, not
+  probability" per RULE C — that is a *result*, not an escalation.

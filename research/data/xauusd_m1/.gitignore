@@ -1,0 +1,10 @@
+# Large raw market-data artifacts are reproducible from fetch.sh; do not commit.
+# Patterns are relative to this directory.
+*.csv
+*.csv.gz
+ask/
+.work/
+fetch.log
+# ...but the small committed samples must survive the *.csv rule.
+!sample/
+!sample/*.head.csv

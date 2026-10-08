@@ -355,3 +355,11 @@
 - T23 DONE (F23-1 fixed + re-audited PASS; verified 248 models).
 - T24 delivered (T13 harness 88/88) -> REVIEW; audit requested.
 - Close-out: all backend surface DONE except T24 audit; E05 only open escalation.
+
+### [2026-10-08 07:10 UTC] Cycle 31 — Phase 5.1: real-data acquisition (E05 closer)
+- Human directive: **Lead acquires real XAUUSD data** (no broker export, no escalation).
+- Recon: research/ absent; no XAUUSD data anywhere on disk; Dukascopy reachable but 503-flaky from this IP; HistData JS-gated; stooq/yahoo timed out/429.
+- Solution: dukascopy-node v1.50.0 (MIT, npm) — 5 days in 233 ms with built-in retries. Wrote reproducible research/data/xauusd_m1/fetch.sh (pinned).
+- Started full fetch: XAUUSD M1 BID (+tick volume) + ASK, 2021-2025, annual CSVs.
+- Added tools: quality_check.py (-> QUALITY.md), pack.py (gz+samples+checksums+metadata); README + .gitignore (raw files not committed).
+- Coordination: T24 -> DONE (Agent-D PASS); opened T25-T29 (A features, B calibration, C configurable path, D audit); comm/ESCALATIONS/tasks updated; E05 -> IN PROGRESS.

@@ -215,3 +215,10 @@
 - Progress: 99%
 - Note: cycle 29 — T17/T18/T19 → **DONE** (Agent-D PASS; verified 51/51, 246 models,
   tag api-v1.0). T23 PASS, F23-1 non-blocking → Agent-B. Only T24 + E05 remain.
+
+### [2026-10-08 07:10 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 (data acquisition) — self
+- Progress: 99%
+- Note: cycle 31 — Phase 5.1 real data. Human ruled: Lead acquires it. Chose Dukascopy XAUUSD M1 2021-2025; fetch in progress; T25-T29 opened; E05 -> IN PROGRESS.

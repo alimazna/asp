@@ -42,6 +42,14 @@ production code or the baseline.
 - **E05 is the hard blocker:** no real XAUUSD data exists (tree/history/remotes).
   Everything calibrated is synthetic and non-evidential; nothing may be published as
   a probability. Do not fabricate a dataset.
+  **UPDATE 2026-10-08 07:10 UTC — RESOLVED BY HUMAN DECISION.** The Lead acquires the
+  real data. Source: **Dukascopy public XAUUSD M1, 2021-01-01..2025-12-31 UTC**,
+  collected via pinned `dukascopy-node` 1.50.0. Corpus under
+  `research/data/xauusd_m1/` (fetch.sh + checksums + samples + QUALITY.md committed;
+  raw CSVs gitignored). Chain: T25 (Lead data) -> T26 (Agent-A features) -> T27
+  (Agent-B calibration) -> T29 (Agent-D audit). E05 closes on the T29 audit.
+  Operation order for the collector: `-r 8 -rp 1500 -re -fr` (retries; the public
+  endpoint 503s under load from datacenter IPs).
 - **Timestamps:** use `date -u` — the Lead's early entries ran ~1h ahead of the
   machine clock; all agents' commits agree with machine time.
 - **API v1 envelope:** every successful body is `{api:"v1", schema:"1.0", data:...}`;

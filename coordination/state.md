@@ -142,13 +142,24 @@ real data. Baseline/production untouched; no live-trading path.
 
 ## Current blocker
 
-- **E05 (real XAUUSD data) — HARD BLOCKER for publication.** STILL BLOCKED since
-  2026-10-07 22:36 UTC. Blocks T13 finalization and any probability publication.
-  Everything else is now DONE or in final audit.
+- **E05 (real XAUUSD data)** — **IN PROGRESS as of 2026-10-08 07:10 UTC.** The human
+  ruled the Lead acquires the data. Source: Dukascopy XAUUSD M1 2021-2025. Fetch
+  running; T25–T29 opened. E05 closes when the T29 audit confirms the real-data
+  calibration.
+
+## Phase 5.1 — real data (07:10 UTC)
+
+- **T25 (Lead, ACTIVE):** Dukascopy XAUUSD M1 2021–2025 acquisition + `QUALITY.md`.
+- **T26 (Agent-A):** real M1 → frozen `FeatureSet` JSON via the C++ engine.
+- **T27 (Agent-B):** real-data calibration (Brier/ECE/reliability/coverage +
+  walk-forward; RULE C score-vs-probability gate).
+- **T28 (Agent-C):** configurable data path (no hardcoding).
+- **T29 (Agent-D):** independent audit of data + calibration.
 
 ## Escalations
 
-- **E05 OPEN (hard blocker)** — real XAUUSD data; re-escalated (STILL BLOCKED).
+- **E05 IN PROGRESS** — real XAUUSD data; human ruled the Lead acquires it
+  (Dukascopy M1 2021-2025); T25-T29 open. Closes on T29 audit.
 - **E08 CLOSED 06:16 UTC** — Agent-C returned.
 - E03/E06/E07 all now **effectively resolved** by the T17/T19 PASS (F17-0/F17-1/
   F17-2/F19-1/F19-2/F22-4b-v all fixed and re-audited). Will mark RESOLVED this

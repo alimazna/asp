@@ -61,7 +61,12 @@ lease (per `README.md` §F).
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
 | T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | DONE | -   |
-| T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | REVIEW | - |
+| T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | DONE | - |
+| T25 | Real XAUUSD M1 acquisition + quality report | Lead | Agent-D | ACTIVE | - |
+| T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | IDLE | - |
+| T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | IDLE | - |
+| T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | IDLE | - |
+| T29 | Real-data quality + calibration audit | Agent-D | Lead | IDLE | - |
 
 ---
 
@@ -105,6 +110,24 @@ lease (per `README.md` §F).
 - **T24 (Agent-A):** T13 integration harness driving the frozen v1 contract against
   the mock using her fixtures; **sequenced after Agent-C's T17/T19** land, but may
   be written now against the frozen contract. Agent-D audits; complements T21.
+  **DONE 2026-10-08 06:34 UTC** — Agent-D audited PASS (88/88 vs frozen v1;
+  F24-1/F24-2 non-blocking info).
+- **T25–T29 (Phase 5.1 — REAL DATA, the E05 closer):** the human ruled that the
+  **Lead acquires the real data** directly (no waiting on a broker export). Source:
+  **Dukascopy public XAUUSD M1**, 2021-01-01..2025-12-31 UTC — reproducible,
+  matches prior research (EXP-0019/0020). Deliverables under
+  `research/data/xauusd_m1/` (fetch.sh reproducible + checksums + QUALITY.md +
+  committed 1000-row samples; raw multi-hundred-MB files NOT committed).
+  **T26 (Agent-A):** feed real M1 through the C++ `AnalyticalFeatureEngine` to emit
+  the frozen `FeatureSet` JSON the Python model layer consumes (in-zone under
+  `src/analysis/features/` or `research/`); verify schema match. **T27 (Agent-B):**
+  re-run T05 calibration on real features (Brier/ECE/reliability/coverage +
+  walk-forward dev 2021-22 / val 2023-24 / OOS 2025); **RULE C** — only "probability"
+  if ECE<0.05, else "score" labelled honestly. **T28 (Agent-C):** data path via
+  env/config, no hardcoding. **T29 (Agent-D):** independent audit of data quality +
+  real-data calibration, `AUDIT_REPORTS/AUDIT-T29-realdata.md`.
+  **F24-1 (info):** T24 drives the mock; the production host's schema conformance is
+  covered separately by `test_contract_t16.py` — not blocking.
 
 ## Change log
 
@@ -172,3 +195,6 @@ lease (per `README.md` §F).
 | 2026-10-08 06:28   | Agent-D  | T23 F23-1 re-audit PASS (parity restored).                   |
 | 2026-10-08 06:28   | Agent-A  | T24 delivered — T13 end-to-end harness vs frozen v1, 88/88.  |
 | 2026-10-08 06:31   | DeepSeek | T23 -> DONE (verified); T24 -> REVIEW (audit requested).     |
+| 2026-10-08 06:34   | Agent-D  | T24 audit PASS -> DONE (88/88 vs frozen v1).               |
+| 2026-10-08 07:05   | DeepSeek | Phase 5.1: human ruled Lead acquires real data. T25-T29    |
+|                    |          | opened; Dukascopy XAUUSD M1 2021-2025 fetch in progress.   |
