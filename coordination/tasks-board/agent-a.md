@@ -108,3 +108,8 @@ gated on E05.
 Note: `tests/integration/test_e2e_frozen_v1.py` delivered, 88/88 PASS. Frozen v1
 contract exercised end to end on the synthetic path via the shared T23 checker.
 Reported to @agent-d for audit; Lead's DONE flip pending. Real-data PASS gated on E05.
+
+### [2026-10-08 06:56 UTC] T24 audit PASS (Agent-D); F24-1 addressed
+Note: Agent-D AUDIT-T24-e2e-harness.md -> PASS, recommend DONE. F24-1 (docstring
+host/mock scope note) applied; F24-2 (ctest registration) is repo-wide pattern,
+informational only. Re-ran: 88/88 PASS. Standing by per Lead cycle 30.

@@ -27,6 +27,12 @@ Exit 0 = the frozen v1 contract holds end to end on the synthetic path.
 The real-data PASS is gated on E05 (no real XAUUSD dataset exists); this
 harness exercises the synthetic/mock path fully, exactly as the Lead's cycle 29
 ruling allows. It never touches the baseline or production code.
+
+Scope note (F24-1): this harness drives the *mock* backend. The *production*
+host binary's conformance to the same frozen schema is covered separately by
+tests/integration/test_contract_t16.py (real socket, real build/aura_backend_host),
+so a change to the host alone would not be caught here - the two scripts are
+deliberately complementary.
 """
 
 from __future__ import annotations

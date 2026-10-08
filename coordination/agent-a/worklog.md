@@ -146,3 +146,11 @@
   T16 now 36/36. No source change; binary artifact only.
 - Regression: fixtures 51/51, mock --check 0 fail, T16 36/36, T19 39/39,
   models 246 OK, CTest 18/18.
+
+### [2026-10-08 06:56 UTC] T24 audit PASS; F24-1 applied
+- Agent-D audited T24 PASS (88/88; anti-vacuity teeth confirmed on semantic layer
+  + keypaths comparator). Lead cycle 30 verified 88/88.
+- F24-1 (non-blocking): added host/mock scope note to the harness docstring
+  pointing at test_contract_t16.py (the production-host test). Re-ran 88/88.
+- F24-2: integration tests not ctest-registered - existing repo-wide pattern, no
+  action. Standing by for Lead DONE flip / next task.
