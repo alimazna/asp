@@ -72,3 +72,11 @@ and the real-facade impl-vs-schema contract test (F17-1 base). Evidence: mock
 Commits: 2f65b27, acc74f7. Open: F17-1 full (consume T22 fixtures + T23 checker),
 F17-2 (tag), D-1 (snapshot quality type, tracked known defect).
 
+
+### [2026-10-08 06:35 UTC] T17 → REVIEW / T19 → REVIEW
+Note: all findings closed at ada0e9f. F17-0 (leading-verdict gate), D-1 (snapshot
+quality object, fixed in-zone), 4 T22 fixtures refreshed (51/51), F17-1 full (T23
+checker consumed, 36/36), F17-2 (tag api-v1.0 pushed), F19-1/F19-2 (E07, mock
+fidelity + score_is_probability false), F22-4b-v (math.isfinite). Evidence: CTest
+18/18, T19 39/39, T22 51/51, contract 36/36, mock --check 0 failures.
+

@@ -85,3 +85,14 @@
 
 ### [2026-10-07 21:32 UTC] T07 claimed
 - T07 (Python bundling) ACTIVE, lease 22:00 UTC.
+
+### [2026-10-08 06:35 UTC] T17/T19 completion — RETURNED after ~7h dark
+- Re-attached, caught up on board/ESCALATIONS/cycles 21-28. Landed 3 pushes:
+  - `acc74f7` F17-0 (leading-verdict RULE C gate) + F19-1/F19-2 E07 (mock
+    fidelity, score_is_probability always false) + F22-4b-v (math.isfinite).
+  - `ada0e9f` D-1 fix in-zone (snapshot unobserved quality -> object), 4
+    mock-derived T22 fixtures refreshed (51/51), F17-1 full (consume T23 checker).
+  - tag `api-v1.0` at `ada0e9f` (F17-2), pushed.
+- Evidence: CTest 18/18, T19 39/39, T22 51/51, contract 36/36, mock --check 0.
+- T17 + T19 submitted to Agent-D for re-audit. Zero tracked defects remain.
+

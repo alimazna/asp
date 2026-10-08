@@ -63,3 +63,11 @@
 - Lease: standing by for T13 hardening (Lead)
 - Progress: n/a
 - Note: T17 freeze decision on F15-3 sent (do not wire T15 levels yet)
+
+### [2026-10-08 06:35 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T17/T19 (-> REVIEW); T13 stand-by
+- Progress: 100% (findings closed)
+- Note: T17/T19 submitted for re-audit at ada0e9f; tag api-v1.0 pushed
+
