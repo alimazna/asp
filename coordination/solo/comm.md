@@ -119,3 +119,50 @@ ACCEPTANCE: FINAL_REPORT.md written; T27 real-data POC done; T29 audit done
 blocker. Mission is COMPLETE — no further loop work is justified.
 
 <!-- AI agent (OpenHands/solo) on behalf of the operator -->
+
+---
+
+### [2026-10-08 13:40 UTC] @human
+**Subject:** Phase 6.1 status report (before final decisions)
+**Status:** report
+
+1. Attached: **yes** — `/workspace/asp`, branch `main`, HEAD `fd9449a`.
+2. Mission status (`state.md`): **MISSION COMPLETE** (Phase 6.0 close-out);
+   E05 RESOLVED; backend green; POC verdict SCORE/no edge.
+3. DONE: **T01–T07, T09–T11, T13–T31** (T29 DONE w/ F-T27-1 folded in).
+4. Remaining: **T08** (held on E03), **T12** (deferred by human).
+5. Blockers: none for me; T08 now authorized by this directive.
+6. Next: apply T08 C-1/C-2/C-3 (authorized) then T12 permanent defer,
+   then full verification and close.
+
+<!-- AI agent (OpenHands/solo) on behalf of the operator -->
+
+---
+
+### [2026-10-08 14:20 UTC] @human
+**Subject:** Mission COMPLETE
+**Status:** done
+
+T08: DONE (C-1/C-2/C-3 fixed; all tests green)
+T12: PERMANENTLY DEFERRED (E01 closed)
+All acceptance criteria met.
+Backend complete. Frontend handoff ready.
+
+Final HEAD: 159f026
+All suites: green
+
+  ctest 19/19 | models 308 OK | e2e 88/88 | contract 36/36 | mock 39/39
+  shape 19/19 | T28 24/24 | bundling 18/18 | real-host 52/52 | bridge 25/25
+
+Changes (minimum, per directive):
+  - PackagingConfig.h: pythonRelativePath runtime/python -> python (C-1)
+  - PackagingConfig.cpp: drop pandas; numpy >=1.24 -> >=1.23 (C-2/C-3)
+  - packaging/bundle_manifest.json + packaging/README.md: docs updated
+  - tests/integration/test_bundling_t07.py: parity assertion updated (18/18)
+  - tasks.md T08 DONE; T12 DEFERRED (PERMANENT); ESCALATIONS E03 RESOLVED,
+    E01 CLOSED; state.md Phase 6.1; FINAL_REPORT sections 6 + 10.
+No strategy/decision/risk/bridge/baseline code touched.
+
+Entering standby loop (sleep 600; verify state unchanged; weekly test check).
+
+<!-- AI agent (OpenHands/solo) on behalf of the operator -->

@@ -339,3 +339,39 @@ trading; no lookahead; everything labelled POC.
 - DeepSeek: ACTIVE (close-out). Agent-A: ACTIVE (standing by). Agent-B: ACTIVE
   (POC filed). Agent-C: IDLE (T13 transcript in REVIEW). **Agent-D: STALE** since
   09:45 (no heartbeat/commit; T29 POC audit substituted by the Lead).
+
+---
+
+## Phase 6.1 — mission closed (2026-10-08, solo agent)
+
+Human final directive applied.
+
+- **T08 (Windows packaging) → DONE.** Fixes authorized and applied with minimum
+  change to `src/platform/windows/PackagingConfig.*` (+ `packaging/bundle_manifest.json`,
+  `packaging/README.md`, and one parity assertion in `tests/integration/test_bundling_t07.py`):
+  - **C-1** python runtime path `runtime/python/python.exe` -> `python/python.exe`
+    (now resolves to `resources/python/python.exe`, matching `PathResolver` and
+    `BundleLocator`).
+  - **C-2** removed the unused `pandas` dependency.
+  - **C-3** numpy pin unified to `>=1.23` across all three manifests.
+  - No strategy/decision/risk/bridge/baseline code touched.
+- **T12 (baseline controls) → PERMANENTLY DEFERRED.** E01 **CLOSED**. Controls
+  (base9/baseold) are unavailable and were built on 2021-2025 data; the current
+  corpus is a 2026 3.5-month window, so comparison is impossible. Recorded as a
+  permanent limitation in `FINAL_REPORT.md` section 6.
+- **E03 → RESOLVED.**
+
+### Close state
+
+- Mission: **COMPLETE — no open items.**
+- T08: **DONE**. T12: **PERMANENTLY DEFERRED (E01 closed)**. E03: **RESOLVED**.
+- Backend: **green**. Frontend handoff: **ready**. Frozen API v1: **intact**.
+- Escalations: E01 CLOSED, E03 RESOLVED, E05 RESOLVED — none open.
+
+### Full suite at close
+
+ctest **19/19** · models **308 OK** · e2e **88/88** · contract **36/36** ·
+mock **39/39** · shape **19/19** · T28 **24/24** · bundling **18/18** ·
+real-host **52/52** · bridge **25/25**.
+
+**All acceptance criteria met. Standby.**
