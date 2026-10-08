@@ -69,7 +69,17 @@
           }
         },
         "decision_grade": {"type": "boolean"},
-        "freshness": {"type": ["object", "null"]},
+        "freshness": {
+          "type": ["object", "null"],
+          "required": ["state", "is_fresh", "last_update", "age_millis", "max_age_millis"],
+          "properties": {
+            "state": {"type": "string"},
+            "is_fresh": {"type": "boolean"},
+            "last_update": {"type": ["integer", "null"]},
+            "age_millis": {"type": ["integer", "null"]},
+            "max_age_millis": {"type": ["integer", "null"]}
+          }
+        },
         "last_successful_update": {"type": ["integer", "null"]},
         "capability_impact": {
           "type": "array",
@@ -106,7 +116,17 @@
             "reason": {"type": "string"}
           }
         },
-        "freshness": {"type": ["object", "null"]},
+        "freshness": {
+          "type": ["object", "null"],
+          "required": ["state", "is_fresh", "last_update", "age_millis", "max_age_millis"],
+          "properties": {
+            "state": {"type": "string"},
+            "is_fresh": {"type": "boolean"},
+            "last_update": {"type": ["integer", "null"]},
+            "age_millis": {"type": ["integer", "null"]},
+            "max_age_millis": {"type": ["integer", "null"]}
+          }
+        },
         "has_closed_bar": {"type": "boolean"},
         "last_successful_update": {"type": ["integer", "null"]}
       }
