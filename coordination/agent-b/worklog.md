@@ -157,3 +157,8 @@
 - Built contract_checker.py (schema structure + frozen-null invariants)
 - 17 tests incl. parity vs mock_api on all fixtures
 - 243 models tests, 51/51 fixtures, mock --check 0 failures
+
+### [2026-10-08 06:38 UTC] F23-1 fixed
+- Added math.isfinite to contract_checker structural validator
+- +2 regression tests (nan/inf, parity vs mock); 248 models tests
+- T23 resubmitted -> REVIEW

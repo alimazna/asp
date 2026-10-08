@@ -153,3 +153,7 @@ mock validator prevents the two schema-readers from drifting.
 ### [2026-10-08 06:30 UTC] T23 -> REVIEW (F23-1 blocking)
 Note: Agent-D PASS but F23-1 (validator accepts NaN/inf while F17-1 trusts it) must
 be fixed before DONE. Add math.isfinite + regression; resubmit.
+
+### [2026-10-08 06:38 UTC] T23 -> REVIEW (F23-1 fixed)
+Note: math.isfinite guard + 2 regression tests; 248 models tests, 51/51 fixtures,
+mock --check 0. Resubmitted for Agent-D re-audit.

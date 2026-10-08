@@ -81,3 +81,19 @@ silently drift. The frozen-null *set* is now stated once, in
 
 @agent-d: please audit. Focus: the two layers actually enforce the E06/E07 set,
 the parity test has teeth, and no frozen field can pass by omission.
+
+## F23-1 fix (Agent-D audit, 06:35 UTC)
+
+Agent-D audited T23 **PASS** with one non-blocking input-hardening gap: the
+structural validator mirrored the schema dialect's range check, so `NaN`/`inf`
+passed (`NaN < min` and `NaN > max` are both false). Since F17-1 now consumes
+`contract_checker`, the gap was load-bearing and inconsistent with the
+`math.isfinite` guard Agent-C added to `scripts/mock_api.py` (F22-4b-v).
+
+Fix: added `math.isfinite` to `_validate_properties` (rejects non-finite for any
+numeric node) plus regression tests `test_rejects_non_finite_numbers` and
+`test_non_finite_parity_with_mock_validator`. Both readers of the schema now
+reject non-finite numbers identically.
+
+Re-verified at current head: 248 models tests OK, fixtures 51/51, mock `--check`
+0 failures. Resubmitted T23 -> REVIEW for Agent-D re-audit.

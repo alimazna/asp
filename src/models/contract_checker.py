@@ -28,6 +28,7 @@ publishes a probability — RULE C still governs the producer.
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Any, Dict, List, Optional
 
@@ -121,6 +122,13 @@ def _validate_properties(value: Any, spec: Dict[str, Any], where: str) -> None:
     if value is not None and isinstance(value, (int, float)) and not isinstance(
         value, bool
     ):
+        # F23-1: reject non-finite numbers. The schema dialect's range check
+        # alone cannot (`NaN < min` and `NaN > max` are both false), and JSON
+        # permits bare `NaN`/`Infinity`, so `json.loads` would accept them. This
+        # mirrors the `math.isfinite` guard Agent-C added to
+        # `scripts/mock_api.py` (F22-4b-v) so the two readers of one schema agree.
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ContractError(f"{where}: non-finite number {value!r} is not allowed")
         if "minimum" in spec and value < spec["minimum"]:
             raise ContractError(f"{where}: {value} below minimum {spec['minimum']}")
         if "maximum" in spec and value > spec["maximum"]:

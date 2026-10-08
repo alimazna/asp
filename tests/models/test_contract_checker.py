@@ -138,6 +138,34 @@ class StructuralLayerTest(unittest.TestCase):
         with self.assertRaises(cc.ContractError):
             cc.validate_envelope(route, spec, out_of_range)
 
+    def test_rejects_non_finite_numbers(self):
+        """F23-1: the range check alone lets NaN/inf through; parity with the
+        mock validator (F22-4b-v) requires a finite guard."""
+        route = "GET /api/v1/analysis/latest"
+        spec = self.endpoints[route]
+        for value in (float("nan"), float("inf"), float("-inf")):
+            bad = analysis_default()
+            bad["data"]["signal"]["score"] = value
+            with self.assertRaises(cc.ContractError, msg=repr(value)):
+                cc.validate_envelope(route, spec, bad)
+        # probability is bounded; NaN must still be caught (not just out-of-range)
+        nan_prob = analysis_default()
+        nan_prob["data"]["signal"]["probability"] = float("nan")
+        nan_prob["data"]["signal"]["probability_calibrated"] = True
+        with self.assertRaises(cc.ContractError):
+            cc.validate_envelope(route, spec, nan_prob)
+
+    def test_non_finite_parity_with_mock_validator(self):
+        """F23-1 parity: both readers of the schema must reject a non-finite."""
+        route = "GET /api/v1/analysis/latest"
+        spec = self.endpoints[route]
+        bad = analysis_default()
+        bad["data"]["signal"]["score"] = float("nan")
+        with self.assertRaises(cc.ContractError):
+            cc.validate_envelope(route, spec, bad)
+        with self.assertRaises(Exception):
+            mock_api.validate_envelope(route, spec, bad)
+
     def test_rejects_missing_required_top_level(self):
         route = "GET /api/v1/analysis/latest"
         spec = self.endpoints[route]
