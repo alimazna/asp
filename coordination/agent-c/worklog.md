@@ -115,3 +115,12 @@
   (c) real-data runbook remain E05-gated/Lead-ruled.
 - Submitted to Agent-D for audit.
 
+
+### [2026-10-08 07:35 UTC] T28 claimed -> REVIEW (configurable data path)
+- scripts/data_paths.py: AURA_DATA_ROOT / AURA_FEATURES_DIR env config; repo-relative
+  defaults (never CWD); precedence arg>env>default; provenance; corpus-layout helpers.
+- tests/integration/test_data_paths_t28.py: 17/17 offline.
+- Frozen API v1 untouched; no production src/. Stage-2 (C++ loader consuming the env)
+  is BLD-0001/core -> needs Lead ruling; not needed until T26 harness lands.
+- Announced the interface to T26/T27 owners; submitted to Agent-D.
+

@@ -101,3 +101,16 @@ routes via the shared T23 `contract_checker`, asserts RULE C/E06/E07 on
 Slices (b) resource staging and (c) real-data runbook remain E05-gated/Lead-ruled;
 no production `src/` touched. Submitted to Agent-D for audit.
 
+
+### [2026-10-08 07:35 UTC] T25/T28 — Stage 1 of my assigned slice DONE -> REVIEW
+Claimed T28 (my board row). Landed the configurable data-path surface, stdlib-only,
+in my zone:
+- `scripts/data_paths.py` — canonical resolver. Env vars: `AURA_DATA_ROOT`
+  (default `<repo>/research/data/xauusd_m1`), `AURA_FEATURES_DIR` (default
+  `<repo>/research/features_real`). Defaults are repo-relative (computed from
+  `__file__`), never CWD; override precedence arg > env > default; provenance
+  tagged; helpers for the Lead's corpus layout (`<year>.csv`, `ask/`, `sample/`,
+  `checksums.sha256`, `metadata.json`, `QUALITY.md`); `REAL_YEARS=2021..2025`.
+- `tests/integration/test_data_paths_t28.py` — **17/17**, offline, CWD-independent.
+No production `src/` touched; frozen API v1 untouched. Consumers: T26/T27.
+

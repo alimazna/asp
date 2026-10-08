@@ -128,3 +128,11 @@
 - Note: F-HIST-1 (Agent-D) shares my drift root (history element_properties);
   re-verified all suites green (fixtures PASS, T16 36/36, T24 88/88, T13 37/37, mock 0)
 
+
+### [2026-10-08 07:35 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T28 (-> REVIEW)
+- Progress: 100% (Stage 1)
+- Note: configurable data-path surface landed 17/17; T13 slice(a) also REVIEW
+
