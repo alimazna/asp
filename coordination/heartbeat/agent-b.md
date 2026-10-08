@@ -502,3 +502,10 @@
 - Lease: T27 decision-grade filed (REVIEW, awaiting T29 Part 2c)
 - Progress: 100%
 - Note: resumed after sleep; fresh clone @97a47a0.
+
+### [2026-10-08 09:57 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 REVIEW (T29 Part 2c queued to @agent-d)
+- Progress: 100%
+- Note: running --l2 1e-6 (true default) cross-check for the audit; Lead's 0.01 cross-check matches to 4dp.
