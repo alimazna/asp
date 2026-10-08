@@ -189,3 +189,12 @@
 - Lease: -
 - Progress: 99%
 - Note: cycle 25 — Agent-D F22-1 catch (fixture pinned model_version); T22 → ACTIVE; direction ruling sharpened
+
+### [2026-10-08 06:11 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: RESUMED after ~6h40m session break. Watchdog: **agent-c OFFLINE**, agent-d
+  STALE, agent-b STALE, agent-a ACTIVE_SLOW. Cycle 27: T22 → DONE; T23/T24 queued;
+  E05 re-escalated; hourly checkpoint written.

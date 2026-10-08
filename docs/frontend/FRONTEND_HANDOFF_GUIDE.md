@@ -52,56 +52,78 @@ object only**; wrap it in the envelope. Error responses are **not** enveloped
 
 ### `GET /api/v1/analysis/latest`
 
-> The `data` object shown below is the **calibrated** branch
-> (`probability_calibrated: true`). In the default (uncalibrated) shape,
-> `signal.probability` is `null`, `signal.probability_calibrated` is `false`, and
-> `meta.score_is_probability` is `false` — the value lives in `signal.score`.
+> **This is the frozen v1 default (uncalibrated) shape.** `signal.probability` is
+> `null`, `probability_calibrated` is `false`, and the raw value lives in
+> `signal.score`. The frozen-null fields in v1 — `signal.horizon`,
+> `signal.confidence_lo/hi`, `signal.model_version`, `context.mtf_agreement`,
+> `meta.data_freshness_sec`, and every `levels.*` — are `null` until T15 lands
+> (see §D). `meta.score_is_probability` is **always `false` in v1**.
+> This example mirrors `tests/fixtures/api_v1/valid/analysis_latest.json`.
 
 ```json
 {
   "api": "v1",
   "schema": "1.0",
   "data": {
-    "timestamp": "2026-10-08T14:30:00Z",
+    "timestamp": null,
     "symbol": "XAUUSD",
     "context": {
-      "regime": "RANGE",
-      "h4_bias": "UP",
-      "m15_trigger": "LONG",
-      "mtf_agreement": 0.72,
-      "volatility_state": "NORMAL"
+      "regime": "UNKNOWN",
+      "h4_bias": "NONE",
+      "m15_trigger": "NONE",
+      "mtf_agreement": null,
+      "volatility_state": "UNKNOWN"
     },
     "signal": {
-      "direction": "UP",
-      "horizon": "next_4xM15",
-      "probability": 0.63,
-      "probability_calibrated": true,
-      "confidence_lo": 0.57,
-      "confidence_hi": 0.69,
-      "model_version": "v1.0",
-      "features_contributing": [
-        {"name": "h4_bias_up", "weight": 0.12}
-      ]
+      "direction": "NONE",
+      "horizon": null,
+      "probability": null,
+      "probability_calibrated": false,
+      "score": 0.512,
+      "confidence_lo": null,
+      "confidence_hi": null,
+      "model_version": null,
+      "features_contributing": []
     },
     "levels": {
-      "entry": 2650.30,
-      "stop_loss": 2646.10,
-      "take_profit": 2658.70,
-      "reward_risk": 2.05,
-      "suggested_risk_pct": 0.5,
-      "sl_method": "atr_1.5x",
-      "tp_method": "rr_2x"
+      "entry": null,
+      "stop_loss": null,
+      "take_profit": null,
+      "reward_risk": null,
+      "suggested_risk_pct": null,
+      "sl_method": null,
+      "tp_method": null
     },
     "meta": {
-      "coverage_tier": "high",
-      "data_freshness_sec": 3,
-      "degraded": false,
-      "score_is_probability": true,
-      "disclaimer": "Decision support only. Not financial advice."
+      "coverage_tier": "unknown",
+      "data_freshness_sec": null,
+      "degraded": true,
+      "score_is_probability": false,
+      "disclaimer": "Synthetic data. Score, not a probability. Not advice."
     }
   }
 }
 ```
+
+**Calibrated branch — shown as a delta only.** When a calibrated probability is
+published (post-E05), the payload differs from the default in **exactly three
+fields**. Everything else keeps the default shape above (levels/horizon remain
+`null` in v1; `score` stays present as the raw value):
+
+| field | default | calibrated |
+|---|---|---|
+| `signal.probability` | `null` | the calibrated value, e.g. `0.61` |
+| `signal.probability_calibrated` | `false` | `true` |
+| `meta.coverage_tier` | `"unknown"` | `"high"` / `"medium"` / `"low"` |
+
+`meta.score_is_probability` stays `false` in both branches — it is **not** a
+display switch (see §D). `timestamp`, `symbol`, and `meta.degraded` are live
+fields and vary with the running backend; they are not part of the frozen shape.
+
+**Direction vocabulary.** `signal.direction` is emitted as `UP` / `DOWN` /
+`NONE` (the schema enum also admits `FLAT` / `UNKNOWN`, which v1 does not emit).
+`context.h4_bias` and `context.m15_trigger` use their own vocabularies — do not
+read a trigger value as the signal direction; use `signal.direction`.
 
 ### `GET /api/v1/analysis/history?limit=N`
 Array of the same object, most-recent-first. `limit` default 50, max 500.
@@ -199,15 +221,17 @@ from there. **Do not invent new branding.**
 
 ## J. Versioning policy
 
-- `v1` is **frozen** when handed off (T17). It is tagged and recorded in
-  `docs/architecture/BACKEND_FRONTEND_API_V1.md`.
+- `v1` is **frozen** when handed off (T17). It is recorded in
+  `docs/architecture/BACKEND_FRONTEND_API_V1.md`. The immutable tag `api-v1.0` is
+  applied at handoff (T17 F17-2) — until that tag exists, treat the contract as
+  frozen-by-document, not frozen-by-tag.
 - Additive changes only within `v1`, through a documented process.
 - Breaking changes require `v2`; `v1` keeps serving until clients migrate.
 
 ## K. Frozen artifact & mock validation
 
 - **Frozen spec:** `docs/architecture/BACKEND_FRONTEND_API_V1.md` — API v1,
-  schema `1.0`, tag `api-v1.0`.
+  schema `1.0`; tag `api-v1.0` applied at handoff (F17-2, not yet present).
 - **Authoritative machine-readable contract:** `docs/architecture/API_V1_SCHEMA.json`.
   If the prose here and the schema ever disagree, **the schema wins**; report the
   drift so the prose is corrected. Both successful-response envelopes
@@ -217,4 +241,8 @@ from there. **Do not invent new branding.**
   shape (`probability: null`, `score` present); `--calibrated` exercises the
   calibrated branch. `--check` validates every payload against the schema
   (0 failures required). The mock can never serve a probability in uncalibrated
-  mode — that is RULE C by construction.
+  mode — that is RULE C by construction. **Caveat pending T19 F19-1:** until the
+  mock's frozen-null fidelity fix lands, the mock may still populate fields §D
+  declares `null` (`horizon`, `levels.sl_method/tp_method`,
+  `meta.data_freshness_sec`, `context.mtf_agreement`); do not treat a populated
+  value there as contract-guaranteed.

@@ -119,3 +119,47 @@ RESOLVED.
   `score_is_probability` stays `false` unless the surfaced number itself is the
   calibrated probability. **No rename** (a rename would be a breaking change).
 - **Status:** OPEN — assigned to Agent-C under T19.
+
+---
+
+### [2026-10-08 06:11 UTC] E08 — Agent-C liveness (OFFLINE >6h on the critical path)
+- **What:** Agent-C (owner of T17/T19 — the critical path) has had **no heartbeat
+  and no commit since 2026-10-07 23:10 UTC**; at resume (2026-10-08 06:11 UTC) that
+  is **~7h** — far past the 30-min OFFLINE / 60-min DEAD thresholds.
+- **Context:** Agent-C's last heartbeat read "standing by for T13 hardening", which
+  *predates* the T17/T19 fix assignment and the E06/E07 rulings. It never acked
+  cycle 24/25. Agent-A flagged the Lead-side liveness gap at 02:35 UTC, confirming
+  the whole repo went quiet after ~00:45 UTC.
+- **Impact:** T17 (freeze: F17-0/F17-1/F17-2), T19 (mock: F19-1/F19-2), E06, E07,
+  F22-4b-v (validator finite guard), and D-1 (durable-gate substring) are all
+  stalled. T13 is gated behind them. T22/T18 are unaffected.
+- **Lead action:** Agent-C declared **OFFLINE** (verge of DEAD) in `state.md`;
+  leases released. We **cannot** work in Agent-C's zone from another container.
+- **Mitigation (queued, waiting on liveness):** **T23** (Agent-B) — implement-
+  agnostic frozen-contract + invariant checker so Agent-C's eventual F17-1 fix is
+  mechanical; **T24** (Agent-A) — T13 integration harness written against the frozen
+  contract.
+- **Blocks:** T13 (and the completion gate).
+- **Status:** OPEN — **escalated to human: is the Agent-C container alive?**
+  Restart it, or authorize reassigning T17/T19 (I recommend reassignment if it
+  stays dark past hour ~8).
+
+---
+
+### [2026-10-08 06:11 UTC] E05 — RE-ESCALATION: real XAUUSD data (STILL BLOCKED)
+- **STILL BLOCKED since 2026-10-07 22:36 UTC** (~7h35m) — the mission's only hard
+  publication blocker is unchanged; no human decision has arrived.
+- **Required (confirm with Agent-B/Agent-D, requested this cycle):** real XAUUSD
+  **M1 OHLCV, inclusive 2021-01-01 through 2025-12-31**, one consistent source.
+  MISSION fixes the analysis window at **3 months**; the longer history is requested
+  so we can choose the 3-month window *and* hold out genuinely out-of-sample data
+  (a 3-month-only export cannot give an honest OOS split). Higher timeframes are
+  derivable from M1; costs under RULE B tiers (spread 0.30 + commission + slippage).
+  If a different range/source is intended, say so and the task briefs update.
+- **Options:** A) human MT5 broker export; B) Dukascopy public data (matches the
+  prior research, reproducible); C) keep synthetic and label all results
+  **non-evidential**.
+- **Recommendation:** **B** — reproducible and matches prior research.
+- **Impact if delayed:** T13 cannot be finalized and no probability may be
+  published; backend build/freeze proceeds regardless.
+- **Status:** OPEN — re-escalated (STILL BLOCKED).

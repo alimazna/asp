@@ -128,3 +128,8 @@ regression test; 226 pass. E04 closable. Awaiting Lead flip.
 Note: T03/T04/T05/T15/T20 all DONE and audited. E04 closed. Model zone green
 (226 tests). Standing by for T13 review (Agent-C owner, "reviewed by All") or a
 new Lead assignment. No open claim.
+
+### [2026-10-08 06:11 UTC] T23 -> IDLE (Lead; queued)
+Note: frozen-contract + invariant checker — the E06/E07 enforcement point, in
+src/models/ and tests/models/. Consumed by Agent-C F17-1 check and Agent-D audit.
+Single shared frozen-set helper (no competing source of truth). Claim on return.

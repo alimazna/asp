@@ -132,26 +132,53 @@ Sprint 1 — Features & Control Baseline
   recommend. Returned to Agent-B to make the demo refuse to rank when the top
   result is the artifact. Audits are doing exactly their job.
 
-## Last heartbeat summary
+## Current blocker
 
-- Updated: 2026-10-07 23:30 UTC (cycle 25)
-- DeepSeek: ACTIVE
-- Agent-A: ACTIVE (T22 F22-1/F22-2 fix)
-- Agent-B: IDLE (T03/T04/T05/T15/T20 DONE)
-- Agent-C: ACTIVE (T17/T19 fixes — critical path)
-- Agent-D: ACTIVE (T22 auditor; T17/T19 re-audit pending)
-- All four agents ACTIVE. No OFFLINE declarations.
+- **E05 (real XAUUSD data) — HARD BLOCKER for publication.** No real XAUUSD data
+  exists; calibration is measured on synthetic data only. The backend can be
+  built, frozen, and handed off, but no probability may be published and
+  "complete" cannot be claimed in the evidential sense until real data lands.
+  **STILL BLOCKED since 2026-10-07 22:36 UTC — re-escalated 2026-10-08 06:11 UTC.**
+- **Agent-C OFFLINE >6h** — holds the critical path (T17/T19). If its container is
+  gone, the human must restart it or reassign. Escalated E08.
+- **T22 was audited PASS twice** (F22-1b, F22-4b) and is now **DONE** (Lead flip).
+  The fixture surface Agent-C needs for F17-1 is ready and waiting.
 
-## Last baseline control check
+## Escalations
 
-- DEFERRED by human decision (21:52 UTC). Controls unavailable; mission
-  proceeds without them. No further escalation.
+- **E05 OPEN (hard blocker)** — real XAUUSD data; re-escalated (STILL BLOCKED).
+- **E08 OPEN** — Agent-C liveness (OFFLINE >6h) on the critical path.
+- E03 (bundling), E06 (impl-vs-schema), E07 (score semantics) OPEN — all assigned
+  to Agent-C under T17/T19 and paused by its OFFLINE status.
+- E01 RESOLVED (T12 deferred), E02 RESOLVED (test glob), E04 RESOLVED (T20 PASS).
+
+## Agents
+
+- DeepSeek: **ACTIVE** (Lead) — resumed after session break.
+- Agent-A: **ACTIVE_SLOW** (last heartbeat 05:20 UTC, ~51 min) — zone green; T22 DONE.
+- Agent-B: **STALE** (last heartbeat 02:39 UTC, ~3h32m) — all its tasks DONE.
+- Agent-C: **OFFLINE** (last heartbeat 2026-10-07 23:10 UTC, ~7h) — critical path.
+- Agent-D: **STALE** (last heartbeat 00:45 UTC, ~5h26m) — audits done.
+
+## Queue opened on resume (cycle 27, 2026-10-08 06:11 UTC)
+
+- **T23 (Agent-B)** — frozen-contract + invariant checker (E06/E07 enforcement
+  point), in-zone `src/models/`; consumed by Agent-C's F17-1 check and Agent-D's
+  audit. Ready the moment Agent-B returns.
+- **T24 (Agent-A)** — T13 integration test harness (drives frozen v1 against the
+  mock from Agent-A's fixtures), sequenced **after** Agent-C's T17/T19 land; the
+  harness may be written now against the frozen contract.
+
+## Hourly checkpoints
+
+- 2026-10-08 06:11 UTC: resumed post-break; T22 DONE; B/C/D liveness escalation;
+  E05 re-escalated. Tree green (per Agent-D sweep: 226 py / 18 ctest / 50–51
+  fixtures / mock --check clean). No production/baseline touched.
 
 ## Notes
 
 - Phase 2.0: roles assigned (Agent-A/B/C/D) and Sprint 1 activated by the Lead.
-- Four specialist agents are **ASSIGNED**; awaiting their first claims and acks.
-- **Open:** the `research/astra_3month_mtf/` layer referenced by the mission is not
-  present in this repository, its history, or its sibling repos. The Lead must
-  confirm its location before research work proceeds. See `tasks.md` Q1–Q3.
+- Phase 4.0: decision-support backend + frontend handoff (see MISSION.md §10).
+- **Timestamps use machine UTC (`date -u`)** — the pre-cycle-23 ~1h lead offset is
+  corrected and will not recur.
 - Production code, baseline, and `docs/archive/` remain untouched.

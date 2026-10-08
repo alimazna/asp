@@ -24,6 +24,18 @@ production code or the baseline.
   `docs/frontend/FRONTEND_HANDOFF_GUIDE.md`.
 
 ## Key findings
+- **Resume (2026-10-08 06:11 UTC):** Lead was offline ~6h40m (last commit cycle 25,
+  23:30 UTC). Agents made progress meanwhile: **T22 DONE** (Agent-A F22-1b fix;
+  Agent-D PASS twice — F22-1b 23:43, F22-4b 00:43). **Agent-C OFFLINE ~7h** holding
+  the critical path (T17/T19) → BLOCKED, lease released; **E08 filed**. **E05
+  re-escalated** (STILL BLOCKED since 22:36 UTC). Queued **T23** (Agent-B invariant
+  checker) + **T24** (Agent-A T13 harness) as in-zone work safe to build against the
+  frozen contract while Agent-C is dark.
+- **Agent-D open findings awaiting Agent-C:** F17-0 (durable gate substring "pass"
+  lets "NOT PASS" open RULE C gate), F17-1 (two-layer impl-vs-schema check), F17-2
+  (api-v1.0 tag), F19-1 (mock frozen-null fidelity), F19-2 (score_is_probability),
+  F22-4b-v (validator finite guard), F18-1 (guide §A pre-freeze — **Lead fixed
+  2026-10-08**).
 - The mission references `research/astra_3month_mtf/`, but that layer is not present in
   this repository, its history, or its sibling repos. Location must be confirmed before
   Sprint 1. See `tasks.md` Q1.

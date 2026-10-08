@@ -85,3 +85,9 @@ Note: F22-1 model_version=null + features_contributing=[] in both analysis fixtu
 
 ### [2026-10-07 23:41 UTC] T22 → REVIEW (F22-1b fixed)
 Note: calibrated fixture frozen-nulls set (horizon/confidence_lo/hi/mtf_agreement=null); invariant helper now branch-independent; branch-diff allow-list asserted; 50/50 PASS.
+
+### [2026-10-08 06:11 UTC] T22 -> DONE (Lead); T24 -> IDLE (queued)
+Note: T22 audited PASS twice (F22-1b, F22-4b); confirmed AUDIT_REPORTS/AUDIT-T22-fixtures.md.
+T24 queued: T13 integration harness against the frozen v1 contract, driven by the T22
+fixtures, in tests/integration/. Claim on return; write now, report T13 PASS only
+after Agent-C T17/T19 land.

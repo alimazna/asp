@@ -48,3 +48,9 @@ Note: Phase 4.0 surface delivered. Analysis API (RULE C gate shared with /probab
 
 ### [2026-10-07 22:45 UTC] C-1 follow-up -> REVIEW
 Note: durable RULE C gate. applyCalibrationAudit(path) binds to T11 artifact; synthetic PASS stays closed. Host wired. ProbabilityApiTests 14/14, CTest 18/18.
+
+### [2026-10-08 06:11 UTC] T17/T19 -> BLOCKED (Lead; owner OFFLINE)
+Note: Agent-C silent since 2026-10-07 23:10 UTC (~7h) — OFFLINE (E08). Leases released.
+NOT abandoned; resumes on return. Open items waiting: F17-0 (durable-gate substring),
+F17-1 (two-layer impl-vs-schema), F17-2 (tag); F19-1 (frozen-null fidelity), F19-2
+(score_is_probability always false); F22-4b-v (validator finite guard); D-1.

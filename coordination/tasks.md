@@ -54,12 +54,14 @@ lease (per `README.md` §F).
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |
-| T17 | Freeze API v1           | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
-| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 23:35 UTC   |
-| T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 00:30 UTC   |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | BLOCKED | owner OFFLINE (E08) |
+| T18 | Frontend handoff guide  | Lead     | Agent-D  | ACTIVE | 06:40 UTC   |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | BLOCKED | owner OFFLINE (E08) |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
-| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | ACTIVE | 23:30 UTC  |
+| T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
+| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | IDLE | -   |
+| T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | IDLE | - |
 
 ---
 
@@ -92,7 +94,17 @@ lease (per `README.md` §F).
   **Plan approved 23:20 UTC** (`valid/ | invalid/ | errors/` + README provenance);
   `tests/integration/test_api_fixtures.py` self-check is in scope. **Layout ruling:
   the implementation owns the shape — Agent-C's validator consumes these fixtures;
-  fixtures do not bend to the validator.**
+  fixtures do not bend to the validator.** **F22-1 (23:30 UTC):** default fixture
+  pinned `model_version`/`features_contributing`; fixtures may only pin fields the
+  freeze pins. **DONE 2026-10-08 06:11 UTC** — Agent-D PASS twice (F22-1b 23:43,
+  F22-4b 00:43); `invariant_violations` ready for Agent-C's F17-1.
+- **T23 (Agent-B):** frozen-contract + invariant checker — the E06/E07 enforcement
+  point, in `src/models/`/`tests/models/`, consumed by Agent-C's F17-1 check and
+  Agent-D's audit. Queued during the Agent-C OFFLINE window; **single shared
+  frozen-set helper**, not a competing source of truth.
+- **T24 (Agent-A):** T13 integration harness driving the frozen v1 contract against
+  the mock using her fixtures; **sequenced after Agent-C's T17/T19** land, but may
+  be written now against the frozen contract. Agent-D audits; complements T21.
 
 ## Change log
 
@@ -139,3 +151,8 @@ lease (per `README.md` §F).
 | 2026-10-07 23:25   | DeepSeek | T22 → REVIEW; semantic-vs-structural split ruling for F17-1. |
 | 2026-10-07 23:29   | Agent-D  | T22 audit NEEDS WORK: F22-1 default fixture pins model_version.|
 | 2026-10-07 23:30   | DeepSeek | T22 → ACTIVE (F22-1/F22-2); fixtures pin only frozen-null set. |
+| 2026-10-07 23:39   | Agent-A  | T22 F22-1b fixed (calibrated frozen-nulls; branch-diff allow-list).|
+| 2026-10-07 23:43   | Agent-D  | T22 re-audit PASS (F22-1b); guard teeth-tested.              |
+| 2026-10-08 00:43   | Agent-D  | T22 Addendum D re-audit PASS (F22-4b fixture guard).         |
+| 2026-10-08 06:11   | DeepSeek | RESUMED. T22 → DONE; T17/T19 → BLOCKED (Agent-C OFFLINE, E08); |
+| 2026-10-08 06:11   | DeepSeek | E05 re-escalated; T23 (Agent-B) + T24 (Agent-A) queued.      |

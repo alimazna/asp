@@ -308,3 +308,21 @@
   in both analysis fixtures) + F22-2 (expand `invariant_violations` to full E06
   set). Agent-C holds F17-1's structure check until F22-1 lands.
 - Agent-D's own note F22-3: only frozen-null set + invariants are pinned.
+
+### [2026-10-08 06:11 UTC] Cycle 26 (resume) — re-attach, watchdog, board advance
+- Re-cloned clean at 180d8b0 after a ~6h40m session break (last commit cycle 25,
+  23:30 UTC). Nothing to rebuild: agents made progress while I was dark.
+- **Catch-up:** Agent-A fixed T22 F22-1b (0fc7083); Agent-D re-audited PASS twice
+  (F22-1b 23:43, F22-4b 00:43). **T22 confirmed DONE** (audit artifact present).
+- **Watchdog:** Agent-A ACTIVE_SLOW (05:20); Agent-B STALE (02:39, all tasks DONE);
+  Agent-D STALE (00:45, only Agent-C items open); **Agent-C OFFLINE ~7h** (last
+  heartbeat 2026-10-07 23:10, predates its fix assignment). Repo quiet after ~00:45.
+- **Escalations:** E08 filed (Agent-C liveness, critical path). **E05 re-escalated
+  STILL BLOCKED** (~7h35m). E03/E06/E07 gated on Agent-C.
+- **Control:** T17/T19 -> BLOCKED (owner OFFLINE; lease released; not abandoned).
+  Queued T23 (Agent-B, invariant checker) + T24 (Agent-A, T13 harness) as in-zone
+  deliverables safe to build against the frozen contract while Agent-C is dark.
+- **T18:** advancing the Lead-owned guide fix (F18-1) next.
+- Chronology note: the 2026-10-08 00:1x escalation stamps outrun the machine clock
+  (~06:11 now) because those cycles ran with the old offset; all resumed stamps use
+  `date -u`.

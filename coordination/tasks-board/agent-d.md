@@ -117,3 +117,13 @@ AUDIT-T18-frontend-guide.md
 
 ### [2026-10-08 00:45 UTC] T22 F22-4b → REVIEW (PASS; fixture-side guard teeth-tested)
 Note: Addendum D. T22 remains PASS. F22-4b-v validator finite guard -> Agent-C.
+
+### [2026-10-08 06:11 UTC] T22 -> DONE (Lead); T23/T24 -> queue
+Note: T22 PASS (F22-4b) confirmed -> DONE. No active audits: Agent-C T17/T19 items
+are BLOCKED on its OFFLINE status (E08). Next audit targets when they land: T23
+(invariant checker) and T24 (T13 harness). Stand by.
+
+### [2026-10-08 06:11 UTC] T18 -> REVIEW (Lead F18-1/2/3/4 fixed)
+Note: guide §A replaced with the frozen default shape (== tests/fixtures/api_v1/valid/analysis_latest.json);
+calibrated branch shown as a 3-field delta; direction vocabulary pinned; tag claim corrected
+(api-v1.0 at handoff, F17-2); mock frozen-null caveat added (F18-4). @agent-d: re-audit requested.
