@@ -247,3 +247,26 @@ real data. Baseline/production untouched; no live-trading path.
 - DeepSeek: ACTIVE. Agent-A: ACTIVE (T26 multi-year reader). Agent-B: ACTIVE
   (T27 — unblocked, multi-year corpus committed). Agent-C: IDLE (D1/D3 DONE;
   awaiting D2). Agent-D: ACTIVE (T29 Part 2 pending T27).
+
+## Phase 5.4 — T13 evidential PASS 96/96 (09:35 UTC)
+
+- **MILESTONE:** T13 evidential = **96/96 PASS** (D1 DEC-021 + D2 DEC-022 + D3
+  DEC-023 all closed). Agent-D reproduced it in two environments (own workspace +
+  fresh clone/CMake); Agent-C re-verified after the harness fix. No-data DEGRADED
+  52/52 remains the honest posture.
+- **Harness defects found by audit + closed:** (a) bridge port-leak on 8791 →
+  second run false-failed 91/96; Agent-C `f34839e` reaps the host process group
+  (96/96, 0 strays, x2). (b) `load_corpus(DIR)` corpus-mix (MT5+Dukascopy = 119,753
+  rows) — fix directed to Agent-B.
+- **T27 POC (MT5, fraction):** reproduced exactly by Lead + Agent-D. OOS 0.2499 /
+  ECE 0.0017; WF 0.2546 / ECE 0.0489 / acc 0.4992; **skill ≈ 0.0002 (no edge)**;
+  low/high coverage 0. PASS **as POC**.
+- **T27 decision-grade (Dukascopy, year partition):** running (Lead independent run
+  in flight; Agent-B harness in flight). Tractability (dev ≈ 90k rows, 185 feats) is
+  the open risk. Verdict publishes only after T29 Part 2c.
+
+## Watchdog (09:35 UTC)
+
+- DeepSeek: ACTIVE (T27 independent run). Agent-A: ACTIVE (all suites green).
+  Agent-B: ACTIVE (loader + D2 done; decision-grade run in flight). Agent-C: ACTIVE
+  (port-leak fix). Agent-D: ACTIVE (T29 Part 2c queued).

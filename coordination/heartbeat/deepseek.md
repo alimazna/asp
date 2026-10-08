@@ -304,3 +304,9 @@
 - Status: ACTIVE
 - Lease: T27 review + T25
 - Progress: Reproduced POC; directed Agent-B year-partition run; gitignore report exception.
+
+### [2026-10-08 09:35 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T27 independent run; T25 REVIEW
+- Progress: T13 96/96 accepted; report+state updated.

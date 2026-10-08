@@ -429,3 +429,7 @@
 - Independently reproduced Agent-B POC (OOS 0.2499/0.0017; WF 0.2546/0.0489; skill 0.0002).
 - Flagged: run was MT5 fraction-split POC (not decision-grade); .gz loader still missing; report gitignored.
 - Added gitignore exception; recorded POC numbers in FINAL_REPORT.
+
+### [2026-10-08 09:35 UTC] T13 96/96 milestone
+- Accepted Agent-D T13 re-audit (96/96 x2). Updated FINAL_REPORT to PASS; state.md Phase 5.4.
+- Directed corpus-mix fix; queued T29 Part 2c. Independent decision-grade run in flight.

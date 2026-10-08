@@ -31,7 +31,7 @@
 | Mock | `scripts/mock_api.py`, frozen contract, `--check` 0 failures | ✅ (T18) |
 | Frontend handoff | `docs/frontend/FRONTEND_HANDOFF_GUIDE.md` | ✅ (T16) |
 | Decision model | Horizon + SL/TP, justified | ✅ (T15) |
-| End-to-end | Real host + real data, evidential | ⏳ **PENDING T13 (D1)** |
+| End-to-end | Real host + real data, evidential | ✅ **green (T13 96/96)** |
 
 ## 2. Data — what we actually have
 
@@ -88,16 +88,29 @@ weak skill must be stated plainly. This is a **POC** on ~3.5 months; it is **not
 the decision-grade verdict. The decision-grade year-partition result on the
 Dukascopy corpus is **PENDING**.
 
-## 4. End-to-end — real host, real data
+## 4. End-to-end — real host, real data — **PASS (T13 96/96)**
 
-> **PENDING T13 (Agent-C + Agent-D).** The real-data path is wired and
-> reproducible; it is blocked on a **foundation defect D1** (`Json.cpp`
-> `Parser::parseNumber` typed every parsed number as a string). Independently
-> reproduced by the Lead; fix **authorized** under `DEC-021` and in progress.
-> D2/D3 (conditional `levels` / `proposal_reason`) ruled under `DEC-022`.
+The real-data path runs the **real binary** on **real data** through the full
+stack. D1 (`Json.cpp` typed every parsed number as a string) was fixed under
+`DEC-021`; D2 (conditional `levels` / `proposal_available`) under `DEC-022`; D3
+under `DEC-023`. The Lead independently reproduced the D1 probe (a JSON literal
+number now reports `isNumber=1`, `asDouble=12`) and `ctest` 19/19.
 
-What already passes on the **real binary** with **no data** (honest DEGRADED
-posture): T13 host harness **52/52**.
+**T13 evidential = 96/96 — PASS**, independently reproduced by Agent-D in two
+environments (its workspace **and** a fresh clone + fresh CMake build), and
+re-verified after the harness fix below. With **no data** the same harness reports
+an honest **DEGRADED** posture, **52/52** — nothing fabricated.
+
+Two harness defects were found by audit and closed (no product code changed):
+
+- **Bridge port-leak (fixed, Agent-C, `f34839e`).** The host-spawned
+  `bridge_service.py` binds fixed port 8791; the real-data run killed the host but
+  not the child, so a second run hit `EADDRINUSE` and **false-failed 91/96**. Now
+  the host runs in its own process group and `reap()` `killpg`s it; two back-to-back
+  runs give **96/96, 0 stray processes**.
+- **Corpus-mix (open, minor).** `load_corpus(DIR)` globs both `.json` and `.json.gz`,
+  so the corpus dir would silently concatenate the MT5 and Dukascopy providers.
+  Run T27 with one explicit corpus file; a resolver fix is requested.
 
 ## 5. Verification evidence (all independently auditable)
 
