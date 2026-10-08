@@ -496,3 +496,73 @@ Next update: when M4 endpoint is available OR when blocked.
 - comm.md (this file)
 - DAILY_SUMMARY_2026-10-08.md
 - README.md
+
+---
+
+## Windows CI — Build Log
+
+**Workflow file:** `.github/workflows/build-windows.yml`
+**Workflow ID on GitHub:** 378873658
+**Workflow name:** Build Windows .exe
+**Workflow state:** active
+**Created:** 2026-10-08T19:43:44Z
+**Badge:** https://github.com/alimazna/asp/workflows/Build%20Windows%20.exe/badge.svg
+
+### Trigger attempt
+
+**Method:** push to main (paths filter: `frontend/qt/**`)
+**Trigger commit:** `32a54b40ec` — `ci: trigger Windows build workflow`
+**Pushed:** 2026-10-08T20:30:16Z
+
+### Monitoring result
+
+- Polling started: 20:30:16Z (immediately after push)
+- Polling interval: 30-90 seconds
+- Max wait: 3+ minutes
+- **Result: NO RUNS TRIGGERED**
+
+### Root cause
+
+GitHub Actions is not enabled for this repository.
+
+Evidence:
+- Workflow file is committed and registered on GitHub (id=378873658, state=active)
+- Latest commit (`32a54b4`) is on main
+- API returns 0 workflow runs for the workflow
+- Repo is accessible without auth (public), but the push did not trigger any run
+
+### What the human needs to do
+
+1. Enable Actions for the repository:
+   **https://github.com/alimazna/asp/settings/actions**
+   → Select "Enable Actions for this repository"
+
+   OR
+
+2. Trigger manually from the GitHub UI:
+   **https://github.com/alimazna/asp/actions/workflows/build-windows.yml**
+   → Click "Run workflow" → "Run workflow"
+
+### Workflow is ready
+
+Once Actions is enabled, the workflow will:
+- Trigger automatically on push to main (when `frontend/qt/**` changes)
+- OR be triggerable manually via "Run workflow" button
+- Build Qt 6.5.3 (qtbase + qtsvg) on windows-latest
+- Configure CMake with `-DBUILD_ASTRA_DESKTOP=ON`
+- Build Release
+- Run windeployqt
+- Package as `ASTRA-windows.zip` (30-day retention)
+- Upload as artifact named `ASTRA-windows`
+
+### Fixes already applied (in case build fails)
+
+| Attempt | Commit | Fix |
+|---------|--------|-----|
+| 1 | `0b2f8be` | Initial workflow creation (Qt 6.5.1, @v3) |
+| 2 | `13d8c58` | Upgrade to @v4, Qt 6.5.3, pin aqtinstall==3.3.0 + py7zr==0.20.2 |
+
+### Escalation
+
+This is an infrastructure blocker, not a code issue. The workflow file is correct and committed. The build cannot start until the human enables Actions for the repository.
+
