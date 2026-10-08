@@ -407,3 +407,11 @@
 - Lease: none
 - Progress: 100%
 - Note: quiet; Agent-C on T13 real-host harness; no Agent-B work
+
+### [2026-10-08 06:55 UTC]
+- Agent: agent-b
+- Status: IDLE
+- Lease: none
+- Progress: 100%
+- Note: quiet; contract-drift finding (Agent-D) is schema/host-zoned, not B; my
+  checker inherits declared-key-only dialect by design (mock parity intact)
