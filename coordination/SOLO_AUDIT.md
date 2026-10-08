@@ -148,6 +148,37 @@ And directly from timestamps: **development partition = 0 of 3,997 valid (100%
 INCOMPLETE)**; validation 1,158 of 1,333 valid; OOS 1,339 of 1,339 valid. This
 **confirms the Agent-D addendum (F-T27-1) exactly.**
 
+### Independent data-quality re-verification (raw CSV, this audit)
+
+The roster's independent auditor (Agent-D) was STALE for the entire MT5 window, so
+T25's data claims were only *substitute*-audited by the Lead. I re-derived the hard
+checks **directly from the raw CSVs**, independent of `QUALITY.md`:
+
+**MT5 primary corpus** Ñ `xauusd_m1_real.csv`:
+
+| Check | Reported (`QUALITY.md`) | Re-derived |
+|---|---|---|
+| Bars | 100,008 | **100,008** |
+| Coverage | 2026-06-24 11:08 .. 2026-10-08 10:30 | **identical** |
+| Duplicates / non-monotonic | 0 | **0** |
+| Off-grid timestamps | 0 | **0** |
+| NaN OHLCV | 0 | **0** |
+| OHLC violations | 0 | **0** |
+| Price range | 3942.48..4696.73 (WARN) | **3942.48..4696.73** |
+| Session gaps | 76 (16 weekend) | 78 by a raw `>1min` rule |
+
+The gap count differs by **2** only because the report uses a documented
+session/weekend-threshold definition; the report explicitly states the unexpected-
+gap count is **0**. No defect; the *material* claims all reproduce exactly.
+
+**Dukascopy appendix corpus** Ñ `2021..2025.csv.gz`: re-derived row counts match
+`metadata_dukascopy_2021_2025.json` **exactly** (344,687 / 341,226 / 342,204 /
+331,293 / 336,241 = **1,695,651**), with **0** non-monotonic, **0** OHLC
+violations, **0** NaN, price range 1614.71..4549.72 (real multi-regime gold).
+
+**Conclusion:** the data foundation is **independently confirmed**. The POC verdict
+rests on real, clean data; no correction needed.
+
 ---
 
 ## Section 6 â€” The Backend Build
