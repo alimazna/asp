@@ -206,3 +206,9 @@ Will re-audit T30's schema + exact-shape red test when it lands.
 Note: host drift closed red->green (52/52). Residual: freshness sub-fields undeclared
 (mock 15/16); data_required promotion pending. Report AUDIT-T30-interim.md.
 
+
+
+### [2026-10-08 08:36 UTC] T30 → NOT DONE (frozen set red); T26 → INTERIM PASS (synthetic)
+T30(b): teeth green+two-sided, but 6 fixtures unrefreshed -> T24/api_fixtures RED.
+T26: harness 10/10 with binary built; real-data sample pending T25 (feeds T29).
+

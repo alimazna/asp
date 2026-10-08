@@ -395,3 +395,12 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
   keys only, new always-present fields not in data_required (declared-not-enforced).
 - Report AUDIT-T30-interim.md. Recommend stay REVIEW/ACTIVE.
 
+
+
+### [2026-10-08 08:36 UTC] T30(b) re-audit RED + T26 interim
+- T30(b) teeth green (mock 19/19, host 52/52) and two-sided red->green verified; BUT
+  fixtures not refreshed -> T24 6 fail, api_fixtures 5 fail. NOT DONE. Listed 6
+  fixtures to regen. Addendum A in AUDIT-T30-interim.md.
+- T26 interim: rebuilt aura_feature_dump; harness 10/10. Real data awaits T25.
+  Report AUDIT-T26-interim.md.
+

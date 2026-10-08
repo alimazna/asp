@@ -86,3 +86,66 @@ evidence above as the drift-closure artifact.
 
 Agent-D authored none of T30; `schema_shape.undeclared()` invoked read-only; schema
 diff and mock `--check` reproduced at 9a59676. No source touched.
+
+---
+
+# Addendum A — T30(b) re-audit at e2cc9d7: mock teeth GREEN, but the frozen set is RED
+
+- **Repo HEAD:** e2cc9d7
+- **Verdict:** **NOT DONE.** The T30(b) teeth are correct and genuinely two-sided,
+  but the same commit promoted `data_required` and aligned the mock **without
+  refreshing the valid fixtures**, so the previously-green frozen suites now fail.
+
+## Verified good (teeth)
+
+- `test_mock_shape_t30.py` **19/19**; `test_e2e_real_host_t13.py` **52/52**;
+  `mock_api.py --check` 0 failures; schema JSON valid.
+- **Two-sided red→green, independently reproduced:**
+  - Extra keys: with the **old** schema the host emitted undeclared keys on 8
+    routes → **0** with the new schema (the host harness had no such check before).
+  - Missing-required: the **old** mock (a78fb1e) against the new schema is missing
+    required keys on 5 routes (bridge 13, risk 3, research 4, governance 3, audit 3);
+    the aligned mock emits them → **0**.
+- **`data_required` promotion is real:** bridge/status now lists 20 required keys;
+  risk/research/governance/audit likewise; `freshness` declares all 5 sub-fields.
+- Nested `freshness` shape read from the emitter (not the DEGRADED dump).
+
+## RE-GRESSION — frozen fixtures not yet refreshed (CURRENT RED)
+
+```
+test_api_fixtures     52 checks, 5 FAILED   -> RESULT: FAIL
+test_e2e_frozen_v1    88 checks, 6 FAILED   -> RESULT: FAIL
+```
+
+- `valid/bridge_status.json` missing required `managed_by_application` (+12 others)
+  → schema conformance + T24 structural-vs-live both fail.
+- `valid/risk_latest.json` missing `proposal_available` (+`proposal`,`proposal_reason`).
+- `valid/research_status.json` missing `experiment_count` (+`experiments`,`failure_count`,`failures`).
+- `valid/governance_status.json` missing `pending_count` (+`pending`,`history`).
+- `valid/audit_recent.json` missing `audit_stream_size` (+`audit_records`,`active_incidents`).
+- `valid/timeframes.json` — T24 structural mismatch (mock `freshness` now emits 5
+  fields incl. `state/is_fresh/age_millis/max_age_millis`; the fixture has the old shape).
+
+Root cause: the promotion makes these fields **required**, so every fixture carrying
+the old minimal shape is now structurally non-conformant. Expected consequence of
+promotion, but the frozen set is transiently broken until Agent-A's refresh lands.
+
+## Path to green
+
+Refresh `valid/{bridge_status,risk_latest,research_status,governance_status,
+audit_recent}.json` **and** `valid/timeframes.json` (freshness 5-field shape) from the
+canonical mock (`build_payloads`) — the same regen pattern as the F-HIST-1 fix. Then
+T24/fixtures return green. I will re-run the full suite and can sign T30 DONE when:
+mock-shape 19/19 · host 52/52 · fixtures 52+ · T24 88 · T13 37 · models green · ctest 18.
+
+## Note for the Lead
+
+T30 runs in parallel with the T25→T26→T27 critical path, so this red is not on the
+data path — but the **main branch's frozen suites are red right now** (e2cc9d7). Any
+external consumer pulling `main` expecting green will see FAIL. Worth prioritising the
+small fixture refresh to restore a green freeze.
+
+## Independence
+
+Agent-D authored none of T30; all checks reproduced read-only at e2cc9d7 (old mock
+loaded from a78fb1e for the red-before probe). No source touched.
