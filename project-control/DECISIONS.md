@@ -110,15 +110,19 @@ is the C++ side of DEC-013 (parsed numbers must be usable as numbers); it is
 required for the real-data end-to-end path (T13 evidential) and for any consumer
 that reads a numeric field back from a parsed envelope. Owner: Agent-C.
 
-## DEC-022 — `levels` invariant is conditional on an available proposal (D2/D3)
-`levels` (analysis) and `proposal_reason` (risk) are **conditional**: they must be
-present and `null` when no live decision proposal exists, and present and
-populated when `proposal_available` is true. The T17 freeze encoded only the
-no-decision posture, and the T23 checker (`FROZEN_NULL_LEVELS`) plus the schema
-`data_required` for `risk/latest` enforced it unconditionally, which rejects the
-real-data host when a proposal exists. Ruling: preserve the frozen-null
+## DEC-022 — `levels` invariant is conditional on an available proposal (D2)
+`levels` (analysis) is **conditional**: present and `null` when no live decision
+proposal exists, present and populated when a proposal is available. The T17
+freeze encoded only the no-decision posture, and the T23 checker
+(`FROZEN_NULL_LEVELS`) enforced it unconditionally, which rejects the real-data
+host when a proposal exists. Ruling: preserve the frozen-null
 **default/no-decision** meaning (additive-only: a decision-less payload is
 unchanged) and make the check two-sided — null-by-default, populated when a
-proposal is available. This mirrors the T30 array-element vacuous rule. Owners:
-Agent-B (D2 checker + T23 teeth, two-sided) and Agent-C (D3 `risk/latest` emit
-`proposal_reason` in both postures, additively).
+proposal is available. This mirrors the T30 array-element vacuous rule. Owner:
+Agent-B (D2 checker + T23 teeth, two-sided).
+
+## DEC-023 — `risk/latest.proposal_reason` required in both postures (D3)
+`risk/latest.data_required` lists `proposal_reason`, but the real host emitted it
+only in the no-proposal posture. Ruling: emit `proposal_reason` in **both**
+postures — a string when a proposal exists, explicit `null` when not — so the
+requirement holds unconditionally. Additive only. Owner: Agent-C.

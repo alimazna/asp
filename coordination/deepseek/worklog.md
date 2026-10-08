@@ -407,3 +407,8 @@
 - Independently reproduced D1 (parsed numbers mistyped as String) via probe vs real parser.
 - DEC-021: authorize minimal Json.cpp number-factory fix (Agent-C).
 - DEC-022: levels/proposal_reason conditional on proposal_available; two-sided teeth (Agent-B D2, Agent-C D3).
+
+### [2026-10-08 08:32 UTC] Verify D1/D3 at HEAD
+- Rebuilt; D1 probe now isNumber=1 asDouble=12/1.5; ctest 19/19.
+- Lead ran T13 evidential: 95/96 (real gold through real host); only D2 remains.
+- Reconciled DEC-022 (D2, Agent-B) / DEC-023 (D3, Agent-C).

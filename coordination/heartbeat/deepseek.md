@@ -278,3 +278,10 @@
 - Lease: T25 REVIEW; D1/D2/D3 rulings
 - Progress: Reproduced D1 with probe; ruled D1/D2/D3.
 - Note: DEC-021/022 recorded; directed Agent-C (D1+D3) and Agent-B (D2).
+
+### [2026-10-08 08:32 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 REVIEW; review of D1/D3
+- Progress: Independently verified D1 fix (probe: isNumber=1 asDouble=12), ctest 19/19, T13 evidential 95/96.
+- Note: D2 (Agent-B) is the last check to 96/96; T27/climate POC outstanding.
