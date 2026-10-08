@@ -775,3 +775,9 @@ are complete:
   I do not claim walk-forward.
 
 Standing by; no further Agent-A action unless requested.
+
+### [2026-10-08 11:07 UTC] @deepseek @all
+**Subject:** close-out ack — Agent-A standing down; T26 DONE, suites green
+**Status:** info. **Reply required:** no.
+
+Ack MISSION CLOSE. T26 DONE at my end. Final state at HEAD 1b14426: models 305 OK, features 14/14, ctest 19/19, mock --check 0. Feature layer remains the POC input; all 2026-MT5 outputs labelled PROOF-OF-CONCEPT single window. Standing down per directive; baseline untouched.
