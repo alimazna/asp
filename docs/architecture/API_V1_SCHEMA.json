@@ -1,5 +1,5 @@
 {
-  "$comment": "ASTRA backend/frontend API v1 - frozen contract (T17). Hand-maintained, machine-checked by tests/integration/test_mock_api_t19.py and scripts/mock_api.py --check. Routes not listed here are NOT part of the frozen frontend contract; /probability/latest and /signals/latest exist but are superseded by /analysis/latest. Every response body is enveloped as {api:'v1', schema:'1.0', data:...}. A missing dependency yields HTTP 503 with the flat error object {error:'true', code, message}; unknown routes yield 404; wrong method 405.",
+  "$comment": "ASTRA backend/frontend API v1 - frozen contract (T17). Hand-maintained, machine-checked by tests/integration/test_mock_api_t19.py and scripts/mock_api.py --check. Routes not listed here are NOT part of the frozen frontend contract; /probability/latest and /signals/latest exist but are superseded by /analysis/latest. Every response body is enveloped as {api:'v1', schema:'1.0', data:...}. A missing dependency yields HTTP 503 with the flat error object {error:'true', code, message}; unknown routes yield 404; wrong method 405. T30 (2026-10-08): additive extension declaring every leaf field the real host serves (bridge/status, context, timeframes capability_impact/quality, risk proposal, research, governance, audit, shadow and analysis/history element shapes); additive only, no tag change.",
   "api": "v1",
   "schema": "1.0",
   "base": "http://127.0.0.1:8790/api/v1/",
@@ -60,10 +60,26 @@
         "timeframe": {"enum": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]},
         "observed": {"type": "boolean"},
         "has_closed_bar": {"type": "boolean"},
-        "quality": {"type": "object"},
+        "quality": {
+          "type": "object",
+          "required": ["state", "decision_grade"],
+          "properties": {
+            "state": {"type": "string"},
+            "decision_grade": {"type": "boolean"}
+          }
+        },
         "decision_grade": {"type": "boolean"},
         "freshness": {"type": ["object", "null"]},
-        "last_successful_update": {"type": ["integer", "null"]}
+        "last_successful_update": {"type": ["integer", "null"]},
+        "capability_impact": {
+          "type": "array",
+          "element_required": ["capability", "impact", "reason"],
+          "element_properties": {
+            "capability": {"type": "string"},
+            "impact": {"type": "string"},
+            "reason": {"type": "string"}
+          }
+        }
       }
     },
     "GET /api/v1/timeframes/{tf}/snapshot": {
@@ -73,7 +89,26 @@
       "data_properties": {
         "timeframe": {"type": "string"},
         "observed": {"type": "boolean"},
-        "quality": {"type": "object"}
+        "quality": {
+          "type": "object",
+          "required": ["state", "decision_grade"],
+          "properties": {
+            "state": {"type": "string"},
+            "decision_grade": {"type": "boolean"}
+          }
+        },
+        "capability_impact": {
+          "type": "array",
+          "element_required": ["capability", "impact", "reason"],
+          "element_properties": {
+            "capability": {"type": "string"},
+            "impact": {"type": "string"},
+            "reason": {"type": "string"}
+          }
+        },
+        "freshness": {"type": ["object", "null"]},
+        "has_closed_bar": {"type": "boolean"},
+        "last_successful_update": {"type": ["integer", "null"]}
       }
     },
     "GET /api/v1/analysis/latest": {
@@ -140,6 +175,60 @@
       "required": ["api", "schema", "data"],
       "data_type": "array",
       "element_required": ["timestamp", "symbol", "context", "signal", "levels", "meta"],
+      "element_properties": {
+        "timestamp": {"type": ["string", "null"]},
+        "symbol": {"type": "string"},
+        "context": {
+          "type": "object",
+          "required": ["regime", "h4_bias", "m15_trigger", "mtf_agreement", "volatility_state"],
+          "properties": {
+            "regime": {"type": "string"},
+            "h4_bias": {"type": "string"},
+            "m15_trigger": {"type": "string"},
+            "mtf_agreement": {"type": ["number", "null"]},
+            "volatility_state": {"type": "string"}
+          }
+        },
+        "signal": {
+          "type": "object",
+          "required": ["direction", "horizon", "probability", "probability_calibrated", "score", "confidence_lo", "confidence_hi", "model_version", "features_contributing"],
+          "properties": {
+            "direction": {"enum": ["UP", "DOWN", "FLAT", "NONE", "UNKNOWN"]},
+            "horizon": {"type": ["string", "null"]},
+            "probability": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "probability_calibrated": {"type": "boolean"},
+            "score": {"type": ["number", "null"]},
+            "confidence_lo": {"type": ["number", "null"]},
+            "confidence_hi": {"type": ["number", "null"]},
+            "model_version": {"type": ["string", "null"]},
+            "features_contributing": {"type": "array"}
+          }
+        },
+        "levels": {
+          "type": "object",
+          "required": ["entry", "stop_loss", "take_profit", "reward_risk", "suggested_risk_pct", "sl_method", "tp_method"],
+          "properties": {
+            "entry": {"type": ["number", "null"]},
+            "stop_loss": {"type": ["number", "null"]},
+            "take_profit": {"type": ["number", "null"]},
+            "reward_risk": {"type": ["number", "null"]},
+            "suggested_risk_pct": {"type": ["number", "null"]},
+            "sl_method": {"type": ["string", "null"]},
+            "tp_method": {"type": ["string", "null"]}
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["coverage_tier", "data_freshness_sec", "degraded", "score_is_probability", "disclaimer"],
+          "properties": {
+            "coverage_tier": {"enum": ["high", "medium", "low", "unknown"]},
+            "data_freshness_sec": {"type": ["integer", "null"]},
+            "degraded": {"type": "boolean"},
+            "score_is_probability": {"type": "boolean"},
+            "disclaimer": {"type": "string"}
+          }
+        }
+      },
       "query": {
         "limit": {"type": "integer", "default": 50, "minimum": 0, "maximum": 500}
       }
@@ -151,7 +240,17 @@
       "data_properties": {
         "timestamp": {"type": ["string", "null"]},
         "symbol": {"type": "string"},
-        "context": {"type": "object"}
+        "context": {
+          "type": "object",
+          "required": ["regime", "h4_bias", "m15_trigger", "mtf_agreement", "volatility_state"],
+          "properties": {
+            "regime": {"type": "string"},
+            "h4_bias": {"type": "string"},
+            "m15_trigger": {"type": "string"},
+            "mtf_agreement": {"type": ["number", "null"]},
+            "volatility_state": {"type": "string"}
+          }
+        }
       }
     },
     "GET /api/v1/bridge/status": {
@@ -165,7 +264,20 @@
         "mt5_ready": {"type": "boolean"},
         "transport": {"const": "http_loopback"},
         "host": {"const": "127.0.0.1"},
-        "loopback_only": {"const": true}
+        "loopback_only": {"const": true},
+        "managed_by_application": {"type": "boolean"},
+        "requires_manual_cmd": {"type": "boolean"},
+        "resolved_symbol": {"type": "string"},
+        "package_available": {"type": "boolean"},
+        "initialized": {"type": "boolean"},
+        "mt5_ready_live": {"type": "boolean"},
+        "broker": {"type": ["string", "null"]},
+        "server": {"type": ["string", "null"]},
+        "bridge_symbol": {"type": ["string", "null"]},
+        "process_state": {"type": "string"},
+        "last_error": {"type": "string"},
+        "last_successful_request": {"type": ["integer", "null"]},
+        "observed": {"type": "boolean"}
       }
     },
     "GET /api/v1/risk/latest": {
@@ -176,7 +288,26 @@
         "available": {"type": "boolean"},
         "open_positions": {"type": "integer"},
         "aggregate_open_risk_fraction": {"type": "number"},
-        "risk_bounded_by_guardian": {"type": "boolean"}
+        "risk_bounded_by_guardian": {"type": "boolean"},
+        "proposal_available": {"type": "boolean"},
+        "proposal": {
+          "type": ["object", "null"],
+          "properties": {
+            "decision_id": {"type": "string"},
+            "direction": {"type": "string"},
+            "entry_price": {"type": ["number", "null"]},
+            "stop_price": {"type": ["number", "null"]},
+            "target_price": {"type": ["number", "null"]},
+            "risk_fraction": {"type": ["number", "null"]},
+            "risk_amount": {"type": ["number", "null"]},
+            "position_size_lots": {"type": ["number", "null"]},
+            "reward_risk_ratio": {"type": ["number", "null"]},
+            "decision": {"type": "string"},
+            "reason": {"type": "string"},
+            "valid": {"type": "boolean"}
+          }
+        },
+        "proposal_reason": {"type": "string"}
       }
     },
     "GET /api/v1/shadow/positions": {
@@ -186,8 +317,23 @@
       "element_required": ["position_id", "decision_id", "direction", "state", "shadow_only"],
       "element_properties": {
         "position_id": {"type": "string"},
+        "decision_id": {"type": "string"},
+        "direction": {"type": "string"},
         "state": {"type": "string"},
         "entry_price": {"type": ["number", "null"]},
+        "stop_price": {"type": ["number", "null"]},
+        "target_price": {"type": ["number", "null"]},
+        "lots": {"type": ["number", "null"]},
+        "risk_fraction": {"type": ["number", "null"]},
+        "timeframe": {"type": "string"},
+        "opened_at": {"type": ["integer", "null"]},
+        "opened_bar_open": {"type": ["integer", "null"]},
+        "exit_price": {"type": ["number", "null"]},
+        "realized_pnl": {"type": ["number", "null"]},
+        "realized_r": {"type": ["number", "null"]},
+        "close_reason": {"type": "string"},
+        "closed_at": {"type": ["integer", "null"]},
+        "closed_bar_open": {"type": ["integer", "null"]},
         "shadow_only": {"type": "boolean"}
       }
     },
@@ -198,8 +344,21 @@
       "element_required": ["outcome_id", "position_id", "decision_id", "shadow_only"],
       "element_properties": {
         "outcome_id": {"type": "string"},
+        "position_id": {"type": "string"},
+        "decision_id": {"type": "string"},
+        "direction": {"type": "string"},
+        "timeframe": {"type": "string"},
         "exit_state": {"type": "string"},
+        "entry_price": {"type": ["number", "null"]},
+        "exit_price": {"type": ["number", "null"]},
+        "lots": {"type": ["number", "null"]},
         "realized_pnl": {"type": ["number", "null"]},
+        "realized_r": {"type": ["number", "null"]},
+        "risk_fraction": {"type": ["number", "null"]},
+        "bars_held": {"type": ["integer", "null"]},
+        "outcome_class": {"type": "string"},
+        "recorded_at": {"type": ["integer", "null"]},
+        "note": {"type": "string"},
         "shadow_only": {"type": "boolean"}
       }
     },
@@ -210,7 +369,34 @@
       "data_properties": {
         "available": {"type": "boolean"},
         "mode": {"const": "SHADOW"},
-        "note": {"type": "string"}
+        "note": {"type": "string"},
+        "experiment_count": {"type": "integer"},
+        "experiments": {
+          "type": "array",
+          "element_required": ["experiment_id", "hypothesis_id", "method", "outcome"],
+          "element_properties": {
+            "experiment_id": {"type": "string"},
+            "hypothesis_id": {"type": "string"},
+            "method": {"type": "string"},
+            "outcome": {"type": "string"},
+            "sample_size": {"type": ["integer", "null"]},
+            "result_metric": {"type": ["number", "null"]},
+            "started_at": {"type": ["integer", "null"]}
+          }
+        },
+        "failure_count": {"type": "integer"},
+        "failures": {
+          "type": "array",
+          "element_required": ["failure_id", "category", "summary", "resolved"],
+          "element_properties": {
+            "failure_id": {"type": "string"},
+            "category": {"type": "string"},
+            "summary": {"type": "string"},
+            "occurrences": {"type": ["integer", "null"]},
+            "resolved": {"type": "boolean"},
+            "last_seen": {"type": ["integer", "null"]}
+          }
+        }
       }
     },
     "GET /api/v1/governance/status": {
@@ -218,7 +404,30 @@
       "required": ["api", "schema", "data"],
       "data_required": ["live_trading_authorised"],
       "data_properties": {
-        "live_trading_authorised": {"const": false}
+        "live_trading_authorised": {"const": false},
+        "pending_count": {"type": "integer"},
+        "pending": {
+          "type": "array",
+          "element_required": ["request_id", "kind", "subject_id", "requested_at"],
+          "element_properties": {
+            "request_id": {"type": "string"},
+            "kind": {"type": "string"},
+            "subject_id": {"type": "string"},
+            "requested_at": {"type": ["integer", "null"]}
+          }
+        },
+        "history": {
+          "type": "array",
+          "element_required": ["request_id", "kind", "status", "requested_by", "requested_at", "decided_at"],
+          "element_properties": {
+            "request_id": {"type": "string"},
+            "kind": {"type": "string"},
+            "status": {"type": "string"},
+            "requested_by": {"type": "string"},
+            "requested_at": {"type": ["integer", "null"]},
+            "decided_at": {"type": ["integer", "null"]}
+          }
+        }
       }
     },
     "GET /api/v1/audit/recent": {
@@ -226,7 +435,35 @@
       "required": ["api", "schema", "data"],
       "data_required": ["count"],
       "data_properties": {
-        "count": {"type": "integer"}
+        "count": {"type": "integer"},
+        "audit_stream_size": {"type": "integer"},
+        "audit_records": {
+          "type": "array",
+          "element_required": ["sequence", "event_id", "action", "outcome", "service_state", "occurred_at", "actor", "subject", "details", "previous_hash", "record_hash"],
+          "element_properties": {
+            "sequence": {"type": ["integer", "null"]},
+            "event_id": {"type": "string"},
+            "action": {"type": "string"},
+            "outcome": {"type": "string"},
+            "service_state": {"type": "string"},
+            "occurred_at": {"type": ["integer", "null"]},
+            "actor": {"type": "string"},
+            "subject": {"type": "string"},
+            "details": {"type": "string"},
+            "previous_hash": {"type": "string"},
+            "record_hash": {"type": "string"}
+          }
+        },
+        "active_incidents": {
+          "type": "array",
+          "element_required": ["incident_id", "severity", "state", "title"],
+          "element_properties": {
+            "incident_id": {"type": "string"},
+            "severity": {"type": "string"},
+            "state": {"type": "string"},
+            "title": {"type": "string"}
+          }
+        }
       }
     }
   }
