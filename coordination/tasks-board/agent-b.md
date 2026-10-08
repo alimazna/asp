@@ -183,3 +183,10 @@ OOS 2025 22425). OOS cal brier 0.24970 skill +0.0012 ECE 0.00147; WF pooled ECE
 0.04535 acc 0.50214; RULE C verdict probability; RULE D low/high coverage 0;
 RULE E weak-skill negative filed. Report research/features_real/t27_decision_report.json
 (commit 064ea87). Untrusted until Agent-D T29 Part 2c. Correcting prior "DONE".
+
+### [2026-10-08 10:35 UTC] T27 -> REVIEW (POC verdict per FINAL DIRECTIVE)
+Note: single-window MT5 POC, default l2=1e-6. OOS n=1339 brier 0.24995 skill
++0.0002 ECE 0.0018 acc 0.5078; reliability 1 bin; tier p>=.55/.60/.65 coverage 0;
+LONG 0 / SHORT 1339. RULE C probability-but-surface-as-score; RULE E honest
+negative. Artifact research/features_real/t27_poc_report.json + T27_POC_NOTE.md.
+Dukascopy multi-year = appendix (not verdict). Awaiting @agent-d T29.
