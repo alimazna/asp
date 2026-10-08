@@ -83,8 +83,42 @@ def _to_secs(ts: int) -> int:
     return ts // 1000 if ts >= 100_000_000_000 else ts
 
 
+_ISO_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+                "%Y-%m-%dT%H:%M:%S")
+
+
+def _parse_open_time(text: str) -> int:
+    """Bar-open time -> epoch seconds. Accepts epoch (s/ms) or ISO datetime.
+
+    The canonical Phase 5.2 corpus (research/data/xauusd_m1/xauusd_m1_real.csv)
+    carries ISO timestamps, so the harness accepts them here rather than forcing
+    every caller to pre-convert.
+    """
+    text = text.strip()
+    if not text:
+        raise ValueError("empty timestamp")
+    try:
+        return _to_secs(int(text))
+    except ValueError:
+        pass
+    try:
+        return int(datetime.strptime(text, _ISO_FORMATS[0]).timestamp())
+    except ValueError:
+        pass
+    for fmt in _ISO_FORMATS[1:]:
+        try:
+            return int(datetime.strptime(text, fmt).timestamp())
+        except ValueError:
+            continue
+    raise ValueError(f"unrecognised timestamp {text!r}")
+
+
 def load_m1(paths):
-    """Read M1 CSVs. A header may be present on each file."""
+    """Read M1 CSVs. A header may be present on each file.
+
+    Timestamps may be epoch (s/ms) or ISO datetimes; both the Dukascopy yearly
+    files and the operator MT5 corpus are accepted.
+    """
     rows = []
     for path in paths:
         started = False
@@ -96,11 +130,11 @@ def load_m1(paths):
                 cols = [c.strip() for c in raw.split(",")]
                 if not started:
                     try:
-                        int(cols[0])
+                        _parse_open_time(cols[0])
                     except (ValueError, IndexError):
                         continue  # header line
                     started = True
-                sec = _to_secs(int(cols[0]))
+                sec = _parse_open_time(cols[0])
                 # Dukascopy tick volume is fractional (millions of units); it is
                 # an activity proxy, so round to a whole tick count.
                 rows.append((sec, float(cols[1]), float(cols[2]),

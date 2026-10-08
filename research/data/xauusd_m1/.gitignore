@@ -8,3 +8,9 @@ fetch.log
 # ...but the small committed samples must survive the *.csv rule.
 !sample/
 !sample/*.head.csv
+# Phase 5.2 operator MT5 export: the raw UTF-16 source and any large gzip stay
+# out; the canonical converted corpus, its sample and metadata are committed.
+XAUUSDM1.csv
+XAUUSDM1.csv.gz
+!xauusd_m1_real.csv
+!sample_first_1000.csv

@@ -63,3 +63,66 @@ Higher timeframes (M5..MN1) are derivable from these M1 bars; only M1 is stored.
 - BID bars with tick volume are the primary series; ASK is kept for spread.
 - RULE B (three cost tiers) still applies when converting prices to results.
 - No lookahead: bars are causal, timestamped at bar open.
+
+---
+
+# Phase 5.2 — operator MT5 corpus (primary real-data source)
+
+The operator supplied a real MetaTrader 5 XAUUSD M1 export, which is now the
+authoritative real-data corpus for the mission (it closes E05 for every
+downstream check). The Dukascopy fetch above is retained as a reproducible
+secondary source.
+
+## Source
+
+- **Provider:** the operator's MT5 broker (broker export, uploaded as
+  `XAUUSDM1.csv`).
+- **Raw file:** UTF-16-LE (BOM), no header, comma-separated, columns
+  `<DATE> <TIME>,<OPEN>,<HIGH>,<LOW>,<CLOSE>,<TICKVOL>,<SPREAD>`.
+- **The raw upload is not committed** (13.5 MB, and it is an immutable input);
+  it is `.gitignore`d. The **converted canonical corpus is committed** so any
+  agent can consume it directly. `tools/convert_mt5.py` is reproducible.
+
+## Convert + validate
+
+```
+python3 research/data/xauusd_m1/tools/convert_mt5.py   # -> xauusd_m1_real.csv
+python3 research/data/xauusd_m1/tools/quality_check_mt5.py  # -> QUALITY.md
+```
+
+## Files
+
+| Path | Committed? | What |
+|---|---|---|
+| `XAUUSDM1.csv` | no (gitignored) | raw MT5 export (UTF-16) |
+| `xauusd_m1_real.csv` | **yes** | canonical corpus: `timestamp,open,high,low,close,volume` |
+| `sample_first_1000.csv` | yes | first 1000 bars (provenance) |
+| `checksums.sha256` | yes | sha256 of the canonical corpus + sample |
+| `QUALITY.md` | yes | mandatory quality report |
+| `tools/convert_mt5.py` | yes | reproducible converter |
+| `tools/quality_check_mt5.py` | yes | quality checks |
+
+## Format
+
+`timestamp,open,high,low,close,volume`
+- `timestamp`: ISO `YYYY-MM-DD HH:MM:SS` (MT5 bar-open time).
+- `open/high/low/close`: USD per troy ounce.
+- `volume`: MT5 tick volume (tick count proxy; the SPREAD column is dropped).
+
+## Timezone
+
+The export carries **broker server time** exactly as written; there is no
+timezone label or DST marker in the file, so the converter does not convert it
+and does not guess an offset. The gap structure (a ~2h break at 23:00-01:00 and
+Fri-night -> Mon weekend closures) is consistent with a UTC+2/+3 broker clock.
+The operator should confirm the server timezone; until then all times are
+documented as broker time and treated consistently (causal ordering is
+unaffected by a constant offset). No downstream analysis depends on the
+absolute UTC label, only on ordering and gaps.
+
+## Coverage
+
+- **100,008** M1 bars.
+- **2026-06-24 11:08 .. 2026-10-08 10:30** (broker time).
+- 0 duplicates, 0 OHLC violations, 0 NaN, 0 off-grid timestamps, 0 unexpected gaps.
+- Observed range 3942.48..4696.73 USD/oz.

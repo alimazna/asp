@@ -54,3 +54,7 @@ build/
 # Coordination notify config (secret webhook URL — never commit)
 coordination/notify/config
 __pycache__/
+
+# Large per-run corpus JSON (42 MB); the deterministic gzip is committed instead.
+research/features_real/corpus/*.json
+!research/features_real/corpus/real_corpus.json.gz
