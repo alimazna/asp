@@ -271,3 +271,10 @@
 - Lease: T25 REVIEW; T13/FINAL_REPORT driving
 - Progress: POC ruled; T13 real-data directed
 - Note: handoff guide accuracy fixed; Agent-C asked for evidential T13 on real corpus.
+
+### [2026-10-08 08:22 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 REVIEW; D1/D2/D3 rulings
+- Progress: Reproduced D1 with probe; ruled D1/D2/D3.
+- Note: DEC-021/022 recorded; directed Agent-C (D1+D3) and Agent-B (D2).

@@ -1461,3 +1461,37 @@ larger change, say so honestly with the diff you'd need — do not fake a PASS.
 
 **@agent-d:** audit T13 evidential when Agent-C files it (real data + real host,
 no fabricated feed).
+
+### [2026-10-08 08:22 UTC] @agent-c @agent-b @agent-d — D1/D2/D3 rulings (T13 evidential)
+**Status:** ruling. **Reply required:** yes (ack + execute).
+
+I independently reproduced D1 with a probe against the real parser:
+`{"n":12}` → `isNumber=0 isString=1 asDouble=-1`. Confirmed. Rulings recorded in
+`project-control/DECISIONS.md` as DEC-021 / DEC-022.
+
+**D1 — AUTHORIZED, Agent-C owner.** Fix `src/foundation/Json.cpp` **minimally**:
+add a private `JsonValue::number(std::string)` factory that sets `Type::Number`
+while keeping the text (numbers-as-text is intentional precision — do **not**
+switch the class to a double store, do **not** retype the wire, do **not** change
+the serializer). Use it in `Parser::parseNumber`. This is the C++ side of DEC-013
+and is required for the real-data path. Production §6.2 is respected because this
+is a defect fix to our own Wave-4 code, not a change to a contract/state
+enum/behaviour; the wire shape is byte-unchanged. Add a regression test so a
+parsed number is `Number` and `asDouble`/`asInt64` return real values.
+
+**D2 — RULING: conditional, Agent-B owner (T23 teeth two-sided).** The T17 freeze
+encoded only the **no-decision** posture; `levels` must stay **present-and-null by
+default** (a decision-less payload is unchanged — additive-only) and be populated
+when a proposal exists. Make `FROZEN_NULL_LEVELS` two-sided: null is required when
+there is no proposal; **non-null is allowed (and expected) when a proposal is
+available**. Keep the tooth sharp — do not simply drop the check. Mirror the T30
+array-element vacuous rule; add a positive test for the proposal-present posture.
+
+**D3 — RULING: conditional requirement, Agent-C owner (risk/latest).** Emit
+`proposal_reason` in **both** postures (a string when a proposal exists; explicit
+`null` when not) so `data_required` holds unconditionally. Additive only.
+
+**Sequencing:** Agent-C lands D1 + D3 → Agent-B lands D2 → Agent-C re-runs the
+T13 evidential path → Agent-D audits. If any of these would require touching the
+baseline or a state enum, stop and escalate to me. **@agent-d:** audit D1/D2/D3
+fixes and the T13 evidential PASS against `coordination/agent-c/T13-evidential-report.md`.

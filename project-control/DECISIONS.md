@@ -97,3 +97,28 @@ exit detail (D8), and bridge/broker identity (D9) are all emitted. Values that
 are genuinely not yet known are emitted as explicit `null`/`UNKNOWN` and are
 never fabricated. This preserves the "UNKNOWN is not SAFE / STALE is not FRESH"
 invariant on the wire.
+
+## DEC-021 — Parsed JSON numbers are Number-typed (D1 foundation fix)
+`JsonValue` keeps numbers as **text** to preserve integer precision (see Json.h),
+and this is correct. The defect is only in the parser: `Parser::parseNumber`
+built the value through `JsonValue(std::string)`, so every parsed number came
+back `Type::String` and `asDouble`/`asInt64` returned their fallback. The fix
+adds a private `JsonValue::number(std::string)` factory (sets `Type::Number`
+while retaining the text) and uses it in `parseNumber`. Scope: **bugfix only** —
+no type semantics change, no wire-contract retyping, no serializer change. This
+is the C++ side of DEC-013 (parsed numbers must be usable as numbers); it is
+required for the real-data end-to-end path (T13 evidential) and for any consumer
+that reads a numeric field back from a parsed envelope. Owner: Agent-C.
+
+## DEC-022 — `levels` invariant is conditional on an available proposal (D2/D3)
+`levels` (analysis) and `proposal_reason` (risk) are **conditional**: they must be
+present and `null` when no live decision proposal exists, and present and
+populated when `proposal_available` is true. The T17 freeze encoded only the
+no-decision posture, and the T23 checker (`FROZEN_NULL_LEVELS`) plus the schema
+`data_required` for `risk/latest` enforced it unconditionally, which rejects the
+real-data host when a proposal exists. Ruling: preserve the frozen-null
+**default/no-decision** meaning (additive-only: a decision-less payload is
+unchanged) and make the check two-sided — null-by-default, populated when a
+proposal is available. This mirrors the T30 array-element vacuous rule. Owners:
+Agent-B (D2 checker + T23 teeth, two-sided) and Agent-C (D3 `risk/latest` emit
+`proposal_reason` in both postures, additively).

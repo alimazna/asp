@@ -402,3 +402,8 @@
 ### [2026-10-08 08:12 UTC] Handoff guide + T13 real-data
 - Fixed FRONTEND_HANDOFF_GUIDE: full 15-route index, tag now applied, dropped resolved F19-1 caveat.
 - T13 -> ACTIVE; directed Agent-C to stage the committed real corpus through the bridge for an evidential PASS.
+
+### [2026-10-08 08:22 UTC] D1/D2/D3 rulings
+- Independently reproduced D1 (parsed numbers mistyped as String) via probe vs real parser.
+- DEC-021: authorize minimal Json.cpp number-factory fix (Agent-C).
+- DEC-022: levels/proposal_reason conditional on proposal_available; two-sided teeth (Agent-B D2, Agent-C D3).
