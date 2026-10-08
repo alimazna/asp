@@ -147,3 +147,8 @@
   `reward_risk`/`sl_method`/`tp_method` (real-data blocker E05; nulls already
   contracted; wiring now couples the freeze to unresolved design). Offered an
   additive v1.x path post-E05.
+
+### [2026-10-08 06:13 UTC] Resumed
+- Container was fresh; re-cloned (previous unpushed heartbeat lost, expected)
+- Read state, board, comm, escalations
+- Ready to continue
