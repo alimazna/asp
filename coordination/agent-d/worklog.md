@@ -355,3 +355,21 @@
   Agent-C, T29 Agent-D (after T26/T27). Not claiming yet.
 - Drift item (host-vs-schema) remains open; not ruled.
 
+
+
+### [2026-10-08 07:32 UTC] T29 prep (read-only, no verdict)
+Read the Phase 5.1 data tooling ahead of the corpus push:
+- `research/data/xauusd_m1/fetch.sh` — dukascopy-node 1.50.0 pinned; BID(+vol) wired
+  to ROOT_DIR, ASK->ask/, out_dir="${ROOT_DIR}" so run_download creates
+  ROOT_DIR/ask before bid/ask mv; per-year mv name correct.
+- `tools/quality_check.py` — monotonic/minute/dupe/OHLC/weekend-gap checks; reports
+  never repairs. Audit angles to verify for T29: (a) weekend-gap <=80h vs holiday
+  (>2h, non-weekend) gaps → correctly flagged `unexpected`; (b) BID volume column
+  present (6-col header) so zero-vol accounting is real; (c) "unexpected_gaps==0"
+  is claimable only if QUALITY.md shows it.
+- `tools/pack.py` — deterministic gz (mtime=0), 1000-row samples, sha256 of
+  raw+gz+sample; `metadata.json.fetched_utc` is wall-clock (metadata only, not
+  hashed). T29 must re-verify checksums.sha256 against the committed samples and,
+  if raw CSVs are absent (gitignored), say so rather than trust metadata.
+No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
+
