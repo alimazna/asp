@@ -315,3 +315,10 @@
 - Lease: T26 (in REVIEW -> Agent-D Part 2)
 - Progress: 100%
 - Note: post-restart env: cmake/ctest were lost; restored via pip cmake 4.4.4; all C++ binaries 19/19 green directly and via ctest; models 289 OK, features 14/14, mock --check 0
+
+### [2026-10-08 09:35 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 (in REVIEW -> Agent-D Part 2)
+- Progress: 100%
+- Note: Phase 5.4 (T13 evidential accepted); no Agent-A asks; green: models 297 OK, features 14/14, ctest 19/19 (cmake/ctest restored to PATH); reader handles .csv.gz corpora
