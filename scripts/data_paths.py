@@ -16,13 +16,18 @@ environment variable:
 
 Corpus layout under ``AURA_DATA_ROOT`` (see research/data/xauusd_m1/README.md):
 
-    <root>/<year>.csv          raw BID M1 OHLCV, header
-                               ``timestamp_ms_utc,open,high,low,close,volume``
+    <root>/xauusd_m1_real.csv  the delivered canonical corpus (single CSV,
+                               ``timestamp,open,high,low,close,volume``)
+    <root>/<year>.csv          the planned per-year Dukascopy layout, if fetched
     <root>/ask/<year>.csv      raw ASK M1 (spread/cost, RULE B)
-    <root>/sample/<year>.head.csv   committed 1000-row provenance samples
+    <root>/sample_first_1000.csv   committed provenance sample
     <root>/checksums.sha256    committed integrity manifest
-    <root>/metadata.json       committed source/row-count metadata
+    <root>/README.md           committed source/format/timezone note
     <root>/QUALITY.md          committed mandatory quality report
+
+FeatureSets under ``AURA_FEATURES_DIR`` (T26 output, T27 input):
+
+    <dir>/corpus/real_corpus.json.gz   committed real corpus (gzip of the JSON)
 
 CLI:
     python3 scripts/data_paths.py            # print the resolved paths (JSON)
@@ -73,20 +78,32 @@ class DataPaths:
     def m1_csv(self, year: int) -> str:
         return os.path.join(self.data_root, f"{year}.csv")
 
+    def canonical_csv(self) -> str:
+        """The delivered single-file canonical corpus (if present)."""
+        return os.path.join(self.data_root, "xauusd_m1_real.csv")
+
     def ask_csv(self, year: int) -> str:
         return os.path.join(self.data_root, "ask", f"{year}.csv")
 
-    def sample_csv(self, year: int) -> str:
-        return os.path.join(self.data_root, "sample", f"{year}.head.csv")
+    def sample_csv(self) -> str:
+        return os.path.join(self.data_root, "sample_first_1000.csv")
 
     def checksums(self) -> str:
         return os.path.join(self.data_root, "checksums.sha256")
 
     def metadata(self) -> str:
-        return os.path.join(self.data_root, "metadata.json")
+        return os.path.join(self.data_root, "README.md")
 
     def quality_report(self) -> str:
         return os.path.join(self.data_root, "QUALITY.md")
+
+    def feature_corpus_dir(self) -> str:
+        """Directory holding the T26 FeatureSet corpus (T27 input)."""
+        return os.path.join(self.features_dir, "corpus")
+
+    def real_corpus(self) -> str:
+        """The committed gzip corpus (T26 output)."""
+        return os.path.join(self.feature_corpus_dir(), "real_corpus.json.gz")
 
     def feature_file(self, name: str) -> str:
         """FeatureSet JSON path for a caller-chosen, immutable snapshot name."""
@@ -94,6 +111,10 @@ class DataPaths:
 
     def existing_m1_years(self, years=REAL_YEARS) -> List[int]:
         return [y for y in years if os.path.isfile(self.m1_csv(y))]
+
+    def canonical_available(self) -> bool:
+        """True when the delivered single-file corpus is present on disk."""
+        return os.path.isfile(self.canonical_csv())
 
     def as_dict(self) -> Dict[str, object]:
         return {

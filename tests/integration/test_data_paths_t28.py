@@ -82,12 +82,18 @@ def main() -> int:
     check("m1_csv joins root", de.m1_csv(2023) == os.path.join(de.data_root, "2023.csv"), de.m1_csv(2023))
     check("ask_csv joins ask/",
           de.ask_csv(2023) == os.path.join(de.data_root, "ask", "2023.csv"))
-    check("sample_csv joins sample/",
-          de.sample_csv(2023) == os.path.join(de.data_root, "sample", "2023.head.csv"))
+    check("sample_csv is the committed first-1000 sample",
+          de.sample_csv() == os.path.join(de.data_root, "sample_first_1000.csv"))
+    check("canonical_csv is the delivered single-file corpus",
+          de.canonical_csv() == os.path.join(de.data_root, "xauusd_m1_real.csv"))
     check("quality_report at root",
           de.quality_report() == os.path.join(de.data_root, "QUALITY.md"))
     check("feature_file joins features_dir",
           de.feature_file("m15.json") == os.path.join(de.features_dir, "m15.json"))
+    check("feature_corpus_dir joins corpus/",
+          de.feature_corpus_dir() == os.path.join(de.features_dir, "corpus"))
+    check("real_corpus is the committed gzip",
+          de.real_corpus() == os.path.join(de.features_dir, "corpus", "real_corpus.json.gz"))
 
     # (f) no hardcoded corpus path outside the computed repo root: default anchors
     #     on REPO regardless of install layout
@@ -95,8 +101,14 @@ def main() -> int:
           data_paths.DEFAULT_DATA_ROOT.startswith(REPO) and
           data_paths.DEFAULT_FEATURES_DIR.startswith(REPO))
 
-    # existing_m1_years tolerates a corpus that is not present (Lead's fetch pending)
-    check("existing_m1_years is [] for an absent corpus", de.existing_m1_years() == [])
+    # T25 delivered the single-file canonical corpus; the planned per-year layout
+    # is not present, so existing_m1_years stays [] (the caller must consult
+    # canonical_available() for the delivered corpus).
+    check("existing_m1_years is [] for the single-file corpus",
+          de.existing_m1_years() == [])
+    real = data_paths.resolve(environ={})
+    check("canonical_available detects the delivered corpus",
+          real.canonical_available() is True)
 
     passed = sum(1 for ok in _results if ok)
     total = len(_results)
