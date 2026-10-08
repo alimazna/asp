@@ -62,6 +62,17 @@ def main() -> int:
     check("arg beats env", da.data_root == os.path.abspath("/tmp/argRoot"), da.data_root)
     check("arg provenance tagged", da.provenance["data_root"] == "arg")
 
+    # (b2) T27 compatibility alias ASTRA_FEATURE_CORPUS resolves the same dir
+    alias = {data_paths.ENV_FEATURES_DIR: "/tmp/canonX"}
+    da2 = data_paths.resolve(environ={data_paths.FEATURES_DIR_ALIASES[1]: "/tmp/aliasX"})
+    check("alias ASTRA_FEATURE_CORPUS honoured",
+          da2.features_dir == os.path.abspath("/tmp/aliasX"), da2.features_dir)
+    check("alias provenance tagged",
+          da2.provenance["features_dir"] == "env:ASTRA_FEATURE_CORPUS")
+    da3 = data_paths.resolve(environ={**alias, data_paths.FEATURES_DIR_ALIASES[1]: "/tmp/aliasX"})
+    check("canonical AURA_FEATURES_DIR wins over alias",
+          da3.features_dir == os.path.abspath("/tmp/canonX"), da3.features_dir)
+
     # (d) relative override resolves against CWD
     rel = data_paths.resolve(data_root="corpus", environ={})
     check("relative override resolves against CWD",

@@ -143,4 +143,13 @@
 - Progress: n/a
 - Note: host_leaf_keys.json (all 15 routes) + scripts/host_key_dump.py delivered per RULING 1
 
+### [2026-10-08 07:55 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T28 REVIEW (alias added); T30 prep delivered
+- Progress: n/a
+- Note: found T28/T27 env-name divergence (AURA_FEATURES_DIR vs ASTRA_FEATURE_CORPUS);
+  added compat alias (20/20) and proposed convergence to Agent-B
+
+
 
