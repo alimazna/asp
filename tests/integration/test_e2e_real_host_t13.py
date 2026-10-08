@@ -18,18 +18,27 @@ the frozen v1 contract holds on the *real* implementation:
 This closes F24-1's gap (T24 only exercised the mock) at the real-host level. The
 real host is NOT app-root relocatable (PathResolver derives appRootDir from the
 binary's directory), so a fresh checkout starts DEGRADED - that is reported, not
-hidden. The evidential (real XAUUSD data) PASS remains gated on E05; this
-exercises the real binary on the synthetic/no-data path only.
+hidden.
+
+Real-data (E05) path: when ``FAKE_MT5_CSV`` points at the committed canonical M1
+corpus, the harness stages the MetaTrader5 replay shim + the CSV-feed module into
+the bundle, starts the real host with that feed, and asserts the *evidential*
+posture: the bridge reaches the real corpus (mt5_ready, resolved symbol), every
+timeframe observes real closed bars, M15 is decision-grade and the host runs in
+SHADOW, while the RULE C gate stays closed (probability null) and the frozen v1
+contract still holds. The default (no FAKE_MT5_CSV) run keeps the honest
+no-data DEGRADED posture checks. Reads the binary; never mutates src/.
 
 Exit 0 = the frozen v1 contract holds end to end on the real host. Skips (exit 0
-with a notice) when the host has not been built in this checkout. Reads the binary;
-never mutates anything.
+with a notice) when the host has not been built in this checkout. Reads the
+binary; never mutates anything.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -77,6 +86,121 @@ def wait_for(url: str, attempts: int = 50):
             last = exc
             time.sleep(0.1)
     raise RuntimeError(f"real host did not serve: {last}")
+
+
+def stage_replay_bundle():
+    """Drop the MetaTrader5 replay shim + CSV feed into the host's bundle.
+
+    Writes only under build/resources (the packaged layout), never src/. The shim
+    impersonates the Windows-only MetaTrader5 package so the real bridge serves
+    the committed corpus with no terminal and no network. Returns the list of
+    files created so the caller can restore the pristine no-data bundle.
+    """
+    target = os.path.join(os.path.dirname(HOST_BIN), "resources", "bridge",
+                          "mt5_python")
+    os.makedirs(target, exist_ok=True)
+    created = []
+    for src_dir, name in (
+        (os.path.join(REPO, "tests", "integration", "fake_mt5"), "MetaTrader5.py"),
+        (os.path.join(REPO, "bridge", "mt5_python"), "mt5_csv_feed.py"),
+    ):
+        dest = os.path.join(target, name)
+        if not os.path.exists(dest):
+            created.append(dest)
+        shutil.copy(os.path.join(src_dir, name), dest)
+    return created
+
+
+def run_real_data_checks(csv_path: str, schema: dict) -> None:
+    """Evidential path: real gold corpus flowing through the real host."""
+    staged = stage_replay_bundle()
+    port = free_port()
+    env = dict(os.environ)
+    env["FAKE_MT5_CSV"] = os.path.abspath(csv_path)
+    env["FAKE_MT5_SYMBOL"] = env.get("FAKE_MT5_SYMBOL", "XAUUSD")
+    proc = subprocess.Popen(
+        [HOST_BIN, "--api-port", str(port), "--dev-system-python"],
+        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    base = f"http://127.0.0.1:{port}"
+    try:
+        wait_for(base + "/api/v1/system/state")
+        # Let several ingestion cycles land real closed bars (H4/D1 need history).
+        for _ in range(40):
+            _, tf = fetch(base + "/api/v1/timeframes")
+            entries = tf["data"]
+            if entries and all(e["has_closed_bar"] for e in entries):
+                break
+            time.sleep(0.25)
+
+        _, bs = fetch(base + "/api/v1/bridge/status")
+        bridge = bs["data"]
+        check("real feed: bridge handshake ok", bridge.get("handshake_ok") is True)
+        check("real feed: mt5_ready from corpus", bridge.get("mt5_ready") is True)
+        check("real feed: resolved XAUUSD",
+              bridge.get("resolved_symbol") == "XAUUSD",
+              str(bridge.get("resolved_symbol")))
+
+        _, tf = fetch(base + "/api/v1/timeframes")
+        entries = tf["data"]
+        check("real feed: all timeframes observed",
+              bool(entries) and all(e["observed"] for e in entries))
+        check("real feed: all timeframes have a closed bar",
+              bool(entries) and all(e["has_closed_bar"] for e in entries))
+        check("real feed: all timeframes VALID",
+              bool(entries) and all(e["quality"]["state"] == "VALID" for e in entries),
+              str(sorted({e["quality"]["state"] for e in entries})))
+        check("real feed: all timeframes FRESH",
+              bool(entries) and all(e["freshness"]["state"] == "FRESH" for e in entries),
+              str(sorted({e["freshness"]["state"] for e in entries})))
+        m15 = next((e for e in entries if e["timeframe"] == "M15"), None)
+        check("real feed: M15 is decision-grade",
+              m15 is not None and m15["quality"]["decision_grade"] is True)
+
+        _, state = fetch(base + "/api/v1/system/state")
+        check("real feed: host runs SHADOW with real data",
+              state["data"].get("mode") == "SHADOW", str(state["data"].get("mode")))
+        check("real feed: host reports ready",
+              state["data"].get("ready") is True)
+
+        _, latest = fetch(base + "/api/v1/analysis/latest")
+        signal = latest["data"]["signal"]
+        check("real feed RULE C: probability stays null",
+              signal["probability"] is None)
+        check("real feed RULE C: probability_calibrated false",
+              signal["probability_calibrated"] is False)
+        check("real feed RULE C: score_is_probability false",
+              latest["data"]["meta"]["score_is_probability"] is False)
+        violations = contract_checker.analysis_contract_violations(latest, schema)
+        check("real feed analysis passes semantic invariants", not violations,
+              "; ".join(violations))
+
+        # Frozen v1 contract still holds with real data on every route.
+        for route, spec in schema["endpoints"].items():
+            method, _, path = route.partition(" ")
+            live_path = path.replace("{tf}", "M15")
+            try:
+                status, body = fetch(base + live_path)
+            except urllib.error.HTTPError as exc:
+                check(f"real feed {route} reachable", False, f"HTTP {exc.code}")
+                continue
+            check(f"real feed {route} status 200", status == 200, str(status))
+            try:
+                contract_checker.validate_envelope(route, spec, body)
+                check(f"real feed {route} matches frozen schema", True)
+            except Exception as exc:  # noqa: BLE001
+                check(f"real feed {route} matches frozen schema", False, repr(exc))
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        for path in staged:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 def main() -> int:
@@ -149,6 +273,24 @@ def main() -> int:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+    # Evidential (E05) path: opt-in so the default frozen-suite run stays green.
+    # Enable with T13_REAL_DATA=1 (or by exporting FAKE_MT5_CSV). When enabled it
+    # replays the committed real corpus through the real host; the checks are the
+    # evidential acceptance (and will honestly fail while a backend defect blocks
+    # real-data ingestion - the failure is the finding, not a faked PASS).
+    want_real = os.environ.get("T13_REAL_DATA", "").strip() not in ("", "0")
+    if want_real or os.environ.get("FAKE_MT5_CSV", "").strip():
+        csv_path = os.environ.get("FAKE_MT5_CSV", "").strip() or os.path.join(
+            REPO, "research", "data", "xauusd_m1", "xauusd_m1_real.csv")
+        if os.path.isfile(csv_path):
+            print(f"\nReal-data (E05) path over {os.path.relpath(csv_path, REPO)}")
+            run_real_data_checks(csv_path, schema)
+        else:
+            print(f"\n[notice] T13_REAL_DATA set but corpus not found: {csv_path}")
+    else:
+        print("\n[notice] E05 evidential path not requested "
+              "(set T13_REAL_DATA=1 to run real-data checks)")
 
     passed = sum(1 for ok in _results if ok)
     total = len(_results)

@@ -133,3 +133,21 @@
   hidden by the DEGRADED null posture). Then align mock + promote data_required.
 
 
+
+### [2026-10-08 08:40 UTC] T13 evidential real-data path -> BLOCKED (defect reported)
+- bridge/mt5_python/mt5_csv_feed.py (new): replay a canonical M1 CSV as an
+  MT5-shaped series; preserves closed-bar contract; optional uniform time-align.
+- fake_mt5/MetaTrader5.py: env-gated dispatch to the feed (FAKE_MT5_CSV); synthetic
+  path untouched (T06 25/25).
+- test_e2e_real_host_t13.py: opt-in evidential path (T13_REAL_DATA=1) stages the
+  shim+feed, runs the real host over the real corpus, checks 9 TF VALID/FRESH, M15
+  decision-grade, SHADOW, RULE C, frozen v1 on every route; cleans up after.
+- Default suite 52/52 green; T28 24/24; mock-shape 19/19; api fixtures PASS.
+- RESULT: evidential run 91/96 -> BLOCKER D1 (frozen src/foundation/Json.cpp
+  parseNumber builds JsonValue(std::string) => Type::String => asDouble=0 =>
+  NON_POSITIVE_PRICE). Proved with a parser probe; temp-patched, verified 8/9 TF
+  VALID+FRESH + SHADOW + real context, then REVERTED (src byte-identical).
+- Findings D2 (levels frozen-null vs real proposal), D3 (risk proposal_reason).
+- Report: coordination/agent-c/T13-evidential-report.md. Awaiting Lead ruling on
+  D1/D2/D3; did not modify frozen src/ or the schema.
+
