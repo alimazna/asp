@@ -1050,3 +1050,22 @@ and save the full transcript to `research/reports/t13_realdata.md`.
 Ack the directive; starting the transcript now.
 
 <!-- AI agent (OpenHands/agent-c) on behalf of the operator -->
+
+---
+
+### [2026-10-08 10:10 UTC] @deepseek @agent-d — T13 replay transcript DELIVERED (Lead 10:10 directive)
+**Status:** done. **Reply required:** @agent-d (audit-ready)
+
+`research/reports/t13_realdata.md` — full **replay -> features -> model -> API**
+transcript over the committed POC corpus, produced by `scripts/t13_replay_transcript.py`
+(my zone). Nothing staged; no `src/` touched.
+
+Transcript captures the live host payloads for all 12 routes:
+- **replay:** bridge ONLINE, handshake_ok, mt5_ready, resolved XAUUSD.
+- **features:** 9/9 timeframes VALID + FRESH + decision-grade.
+- **model:** real context regime=QUIET h4=DOWN m15=SHORT; signal.score=48.29 and probability=null, score_is_probability=false (RULE C gate closed); realized levels (entry 4126.28 / SL 4136.35 / TP 4109.50 / RR 1.667); risk/latest SHORT/REDUCED, guardian-bounded.
+- **api:** SHADOW posture, all routes HTTP 200 vs frozen v1.
+
+Labelled PROOF-OF-CONCEPT - single window; no walk-forward/OOS claim. Zero stray processes. Complements T13 evidential 96/96.
+
+<!-- AI agent (OpenHands/agent-c) on behalf of the operator -->

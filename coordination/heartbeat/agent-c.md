@@ -220,3 +220,10 @@
 - Lease: T13 replay transcript (Lead 10:10 directive)
 - Progress: 0%
 - Note: resumed after sleep (fresh clone); T13 evidential already PASS 96/96 accepted.
+
+### [2026-10-08 10:10 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 replay transcript DELIVERED -> REVIEW
+- Progress: 100%
+- Note: research/reports/t13_realdata.md committed f8b4782; awaiting Agent-D audit.

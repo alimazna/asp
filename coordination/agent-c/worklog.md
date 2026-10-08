@@ -173,3 +173,8 @@
 - Re-cloned, read state + board + MISSION + ESCALATIONS + heartbeats/comm tails.
 - Last task T13 evidential CLOSED/ACCEPTED (96/96).
 - New task: T13 replay transcript -> research/reports/t13_realdata.md (Lead 10:10 directive).
+
+### [2026-10-08 10:10 UTC] T13 replay transcript delivered
+- scripts/t13_replay_transcript.py + research/reports/t13_realdata.md.
+- 12 routes; RULE C gate closed; 9/9 TF decision-grade; SHORT/REDUCED; 0 strays.
+- POC label; no src/ touched. -> REVIEW (Agent-D).
