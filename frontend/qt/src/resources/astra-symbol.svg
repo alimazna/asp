@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 120" width="110" height="120">
+  <title>ASTRA Symbol — Geometric Low-Poly Letter A</title>
+  <desc>A geometric low-poly letter A: equilateral triangle base, three visible triangles (left leg, right leg, crossbar), negative space inverted triangle between legs above crossbar, 4-6 triangular facets, sharp corners, no gradients, solid fill</desc>
+
+  <!-- === OUTER SILHOUETTE (the full A shape) === -->
+  <!-- Left leg: wide triangle from apex (55,5) down to left base -->
+  <!-- Right leg: wide triangle from apex (55,5) down to right base -->
+  <!-- The A is formed by TWO main leg-triangles leaving a V-gap (negative space) between them -->
+  
+  <!-- LEFT LEG — solid triangle, narrow, tilted -->
+  <!-- Apex at top (55,5), left edge goes to (15,115), inner edge goes to (~42,115) -->
+  <!-- thickness ~1/5 of total width = ~20px at base, total width ~100 -->
+  <polygon points="55,5 15,115 42,115" fill="#E8EEF5"/>
+  
+  <!-- RIGHT LEG — mirrored -->
+  <polygon points="55,5 95,115 68,115" fill="#B8C4D4"/>
+  
+  <!-- CROSSBAR — horizontal facet near middle (y ~ 65) -->
+  <polygon points="30,62 80,62 80,70 30,70" fill="#5A6B80"/>
+
+  <!-- === FACET LINES (thin, ~1px) — create 3D folded metal illusion === -->
+  <!-- Left leg: divide into 2 facets -->
+  <line x1="55" y1="5" x2="30" y2="65" stroke="#162A44" stroke-width="0.8" opacity="0.6"/>
+  <!-- Right leg: divide into 2 facets -->
+  <line x1="55" y1="5" x2="80" y2="65" stroke="#162A44" stroke-width="0.8" opacity="0.6"/>
+  <!-- Left leg lower facet -->
+  <line x1="15" y1="115" x2="30" y2="65" stroke="#162A44" stroke-width="0.8" opacity="0.6"/>
+  <!-- Right leg lower facet -->  
+  <line x1="95" y1="115" x2="80" y2="65" stroke="#162A44" stroke-width="0.8" opacity="0.6"/>
+
+  <!-- === NEGATIVE SPACE === -->
+  <!-- The inverted triangle between legs above the crossbar is the gap: -->
+  <!-- Left leg inner edge: from (55,5) toward (42,115) -->
+  <!-- Right leg inner edge: from (55,5) toward (68,115) -->
+  <!-- Crossbar top at y=62 blocks the gap at that height -->
+  <!-- This creates the inverted-triangle negative space naturally -->
+</svg>
