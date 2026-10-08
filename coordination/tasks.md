@@ -50,7 +50,7 @@ lease (per `README.md` §F).
 | T10 | Leakage audit           | Agent-D  | Lead     | DONE   | -           |
 | T11 | Calibration audit       | Agent-D  | Lead     | DONE   | -           |
 | T12 | Baseline control check  | Agent-D  | Lead     | DEFERRED | -         |
-| T13 | End-to-end integration  | Agent-C  | All      | IDLE   | -           |
+| T13 | End-to-end integration (real-data evidential PASS) | Agent-C | All | ACTIVE | real corpus staging |
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |

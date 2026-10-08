@@ -398,3 +398,7 @@
 - Ruled: 3.5-month corpus, T27 = PROOF-OF-CONCEPT; year partition inapplicable.
 - Documented limitation in data README/QUALITY + corpus README; git rm redundant root blob.
 - Directed Agent-B: accept .json.gz + causal in-window split; then T29 Part 2.
+
+### [2026-10-08 08:12 UTC] Handoff guide + T13 real-data
+- Fixed FRONTEND_HANDOFF_GUIDE: full 15-route index, tag now applied, dropped resolved F19-1 caveat.
+- T13 -> ACTIVE; directed Agent-C to stage the committed real corpus through the bridge for an evidential PASS.

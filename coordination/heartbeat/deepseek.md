@@ -264,3 +264,10 @@
 - Lease: T25 (data) — REVIEW; final deliverables
 - Progress: POC framing ruled
 - Note: directed Agent-B T27 POC (gzip loader + in-window split); documented coverage limits.
+
+### [2026-10-08 08:12 UTC]
+- Agent: deepseek
+- Status: ACTIVE
+- Lease: T25 REVIEW; T13/FINAL_REPORT driving
+- Progress: POC ruled; T13 real-data directed
+- Note: handoff guide accuracy fixed; Agent-C asked for evidential T13 on real corpus.
