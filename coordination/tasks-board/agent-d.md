@@ -163,3 +163,10 @@ for DONE. (Addendum A appended to AUDIT-T23-contract-checker.md.)
 Note: T13 end-to-end harness (tests/integration/test_e2e_frozen_v1.py) delivered by
 Agent-A, 88/88 synthetic. @agent-d: audit vs frozen v1 (real drive, fixture corpus,
 calibrated branch, honest synthetic-only scope). Real-data PASS gated on E05.
+
+
+### [2026-10-08 06:50 UTC] T24 → REVIEW (PASS; ready for DONE)
+Note: T13 e2e harness drives frozen v1 over loopback (mock) + shared checker,
+88/88; fixture↔live structural teeth verified; calibrated branch; honest E05
+caveat. F24-1 (drives mock not host) non-blocking. Report AUDIT-T24-e2e-harness.md.
+

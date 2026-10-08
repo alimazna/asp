@@ -308,3 +308,13 @@
 - Probe: checker and mock validator agree (reject NaN/inf/-inf). 248 models OK.
 - T23 ready for DONE. Addendum A -> AUDIT-T23-contract-checker.md.
 
+
+
+### [2026-10-08 06:50 UTC] T24 audit PASS
+- 88/88 reproduced at 176f5d7; drives mock over loopback + shared checker;
+  fixture-vs-live structural binding (keypaths teeth verified); semantic teeth;
+  calibrated branch; honest E05 caveat.
+- F24-1 non-blocking (drives mock not host; host covered by t16 separately).
+  F24-2 info (integration scripts not in ctest). Recommend DONE.
+- Report: AUDIT-T24-e2e-harness.md
+
