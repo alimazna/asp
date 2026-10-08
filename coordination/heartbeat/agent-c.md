@@ -206,3 +206,10 @@
 - Lease: T13 PASS 96/96 (Agent-D confirmed); fixing Agent-D port-leak harness defect
 - Progress: host reaped via process group (killpg) in both finally blocks
 - Note: two back-to-back evidential runs 96/96, 0 strays. Awaiting Agent-D re-confirm.
+
+### [2026-10-08 09:58 UTC]
+- Agent: agent-c
+- Status: IDLE (all zone tasks closed; awaiting Agent-D leak re-confirm / Lead direction)
+- Lease: none active. T13 milestone CLOSED+ACCEPTED; D1/D3 fixed; port-leak fixed
+- Progress: ctest 19/19; evidential 96/96 x2 (0 strays); all frozen suites green
+- Note: src/ diff vs origin/main empty; standing by.
