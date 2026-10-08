@@ -1,1 +1,12 @@
-{"api": "v1", "schema": "1.0", "data": {"timeframe": "M15", "observed": true, "quality": "VALID"}}
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "timeframe": "M15",
+    "observed": true,
+    "quality": {
+      "state": "VALID",
+      "decision_grade": true
+    }
+  }
+}

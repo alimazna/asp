@@ -1,1 +1,15 @@
-{"api": "v1", "schema": "1.0", "data": {"count": 0}}
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": [
+    {
+      "outcome_id": "out-0001",
+      "position_id": "pos-0001",
+      "decision_id": "dec-0001",
+      "direction": "LONG",
+      "exit_state": "TP",
+      "realized_pnl": 12.5,
+      "shadow_only": true
+    }
+  ]
+}

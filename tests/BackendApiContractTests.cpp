@@ -83,7 +83,9 @@ TEST_CASE(unobserved_timeframe_snapshot_is_explicit) {
         "GET", "/api/v1/timeframes/H4/snapshot");
     CHECK_EQ(response.status, 200);
     CHECK(contains(response.body, "\"observed\":false"));
-    CHECK(contains(response.body, "\"quality\":\"UNKNOWN\""));
+    // D-1 (Lead cycle 28): the unobserved branch now emits the object quality
+    // shape, matching the list route / observed branch / frozen schema.
+    CHECK(contains(response.body, "\"quality\":{\"state\":\"UNKNOWN\""));
 }
 
 TEST_CASE(latest_signal_keeps_probability_uncalibrated) {

@@ -28,21 +28,18 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(REPO, "scripts"))
+sys.path.insert(0, os.path.join(REPO, "src", "models"))
 import mock_api  # noqa: E402
+import contract_checker  # noqa: E402  (T23, Agent-B: shared frozen-set reader)
 
 HOST_BIN = os.path.join(REPO, "build", "aura_backend_host")
 SCHEMA_PATH = mock_api.SCHEMA_PATH
+SEMANTIC_DIR = os.path.join(REPO, "tests", "fixtures", "api_v1", "semantic")
 
 # Divergences between the frozen contract and the current binary that are already
 # reported to the Lead/auditor. They are counted separately (not as PASS, not as
 # a new FAIL) so the suite stays honest and green while the defect is tracked.
-KNOWN_DEFECTS = {
-    # BackendFacade::timeframesSnapshot unobserved branch emits quality as a
-    # STRING ("UNKNOWN") while the list route, the observed snapshot branch, the
-    # D1-D9 contract test, and the legacy handoff doc all use an OBJECT
-    # {state, decision_grade}. Reported as defect D-1 (2026-10-07).
-    "GET /api/v1/timeframes/{tf}/snapshot matches schema": "D-1 quality type",
-}
+KNOWN_DEFECTS: dict = {}
 
 _results = []
 _known = []
@@ -121,6 +118,23 @@ def main() -> int:
               signal["probability_calibrated"] is False)
         check("analysis score_is_probability false",
               latest["data"]["meta"]["score_is_probability"] is False)
+
+        # F17-1: the live analysis payload must also satisfy the SEMANTIC layer
+        # (the frozen-null invariants), read via Agent-B's shared T23 checker,
+        # not a re-implementation of the frozen set.
+        violations = contract_checker.analysis_contract_violations(latest, schema)
+        check("analysis/latest passes semantic invariants", not violations,
+              "; ".join(violations))
+
+        # ...and the checker must have teeth: each semantic fixture is
+        # structurally valid yet must be reported as an invariant violation.
+        for name in sorted(os.listdir(SEMANTIC_DIR)):
+            if not name.endswith(".json"):
+                continue
+            with open(os.path.join(SEMANTIC_DIR, name), "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            found = contract_checker.analysis_contract_violations(payload, schema)
+            check(f"semantic fixture rejected: {name}", bool(found))
     finally:
         proc.terminate()
         try:

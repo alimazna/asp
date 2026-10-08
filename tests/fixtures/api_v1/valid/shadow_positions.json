@@ -1,1 +1,14 @@
-{"api": "v1", "schema": "1.0", "data": {"count": 0}}
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": [
+    {
+      "position_id": "pos-0001",
+      "decision_id": "dec-0001",
+      "direction": "LONG",
+      "state": "OPEN",
+      "entry_price": 2400.0,
+      "shadow_only": true
+    }
+  ]
+}

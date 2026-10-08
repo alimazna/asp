@@ -157,10 +157,14 @@ ApiResponse BackendFacade::timeframeSnapshot(const std::string& timeframe) const
     TimeframeState state;
     if (!deps_.runtime->timeframeStore().get(parsed, state)) {
         // Explicit not-observed state; never an empty-but-fine snapshot.
+        // D-1: emit the SAME quality shape as every other path (an object),
+        // not a bare string. A branch that disagrees with its own contract is a
+        // bug; this route is the canonical timeframe display contract.
         std::vector<ApiField> fields;
         fields.push_back({"timeframe", timeframe});
         fields.push_back({"has_closed_bar", jsonBool(false), true});
-        fields.push_back({"quality", toString(DataQualityState::UNKNOWN)});
+        fields.push_back({"quality",
+                          qualityJson(DataQualityState::UNKNOWN), true});
         fields.push_back({"observed", jsonBool(false), true});
         fields.push_back({"freshness", "null", true});
         fields.push_back({"last_successful_update", "null", true});
