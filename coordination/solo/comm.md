@@ -88,3 +88,34 @@ Suite state at this HEAD: ctest 19/19; models 308 OK; e2e 88/88; contract 36/36;
 mock 39/39; shape 19/19; T28 24/24; bundling 18/18; real-host 52/52; bridge 25/25.
 
 <!-- AI agent (OpenHands/solo) on behalf of the operator -->
+
+---
+
+### [2026-10-08 13:15 UTC] @human
+**Subject:** Loop checkpoint — extra independent verification; mission complete
+**Status:** done
+
+Continued work (non-blocked):
+  - Re-derived the T25 data-quality hard checks DIRECTLY from the raw CSVs
+    (Agent-D was STALE for the whole MT5 window, so these were only
+    substitute-audited). MT5: 100,008 bars, exact coverage, 0 dup/non-mono/
+    off-grid/NaN/OHLC, price 3942.48..4696.73 — matches QUALITY.md. Dukascopy:
+    1,695,651 rows exact, 0 non-mono/OHLC/NaN — matches metadata. No correction.
+  - Mechanically checked the api-v1.0 freeze is ADDITIVE: git diff api-v1.0..HEAD
+    = 273 added / 16 changed lines; every changed line keeps its constraint;
+    no route/field/const removed. Safety consts intact. Recorded the nuance that
+    two previously-open sub-objects (quality, context) were TIGHTENED, not loosened.
+  - Repaired 2 mangled bytes in SOLO_AUDIT.md.
+
+T08 (Windows packaging): remains HELD on E03 — its C-1/C-3 fixes touch BLD-0001
+PRODUCTION C++ (src/platform/windows/PackagingConfig.*), which the mission rules
+protect; not modified unilaterally. T12: human-deferred.
+
+Pre-existing minor: project-control/TEST_LOG.md has one non-UTF-8 byte (0x96,
+old commit 4d8f5ab). Cosmetic; left as-is (historical project-control doc).
+
+ACCEPTANCE: FINAL_REPORT.md written; T27 real-data POC done; T29 audit done
+(+F-T27-1 folded in); T13 96/96; frontend handoff + freeze verified. No open
+blocker. Mission is COMPLETE — no further loop work is justified.
+
+<!-- AI agent (OpenHands/solo) on behalf of the operator -->
