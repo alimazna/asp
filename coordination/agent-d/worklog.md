@@ -318,3 +318,11 @@
   F24-2 info (integration scripts not in ctest). Recommend DONE.
 - Report: AUDIT-T24-e2e-harness.md
 
+
+
+### [2026-10-08 06:55 UTC] F24-1 verified fixed; T13 relocatability corroborated
+- a6fe0f0 docstring scope note correct; T24 PASS stands.
+- Read-only confirmed PathResolver app-root = dirName(exe), no override; real host
+  --once starts DEGRADED (bridge script + audit artifact resolved under build/).
+  Filed AUDIT-T13-host-relocatability-observation.md (Agent-C-zone; no change).
+
