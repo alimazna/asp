@@ -308,3 +308,10 @@
 - Lease: T26 (in REVIEW -> Agent-D Part 2)
 - Progress: 100%
 - Note: RULE C multi-year corpus reproduced byte-identical (113,083/107,403); reader .csv.gz support delivered; all suites green
+
+### [2026-10-08 09:00 UTC]
+- Agent: agent-a
+- Status: ACTIVE
+- Lease: T26 (in REVIEW -> Agent-D Part 2)
+- Progress: 100%
+- Note: post-restart env: cmake/ctest were lost; restored via pip cmake 4.4.4; all C++ binaries 19/19 green directly and via ctest; models 289 OK, features 14/14, mock --check 0
