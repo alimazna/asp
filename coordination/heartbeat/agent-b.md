@@ -458,3 +458,12 @@
 - Lease: T27 (claimed)
 - Progress: 100% ready; run pending T25 corpus
 - Note: partial-corpus handling added; realdata 25 tests; 277 models tests green
+
+### [2026-10-08 08:11 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 (claimed)
+- Progress: 100% ready; run pending T25 corpus
+- Note: F23-3 filed (5 stale fixtures, T22 zone; checker+mock parity intact; mock
+  --check 0 failures). 25/26 contract tests pass.
+
