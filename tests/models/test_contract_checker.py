@@ -110,6 +110,42 @@ class StructuralLayerTest(unittest.TestCase):
             with self.assertRaises(cc.ContractError, msg=name):
                 cc.validate_envelope(route, self.endpoints[route], payload)
 
+    def test_rejects_bare_object_and_wrong_envelope(self):
+        """Self-contained: the structural layer needs no fixture to have teeth."""
+        route = "GET /api/v1/analysis/latest"
+        spec = self.endpoints[route]
+        with self.assertRaises(cc.ContractError):
+            cc.validate_envelope(route, spec, analysis_default()["data"])  # not enveloped
+        for mutate in (
+            lambda p: p.update(api="v2"),
+            lambda p: p.update(schema="2.0"),
+            lambda p: p.pop("data"),
+        ):
+            bad = analysis_default()
+            mutate(bad)
+            with self.assertRaises(cc.ContractError):
+                cc.validate_envelope(route, spec, bad)
+
+    def test_rejects_type_and_range_violations(self):
+        route = "GET /api/v1/analysis/latest"
+        spec = self.endpoints[route]
+        bad_type = analysis_default()
+        bad_type["data"]["signal"]["probability"] = 0.5  # needs calibrated true too, but type-ok
+        bad_type["data"]["signal"]["probability_calibrated"] = True
+        cc.validate_envelope(route, spec, bad_type)  # structurally fine
+        out_of_range = analysis_default()
+        out_of_range["data"]["signal"]["probability"] = 1.5
+        with self.assertRaises(cc.ContractError):
+            cc.validate_envelope(route, spec, out_of_range)
+
+    def test_rejects_missing_required_top_level(self):
+        route = "GET /api/v1/analysis/latest"
+        spec = self.endpoints[route]
+        bad = analysis_default()
+        del bad["data"]["signal"]
+        with self.assertRaises(cc.ContractError):
+            cc.validate_envelope(route, spec, bad)
+
     def test_parity_with_mock_api_validator(self):
         """This module's structural reader and Agent-A's mock validator must
         agree on every fixture, so the two readers of one schema cannot drift."""
