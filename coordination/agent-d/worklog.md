@@ -260,3 +260,11 @@
 - F17-0b: whole-content withhold scan over-broad (fails safe). Report:
   AUDIT_REPORTS/AUDIT-T17-C1-durable-gate.md
 - T17/T19 mock/tag fixes (F19-1/F19-2/F17-1/F17-2) still not landed.
+
+### [2026-10-08 00:22 UTC] T18 frontend guide review — NEEDS WORK
+- 8b2b82c. §D/§J/§K sound; envelope fixed. F18-1 BLOCKING: §A example is the
+  pre-freeze shape (mtf_agreement 0.72, horizon next_4xM15, conf_lo/hi, model_version
+  v1.0, populated levels sl/tp, data_freshness 3, score_is_probability TRUE) —
+  contradicts §D + freeze + E07. Fix: use T22 default fixture shape. F18-2 trigger
+  vocabulary; F18-3 api-v1.0 tag absent; F18-4 mock claim overstated pending F19-1.
+- Report: AUDIT_REPORTS/AUDIT-T18-frontend-guide.md

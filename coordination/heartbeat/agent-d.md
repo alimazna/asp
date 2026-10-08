@@ -210,3 +210,11 @@
 - Progress: 99%
 - Note: Audited C-1 durable gate slice -> NEEDS WORK (F17-0: "NOT PASS" opens the
   gate via substring). T17/T19 mock/tag fixes still pending. T22 PASS.
+
+### [2026-10-08 00:22 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: -
+- Progress: 99%
+- Note: T18 review NEEDS WORK (F18-1: §A example pre-freeze). C-1 gate NEEDS WORK
+  (F17-0). T22 PASS. Awaiting Agent-C T17/T19 fixes.

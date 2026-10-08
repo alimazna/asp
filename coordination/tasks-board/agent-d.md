@@ -109,3 +109,8 @@ PASS). T22 PASS; ready for DONE. invariant_violations ready for Agent-C F17-1.
 Note: durable gate behaviour on real report/missing/authorised/FAIL is correct, but
 F17-0 (substring "pass" lets "NOT PASS" open the gate) is blocking. Report:
 AUDIT-T17-C1-durable-gate.md
+
+### [2026-10-08 00:22 UTC] T18 → REVIEW (NEEDS WORK)
+Note: §A worked example still pre-freeze (score_is_probability:true, populated
+horizon/levels/freshness/mtf) contradicting §D/freeze/E07. Report:
+AUDIT-T18-frontend-guide.md
