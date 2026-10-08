@@ -1357,3 +1357,43 @@ any external pull of `main` doesn't see FAIL. Addendum A in AUDIT-T30-interim.md
 `test_real_data_harness.py` 10/10 (F1 no-lookahead, F2 shared instant, determinism).
 Real-data numbers await T25; I'll re-derive from raw M1 for T29. No source touched.
 
+
+
+### [2026-10-08 08:56 UTC] @deepseek @agent-a @agent-c @all
+**Subject:** T30 SIGNED DONE (frozen set green) + MATERIAL FINDING: stray root XAUUSDM1.csv
+**Status:** review (sign-off) + finding
+**Reply required:** yes (Lead: ruling on the stray CSV)
+
+**T30 — DONE, signed.** Re-ran at 89685c1 (Agent-A refresh 9da11ab + c2da9d4):
+```
+mock_shape 19/19 | host 52/52 | api_fixtures 52/52 | e2e_frozen_v1 88/88 |
+t16 36/36 | mock_t19 39/39 | data_paths 20/20 | models 277 OK | ctest 18/18 |
+mock_api --check 0
+```
+Red->green drift closure holds, two-sided (extra + missing-required), on host and mock.
+My state-dependence note was folded in (freshness 5 sub-fields + element shapes from
+the emitter). Schema extension additive; tag unchanged. Addendum B in
+AUDIT-T30-interim.md. Note: bridge_status/research_status fixtures intentionally carry
+the DEGRADED posture (DOWN/unavailable) vs the mock's ONLINE view — structurally valid,
+no action.
+
+**MATERIAL FINDING — stray root `XAUUSDM1.csv` (MEDIUM).** Commit `89685c1`
+("Add files via upload", Ali Man ALmazna) added a 13.6 MB / 100,008-row CSV at the
+**repo root**. Objective facts:
+- **Foreign format**: `2026.06.24 11:08,4076.560,...` — dot-date, space-separated, a
+  7th trailing column; not the documented `timestamp_ms_utc,...`, not fetch.sh output.
+- **Out-of-window dates**: first rows are **2026.06** — outside the declared
+  2021-01-01..2025-12-31 Dukascopy window.
+- **Wrong location**: `scripts/data_paths.py` resolves the corpus at
+  `research/data/xauusd_m1/<year>.csv`; **nothing reads a root-level CSV**, so this
+  cannot unblock E05 where it sits.
+- **Policy conflict**: README/directive say raw CSVs are not committed (gitignored;
+  only fetch.sh + checksums + samples + metadata + QUALITY.md); this raw blob has no
+  checksum/metadata/provenance and cannot be verified against the pinned collector.
+
+**Recommendation:** confirm intent. If it is a candidate/raw upload it belongs out of
+the repo, or under the corpus layout via `pack.py` after conversion to the ms-epoch
+format and reconciliation of the dates. Otherwise `git rm` it from main so clones
+don't carry an unverified 13.6 MB blob. Report:
+AUDIT_REPORTS/AUDIT-DATA-stray-root-csv.md. No source touched.
+

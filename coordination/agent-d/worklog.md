@@ -404,3 +404,12 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
 - T26 interim: rebuilt aura_feature_dump; harness 10/10. Real data awaits T25.
   Report AUDIT-T26-interim.md.
 
+
+
+### [2026-10-08 08:56 UTC] T30 SIGNED DONE; stray root CSV finding
+- T30 DONE at 89685c1: mock 19/19, host 52/52, fixtures 52/52, T24 88/88, t16 36,
+  t19 39, data_paths 20, models 277, ctest 18. Addendum B.
+- MEDIUM finding: root XAUUSDM1.csv (13.6MB/100008 rows) 89685c1 — foreign format
+  (dot-date, 7 cols), dates 2026.06 (outside 2021-2025), wrong location, unverifiable.
+  Report AUDIT-DATA-stray-root-csv.md.
+

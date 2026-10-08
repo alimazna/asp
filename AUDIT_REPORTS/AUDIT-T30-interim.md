@@ -149,3 +149,39 @@ small fixture refresh to restore a green freeze.
 
 Agent-D authored none of T30; all checks reproduced read-only at e2cc9d7 (old mock
 loaded from a78fb1e for the red-before probe). No source touched.
+
+---
+
+# Addendum B — T30 re-audit at 89685c1: **SIGNED DONE** (frozen set green)
+
+- **Repo HEAD:** 89685c1 (Agent-A fixture refresh: 9da11ab "5 routes" + c2da9d4
+  `timeframes.json` freshness 5 fields)
+- **Verdict:** **DONE.** All cycle-32/34 acceptance gates pass, reproduced read-only.
+
+```
+test_mock_shape_t30       19/19   test_e2e_real_host_t13    52/52
+test_api_fixtures         52/52   test_e2e_frozen_v1        88/88
+test_contract_t16         36/36   test_mock_api_t19         39/39
+test_data_paths_t28       20/20   models                   277 OK
+ctest                     18/18   mock_api --check          0 failures
+```
+
+- The previously-RED frozen set (Addendum A) is restored: fixtures 52/52, T24 88/88.
+- The drift class is closed by a test that is red-before / green-after, **two-sided**
+  (extra keys and missing-required), on both the host and the mock — the cycle-32
+  requirement. My state-dependence note (Addendum in REVIEW-T30-...) was folded in:
+  `freshness`'s 5 sub-fields and the array element shapes are declared from the
+  emitter, not the DEGRADED dump.
+- Schema extension confirmed additive; `api-v1.0` tag unchanged.
+
+## Residual notes (non-blocking, not defects)
+
+- `valid/bridge_status.json` and `valid/research_status.json` are structurally
+  conformant and intentionally carry the **DEGRADED posture** (bridge DOWN,
+  research unavailable) rather than the mock's ONLINE values. Both are valid
+  states; the structural layer is what T24 pins. No action.
+- The shape teeth assert the **leaf key set**; nested `required` for object-valued
+  children (e.g. `quality`, `context`, `freshness`) is enforced by the structural
+  validator, which runs jointly in T24/T13. Both green.
+
+T30 is signed. No source touched.

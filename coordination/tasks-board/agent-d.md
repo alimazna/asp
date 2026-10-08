@@ -212,3 +212,9 @@ Note: host drift closed red->green (52/52). Residual: freshness sub-fields undec
 T30(b): teeth green+two-sided, but 6 fixtures unrefreshed -> T24/api_fixtures RED.
 T26: harness 10/10 with binary built; real-data sample pending T25 (feeds T29).
 
+
+
+### [2026-10-08 08:56 UTC] T30 → DONE (signed); DATA finding open
+T30 signed at 89685c1 (all gates green; red->green two-sided holds).
+Finding: stray root XAUUSDM1.csv — format/window/location/policy conflict (MEDIUM).
+
