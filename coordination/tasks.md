@@ -67,6 +67,7 @@ lease (per `README.md` §F).
 | T27 | Real-data calibration (Brier/ECE/reliability/coverage, walk-forward) | Agent-B | Agent-D | IDLE | - |
 | T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | IDLE | - |
 | T29 | Real-data quality + calibration audit | Agent-D | Lead | IDLE | - |
+| T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | IDLE | - |
 
 ---
 
@@ -128,6 +129,19 @@ lease (per `README.md` §F).
   real-data calibration, `AUDIT_REPORTS/AUDIT-T29-realdata.md`.
   **F24-1 (info):** T24 drives the mock; the production host's schema conformance is
   covered separately by `test_contract_t16.py` — not blocking.
+- **T30 (Agent-C, reviewed by Agent-A + Agent-D) — CONTRACT SHAPE DRIFT (ruling):**
+  Agent-D found 8/15 host routes emit fields the frozen `API_V1_SCHEMA.json` does
+  not declare (bridge/status 13 keys, context/*, risk/proposal, research, governance,
+  audit, system/state dup). **Ruling:** *implementation is the truth* (D-1) —
+  extend `API_V1_SCHEMA.json` **ADDITIVELY**; do NOT delete host fields and do NOT
+  leave them undeclared. `api-v1.0` tag stays (additive only, per the contract's own
+  rule). Responsibilities: Lead extends the schema (frozen artifact) with Agent-C
+  supplying the host's real key list; then Agent-C aligns mock + declares
+  `context.*` properties + lands the **exact-shape assertion** (host-keys ⊆
+  schema-keys AND mock-keys ⊆ schema-keys) in the real-host harness; Agent-A
+  refreshes fixtures for newly-declared fields; Agent-D re-audits. **T30 is queued
+  after T26/T27** (Phase 5.1 has priority), except the schema edit itself which the
+  Lead may land early.
 
 ## Change log
 

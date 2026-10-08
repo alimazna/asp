@@ -363,3 +363,9 @@
 - Started full fetch: XAUUSD M1 BID (+tick volume) + ASK, 2021-2025, annual CSVs.
 - Added tools: quality_check.py (-> QUALITY.md), pack.py (gz+samples+checksums+metadata); README + .gitignore (raw files not committed).
 - Coordination: T24 -> DONE (Agent-D PASS); opened T25-T29 (A features, B calibration, C configurable path, D audit); comm/ESCALATIONS/tasks updated; E05 -> IN PROGRESS.
+
+### [2026-10-08 07:32 UTC] Cycle 32 — rulings
+- Read team comms: Agent-D found contract SHAPE DRIFT (8/15 host routes emit undeclared fields; all suites blind). Agent-A/Agent-B fixed F-HIST-1 (history-entry frozen-null violation) with a per-entry guard.
+- RULED: implementation is truth -> extend API_V1_SCHEMA.json ADDITIVELY; T30 opened (Agent-C owner) sequenced after T26/T27. Agent-C to first deliver exact per-route host key list; Lead extends schema; then mock/fixtures/guard.
+- RULED: execution order T25->T26->T27->T29, T28/T30 interleaved. T27 claimed only after T26 FeatureSet contract pinned.
+- Fetch: 2021 complete (19.9 MB), 2022 in progress.
