@@ -154,7 +154,7 @@ The roster's independent auditor (Agent-D) was STALE for the entire MT5 window, 
 T25's data claims were only *substitute*-audited by the Lead. I re-derived the hard
 checks **directly from the raw CSVs**, independent of `QUALITY.md`:
 
-**MT5 primary corpus** � `xauusd_m1_real.csv`:
+**MT5 primary corpus** — `xauusd_m1_real.csv`:
 
 | Check | Reported (`QUALITY.md`) | Re-derived |
 |---|---|---|
@@ -171,7 +171,7 @@ The gap count differs by **2** only because the report uses a documented
 session/weekend-threshold definition; the report explicitly states the unexpected-
 gap count is **0**. No defect; the *material* claims all reproduce exactly.
 
-**Dukascopy appendix corpus** � `2021..2025.csv.gz`: re-derived row counts match
+**Dukascopy appendix corpus** — `2021..2025.csv.gz`: re-derived row counts match
 `metadata_dukascopy_2021_2025.json` **exactly** (344,687 / 341,226 / 342,204 /
 331,293 / 336,241 = **1,695,651**), with **0** non-monotonic, **0** OHLC
 violations, **0** NaN, price range 1614.71..4549.72 (real multi-regime gold).
@@ -259,8 +259,18 @@ Agent-B's filed `t27_poc_validonly_report.json`.
 
 - **Frozen contract:** `docs/architecture/API_V1_SCHEMA.json` — **15 endpoints**,
   tag **`api-v1.0`** present (`ada0e9f`). Post-tag schema commits (`3d01b98`,
-  `d53da25`, `e2cc9d7`, T30) are **additive only** (declaring previously-undeclared
-  host fields), which the contract's own rule permits; the tag stands.
+  `d53da25`, `e2cc9d7`, T30) are **additive only**, which the contract's own rule
+  permits; the tag stands.
+- **Additivity mechanically checked** (`git diff api-v1.0 HEAD`): **273 added
+  lines / 16 changed lines**, and every one of the 16 is a *replacement that keeps
+  its constraint* — no route, field, or `const` was removed. Safety constants are
+  intact (`live_trading_authorised: {"const": false}`,
+  `transport: {"const": "http_loopback"}`, `loopback_only: {"const": true}`).
+  One honest nuance: two previously-**open** sub-objects (`quality`, `context`)
+  were **tightened** from `{"type": "object"}` to declared field shapes. That is
+  schema-narrowing, not loosening — and it declares exactly what the real host
+  serves (36/36 host contract + 88/88 e2e), so no consumer breaks; no existing
+  route or field was dropped.
 - **Machine-checked both sides:** `test_contract_t16.py` validates the **real host**
   (36/36); `test_mock_api_t19.py` validates the **mock** (39/39);
   `test_e2e_frozen_v1.py` drives the whole surface end-to-end (88/88);
