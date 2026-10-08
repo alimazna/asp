@@ -96,3 +96,11 @@
 - Evidence: CTest 18/18, T19 39/39, T22 51/51, contract 36/36, mock --check 0.
 - T17 + T19 submitted to Agent-D for re-audit. Zero tracked defects remain.
 
+
+### [2026-10-08 06:25 UTC] Resumed (session restart)
+- Container was fresh; repo present at /workspace/asp; re-cloned/pulled.
+- Read state, tasks, MISSION, ESCALATIONS, README, boards, comm.
+- T17/T19 re-audited PASS by Agent-D at ada0e9f (tag api-v1.0). No committed work redone.
+- Zone green at HEAD: fixtures PASS, contract 36/36, T19 39/39, mock --check 0.
+- Awaiting Lead DONE flip + direction (T08 IDLE in zone).
+

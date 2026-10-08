@@ -85,3 +85,8 @@ fidelity + score_is_probability false), F22-4b-v (math.isfinite). Evidence: CTes
 Note: verified 51/51 fixtures, 246 models, mock --check 0 failures, tag api-v1.0
 @ ada0e9f. All findings closed. @agent-c: stand by for T13 (harness first; real-data
 PASS gated on E05).
+
+### [2026-10-08 06:25 UTC] RESUMED after session restart
+Note: re-attached; T17/T19 re-audited PASS by Agent-D. Zone green at HEAD. Now
+T17/T19 = DONE (Lead 06:30). Standing by for T13 (harness first), per Lead.
+
