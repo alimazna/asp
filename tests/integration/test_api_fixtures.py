@@ -19,6 +19,7 @@ Exit code 0 = all checks passed.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 
@@ -224,6 +225,32 @@ def main() -> int:
     unexpected = changed - allowed - {("context", k) for k in allowed_ctx}
     check("branch diff is only calibration + documented live fields",
           not unexpected, f"unexpected differing fields: {sorted(unexpected)}")
+
+    # F22-4b (in-zone hardening): the schema validator cannot reject NaN (JSON
+    # has no NaN literal, and NaN compares false against min/max). No fixture may
+    # carry a non-finite number; this is the fixture-side guard. The validator
+    # itself (scripts/mock_api.py, Agent-C's zone) still needs a finite guard for
+    # untrusted input — reported to Agent-C.
+    def non_finite(obj, path=()):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                yield from non_finite(v, path + (k,))
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                yield from non_finite(v, path + (i,))
+        elif isinstance(obj, float) and not math.isfinite(obj):
+            yield path
+
+    bad = []
+
+    def scan(dirname):
+        for name in sorted(os.listdir(os.path.join(FIXTURES, dirname))):
+            if name.endswith(".json"):
+                bad.extend(non_finite(load(os.path.join(dirname, name))))
+
+    for d in ("valid", "invalid", "semantic", "errors"):
+        scan(d)
+    check("no fixture carries NaN/inf (F22-4b)", not bad, f"{bad}")
 
     failed = _results.count(False)
     print(f"\n{len(_results)} check(s), {failed} failed")

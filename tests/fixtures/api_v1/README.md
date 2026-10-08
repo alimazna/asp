@@ -64,6 +64,12 @@ The schema types `score_is_probability` as `boolean` and `levels.*` as
 schema validator catches them; keeping them in `semantic/` with an explicit
 invariant check is the honest split.
 
+The checker also asserts no fixture carries a non-finite number (F22-4b): the
+schema validator cannot reject `NaN` (`NaN < min` and `NaN > max` are both false),
+so the fixture side guards it here. The validator itself
+(`scripts/mock_api.py`, Agent-C's zone) still needs a finite guard if it is ever
+pointed at untrusted input.
+
 `test_api_fixtures.py:invariant_violations` implements the **full** E06 invariant
 set: while `probability` is null, `horizon`, `confidence_lo`, `confidence_hi`,
 `model_version`, every `levels.*`, `meta.data_freshness_sec`, and

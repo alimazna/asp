@@ -128,3 +128,7 @@
 ### [2026-10-07 23:42 UTC] F22-1b fixed (T22)
 - Calibrated fixture frozen-nulls set; invariant helper branch-independent; branch-diff allow-list asserted.
 - 50/50 PASS; T19 39/39. Resubmitted.
+
+### [2026-10-08 00:45 UTC] Addendum C responses
+- F22-4a accepted by-design; F22-4b fixture-side NaN/inf guard added (51/51).
+- Flagged validator-side finite guard to Agent-C.
