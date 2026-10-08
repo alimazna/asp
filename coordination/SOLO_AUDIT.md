@@ -17,13 +17,17 @@ finding** that the team's own FINAL_REPORT does not yet carry.
 - The prior team (Lead DeepSeek + Agent-A/B/C/D) **closed the mission** at 11:05 UTC
   and delivered `coordination/FINAL_REPORT.md`. Almost every task is DONE.
 - **The backend builds and all tests pass** (independently verified below).
-- **One material gap remains:** the designated auditor Agent-D filed a **post-close
-  addendum** (`1c3959a`) proving the published headline calibration rests on
-  training data the pipeline itself flags `INCOMPLETE`. This is **not** in
-  `FINAL_REPORT.md`, and `coordination/tasks.md` still shows **T29 = ACTIVE**.
-- The addendum is **correct**; I reproduced its decisive number independently.
-- **Mission verdict is unchanged** (SCORE, no edge), but the honest disclosure must
-  be folded into FINAL_REPORT before the close-out is complete.
+- **One material gap remained and is now closed:** the designated auditor Agent-D
+  filed a **post-close addendum** (`1c3959a`) proving the published headline
+  calibration rests on training data the pipeline itself flags `INCOMPLETE`. This
+  was **not** in `FINAL_REPORT.md`, and `coordination/tasks.md` still showed
+  **T29 = ACTIVE**. The solo agent reproduced the finding independently and folded
+  the disclosure into the report (§4b), corrected T29, fixed a one-line packaging
+  gap (F-SOLO-1), and landed a `--valid-only` disclosure filter (see §8).
+- The addendum is **correct**; the solo agent reproduced its decisive number
+  independently (valid-only ECE **0.106959** → `report_and_pivot`).
+- **Mission verdict is unchanged** (SCORE, no edge); the report is now accurate
+  about *why* the headline is not evidential.
 
 ---
 
@@ -181,29 +185,48 @@ from the manifest*. It FAILS:
   but a genuine packaging defect and a red test.
 - **Fix:** add `"mt5_csv_feed.py"` to `bridge_files`. In-zone (Agent-C's
   `packaging/`), one line, does not touch production runtime code.
+  **DONE (Step 5)** — `test_bundling_t07` now **18/18**.
 
 ---
 
 ## Section 7 — What Remains to Finish
 
-1. **Fold the F-T27-1 disclosure into `coordination/FINAL_REPORT.md`** (§4 and §6):
-   state that the development partition is 100% INCOMPLETE and record the
-   valid-only sensitivity (ECE 0.107 → `report_and_pivot`). *(done in Step 5)*
-2. **Correct `coordination/tasks.md`:** T29 `ACTIVE` → `DONE`, noting the 2c
-   APPROVED verdict + F-T27-1. *(done in Step 5)*
-3. **Fix F-SOLO-1:** add `mt5_csv_feed.py` to `packaging/bundle_manifest.json`
-   `bridge_files`; re-run `test_bundling_t07` to 18/18. *(recommended; owner
-   historically Agent-C)*
-4. **Record the F-T27-1 addendum review** in the coordination trail (SOLO_AUDIT +
-   solo/comm).
-5. *(Optional, out of scope)* E03 packaging-contract items C-1/C-3 to unblock T08.
+1. ~~**Fold the F-T27-1 disclosure into `coordination/FINAL_REPORT.md`** (§4b + §5 +
+   §6): state that the development partition is 100% INCOMPLETE and record the
+   valid-only sensitivity (ECE 0.107 → `report_and_pivot`).~~ **DONE (Step 5).**
+2. ~~**Correct `coordination/tasks.md`:** T29 `ACTIVE` → `DONE`.~~ **DONE (Step 5).**
+3. ~~**Fix F-SOLO-1:** add `mt5_csv_feed.py` to `packaging/bundle_manifest.json`.**~~
+   **DONE (Step 5)** — `test_bundling_t07` now 18/18.
+4. ~~**Land the `realdata.py` valid-row disclosure + filter (F-T27-1).**~~
+   **DONE (Step 5)** — `--valid-only` / `valid_filter`, counts in report + summary,
+   3 new tests; models suite 308 OK.
+5. **Record the F-T27-1 addendum review** in the coordination trail. **DONE.**
 
-No code re-run, no data change, and no model change is needed: the verdict is
-already correct and honestly negative.
+*(Optional, out of scope)* E03 packaging-contract items C-1/C-3 to unblock T08.
+
+No model change and no data change was needed: the verdict is already correct and
+honestly negative; the work was disclosure + one packaging line + one filter.
 
 ---
 
-## Section 8 — Recommended Next Action
+## Section 8 — Continuation performed (Step 5)
+
+| # | Action | Evidence |
+|---|---|---|
+| 1 | `FINAL_REPORT.md` §4b added (F-T27-1); §5 verdict and §6 limitation updated; evidence table refreshed (305 models, T28 24/24, ctest 19/19) | commit below |
+| 2 | `tasks.md` T29 `ACTIVE` → `DONE` (addendum 2c recorded) | commit below |
+| 3 | `packaging/bundle_manifest.json` declares `mt5_csv_feed.py` | `test_bundling_t07` **18/18** |
+| 4 | `src/models/realdata.py`: `valid_filter` / `--valid-only`; report + summary now record `n_valid_sets` / `n_invalid_sets` / `valid_only` and disclose INCOMPLETE rows | `tests/models/test_realdata.py` +3 tests; models **308 OK** |
+
+**Re-verification after the changes:** models suite **308 OK**; `test_bundling_t07`
+**18/18**; default (unfiltered) real-corpus run **unchanged** (Brier 0.249945,
+ECE 0.00178, verdict `probability`) and now carries the disclosure note;
+`--valid-only` reproduces **ECE 0.106959 → `report_and_pivot`** exactly matching
+Agent-B's filed `t27_poc_validonly_report.json`.
+
+---
+
+## Section 9 — Recommended Next Action
 
 **Fold the F-T27-1 disclosure into `FINAL_REPORT.md` and close T29 in `tasks.md`,
 then fix the one-line bundling manifest gap (F-SOLO-1).** The engineering is

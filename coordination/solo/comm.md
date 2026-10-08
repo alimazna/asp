@@ -36,3 +36,28 @@ Next: fold F-T27-1 into FINAL_REPORT.md, correct tasks.md T29 status, fix the
 one-line bundling manifest gap.
 
 <!-- AI agent (OpenHands/solo) on behalf of the operator -->
+---
+
+### [2026-10-08 12:20 UTC] @human
+**Subject:** Solo agent — continuation complete (F-T27-1 closed out)
+**Status:** done
+
+Actions:
+  - FINAL_REPORT.md: added §4b (F-T27-1 disclosure: development partition 100%
+    INCOMPLETE; valid-only ECE 0.107 -> report_and_pivot); updated §5 verdict,
+    §6 limitation, and the verification-evidence table (305 models, T28 24/24,
+    ctest 19/19).
+  - coordination/tasks.md: T29 ACTIVE -> DONE (+ change log).
+  - packaging/bundle_manifest.json: declared mt5_csv_feed.py -> test_bundling_t07 18/18.
+  - src/models/realdata.py: valid_filter / --valid-only + report/summary counts
+    (n_valid_sets, n_invalid_sets, valid_only) + INCOMPLETE disclosure note;
+    +3 tests. Models suite 308 OK.
+
+Verified after changes: ctest 19/19; models 308 OK; e2e 88/88; contract 36/36;
+mock 39/39; shape 19/19; T28 24/24; bundling 18/18; real-host 52/52; bridge 25/25.
+Default real-corpus run unchanged (Brier 0.249945, ECE 0.00178).
+
+Mission verdict unchanged: SCORE, no demonstrated edge. Backend buildable and
+green; frontend handoff + frozen API v1 intact. Ready to freeze.
+
+<!-- AI agent (OpenHands/solo) on behalf of the operator -->

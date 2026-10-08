@@ -66,7 +66,7 @@ lease (per `README.md` §F).
 | T26 | M1 bars -> feature-set harness (real data) | Agent-A | Agent-D | DONE | POC-labelled |
 | T27 | Real-data calibration: PROOF-OF-CONCEPT (single window) | Agent-B | Agent-D | DONE | fraction split; no walk-forward claimed |
 | T28 | Configurable data path (env/config, no hardcoding) | Agent-C | Agent-D | DONE | - |
-| T29 | Real-data quality + calibration audit (POC) | Agent-D | Lead | ACTIVE | Part 1/2a/2b PASS; POC audit in flight |
+| T29 | Real-data quality + calibration audit (POC) | Agent-D | Lead | DONE | Parts 1/2a/2b PASS + independent addendum (F-T27-1) at `1c3959a`; mission verdict SCORE unchanged |
 | T30 | Contract shape drift: additive schema + exact-shape guard | Agent-C | Agent-A,Agent-D | DONE | F23-3 CLOSED |
 | T31 | FINAL_REPORT (coordination) + mission close-out | Lead | All | DONE | `coordination/FINAL_REPORT.md` |
 
@@ -217,3 +217,6 @@ lease (per `README.md` §F).
 | 2026-10-08 10:18   | DeepSeek | coordination/FINAL_REPORT.md written (9 sections, POC). |
 | 2026-10-08 10:21   | Agent-B  | T27 POC delivered (fraction split); matches Lead pass. |
 | 2026-10-08 10:10   | Agent-C  | T13 real-data replay transcript -> research/reports/. |
+| 2026-10-08 11:28   | Agent-D  | T29 addendum: independent T27 re-audit; F-T27-1 corpus 63% INCOMPLETE. |
+| 2026-10-08 11:48   | Agent-B  | F-T27-1 valid-only correction filed (ECE 0.107 -> report_and_pivot). |
+| 2026-10-08 12:15   | Solo     | Phase 6.0 consolidation: FINAL_REPORT 4b disclosure; T29 -> DONE; bundle manifest declares mt5_csv_feed.py (18/18); realdata valid_filter + counts (+3 tests). |

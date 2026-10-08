@@ -89,6 +89,39 @@ fitted on validation, evaluated once on the OOS tail. Independent Lead reproduct
 Raw (uncalibrated) OOS Brier 0.2915, ECE 0.1774 — calibration **is** doing real
 work (ECE 0.177 → 0.0017), but the base model never becomes confident.
 
+### 4b. Disclosure — F-T27-1: the headline rests on INCOMPLETE training rows
+
+> **Added 2026-10-08 (solo consolidation)** per Agent-D's post-close addendum
+> (`AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08-agent-d-addendum.md`, commit
+> `1c3959a`) and Agent-B's correction (`b960e53`). Verified independently by the
+> solo agent on the real code path.
+
+The MT5 corpus has **6,670** `FeatureSet`s of which only **2,497 are `valid`**; the
+other **4,173 are `INCOMPLETE` warm-up sets**, a contiguous block at the window
+start. `src/models/realdata.py` has **no `valid` filter**, so the fraction split is
+computed over all rows:
+
+| Partition | rows | valid | INCOMPLETE |
+|---|---|---|---|
+| development | 3,997 | **0** | **3,997 (100%)** |
+| validation | 1,333 | 1,158 | 175 |
+| OOS | 1,339 | 1,339 | 0 |
+
+**The base logistic model is trained entirely on warm-up-INCOMPLETE rows.** The
+headline ECE 0.0018 is therefore **not earned** — the model regressed everything to
+the ~0.49 base rate. Restricted to the **2,497 valid sets the directive names**:
+
+| Corpus | dev/val/oos | OOS Brier | skill | **OOS ECE** | RULE C |
+|---|---|---|---|---|---|
+| full (6,670) | 3997/1333/1339 | 0.24995 | +0.0002 | **0.0018** | probability |
+| valid-only (2,497) | 1493/505/498 | 0.26165 | **−0.0469** | **0.1070** | **report_and_pivot** |
+
+On valid data **ECE 0.107 > 0.10** → RULE C is **`report_and_pivot`**, and the
+model is **anti-predictive** (skill −0.047; directional accuracy 0.468 < 0.5). This
+**strengthens** the verdict below (SCORE, no edge) — it does not change it — but the
+headline must not be read as an evidential probability. Reproduction artifact:
+`research/features_real/t27_poc_validonly_report.json`.
+
 **Read this honestly.** ECE is tiny **because the model never leaves the base rate**.
 It predicts ≈0.49 for every decision; that is trivially well-calibrated against a
 ≈0.49 event rate, and it carries **no directional information**. The tiny ECE is not
@@ -99,9 +132,12 @@ flip.
 
 **PROBABILITY — formally; SCORE in practice.**
 
-- **RULE C gate: PASS.** The headline calibration metric is ECE = **0.0017 < 0.05**
-  (the directive's failure threshold is ECE > 0.10, not reached). So the calibrated
-  value is, formally, a **probability**.
+- **RULE C gate: PASS on the full corpus, PIVOT on valid data.** The headline
+  calibration metric is ECE = **0.0017 < 0.05** over the full 6,670-set corpus (the
+  directive's failure threshold is ECE > 0.10, not reached). **But** that headline
+  trains on a development partition that is **100% INCOMPLETE** (§4b); restricted to
+  the **2,497 valid sets the directive names**, ECE = **0.107 > 0.10** →
+  **`report_and_pivot`**. Either way the value is **not** a usable probability.
 - **But the discrimination is ~zero** (skill ≈ 0.000; directional accuracy 0.508;
   no prediction above 0.55). The value must therefore be surfaced **as a score**:
   the API already withholds the probability (`signal.probability = null`,
@@ -119,7 +155,9 @@ whose model has no demonstrated predictive edge on XAUUSD in this window.**
 3. **Calibration is trivial, not earned.** All mass in one bin near the base rate.
 4. **MCE = ECE = 0.0017** here only because there is one bin; this is a degenerate
    reliability diagram, not a strong calibration result.
-5. **Warm-up:** 4,173 of 6,670 feature sets are `INCOMPLETE` (thin history).
+5. **Warm-up:** 4,173 of 6,670 feature sets are `INCOMPLETE` (thin history) —
+   **and the headline model was trained on a development partition that is 100%
+   these rows** (§4b, F-T27-1). On the 2,497 valid sets, ECE 0.107 → pivot.
 6. **OK-labelled features:** several feature slots are `null`/`UNKNOWN` and are
    surfaced as *unavailable*, never imputed.
 7. **No live trading** is implemented or authorized; SHADOW only.
@@ -176,14 +214,16 @@ The frontend can build **today** against the **frozen v1 contract** using
 | Analysis-API schema fixtures (T22) | 52/52 |
 | Mock API (T19) | 39/39 |
 | Contract checker (T16) | 36/36 |
-| T28 data paths | 20/20 |
+| T28 data paths | 24/24 |
 | T30 shape guard | 19/19 |
-| Models suite | 298 OK |
+| Models suite | 305 OK |
 | Features suite | 14/14 |
 | **T13 evidential (real host + real data)** | **96/96 PASS** |
 | Mock `--check` | 0 failures |
 | **T13 real-data replay transcript** | `research/reports/t13_realdata.md` |
-| **T29 audit (POC)** | `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md` — **Lead-substitute**: Agent-D went STALE; the Lead reproduced independently and recorded the liveness gap. |
+| **T29 audit (POC)** | `AUDIT_REPORTS/AUDIT-T27-realdata-2026-10-08.md` — **Lead-substitute**: Agent-D went STALE; the Lead reproduced independently and recorded the liveness gap. **Agent-D independently re-audited post-close** (`…-agent-d-addendum.md`, `1c3959a`) — corroborates every number and adds **F-T27-1** (see §4b). |
+| **T29 valid-only sensitivity (F-T27-1)** | `research/features_real/t27_poc_validonly_report.json` — ECE 0.107 → `report_and_pivot`. |
+| **Solo consolidation re-verification** | build 0 warn/err; **ctest 19/19**; models **305 OK**; e2e **88/88**; contract **36/36**; mock **39/39**; real-host **52/52**; T28 **24/24**. |
 
 ### Open process item (honest)
 

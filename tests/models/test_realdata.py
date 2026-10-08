@@ -50,12 +50,12 @@ def _cross_values(seed):
     return values
 
 
-def _row(asof, close, seed=0.0):
+def _row(asof, close, seed=0.0, valid=True):
     return {
         "asOfBarOpenSec": asof,
         "close": close,
         "quality": "VALID",
-        "valid": True,
+        "valid": valid,
         "perTimeframe": [
             {
                 "timeframe": "M1",
@@ -469,6 +469,55 @@ class CliTest(unittest.TestCase):
                 realdata.PUBLISH_PROBABILITY, realdata.PUBLISH_SCORE,
                 realdata.REPORT_AND_PIVOT, realdata.CANNOT_PUBLISH,
             })
+
+
+class ValidFilterTest(unittest.TestCase):
+    """F-T27-1: INCOMPLETE warm-up sets must be disclosed, and filterable."""
+
+    def _mixed_corpus(self, n=200, warmup=70):
+        rows = []
+        start = datetime(2026, 6, 24, tzinfo=timezone.utc)
+        for i in range(n):
+            ts = int((start + timedelta(minutes=15 * i)).timestamp())
+            close = 4000.0 + (5.0 if i % 2 == 0 else -5.0)
+            rows.append(_row(ts, close, float(i), valid=(i >= warmup)))
+        return rows
+
+    def test_counts_are_recorded_full_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(self._mixed_corpus(), d)
+            rep = realdata.run_real_calibration(
+                d, partition_mode="fraction", l2=1e-6, walk_forward_train=0,
+            )
+            self.assertEqual(rep.n_valid_sets, 130)
+            self.assertEqual(rep.n_invalid_sets, 70)
+            self.assertFalse(rep.valid_only)
+            self.assertTrue(any("INCOMPLETE" in n for n in rep.notes))
+            self.assertEqual(rep.to_dict()["n_invalid_sets"], 70)
+
+    def test_valid_only_drops_incomplete_rows(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(self._mixed_corpus(), d)
+            rep = realdata.run_real_calibration(
+                d, partition_mode="fraction", l2=1e-6, walk_forward_train=0,
+                valid_filter=True,
+            )
+            self.assertEqual(rep.n_valid_sets, 130)
+            self.assertEqual(rep.n_invalid_sets, 70)
+            self.assertTrue(rep.valid_only)
+            self.assertEqual(rep.n_instants, 130)
+            self.assertTrue(any("dropped by valid_filter" in n for n in rep.notes))
+
+    def test_cli_valid_only_flag(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_corpus(self._mixed_corpus(), d)
+            out = os.path.join(d, "report.json")
+            rc = realdata.main(["--corpus", d, "--valid-only", "--out", out])
+            self.assertEqual(rc, 0)
+            with open(out, "r", encoding="utf-8") as handle:
+                doc = json.load(handle)
+            self.assertTrue(doc["valid_only"])
+            self.assertEqual(doc["n_instants"], 130)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@
   "bridge_files": [
     "bridge_service.py",
     "mt5_client.py",
+    "mt5_csv_feed.py",
     "read_candles.py",
     "schemas.py",
     "requirements.txt",

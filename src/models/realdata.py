@@ -416,6 +416,11 @@ class RealCalibrationReport:
     # Directive labelling: a single-window (fraction) run is PROOF-OF-CONCEPT and
     # must NOT be sold as out-of-sample. Empty for a multi-year (year) run.
     publication_label: str = ""
+    # F-T27-1 (Agent-D/solo): set-validity disclosure. `valid=false` sets are
+    # INCOMPLETE warm-up rows; a report that trains on them must say so.
+    n_valid_sets: int = 0
+    n_invalid_sets: int = 0
+    valid_only: bool = False
 
     @property
     def ece_oos(self) -> Optional[float]:
@@ -468,6 +473,9 @@ class RealCalibrationReport:
             "label_horizon": self.label_horizon,
             "method": self.method,
             "publication_label": self.publication_label,
+            "n_valid_sets": self.n_valid_sets,
+            "n_invalid_sets": self.n_invalid_sets,
+            "valid_only": self.valid_only,
             "n_instants": self.n_instants,
             "n_examples": self.n_examples,
             "partition_sizes": dict(self.partition_sizes),
@@ -494,6 +502,11 @@ class RealCalibrationReport:
             f"partitions={self.partition_sizes} horizon={self.label_horizon} "
             f"method={self.method}",
         ]
+        if self.n_valid_sets or self.n_invalid_sets:
+            lines.append(
+                f"  sets: valid={self.n_valid_sets} invalid={self.n_invalid_sets}"
+                + (" (valid-only run)" if self.valid_only else " (all sets fit)")
+            )
         if self.publication_label:
             lines.append(f"  LABEL: {self.publication_label}")
         if self.calibrated_oos is not None:
@@ -657,6 +670,7 @@ def run_real_calibration(
     development_fraction: float = 0.6,
     validation_fraction: float = 0.2,
     l2: float = 1e-6,
+    valid_filter: bool = False,
 ) -> RealCalibrationReport:
     """Run the T05 calibrated pipeline on a real corpus and apply the RULE C gate.
 
@@ -667,10 +681,32 @@ def run_real_calibration(
     When `walk_forward_train` and `walk_forward_test` are both positive, a
     rolling-origin walk-forward is also run over the whole corpus; its pooled ECE
     is the more robust RULE C signal and is reported alongside the year split.
+
+    `valid_filter` (F-T27-1): drop `valid=false` INCOMPLETE warm-up sets before
+    fitting. Off by default to preserve every prior published number; the report
+    always records the valid/invalid counts so an INCOMPLETE-trained headline is
+    disclosed rather than hidden.
     """
     feature_sets, closes = load_corpus(corpus_dir, close_key=close_key)
+    n_valid = sum(1 for fs in feature_sets if fs.valid)
+    n_invalid = len(feature_sets) - n_valid
+    if valid_filter:
+        kept = [(fs, c) for fs, c in zip(feature_sets, closes) if fs.valid]
+        feature_sets = [fs for fs, _ in kept]
+        closes = [c for _, c in kept]
     examples = _to_examples(feature_sets, closes, label_horizon)
     notes: List[str] = []
+    if n_invalid:
+        notes.append(
+            f"{n_invalid} of {n_valid + n_invalid} feature sets are INCOMPLETE "
+            "warm-up rows"
+            + (
+                " (dropped by valid_filter)."
+                if valid_filter
+                else " and were included in this run (F-T27-1); a headline trained "
+                "on them is not evidential — re-run with valid_filter=True."
+            )
+        )
     if model_factory is None:
         model_factory = _logistic_factory(l2)
     split = _partition(
@@ -729,6 +765,9 @@ def run_real_calibration(
             notes=tuple(notes),
             walk_forward=wf,
             publication_label=publication_label,
+            n_valid_sets=n_valid,
+            n_invalid_sets=n_invalid,
+            valid_only=valid_filter,
         )
 
     report: CalibratedReport = run_calibrated(
@@ -755,6 +794,9 @@ def run_real_calibration(
             notes=tuple(notes),
             walk_forward=wf,
             publication_label=publication_label,
+            n_valid_sets=n_valid,
+            n_invalid_sets=n_invalid,
+            valid_only=valid_filter,
         )
 
     raw_oos = report.raw.get("oos")
@@ -796,6 +838,9 @@ def run_real_calibration(
         notes=tuple(notes),
         walk_forward=wf,
         publication_label=publication_label,
+        n_valid_sets=n_valid,
+        n_invalid_sets=n_invalid,
+        valid_only=valid_filter,
     )
 
 
@@ -833,6 +878,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--wf-train", type=int, default=0, help="walk-forward train size")
     parser.add_argument("--wf-test", type=int, default=0, help="walk-forward test size")
     parser.add_argument("--wf-step", type=int, default=0, help="walk-forward step (0=test size)")
+    parser.add_argument(
+        "--valid-only", action="store_true",
+        help="drop valid=false INCOMPLETE warm-up sets before fitting (F-T27-1)",
+    )
     parser.add_argument("--out", default="", help="write the JSON report here")
     args = parser.parse_args(argv)
 
@@ -857,6 +906,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         development_fraction=args.dev_fraction,
         validation_fraction=args.val_fraction,
         l2=args.l2,
+        valid_filter=args.valid_only,
     )
     print(report.summary())
     if args.out:
