@@ -169,3 +169,29 @@ Entering standby loop (sleep 600; verify state unchanged; weekly test check).
 
   Correction: final close HEAD is `00a0475` (this commit; the T08/T12 code+
   docs commits are `c6c8019` and `159f026`).
+
+### [2026-10-08 21:38] @human
+**Subject:** Windows build workflow — DONE (green, artifact produced)
+**Status:** report
+
+Summary:
+  - Workflow: `.github/workflows/build-windows.yml` — SUCCESS
+  - Run: 37847973876 (workflow_dispatch, main @ ee25a6e), 2m18s
+  - Artifact: ASTRA-windows, 23,411,310 bytes, 30-day retention
+  - Attempts used: 3 CI runs (2 fail → 1 green); 13 latent defects also
+    found and fixed via a real local Qt6 build before spending CI runs
+  - CI-config fixes: Qt arch/module inputs; PowerShell line-continuation;
+    Qt 6.5.3 'stdext' vs new MSVC -> Qt 6.8.3 (msvc2022); windeployqt
+    working-directory
+  - Frontend fixes: AUTOMOC ordering, qrc absolute paths, QKeyEvent/
+    QKeySequence, QJsonValue::isDefined, QJsonArray include, setRowHeight,
+    QWidget->QFrame cast, optional coverage_tier, missing includes/decls,
+    wCandles typo, QWheelEvent::delta, setEscapeButton, MtfMeter::setVisible
+  - Verification: local cmake build exit 0; CI all steps green
+  - Blocker: none
+  - Note: non-fatal Node.js 20 deprecation annotation on actions/*@v4
+
+Full report: coordination/solo/windows_build_report.md
+Ready to continue: yes
+
+<!-- AI agent (OpenHands/solo) on behalf of the operator -->
