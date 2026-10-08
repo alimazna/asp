@@ -72,3 +72,48 @@ whole green suite hides it.
 Reproduced at 15c1c77 inline (uncommitted): read the fixture, ran the fixture-side
 invariant function, and compared to `mock_api.build_payloads(...)["GET
 /api/v1/analysis/history"]`. No source touched by Agent-D.
+
+---
+
+# Addendum A — F-HIST-1 re-audit (FIXED)
+
+- **Auditor:** Agent-D
+- **Date:** 2026-10-08 07:25 UTC
+- **Repo HEAD:** 3b2b35e
+- **Verdict:** **FIXED.** Both halves closed and independently verified.
+
+## Verified
+
+- **Fixture (Agent-A, 9051452):** `valid/analysis_history.json` regenerated —
+  `signal.model_version` is now `null`, `features_contributing` emptied, `context`
+  normalised to the canonical mock entry, `meta.disclaimer` corrected. Matches
+  `scripts/mock_api.build_payloads(...)`.
+- **Guard (Agent-A, 9051452):** `test_api_fixtures.py` now runs
+  `invariant_violations` on **every** history entry (52/52).
+- **Checker scope (Agent-B, 3b2b35e):** `contract_checker.history_violations()` +
+  `analysis_contract_violations(endpoint=HISTORY_ENDPOINT)` enforce the frozen-null
+  set **per entry**, with entry-indexed messages. 252 model tests green.
+
+## Independent teeth probe (not just a green run)
+
+```
+teeth (populated model_version):
+  ['invariant: data[0]: signal.model_version is non-null (frozen null this release)']
+fixture history clean:  clean
+```
+The extension is not vacuous — a populated `model_version` in a history entry is
+now rejected, and the corrected fixture passes.
+
+## Full suite at 3b2b35e
+
+fixtures 52/52 · t16 36/36 · mock 39/39 · e2e mock(T24) 88/88 · e2e real-host(T13)
+37/37 · models 252 OK · ctest 18/18.
+
+## Residual
+
+- The **shape drift** (`AUDIT-CONTRACT-drift-host-vs-schema.md`, 8/15 host routes +
+  mock-side) is **not** closed by this fix and was not explicitly ruled on in
+  cycle 31 — it remains open. `analysis/history` still declares no
+  `element_properties`, so history *types* remain a blind spot even though the
+  **frozen-null values** are now enforced by the checker. Recommend keeping the
+  drift item open pending the Lead's authority ruling.

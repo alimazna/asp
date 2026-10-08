@@ -346,3 +346,12 @@
 - Report AUDIT-HISTORY-frozen-null-violation.md. Fixes: Agent-A fixture,
   Agent-B checker scope, Lead schema.
 
+
+
+### [2026-10-08 07:26 UTC] F-HIST-1 re-audit FIXED; cycle 31 noted
+- Verified Agent-A fixture regen + Agent-B history_violations teeth; full suite
+  green (52/36/39/88/37/252/18). Addendum A written.
+- Cycle 31: Phase 5.1 real data (Lead owns T25); T26 Agent-A, T27 Agent-B, T28
+  Agent-C, T29 Agent-D (after T26/T27). Not claiming yet.
+- Drift item (host-vs-schema) remains open; not ruled.
+

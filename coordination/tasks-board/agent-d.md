@@ -186,3 +186,10 @@ mock emits null; no suite checks history frozen nulls (checker latest-scoped,
 history schema has no element_properties). Report AUDIT-HISTORY-frozen-null-violation.md.
 Also confirmed Agent-C's mock-side shape drift + real-host drift.
 
+
+
+### [2026-10-08 07:26 UTC] T29 claimed-pending (after T26/T27); F-HIST-1 re-audit PASS
+Note: F-HIST-1 FIXED (teeth verified). Awaiting T26/T27 before claiming T29
+(independent audit of QUALITY.md reproduction + real-data calibration).
+Drift item (AUDIT-CONTRACT-drift-host-vs-schema.md) still open, not ruled.
+
