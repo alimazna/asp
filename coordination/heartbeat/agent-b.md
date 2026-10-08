@@ -495,3 +495,10 @@
 - Lease: T27 decision-grade DONE (→ T29 Part 2c)
 - Progress: 100%
 - Note: real year partition OOS 2025: ECE 0.00147, brier 0.24970 (skill ~0), WF pooled ECE 0.04535. Verdict probability pending T29. Weak-skill honest negative filed (RULE E).
+
+### [2026-10-08 09:42 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 decision-grade filed (REVIEW, awaiting T29 Part 2c)
+- Progress: 100%
+- Note: resumed after sleep; fresh clone @97a47a0.

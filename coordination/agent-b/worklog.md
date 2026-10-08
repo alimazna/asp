@@ -187,3 +187,8 @@
   overlap reported; pooled ECE -> RULE C verdict
 - CLI --wf-train/--wf-test/--wf-step; run_real_calibration embeds it
 - 271 models tests green
+
+### [2026-10-08 09:42 UTC] Resumed
+- Re-cloned, read state + board + all comm tails
+- Current task: T27 (REVIEW -> T29 Part 2c)
+- Ready to continue
