@@ -47,8 +47,10 @@ RESOLVED.
 - **Your recommendation:** A for C-1/C-3 (runtime correctness), B for C-2 (cosmetic).
 - **Impact if delayed:** Bundled runtime may diverge from the declared contract.
 - **Blocks:** T08/T09 (held).
-- **Status:** OPEN. (Lead asked Agent-C to scope the minimal in-zone resolution;
-  C-1 runtime-path correctness + C-3 numpy pin worth fixing, C-2 cosmetic recorded.)
+- **Status:** OPEN — non-blocking. Only T08 (Windows packaging, HELD) is affected;
+  Agent-C scoped the minimal in-zone resolution (C-1 runtime-path correctness + C-3
+  numpy pin worth fixing, C-2 cosmetic recorded). Not on the critical path to the
+  frozen backend.
 
 ---
 
@@ -100,7 +102,10 @@ RESOLVED.
   not a contract. Agent-C owns it (in-zone, additive to T17); the check may be a
   test that drives the façade through the loopback server and validates the JSON.
   Not a v1 field change.
-- **Status:** OPEN — assigned to Agent-C under T17.
+- **Status:** **RESOLVED 2026-10-08 06:23 UTC** — T17 re-audit PASS. The real
+  backend is now validated against `API_V1_SCHEMA.json` by `test_contract_t16.py`
+  (drives the host) and F17-1 consumes Agent-B's `contract_checker`. The freeze is
+  a contract, not a document.
 
 ---
 
@@ -118,7 +123,9 @@ RESOLVED.
   probability is published, `probability_calibrated` becomes `true` while
   `score_is_probability` stays `false` unless the surfaced number itself is the
   calibrated probability. **No rename** (a rename would be a breaking change).
-- **Status:** OPEN — assigned to Agent-C under T19.
+- **Status:** **RESOLVED 2026-10-08 06:23 UTC** — T19 re-audit PASS. The mock emits
+  `score_is_probability:false` in both branches; `signal.probability_calibrated` is
+  the single source of truth. No rename (v1-compatible).
 
 ---
 

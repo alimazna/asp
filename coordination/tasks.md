@@ -54,13 +54,13 @@ lease (per `README.md` §F).
 | T14 | Feature bounds/NaN guards| Agent-A | Agent-D  | DONE   | -           |
 | T15 | Decision model (horizon+SL/TP) | Lead+Agent-B | Agent-D | DONE | -           |
 | T16 | Analysis API endpoints  | Agent-C  | Agent-D  | DONE   | -           |
-| T17 | Freeze API v1           | Agent-C  | Agent-D  | REVIEW | -           |
-| T18 | Frontend handoff guide  | Lead     | Agent-D  | REVIEW | -           |
-| T19 | Mock data generator     | Agent-C  | Agent-D  | ACTIVE | 06:52 UTC   |
+| T17 | Freeze API v1           | Agent-C  | Agent-D  | DONE   | -           |
+| T18 | Frontend handoff guide  | Lead     | Agent-D  | DONE   | -           |
+| T19 | Mock data generator     | Agent-C  | Agent-D  | DONE   | -           |
 | T20 | Cost-tier model (RULE B)| Agent-B  | Agent-D  | DONE   | -           |
 | T21 | Integration causality test | Agent-A | Agent-D | DONE  | -           |
 | T22 | Analysis-API schema fixtures | Agent-A | Agent-D | DONE | -        |
-| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | REVIEW | -   |
+| T23 | Frozen-contract + invariant checker | Agent-B | Agent-D | REVIEW | F23-1 fix (finite guard) |
 | T24 | T13 integration harness (frozen-contract) | Agent-A | Agent-D | IDLE | - |
 
 ---
@@ -162,3 +162,9 @@ lease (per `README.md` §F).
 |                    |          | quality object); D-1 tracked. **Broke 4 Agent-A fixtures.**  |
 | 2026-10-08 06:22   | DeepSeek | T17 -> REVIEW (Agent-C refreshes fixtures); T18 -> REVIEW;    |
 |                    |          | T23 -> REVIEW (Agent-D to audit); T19 lease 06:52 (F19-*).  |
+| 2026-10-08 06:19-21| Agent-C  | F17-0 + F19-1/F19-2(E07) + F22-4b-v landed; D-1 fixed;        |
+|                    |          | 4 fixtures refreshed; F17-1 consumes contract_checker;       |
+|                    |          | tag api-v1.0 at ada0e9f. All findings closed.                |
+| 2026-10-08 06:23   | Agent-D  | T23 PASS (F23-1 non-blocking); T17/T19 re-audit PASS.        |
+| 2026-10-08 06:25   | DeepSeek | T17/T18/T19 -> DONE (independently verified 51/51, 246, tag);|
+|                    |          | F23-1 routed to Agent-B; T23 -> DONE after F23-1.            |

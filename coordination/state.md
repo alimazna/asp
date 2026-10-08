@@ -132,40 +132,39 @@ Sprint 1 — Features & Control Baseline
   recommend. Returned to Agent-B to make the demo refuse to rank when the top
   result is the artifact. Audits are doing exactly their job.
 
+## Milestone — backend surface essentially complete (06:25 UTC)
+
+MISSION §10.7 "backend complete" checklist: features ✓, model+calibration (ECE
+honest, synthetic) ✓, bridge+packaging ✓, analysis API ✓ (T16), decision-model doc
+✓ (T15), **frozen API v1 ✓ (T17 DONE, tag `api-v1.0` @ ada0e9f)**, **handoff guide
+✓ (T18 DONE)**, **mock generator ✓ (T19 DONE)**, end-to-end (T13) pending T24 +
+real data. Baseline/production untouched; no live-trading path.
+
 ## Current blocker
 
-- **E05 (real XAUUSD data) — HARD BLOCKER for publication.** No real XAUUSD data
-  exists; calibration is measured on synthetic data only. **STILL BLOCKED since
-  2026-10-07 22:36 UTC — re-escalated 2026-10-08 06:11 UTC.** Blocks T13
-  finalization and any probability publication.
-- ~~Agent-C OFFLINE~~ **RESOLVED 06:16 UTC** — Agent-C returned and delivered a real
-  T17 improvement (contract-vs-implementation test; 2 schema divergences corrected).
-- **NEW (06:22 UTC) — contract-sync regression:** Agent-C's schema correction
-  invalidated **4 of Agent-A's T22 fixtures** (`shadow/{positions,outcomes}`
-  count-object → array; `quality` string → object). `test_api_fixtures` 4/51 FAIL.
-  Cross-zone; owner Agent-C refreshes the mock-derived fixtures in-zone. Not a
-  correctness regression — T22 (analysis_latest) is untouched.
+- **E05 (real XAUUSD data) — HARD BLOCKER for publication.** STILL BLOCKED since
+  2026-10-07 22:36 UTC. Blocks T13 finalization and any probability publication.
+  Everything else is now DONE or in final audit.
 
 ## Escalations
 
 - **E05 OPEN (hard blocker)** — real XAUUSD data; re-escalated (STILL BLOCKED).
-- **E08 CLOSED 06:16 UTC** — Agent-C returned; T17/T19 leases re-established.
-- E03/E06/E07 OPEN, now actively owned by Agent-C (T17/T19). E01/E02/E04 RESOLVED.
+- **E08 CLOSED 06:16 UTC** — Agent-C returned.
+- E03/E06/E07 all now **effectively resolved** by the T17/T19 PASS (F17-0/F17-1/
+  F17-2/F19-1/F19-2/F22-4b-v all fixed and re-audited). Will mark RESOLVED this
+  cycle.
 
-## Agents (watchdog @ 06:22 UTC)
+## Agents (watchdog @ 06:25 UTC)
 
-- DeepSeek: **ACTIVE** (Lead).
-- Agent-A: **ACTIVE** (last heartbeat 05:20; zone green at its head — but see the
-  contract-sync regression; she has been pinged).
-- Agent-B: **ACTIVE** — returned 06:13; T23 delivered → REVIEW.
-- Agent-C: **ACTIVE** — returned 06:16; T17 REVIEW, T19 ACTIVE.
-- Agent-D: **ACTIVE** — returned 06:14; T18 re-audit PASS; T23 audit requested.
+- DeepSeek: ACTIVE. Agent-A: ACTIVE (T22 DONE; T24 next). Agent-B: ACTIVE (T23
+  REVIEW; F23-1 to fix). Agent-C: ACTIVE (T17/T19 DONE). Agent-D: ACTIVE (ledger
+  clear; T24 audit next).
 
 ## Hourly checkpoints
 
-- 2026-10-08 06:22 UTC: all four agents back ACTIVE; T18 PASS; T23 REVIEW; T17
-  contract fix landed but broke 4 fixtures (owner notified). E05 still the only
-  mission blocker. Tree green except the 4-fixture contract sync.
+- 2026-10-08 06:25 UTC: **T17/T18/T19 → DONE** (Agent-D PASS; independently
+  verified 51/51, 246 models, tag present). T23 PASS (F23-1 non-blocking → Agent-B).
+  Only T24 + E05 remain before T13.
 
 ## Notes
 

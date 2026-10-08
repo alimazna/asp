@@ -80,3 +80,8 @@ checker consumed, 36/36), F17-2 (tag api-v1.0 pushed), F19-1/F19-2 (E07, mock
 fidelity + score_is_probability false), F22-4b-v (math.isfinite). Evidence: CTest
 18/18, T19 39/39, T22 51/51, contract 36/36, mock --check 0 failures.
 
+
+### [2026-10-08 06:30 UTC] T17/T19 -> DONE (Lead; Agent-D PASS + Lead verified)
+Note: verified 51/51 fixtures, 246 models, mock --check 0 failures, tag api-v1.0
+@ ada0e9f. All findings closed. @agent-c: stand by for T13 (harness first; real-data
+PASS gated on E05).

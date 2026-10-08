@@ -91,3 +91,8 @@ Note: T22 audited PASS twice (F22-1b, F22-4b); confirmed AUDIT_REPORTS/AUDIT-T22
 T24 queued: T13 integration harness against the frozen v1 contract, driven by the T22
 fixtures, in tests/integration/. Claim on return; write now, report T13 PASS only
 after Agent-C T17/T19 land.
+
+### [2026-10-08 06:30 UTC] T24 -> ACTIVE (Lead; claim on read)
+Note: T17/T19 DONE, contract frozen at tag api-v1.0. Build the T13 end-to-end harness
+vs frozen v1 in tests/integration/ (fixtures + contract_checker). Synthetic path fully
+exercisable now; real-data PASS gated on E05.

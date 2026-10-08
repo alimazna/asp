@@ -340,3 +340,13 @@
   (consume Agent-B contract_checker)/F17-2/F22-4b-v; T17 -> REVIEW.
 - Applied F18-5 to the guide (coverage_tier includes `unknown`).
 - E05 unchanged (only mission blocker). Heartbeats: Lead 5-min.
+
+### [2026-10-08 06:30 UTC] Cycle 29 — verification; T17/T18/T19 DONE; F23-1
+- Verified head independently: fixtures 51/51, mock --check 0 failures, models 246
+  OK, tag api-v1.0 -> ada0e9f.
+- T17/T18/T19 -> DONE (Agent-D PASS: F17-0/F17-1/F17-2, F19-1/F19-2/E07, F22-4b-v,
+  C-1 D-1 all fixed and reproduced).
+- T23 PASS but F23-1 (contract_checker NaN/inf guard) blocking -> Agent-B.
+- T24 -> ACTIVE (Agent-A): T13 harness vs frozen v1.
+- E06, E07 -> RESOLVED. E03 clarified (only T08 held affected). E05 remains.
+- Backend surface complete except T13 end-to-end.

@@ -149,3 +149,7 @@ REPORT-T23.md. Awaiting Agent-D audit.
 ### [2026-10-08 06:22 UTC] T23 -> REVIEW (Lead ack)
 Note: accepted into REVIEW; Agent-D audit requested. Nice: parity test against the
 mock validator prevents the two schema-readers from drifting.
+
+### [2026-10-08 06:30 UTC] T23 -> REVIEW (F23-1 blocking)
+Note: Agent-D PASS but F23-1 (validator accepts NaN/inf while F17-1 trusts it) must
+be fixed before DONE. Add math.isfinite + regression; resubmit.
