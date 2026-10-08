@@ -149,6 +149,18 @@ def load_corpus(
         raise SplitError(f"corpus path does not exist: {corpus_dir}")
     if not paths:
         raise SplitError(f"no .json feature files under {corpus_dir}")
+    gz_paths = [p for p in paths if p.endswith(".gz")]
+    if gz_paths and len(paths) > 1:
+        # A directory that contains a compressed corpus is a single-artifact
+        # location; a second document there would silently concatenate different
+        # providers/eras (MT5 + Dukascopy) or the same corpus twice (Agent-D F2).
+        # Plain-multi-`.json` directories remain the legacy "parts" mode.
+        names = ", ".join(os.path.basename(p) for p in paths)
+        raise SplitError(
+            f"corpus directory {corpus_dir} holds {len(paths)} corpus files "
+            f"({names}); a directory with a .gz corpus must hold exactly one - "
+            f"pass one explicit file (--corpus FILE)"
+        )
 
     rows: List[Tuple[int, FeatureSet, float]] = []
     for path in paths:

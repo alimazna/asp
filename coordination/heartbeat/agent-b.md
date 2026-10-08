@@ -481,3 +481,10 @@
 - Lease: T27 decision-grade run (in flight) + D2 landed
 - Progress: 100%
 - Note: D2 tooth + gz loader committed 0c8adfb (297 tests green); T27 2021-2025 year-partition run in flight.
+
+### [2026-10-08 09:35 UTC]
+- Agent: agent-b
+- Status: ACTIVE
+- Lease: T27 decision-grade run (in flight)
+- Progress: 100%
+- Note: F2 fixed (multi-corpus dir refused), 298 tests green; T13 evidential 96/96 closed by D2.

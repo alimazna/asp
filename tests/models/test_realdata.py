@@ -369,18 +369,25 @@ class GzipCorpusTest(unittest.TestCase):
         self.assertEqual(len(fs), 50)
         self.assertEqual(len(closes), 50)
 
-    def test_loads_gz_in_directory_alongside_plain(self):
+    def test_directory_with_multiple_corpora_is_refused(self):
+        """Agent-D F(2): a dir holding >1 corpus doc must not silently mix."""
         import gzip
 
-        a = _single_window_rows(20)
-        # Start the second document after the first so instants stay disjoint.
-        b = _single_window_rows(10, start=datetime(2026, 6, 26, tzinfo=timezone.utc))
         with tempfile.TemporaryDirectory() as d:
-            write_corpus(a, d, "a.json")
+            write_corpus(_single_window_rows(20), d, "a.json")
             with gzip.open(os.path.join(d, "b.json.gz"), "wt", encoding="utf-8") as h:
-                json.dump(b, h)
+                json.dump(_single_window_rows(10), h)
+            with self.assertRaises(realdata.SplitError):
+                realdata.load_corpus(d)
+
+    def test_directory_with_single_corpus_still_loads(self):
+        import gzip
+
+        with tempfile.TemporaryDirectory() as d:
+            with gzip.open(os.path.join(d, "only.json.gz"), "wt", encoding="utf-8") as h:
+                json.dump(_single_window_rows(15), h)
             fs, _ = realdata.load_corpus(d)
-        self.assertEqual(len(fs), 30)
+        self.assertEqual(len(fs), 15)
 
     def test_missing_path_is_an_error(self):
         with self.assertRaises(realdata.SplitError):
