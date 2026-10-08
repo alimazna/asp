@@ -268,3 +268,7 @@
   contradicts §D + freeze + E07. Fix: use T22 default fixture shape. F18-2 trigger
   vocabulary; F18-3 api-v1.0 tag absent; F18-4 mock claim overstated pending F19-1.
 - Report: AUDIT_REPORTS/AUDIT-T18-frontend-guide.md
+
+### [2026-10-08 00:33 UTC] Independent all-green sweep at a20ed21
+- Python models 226 pass; ctest 18/18; fixtures 50/50; mock --check 0 failures.
+- Confirms open findings are contract-correctness gaps not asserted by the suites.
