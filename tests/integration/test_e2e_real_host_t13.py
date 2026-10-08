@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -88,6 +89,26 @@ def wait_for(url: str, attempts: int = 50):
     raise RuntimeError(f"real host did not serve: {last}")
 
 
+def reap(proc: subprocess.Popen) -> None:
+    """Terminate the host and everything it spawned (the bridge_service.py child).
+
+    The host starts the bridge on a fixed port; if only the host is signalled the
+    bridge survives and the next run's bridge fails to bind (spurious failures).
+    The process is started in its own session so the whole group can be reaped.
+    """
+    if proc.poll() is None:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(os.getpgid(proc.pid), sig)
+            except (ProcessLookupError, PermissionError):
+                break
+            try:
+                proc.wait(timeout=5)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+
+
 def ensure_bundle(include_replay: bool = False):
     """Populate build/resources/bridge/mt5_python from the repo.
 
@@ -128,6 +149,7 @@ def run_real_data_checks(csv_path: str, schema: dict) -> None:
     proc = subprocess.Popen(
         [HOST_BIN, "--api-port", str(port), "--dev-system-python"],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     base = f"http://127.0.0.1:{port}"
     try:
@@ -198,11 +220,7 @@ def run_real_data_checks(csv_path: str, schema: dict) -> None:
             except Exception as exc:  # noqa: BLE001
                 check(f"real feed {route} matches frozen schema", False, repr(exc))
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        reap(proc)
         for path in staged:
             try:
                 os.remove(path)
@@ -228,6 +246,7 @@ def main() -> int:
     proc = subprocess.Popen(
         [HOST_BIN, "--api-port", str(port)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     base = f"http://127.0.0.1:{port}"
     try:
@@ -279,11 +298,7 @@ def main() -> int:
         check("real host does not claim ready (no real data, E05)",
               data.get("ready") is False)
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        reap(proc)
 
     # Evidential (E05) path: opt-in so the default frozen-suite run stays green.
     # Enable with T13_REAL_DATA=1 (or by exporting FAKE_MT5_CSV). When enabled it

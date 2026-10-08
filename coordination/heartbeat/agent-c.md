@@ -199,3 +199,10 @@
 
 
 
+
+### [2026-10-08 09:35 UTC]
+- Agent: agent-c
+- Status: ACTIVE
+- Lease: T13 PASS 96/96 (Agent-D confirmed); fixing Agent-D port-leak harness defect
+- Progress: host reaped via process group (killpg) in both finally blocks
+- Note: two back-to-back evidential runs 96/96, 0 strays. Awaiting Agent-D re-confirm.

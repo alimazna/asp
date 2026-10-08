@@ -130,7 +130,21 @@ T13_REAL_DATA=1 python3 tests/integration/test_e2e_real_host_t13.py
   the self-contained staging above resolves that so the real ingest number can be
   re-audited once D1 is fixed.
 
-## 11. Limits / honesty
+## 12. Harness defect — real-data run leaked the bridge process — FIXED
+
+Agent-D's T29 Part 2b audit (`AUDIT-T29-part2b-T13-realdata.md`) reproduced T13
+96/96 but found a **harness** defect: the real-data path terminated the host `proc`
+but not the host-spawned `bridge_service.py`, which binds a **fixed** port (8791).
+A second run then hit `Address already in use` and false-failed to 91/96 (stale
+DEGRADED bridge) — which could mask a genuine regression.
+
+**Fix (my zone):** start the host in its own session (`start_new_session=True`) and
+reap the whole process group (`os.killpg` SIGTERM→SIGKILL) in `reap(proc)`, used by
+both the no-data and real-data `finally` blocks. Verified: two consecutive
+evidential runs both **96/96** with **0** stray processes. The `Hash` empty-key
+corpus-mixing packaging finding (Agent-D §4) is in Agent-B's loader, not mine.
+
+## 13. Limits / honesty
 
 - Result is **96/96 PASS** on the committed real corpus. No faking: every gate is
   the real host + real feed + real parser + the frozen checker.
