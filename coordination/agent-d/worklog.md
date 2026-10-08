@@ -385,3 +385,13 @@ No audit verdict — corpus (E05) not pushed yet. Claiming T29 after T26/T27.
   host_key_dump.py REPO hardcoded /workspace/asp.
 - Note: AUDIT_REPORTS/REVIEW-T30-leaf-key-list-state-dependence.md.
 
+
+
+### [2026-10-08 08:15 UTC] T30 interim audit
+- Reproduced red->green: OLD schema 8 host routes w/ undeclared keys -> NEW 0.
+  host harness 52/52 has teeth (red before, green after). Additive verified; tag
+  unchanged; mock --check green; host_key_dump __file__ fixed.
+- Residuals: R1 mock freshness.last_update undeclared (15/16); R2 teeth catch extra
+  keys only, new always-present fields not in data_required (declared-not-enforced).
+- Report AUDIT-T30-interim.md. Recommend stay REVIEW/ACTIVE.
+

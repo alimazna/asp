@@ -321,3 +321,13 @@
 - Note: T30 reviewer — posted pre-emptive note (leaf list state-dependent). T29
   still pending T26/T27.
 
+
+
+### [2026-10-08 08:15 UTC]
+- Agent: agent-d
+- Status: ACTIVE
+- Lease: none
+- Progress: 100%
+- Note: T30 interim review posted (host drift closed; mock+required pending).
+  T29 pending T26/T27.
+

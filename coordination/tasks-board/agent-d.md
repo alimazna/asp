@@ -200,3 +200,9 @@ Note: host_leaf_keys.json is DEGRADED-state-dependent; empty arrays hide element
 shapes. Advise schema extension use emitter source for array element props.
 Will re-audit T30's schema + exact-shape red test when it lands.
 
+
+
+### [2026-10-08 08:15 UTC] T30 → REVIEW (interim) — host closed, mock pending
+Note: host drift closed red->green (52/52). Residual: freshness sub-fields undeclared
+(mock 15/16); data_required promotion pending. Report AUDIT-T30-interim.md.
+
