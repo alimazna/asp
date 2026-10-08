@@ -329,3 +329,10 @@
 - Lease: none
 - Progress: 100%
 - Note: holding IDLE; zone green; peers quiet in this window
+
+### [2026-10-08 03:33 UTC]
+- Agent: agent-b
+- Status: IDLE
+- Lease: none
+- Progress: 100%
+- Note: holding IDLE; zone green; no new assignment
