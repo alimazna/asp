@@ -238,7 +238,7 @@ struct Parser {
             if (pos < text.size() && (text[pos] == '-' || text[pos] == '+')) ++pos;
             while (pos < text.size() && std::isdigit(static_cast<unsigned char>(text[pos]))) ++pos;
         }
-        out = JsonValue(text.substr(start, pos - start));
+        out = JsonValue::number(text.substr(start, pos - start));
         return true;
     }
 };

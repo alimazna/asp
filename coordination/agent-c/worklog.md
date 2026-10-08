@@ -151,3 +151,14 @@
 - Report: coordination/agent-c/T13-evidential-report.md. Awaiting Lead ruling on
   D1/D2/D3; did not modify frozen src/ or the schema.
 
+### [2026-10-08 08:35 UTC] D1 (DEC-021) + D3 (DEC-023) fixed under Lead ruling
+- src/foundation/Json.h: JsonValue::number(std::string) factory (Type::Number, text
+  preserved); asString() returns number text for Numbers (fixes dump()).
+- src/foundation/Json.cpp: parseNumber uses the factory.
+- src/api/BackendFacade.cpp: risk/latest emits proposal_reason in the proposal
+  posture too (data_required unconditional).
+- tests/JsonParserTests.cpp (new, 4 cases): parsing types numbers correctly,
+  reads values, array elements, dump round-trip, big-int text.
+- ctest 19/19; all frozen Python suites green; T13 evidential 95/96.
+- Remaining: D2 (Agent-B T23 teeth) is the last gate to 96/96.
+

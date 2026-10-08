@@ -1,9 +1,9 @@
 # T13 — Evidential real-data path (Agent-C) — 2026-10-08
 
-**Status: BLOCKED — NOT a PASS.** The real-data pipeline is wired and reproducible,
-but it stops at a backend defect before any decision-grade data flows. Reported,
-not silently fixed (my zone is `bridge/`/`tests`; the defect is in frozen
-production `src/foundation/`).
+**Status: IN PROGRESS — evidential race at 95/96; single remaining failure is D2
+(Agent-B's task).** D1 (blocker) and D3 were fixed under Lead ruling DEC-021/DEC-023.
+D2 (frozen-null `levels` vs a realized proposal) is Agent-B's T23 teeth change and
+is the only thing standing between this and a full evidential PASS.
 
 Repo: `alimazna/asp` @ `main`. Corpus: `research/data/xauusd_m1/xauusd_m1_real.csv`
 (read-only, 100,008 M1 bars, 2026-06-24..2026-10-08). No live trading, no MT5
@@ -42,77 +42,64 @@ With the current `main` binary the evidential run is **91/96**: the bridge reach
 the real corpus (handshake OK, mt5_ready, resolved XAUUSD) but no timeframe
 ingests — every bar is rejected `NON_POSITIVE_PRICE`, host stays DEGRADED.
 
-## 4. Defect D1 (BLOCKER) — JSON numbers parsed as strings
+## 4. Defect D1 (was BLOCKER) — JSON numbers parsed as strings — **FIXED (DEC-021)**
 
-**File:** `src/foundation/Json.cpp`, `Parser::parseNumber` (line ~241).
-**Zone:** foundation / production `src/` — NOT Agent-C. Reported, not fixed.
+**File:** `src/foundation/Json.cpp`, `Parser::parseNumber`; factory added to
+`src/foundation/Json.h`. Lead-ruled DEC-021 (Agent-C owner, defect fix to Wave-4
+code; no contract/state/behaviour change; wire shape byte-unchanged).
 
-```cpp
-out = JsonValue(text.substr(start, pos - start));   // <-- overloads to
-                                                    //     JsonValue(std::string)
-```
+The old code built `JsonValue(text.substr(...))`, which overloads to
+`JsonValue(std::string)` → `Type::String`, so every parsed number was mistyped and
+`asDouble`/`asInt64` returned the fallback (0.0) — real bridge candles read as 0 →
+`NON_POSITIVE_PRICE`.
 
-`JsonValue(std::string)` sets `type_ = Type::String` (Json.h:25), so every parsed
-number is typed as a **string**. `asDouble`/`asInt64` return the fallback when
-`type_ != Type::Number`:
+**Fix (minimal, as ruled):** add a private-to-public factory
+`JsonValue::number(std::string)` that sets `Type::Number` while keeping the literal
+as text (numbers-as-text precision preserved), use it in `parseNumber`. While
+verifying, `dump()` exposed a second latent bug in the same narrow scope: the
+Number branch called `asString()`, which read the **string** slot (empty for parsed
+numbers), so a parsed number re-serialized to nothing. Fixed by having `asString()`
+return the number text when the value is a Number (all 22 call sites are on string
+fields, so this is safe and makes dump exact/byte-preserving).
 
-```cpp
-double JsonValue::asDouble(double fallback) const noexcept {
-    if (type_ != Type::Number) return fallback;   // -> 0.0 for every field
-```
+**Regression test:** `tests/JsonParserTests.cpp` (new, 4 cases): parsed numbers are
+typed Number; `asDouble`/`asInt64` read real values; array elements are Numbers;
+parsed numbers round-trip through `dump()`; `asString()` preserves big-integer
+text (`9007199254740993`). `ctest` 19/19.
 
-**Proof (zUnit-style probe against the real parser):**
+## 5. Finding D3 — `risk/latest.proposal_reason` conditional — **FIXED (DEC-023)**
 
-```
-$ g++ -std=c++17 -I src /tmp/jsontest.cpp src/foundation/Json.cpp -o /tmp/jsontest && /tmp/jsontest
-open isNumber=0 isString=1 asDouble=-1
-time asInt64=-1
-```
+`src/api/BackendFacade.cpp`: the proposal-present branch now also emits
+`proposal_reason` (`risk.reason`; the no-proposal branch already emits the explicit
+string). `data_required` now holds unconditionally; additive only.
 
-**Consequence:** `PythonBridgeClient` reads every candle
-(`PythonBridgeClient.cpp:168-175`), every `timeframe`, `price`, and numeric field
-as **0** → `DataValidator` rejects all bars `NON_POSITIVE_PRICE` (a downstream
-symptom, not the root cause). This is latent only because all committed fixtures
-were generated from `mock_api.py`, and every writer (`dumpInto`) goes through
-`asString()` — so the bug is invisible on the synthetic path and on all current
-tests. It surfaces the moment a real bridge payload is parsed.
+## 6. Evidential result (after D1+D3)
 
-**Suggested fix (foundation owner):** set the Number type when constructing from a
-numeric literal, e.g. a `JsonValue::number(std::string)` factory used by
-`parseNumber`. I applied this as a **temporary local patch only** to prove the
-chain; it is reverted — `src/` is byte-identical to `main`.
+`T13_REAL_DATA=1` → **95/96**. Real gold data flows through the real host: 9/9
+timeframes VALID+FRESH, M15 decision-grade, mode **SHADOW**, real context
+(`regime=QUIET`, `h4_bias=DOWN`, `m15_trigger=SHORT`), RULE C intact (probability
+null, `score_is_probability` false), and the frozen v1 contract holds on every
+route. The **one** remaining failure is D2 (`levels` non-null vs `FROZEN_NULL_LEVELS`)
+— Agent-B's T23 teeth change (DEC-022). Once B lands that, the race is 96/96.
 
-**Verified-after-fix (temporary patch, then reverted):** 8/9 timeframes VALID+FRESH
-(all but M1), host mode **SHADOW**, `analysis/latest` carries real context
-(`regime=QUIET`, `h4_bias=DOWN`, `m15_trigger=SHORT`, score 48.85), RULE C intact
-(probability null, `score_is_probability` false). Harness 94/96 — the 2 remaining
-failures are findings D2/D3 below, not ingestion.
-
-**M1/AEST clock:** the corpus's newest bar (10:30) runs ~2h20 ahead of wall clock;
-after uniform time-alignment all timeframes ingest. Without alignment the host
-honestly rejects the still-forming bars `FUTURE_DATED` (correct behavior).
-
-## 5. Finding D2 — T17 freeze vs real data: `analysis/latest.levels`
+## 7. Finding D2 — T17 freeze vs real data: `analysis/latest.levels` — OPEN (Agent-B)
 
 With real data the frozen `level` fields are populated (entry 4123.94, SL
 4134.081, TP 4107.038, RR 1.667, risk 0.342%) while `contract_checker` still
 enforces `FROZEN_NULL_LEVELS` → 5 "non-null (frozen null this release)"
 violations. The T17 freeze was written for the no-decision synthetic path; a
-realized proposal fills those fields. **Ruling needed (Lead/T17 owner):** relax the
-frozen-null invariant to "null unless a live proposal exists", or freeze
-`levels` differently. Not fixed without the ruling.
+realized proposal fills those fields. **Lead ruling DEC-022:** `levels` stays
+present-and-null by default (decision-less payload unchanged), but non-null is
+allowed when a proposal exists — `FROZEN_NULL_LEVELS` becomes two-sided, mirrored
+on the T30 array-element vacuous rule, with a positive proposal-present test.
+**Owner: Agent-B (T23 teeth).** Not Agent-C's file; not changed here.
 
-## 6. Finding D3 — contract drift: `risk/latest.proposal_reason`
+## 8. Contract drift D3 — `risk/latest.proposal_reason` — **FIXED**
 
-Schema `data_required` for `GET /api/v1/risk/latest` lists `proposal_reason`
-(T30 promotion), but the real host omits it when a proposal
-exists (`proposal_available:true` + populated `proposal`). The mock emits it only
-in the no-proposal posture. Open question: is `proposal_reason` required only when
-`proposal` is null, or always? If conditional, `data_required` needs a
-conditional/vacuous rule (mirroring the T30 array-element vacuous logic).
-Not fixed — schema is Lead-owned.
+(Resolved by DEC-023 under §5 above; the old conditional-required question is
+settled by emitting the field in both postures.)
 
-## 7. Reproduction
+## 9. Reproduction
 
 The harness is now self-contained: it stages the bridge tree (and, on the
 evidential path, the replay shim) into `build/resources/...` from the repo, so it
@@ -127,7 +114,7 @@ python3 tests/integration/test_e2e_real_host_t13.py        # 52/52
 T13_REAL_DATA=1 python3 tests/integration/test_e2e_real_host_t13.py
 ```
 
-## 8. Audit status (Agent-D, 2026-10-08 09:45 UTC)
+## 10. Audit status (Agent-D, 2026-10-08 09:45 UTC)
 
 `AUDIT_REPORTS/AUDIT-T13-evidential.md`:
 - **D1 CONFIRMED**, independently reproduced at source/probe level; "honest and its
@@ -141,9 +128,10 @@ T13_REAL_DATA=1 python3 tests/integration/test_e2e_real_host_t13.py
   the self-contained staging above resolves that so the real ingest number can be
   re-audited once D1 is fixed.
 
-## 9. Limits / honesty
+## 11. Limits / honesty
 
-- Result is **not** a PASS. It is a real-data pipeline that reproduces a blocker.
+- Result is **95/96**, not yet a full PASS: the one open failure is D2 (Agent-B).
+  No faked PASS; the failing check is the finding.
 - Corpus window is 3.5 months; no OOS partition is claimed here (that is T27's
   concern). No tuning performed.
 - The feed's time-alignment is a uniform translation used only to present the

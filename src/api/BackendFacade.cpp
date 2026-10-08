@@ -311,6 +311,7 @@ ApiResponse BackendFacade::latestRisk() const {
         proposal.push_back({"valid", jsonBool(risk.valid), true});
         fields.push_back({"proposal_available", jsonBool(true), true});
         fields.push_back({"proposal", jsonObject(proposal), true});
+        fields.push_back({"proposal_reason", risk.reason});
     } else {
         // No decision has been evaluated in this process: the proposal is
         // explicitly unavailable, never fabricated.

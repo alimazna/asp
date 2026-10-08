@@ -26,6 +26,14 @@ public:
 
     static JsonValue array() { JsonValue v; v.type_ = Type::Array; return v; }
     static JsonValue object() { JsonValue v; v.type_ = Type::Object; return v; }
+    // Numeric factory: keeps the literal as text (integer precision) but types it
+    // Number, so asDouble/asInt64 read it. Used by the parser.
+    static JsonValue number(std::string text) {
+        JsonValue v;
+        v.type_ = Type::Number;
+        v.number_ = std::move(text);
+        return v;
+    }
 
     Type type() const noexcept { return type_; }
     bool isNull() const noexcept { return type_ == Type::Null; }
@@ -40,7 +48,11 @@ public:
     }
     double asDouble(double fallback = 0.0) const noexcept;
     std::int64_t asInt64(std::int64_t fallback = 0) const noexcept;
-    const std::string& asString() const noexcept { return string_; }
+    // For a Number this returns its text form (used by dump() to re-emit it
+    // unchanged, preserving integer precision).
+    const std::string& asString() const noexcept {
+        return type_ == Type::Number ? number_ : string_;
+    }
 
     // Array access.
     const std::vector<JsonValue>& items() const noexcept { return array_; }
