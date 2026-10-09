@@ -752,3 +752,18 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
   until the backend risk module ships
 - Governance / Intelligence pages — coming-soon via the shared
   ComingSoonPage until their backend modules ship
+
+## Light Theme Fix
+
+- Root cause: hardcoded dark colors in DashboardPage paintEvent and
+  CandleChart background, plus unpaletted inline stylesheets across pages
+  and widgets (HistoryPage, HealthPage, SettingsPage, ComingSoonPage,
+  ChartPage, ConfirmExitDialog, SignalCard, MtfMeter, FreshnessBar,
+  RegimeChip, LevelsCard, SvgIcon).
+- Fix: replaced hardcoded hex with palette() lookups and re-applied styles on
+  QEvent::PaletteChange; ThemeManager sets the app QPalette per theme so
+  palette() reflects the active theme.
+- Verified: dashboard_light.png top colors are light (#F5F7FA / #FFFFFF);
+  dark surfaces (#0A1628 etc.) drop to text-only pixels. All page light
+  screenshots regenerated and checked.
+- Commit: 3e85ec8
