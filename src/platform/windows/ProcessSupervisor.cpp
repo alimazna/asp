@@ -12,6 +12,11 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <process.h>
+// windows.h transitively defines ERROR as a macro (wingdi.h), which collides
+// with the ServiceState::ERROR enumerator used in this file.
+#ifdef ERROR
+#undef ERROR
+#endif
 #else
 #include <csignal>
 #include <cerrno>
