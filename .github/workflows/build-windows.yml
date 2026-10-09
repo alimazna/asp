@@ -15,25 +15,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Qt 6.5
+      - name: Install Qt 6.8
+        # Qt 6.5.x headers (qvarlengtharray.h) use 'stdext', which fails on the
+        # runner's newer MSVC. Qt 6.8 is built with MSVC 2022 and is compatible.
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.3'
-          aqtversion: '==3.3.0'
-          py7zrversion: '==0.20.2'
-          modules: 'qtbase qtsvg'
-          arch: 'win64_msvc'
+          version: '6.8.3'
+          arch: 'win64_msvc2022_64'
           dir: ${{ runner.temp }}\Qt
           cache: 'true'
 
       - name: Configure CMake
-        run: |
-          cmake -B build ^
-            -G "Visual Studio 17 2022" ^
-            -A x64 ^
-            -DCMAKE_PREFIX_PATH="${{ runner.temp }}\Qt\x64\6.5.3\msvc2019_64" ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DBUILD_ASTRA_DESKTOP=ON
+        # Single line: the runner shell is PowerShell, so cmd's '^' continuation
+        # is not valid. Let CMake pick the installed Visual Studio generator.
+        run: cmake -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DBUILD_ASTRA_DESKTOP=ON
         working-directory: frontend/qt
 
       - name: Build Release
@@ -48,8 +43,9 @@ jobs:
             Get-ChildItem -Path build -Recurse -Include "*.exe"
             exit 1
           }
-          & "${{ runner.temp }}\Qt\x64\6.5.3\msvc2019_64\bin\windeployqt.exe" --release --no-compiler-runtime --no-svg --no-webengine $exe
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-compiler-runtime $exe
           Write-Host "windeployqt completed for $exe"
+        working-directory: frontend/qt
 
       - name: Package deployment folder
         run: |

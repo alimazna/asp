@@ -80,6 +80,7 @@ struct HealthData {
     QString bridge;          // "ok" | "stale" | "offline"
     QString version;         // "v1"
     std::optional<int> uptimeSec;
+    std::optional<QString> coverageTier;  // absent when the route does not report it
 };
 
 struct HealthResponse {

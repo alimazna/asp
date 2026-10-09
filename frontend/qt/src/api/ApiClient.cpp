@@ -3,6 +3,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QJsonArray>
 #include <QDebug>
 
 namespace astra {
@@ -294,6 +295,10 @@ HealthData ApiClient::parseHealthData(const QJsonObject& obj) {
     QJsonValue upVal = obj.value("uptime_sec");
     if (!isNullOrMissing(upVal) && upVal.isDouble()) {
         d.uptimeSec = upVal.toInt();
+    }
+    QJsonValue tierVal = obj.value("coverage_tier");
+    if (!isNullOrMissing(tierVal)) {
+        d.coverageTier = tierVal.toString();
     }
     return d;
 }

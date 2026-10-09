@@ -220,3 +220,4 @@ lease (per `README.md` §F).
 | 2026-10-08 11:28   | Agent-D  | T29 addendum: independent T27 re-audit; F-T27-1 corpus 63% INCOMPLETE. |
 | 2026-10-08 11:48   | Agent-B  | F-T27-1 valid-only correction filed (ECE 0.107 -> report_and_pivot). |
 | 2026-10-08 12:15   | Solo     | Phase 6.0 consolidation: FINAL_REPORT 4b disclosure; T29 -> DONE; bundle manifest declares mt5_csv_feed.py (18/18); realdata valid_filter + counts (+3 tests). |
+| 2026-10-08 21:36   | Solo     | Windows build workflow GREEN: run 37847973876, artifact ASTRA-windows (23.4MB). Fixed 4 CI-config + 13 latent Qt6 build defects; local + CI verified. Report: coordination/solo/windows_build_report.md |

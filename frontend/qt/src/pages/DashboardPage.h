@@ -4,6 +4,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QTimer>
 #include <QFrame>
 #include <QTableWidget>
 #include <QStackedWidget>
