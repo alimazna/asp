@@ -2,6 +2,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QEvent>
 
 namespace astra {
 
@@ -18,6 +19,9 @@ public:
 
     void setRegime(const QString& regime);
     QString currentRegime() const { return mRegime; }
+
+protected:
+    void changeEvent(QEvent* event) override;
 
 private:
     void updateStyle();

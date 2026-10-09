@@ -4,6 +4,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QEvent>
 
 namespace astra {
 
@@ -20,7 +21,12 @@ class ConfirmExitDialog : public QDialog {
 public:
     explicit ConfirmExitDialog(QWidget* parent = nullptr);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void restyle();
+
     QLabel* mIconLabel = nullptr;
     QLabel* mTitleLabel = nullptr;
     QLabel* mBodyLabel = nullptr;

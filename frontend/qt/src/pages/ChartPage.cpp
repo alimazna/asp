@@ -3,6 +3,7 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QApplication>
+#include <QPalette>
 
 namespace astra {
 
@@ -11,6 +12,22 @@ ChartPage::ChartPage(QWidget* parent)
     , mCurrentTf("M15")
 {
     setupLayout();
+    restyle();
+}
+
+void ChartPage::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        restyle();
+    }
+    QWidget::changeEvent(event);
+}
+
+void ChartPage::restyle() {
+    if (mChartTitle) {
+        mChartTitle->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 16px; font-weight: 600; }")
+                .arg(palette().color(QPalette::Text).name()));
+    }
 }
 
 void ChartPage::setApiClient(ApiClient* client) {
@@ -34,13 +51,6 @@ void ChartPage::setupLayout() {
     // Title
     mChartTitle = new QLabel(mTopRow);
     mChartTitle->setText("CHART");
-    mChartTitle->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-size: 16px; "
-        "font-weight: 600; "
-        "}"
-    );
     topLayout->addWidget(mChartTitle);
 
     // Spacer

@@ -1,6 +1,7 @@
 #pragma once
 #include <QWidget>
 #include <QLabel>
+#include <QEvent>
 
 namespace astra {
 
@@ -18,9 +19,15 @@ public:
 
     void setModuleName(const QString& name);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void restyle();
+
     QLabel* mTitle = nullptr;
     QLabel* mBody = nullptr;
+    QLabel* mBadge = nullptr;
 };
 
 }  // namespace astra

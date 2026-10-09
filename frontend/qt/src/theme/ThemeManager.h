@@ -39,6 +39,7 @@ signals:
 private:
     QString defaultDarkQss() const;
     QString defaultLightQss() const;
+    void applyPalette();
 
     Theme mCurrentTheme = Theme::Dark;
     QString mCurrentQss;

@@ -8,7 +8,14 @@ TimeframeSwitcher::TimeframeSwitcher(QWidget* parent)
 {
     setFixedHeight(44);
     setupButtons();
-    updateActiveButton();
+    updateButtonStyles();
+}
+
+void TimeframeSwitcher::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        updateButtonStyles();
+    }
+    QWidget::changeEvent(event);
 }
 
 void TimeframeSwitcher::setupButtons() {
@@ -20,30 +27,12 @@ void TimeframeSwitcher::setupButtons() {
         QPushButton* btn = new QPushButton(this);
         btn->setText(TIMEFRAMES[i]);
         btn->setFixedSize(44, 32);
-        btn->setStyleSheet(
-            "QPushButton { "
-            "background: transparent; "
-            "border: 1px solid #162A44; "
-            "color: #8FA3BF; "
-            "border-radius: 6px; "
-            "font-size: 12px; "
-            "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-            "font-weight: 500; "
-            "}"
-            "QPushButton:hover { "
-            "background: #162A44; "
-            "color: #E8EEF5; "
-            "}"
-            "QPushButton:pressed { "
-            "background: #24384F; "
-            "}"
-        );
         layout->addWidget(btn);
         mButtons.append(btn);
 
         connect(btn, &QPushButton::clicked, this, [this, i]() {
             mCurrentTf = TIMEFRAMES[i];
-            updateActiveButton();
+            updateButtonStyles();
             emit timeframeChanged(mCurrentTf);
         });
     }
@@ -54,7 +43,7 @@ void TimeframeSwitcher::setTimeframe(const QString& tf) {
     for (int i = 0; i < 9; ++i) {
         if (TIMEFRAMES[i] == tf) {
             mCurrentTf = tf;
-            updateActiveButton();
+            updateButtonStyles();
             return;
         }
     }
@@ -65,39 +54,34 @@ void TimeframeSwitcher::resetToDefault() {
 }
 
 void TimeframeSwitcher::updateActiveButton() {
+    updateButtonStyles();
+}
+
+void TimeframeSwitcher::updateButtonStyles() {
+    const QPalette pal = palette();
+    const QString border = pal.color(QPalette::Mid).name();
+    const QString text = pal.color(QPalette::WindowText).name();
+    const QString textActive = pal.color(QPalette::Text).name();
+    const QString accent = pal.color(QPalette::Highlight).name();
+    const QString inset = pal.color(QPalette::AlternateBase).name();
+
     for (int i = 0; i < mButtons.size(); ++i) {
         QPushButton* btn = mButtons[i];
-        if (TIMEFRAMES[i] == mCurrentTf) {
+        const bool active = (TIMEFRAMES[i] == mCurrentTf);
+        if (active) {
             btn->setStyleSheet(
-                "QPushButton { "
-                "background: #4A90D9; "
-                "border: 1px solid #4A90D9; "
-                "color: white; "
-                "border-radius: 6px; "
-                "font-size: 12px; "
-                "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-                "font-weight: 500; "
-                "}"
-                "QPushButton:hover { "
-                "background: #5AA0E9; "
-                "}"
-            );
+                QString("QPushButton { background: %1; border: 1px solid %1; color: white; "
+                        "border-radius: 6px; font-size: 12px; "
+                        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
+                        "font-weight: 500; }").arg(accent));
         } else {
             btn->setStyleSheet(
-                "QPushButton { "
-                "background: transparent; "
-                "border: 1px solid #162A44; "
-                "color: #8FA3BF; "
-                "border-radius: 6px; "
-                "font-size: 12px; "
-                "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-                "font-weight: 500; "
-                "}"
-                "QPushButton:hover { "
-                "background: #162A44; "
-                "color: #E8EEF5; "
-                "}"
-            );
+                QString("QPushButton { background: transparent; border: 1px solid %1; "
+                        "color: %2; border-radius: 6px; font-size: 12px; "
+                        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
+                        "font-weight: 500; }"
+                        "QPushButton:hover { background: %3; color: %4; }")
+                    .arg(border, text, inset, textActive));
         }
     }
 }

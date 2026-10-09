@@ -1,4 +1,5 @@
 #include "RegimeChip.h"
+#include <QPalette>
 
 namespace astra {
 
@@ -7,15 +8,6 @@ RegimeChip::RegimeChip(QWidget* parent)
 {
     setFixedHeight(24);
     mLabel = new QLabel(this);
-    mLabel->setStyleSheet(
-        "QLabel { "
-        "color: #4A90D9; "
-        "font-size: 12px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.05em; "
-        "text-transform: uppercase; "
-        "}"
-    );
     mLabel->setAlignment(Qt::AlignCenter);
 
     QHBoxLayout* layout = new QHBoxLayout(this);
@@ -26,6 +18,13 @@ RegimeChip::RegimeChip(QWidget* parent)
     // Default: RANGE style
     mRegime = "RANGE";
     updateStyle();
+}
+
+void RegimeChip::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        updateStyle();
+    }
+    QWidget::changeEvent(event);
 }
 
 void RegimeChip::setRegime(const QString& regime) {
@@ -58,9 +57,9 @@ void RegimeChip::updateStyle() {
         bgColor = "rgba(184, 196, 212, 0.15)";
         textColor = "#B8C4D4";
     } else {
-        // UNKNOWN or fallback
-        bgColor = "rgba(90, 107, 128, 0.15)";
-        textColor = "#5A6B80";
+        // UNKNOWN or fallback — follow the active theme's text color
+        bgColor = "rgba(128, 128, 128, 0.15)";
+        textColor = palette().color(QPalette::PlaceholderText).name();
     }
 
     setStyleSheet(

@@ -8,6 +8,7 @@
 #include <QFrame>
 #include <QComboBox>
 #include <QPushButton>
+#include <QEvent>
 #include "api/ApiClient.h"
 
 namespace astra {
@@ -41,19 +42,32 @@ public:
     // Feed rows from ApiClient::historyReceived (AnalysisData -> HistoryEntry)
     void updateFromHistory(const QVector<AnalysisData>& items);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setupLayout();
+    void restyle();
     void populateTable(const QVector<HistoryEntry>& entries);
     void updateSummary(const QVector<HistoryEntry>& entries);
 
     QTableWidget* mTable = nullptr;
     QComboBox* mFilterCombo = nullptr;
     QPushButton* mRefreshBtn = nullptr;
+    QLabel* mTitleLabel = nullptr;
 
     // Summary cards
     QFrame* mSummaryCard1 = nullptr;  // Win Rate
     QFrame* mSummaryCard2 = nullptr;  // Total R
     QFrame* mSummaryCard3 = nullptr;  // PF
+    QLabel* mSummaryCaption1 = nullptr;
+    QLabel* mSummaryCaption2 = nullptr;
+    QLabel* mSummaryCaption3 = nullptr;
+    QLabel* mSummaryValue1 = nullptr;
+    QLabel* mSummaryValue2 = nullptr;
+    QLabel* mSummaryValue3 = nullptr;
+
+    QVector<HistoryEntry> mEntries;
 
     ApiClient* mApiClient = nullptr;
 };

@@ -1,6 +1,8 @@
 #pragma once
 #include "api/ApiTypes.h"
 #include <QWidget>
+#include <QColor>
+#include <QPalette>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -41,12 +43,33 @@ public:
     void updateFromHistory(const QVector<AnalysisData>& items);
     void setOnline(bool online);
 
+protected:
+    void changeEvent(QEvent* e) override;
+
 private:
     void setupLayout();
     QFrame* makeCard(QWidget* parent, const QString& title);
     QLabel* makeCardValue(QWidget* parent);
     QLabel* makeCardSub(QWidget* parent);
     void setCardValue(QLabel* label, const QString& text, const QString& color);
+
+    // Re-applies every inline stylesheet from the current application palette.
+    // Called on StyleChange/PaletteChange so widgets follow a theme switch that
+    // happened after construction.
+    void restyle();
+
+    // Theme-aware colors, driven by the application palette (set by
+    // ThemeManager per theme). Replaces the old hardcoded dark hex values.
+    QColor primaryText() const;
+    QColor secondaryText() const;
+    QColor mutedText() const;
+    QColor surfaceColor() const;
+    QColor borderColor() const;
+
+    // Inline-styled widgets carry an "astraStyle" property naming the style
+    // kind, so restyle() can regenerate their stylesheets after a theme change.
+    void applyTabStyle(QPushButton* tab);
+    void applyActionStyle(QPushButton* b);
 
     ApiClient* mApiClient = nullptr;
 

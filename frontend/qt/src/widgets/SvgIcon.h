@@ -33,7 +33,9 @@ protected:
 private:
     QString mPath;
     int mSize = 16;
-    QColor mColor = QColor("#8FA3BF");
+    // Invalid by default: paintEvent falls back to the theme's window-text
+    // color so icons track light/dark without an explicit setColor().
+    QColor mColor;
 #ifdef ASTRA_HAVE_QTSVG
     QSvgRenderer* mRenderer = nullptr;
 #endif

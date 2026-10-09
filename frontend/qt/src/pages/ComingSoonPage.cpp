@@ -1,6 +1,7 @@
 #include "ComingSoonPage.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QPalette>
 
 namespace astra {
 
@@ -22,50 +23,50 @@ ComingSoonPage::ComingSoonPage(QWidget* parent)
     mTitle = new QLabel(this);
     mTitle->setObjectName("comingSoonTitle");
     mTitle->setAlignment(Qt::AlignHCenter);
-    mTitle->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-size: 22px; "
-        "font-weight: 600; "
-        "letter-spacing: 1px; "
-        "}"
-    );
     center->addWidget(mTitle);
 
-    QLabel* badge = new QLabel(this);
-    badge->setText("COMING SOON");
-    badge->setAlignment(Qt::AlignHCenter);
-    badge->setStyleSheet(
-        "QLabel { "
-        "color: #4A90D9; "
-        "font-size: 11px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.08em; "
-        "border: 1px solid #162A44; "
-        "border-radius: 8px; "
-        "padding: 4px 12px; "
-        "background: #0F1F35; "
-        "}"
-    );
-    badge->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
-    center->addWidget(badge, 0, Qt::AlignHCenter);
+    mBadge = new QLabel(this);
+    mBadge->setText("COMING SOON");
+    mBadge->setAlignment(Qt::AlignHCenter);
+    mBadge->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    center->addWidget(mBadge, 0, Qt::AlignHCenter);
 
     mBody = new QLabel(this);
     mBody->setObjectName("comingSoonBody");
     mBody->setText("Enabled when the backend module ships.");
     mBody->setAlignment(Qt::AlignHCenter);
-    mBody->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 14px; "
-        "}"
-    );
     center->addWidget(mBody, 0, Qt::AlignHCenter);
 
     row->addLayout(center);
     row->addStretch();
     layout->addLayout(row);
     layout->addStretch();
+
+    restyle();
+}
+
+void ComingSoonPage::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        restyle();
+    }
+    QWidget::changeEvent(event);
+}
+
+void ComingSoonPage::restyle() {
+    const QPalette pal = palette();
+    const QString textPrimary = pal.color(QPalette::Text).name();
+    const QString textSecondary = pal.color(QPalette::WindowText).name();
+    const QString surface = pal.color(QPalette::Base).name();
+    const QString border = pal.color(QPalette::Mid).name();
+    const QString accent = pal.color(QPalette::Highlight).name();
+
+    mTitle->setStyleSheet(QString("QLabel { color: %1; font-size: 22px; font-weight: 600; "
+                                  "letter-spacing: 1px; }").arg(textPrimary));
+    mBadge->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; font-weight: 500; "
+                                  "letter-spacing: 0.08em; border: 1px solid %2; "
+                                  "border-radius: 8px; padding: 4px 12px; background: %3; }")
+                              .arg(accent, border, surface));
+    mBody->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; }").arg(textSecondary));
 }
 
 void ComingSoonPage::setModuleName(const QString& name) {

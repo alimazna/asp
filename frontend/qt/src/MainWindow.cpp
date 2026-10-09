@@ -60,6 +60,8 @@ MainWindow::MainWindow(QWidget* parent)
     setupTopBar();
     setupBottomBar();
     setupContentArea();
+    mChromeReady = true;
+    restyleChrome();
 
     // Fullscreen hint
     connect(&mFullscreenHintTimer, &QTimer::timeout, this, &MainWindow::hideFullscreenHint);
@@ -153,33 +155,18 @@ void MainWindow::setupSidebar() {
     mLogoLabel = new QLabel(logoArea);
     mLogoLabel->setText("ASTRA");
     mLogoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    mLogoLabel->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; "
-        "font-size: 18px; "
-        "font-weight: 600; "
-        "letter-spacing: 4px; "
-        "}"
-    );
     logoLayout->addWidget(mLogoLabel);
 
     QLabel* subtitle = new QLabel(logoArea);
     subtitle->setText("XAUUSD Intelligence");
+    subtitle->setObjectName("astraSubtitle");
     subtitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    subtitle->setStyleSheet(
-        "QLabel { "
-        "color: #5A6B80; "
-        "font-size: 10px; "
-        "letter-spacing: 0.08em; "
-        "}"
-    );
     logoLayout->addWidget(subtitle);
 
     // Divider below lockup
     QFrame* divider = new QFrame(mSidebar);
+    divider->setObjectName("astraDivider");
     divider->setFixedHeight(1);
-    divider->setStyleSheet("QFrame { background: #162A44; }");
 
     // ── Groups ──
     QWidget* navArea = new QWidget(mSidebar);
@@ -190,15 +177,7 @@ void MainWindow::setupSidebar() {
     for (const NavGroup& group : mNavGroups) {
         QLabel* groupLabel = new QLabel(navArea);
         groupLabel->setText(group.title.toUpper());
-        groupLabel->setStyleSheet(
-            "QLabel { "
-            "color: #5A6B80; "
-            "font-size: 10px; "
-            "font-weight: 500; "
-            "letter-spacing: 0.08em; "
-            "padding: 12px 8px 4px 8px; "
-            "}"
-        );
+        groupLabel->setObjectName("astraGroupLabel");
         navLayout->addWidget(groupLabel);
 
         for (const NavEntry& entry : group.entries) {
@@ -250,13 +229,6 @@ void MainWindow::setupTopBar() {
     mPageTitle = new QLabel(mTopBar);
     mPageTitle->setObjectName("pageTitle");  // stable handle for tests
     mPageTitle->setText("Dashboard");
-    mPageTitle->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-size: 18px; "
-        "font-weight: 600; "
-        "}"
-    );
     topLayout->addWidget(mPageTitle);
 
     QSpacerItem* titleSpacer = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -281,68 +253,42 @@ void MainWindow::setupTopBar() {
 
     // 🔒 SHADOW ONLY
     QLabel* shadowChip = new QLabel(mTopBar);
+    shadowChip->setObjectName("astraShadowChip");
     shadowChip->setText(QStringLiteral("\U0001F512 SHADOW ONLY"));
-    shadowChip->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 11px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.05em; "
-        "border: 1px solid #162A44; "
-        "border-radius: 8px; "
-        "padding: 5px 10px; "
-        "background: #0F1F35; "
-        "}"
-    );
     topLayout->addWidget(shadowChip);
 
     // Renderer
     QLabel* rendererLabel = new QLabel(mTopBar);
+    rendererLabel->setObjectName("astraRendererLabel");
     rendererLabel->setText("Renderer: Qt6/QPainter");
-    rendererLabel->setStyleSheet("QLabel { color: #5A6B80; font-size: 11px; }");
     topLayout->addWidget(rendererLabel);
 
     // Clock — HH:MM:SS UTC (updates every second)
     mClockLabel = new QLabel(mTopBar);
-    mClockLabel->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-        "}"
-    );
+    mClockLabel->setObjectName("astraClockLabel");
     topLayout->addWidget(mClockLabel);
 
     // Theme toggle
     mThemeBtn = new QPushButton(mTopBar);
+    mThemeBtn->setObjectName("astraThemeBtn");
     mThemeBtn->setFixedSize(32, 32);
     mThemeBtn->setToolTip("Toggle theme (Ctrl+T)");
-    mThemeBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; padding: 4px; }"
-        "QPushButton:hover { background: #162A44; }"
-    );
     mThemeBtn->setText(QStringLiteral("\u263D"));  // moon initially
     connect(mThemeBtn, &QPushButton::clicked, this, &MainWindow::onThemeToggled);
 
     // Fullscreen toggle
     mFullscreenBtn = new QPushButton(mTopBar);
+    mFullscreenBtn->setObjectName("astraFullscreenBtn");
     mFullscreenBtn->setFixedSize(32, 32);
     mFullscreenBtn->setToolTip("Toggle fullscreen (F11)");
-    mFullscreenBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; padding: 4px; }"
-        "QPushButton:hover { background: #162A44; }"
-    );
     mFullscreenBtn->setText(QStringLiteral("\u26F6"));
     connect(mFullscreenBtn, &QPushButton::clicked, this, &MainWindow::onFullscreenToggled);
 
     // Close (X)
     mCloseBtn = new QPushButton(mTopBar);
+    mCloseBtn->setObjectName("astraCloseBtn");
     mCloseBtn->setFixedSize(32, 32);
     mCloseBtn->setToolTip("Close");
-    mCloseBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; padding: 4px; }"
-        "QPushButton:hover { background: #D95A5A; color: white; }"
-    );
     mCloseBtn->setText("X");
     connect(mCloseBtn, &QPushButton::clicked, this, &MainWindow::onCloseClicked);
 
@@ -352,8 +298,8 @@ void MainWindow::setupTopBar() {
 
     // Bottom border line — stretches with the bar
     QFrame* bottomLine = new QFrame(mTopBar);
+    bottomLine->setObjectName("astraTopBorder");
     bottomLine->setFixedHeight(1);
-    bottomLine->setStyleSheet("QFrame { background: #162A44; }");
     topBarInner->addWidget(bottomLine);
 }
 
@@ -367,8 +313,8 @@ void MainWindow::setupBottomBar() {
     bbInner->setSpacing(0);
 
     QFrame* topLine = new QFrame(mBottomBar);
+    topLine->setObjectName("astraBottomBorder");
     topLine->setFixedHeight(1);
-    topLine->setStyleSheet("QFrame { background: #162A44; }");
     bbInner->addWidget(topLine);
 
     QHBoxLayout* bottomLayout = new QHBoxLayout();
@@ -387,16 +333,10 @@ void MainWindow::setupBottomBar() {
     mFreshnessStatus->setObjectName("persistenceLabel");
     recovery->setObjectName("recoveryLabel");
 
-    const QString baseStyle =
-        "QLabel { color: #8FA3BF; font-size: 11px; letter-spacing: 0.03em; }";
     mBackendStatus->setText(QStringLiteral("\u25CF Runtime: \u2014"));
-    mBackendStatus->setStyleSheet(baseStyle);
     mBridgeStatus->setText(QStringLiteral("\u25CF Streams: \u2014"));
-    mBridgeStatus->setStyleSheet(baseStyle);
     mFreshnessStatus->setText(QStringLiteral("\u25CF Persistence: \u2014"));
-    mFreshnessStatus->setStyleSheet(baseStyle);
     recovery->setText(QStringLiteral("\u25CF Recovery: \u2014"));
-    recovery->setStyleSheet(baseStyle);
 
     bottomLayout->addWidget(mBackendStatus);
     bottomLayout->addWidget(mBridgeStatus);
@@ -408,16 +348,13 @@ void MainWindow::setupBottomBar() {
 
     // Right: ● SHADOW ONLY | System Health
     QLabel* shadow = new QLabel(mBottomBar);
+    shadow->setObjectName("astraShadowLabel");
     shadow->setText(QStringLiteral("\u25CF SHADOW ONLY"));
-    shadow->setStyleSheet(
-        "QLabel { color: #8FA3BF; font-size: 11px; letter-spacing: 0.03em; }"
-    );
     bottomLayout->addWidget(shadow);
 
     mDisclaimer = new QLabel(mBottomBar);
     mDisclaimer->setObjectName("systemHealthLabel");
     mDisclaimer->setText("System Health: \u2014");
-    mDisclaimer->setStyleSheet("QLabel { color: #5A6B80; font-size: 11px; }");
     bottomLayout->addWidget(mDisclaimer);
 
     updateBottomBarStatus();
@@ -607,6 +544,7 @@ void MainWindow::onOnline() {
 }
 
 void MainWindow::updateLivenessIndicator() {
+    if (!mHealthLabel || !mHealthDot) return;
     QString state;
     QString color;
 
@@ -636,12 +574,13 @@ void MainWindow::updateLivenessIndicator() {
 }
 
 void MainWindow::updateBottomBarStatus() {
+    if (!mBackendStatus || !mBridgeStatus || !mFreshnessStatus || !mDisclaimer) return;
     const QString em = QStringLiteral("\u2014");
     const QString red = "#D95A5A";
     const QString amber = "#D9A14A";
     const QString green = "#4CAF7A";
-    const QString grey = "#8FA3BF";
-    const QString dim = "#5A6B80";
+    const QString grey = palette().color(QPalette::WindowText).name();
+    const QString dim = palette().color(QPalette::PlaceholderText).name();
 
     auto styleFor = [](const QString& color) {
         return QString("QLabel { color: %1; font-size: 11px; letter-spacing: 0.03em; }").arg(color);
@@ -724,14 +663,109 @@ void MainWindow::updateClock() {
     mClockLabel->setText(now);
 }
 
+void MainWindow::initStyleChrome() {
+    restyleChrome();
+}
+
+void MainWindow::restyleChrome() {
+    const QPalette pal = qApp->palette();
+    const QString textPrimary = pal.color(QPalette::Text).name();
+    const QString textSecondary = pal.color(QPalette::WindowText).name();
+    const QString textMuted = pal.color(QPalette::PlaceholderText).name();
+    const QString surface = pal.color(QPalette::Base).name();
+    const QString surface2 = pal.color(QPalette::AlternateBase).name();
+    const QString border = pal.color(QPalette::Mid).name();
+
+    // Sidebar
+    if (mLogoLabel) {
+        mLogoLabel->setStyleSheet(
+            QString("QLabel { color: %1; font-family: 'Inter', 'Segoe UI', system-ui, "
+                    "sans-serif; font-size: 18px; font-weight: 600; letter-spacing: 4px; }")
+                .arg(textPrimary));
+    }
+    const QList<QLabel*> subtitles = findChildren<QLabel*>("astraSubtitle");
+    for (QLabel* l : subtitles) {
+        l->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; "
+                                 "letter-spacing: 0.08em; }").arg(textMuted));
+    }
+    const QList<QLabel*> groupLabels = findChildren<QLabel*>("astraGroupLabel");
+    for (QLabel* l : groupLabels) {
+        l->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; font-weight: 500; "
+                                 "letter-spacing: 0.08em; padding: 12px 8px 4px 8px; }")
+                             .arg(textMuted));
+    }
+    const QList<QFrame*> dividers = findChildren<QFrame*>("astraDivider");
+    for (QFrame* f : dividers) f->setStyleSheet(QString("QFrame { background: %1; }").arg(border));
+
+    // Top bar
+    if (mPageTitle) {
+        mPageTitle->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 18px; font-weight: 600; }")
+                .arg(textPrimary));
+    }
+    const QList<QLabel*> shadowChips = findChildren<QLabel*>("astraShadowChip");
+    for (QLabel* l : shadowChips) {
+        l->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 11px; font-weight: 500; "
+                    "letter-spacing: 0.05em; border: 1px solid %2; border-radius: 8px; "
+                    "padding: 5px 10px; background: %3; }")
+                .arg(textSecondary, border, surface));
+    }
+    const QList<QLabel*> rendererLabels = findChildren<QLabel*>("astraRendererLabel");
+    for (QLabel* l : rendererLabels) {
+        l->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(textMuted));
+    }
+    const QList<QLabel*> clockLabels = findChildren<QLabel*>("astraClockLabel");
+    for (QLabel* l : clockLabels) {
+        l->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 12px; "
+                    "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                .arg(textSecondary));
+    }
+    for (QPushButton* b : {mThemeBtn, mFullscreenBtn}) {
+        if (b) {
+            b->setStyleSheet(
+                QString("QPushButton { background: transparent; border: none; padding: 4px; }"
+                        "QPushButton:hover { background: %1; }").arg(surface2));
+        }
+    }
+    if (mCloseBtn) {
+        mCloseBtn->setStyleSheet(
+            "QPushButton { background: transparent; border: none; padding: 4px; }"
+            "QPushButton:hover { background: #D95A5A; color: white; }");
+    }
+    const QList<QFrame*> topBorders = findChildren<QFrame*>("astraTopBorder");
+    for (QFrame* f : topBorders) f->setStyleSheet(QString("QFrame { background: %1; }").arg(border));
+
+    // Bottom bar
+    const QList<QFrame*> bottomBorders = findChildren<QFrame*>("astraBottomBorder");
+    for (QFrame* f : bottomBorders) f->setStyleSheet(QString("QFrame { background: %1; }").arg(border));
+
+    // Base color for the status labels; the semantic state colors are re-applied
+    // by updateBottomBarStatus() below.
+    const QString baseStyle =
+        QString("QLabel { color: %1; font-size: 11px; letter-spacing: 0.03em; }")
+            .arg(textSecondary);
+    for (QLabel* l : {mBackendStatus, mBridgeStatus, mFreshnessStatus}) {
+        if (l) l->setStyleSheet(baseStyle);
+    }
+    const QList<QLabel*> shadowLabels = findChildren<QLabel*>("astraShadowLabel");
+    for (QLabel* l : shadowLabels) l->setStyleSheet(baseStyle);
+
+    // Re-apply liveness + bottom-bar status, which layer semantic colors on top.
+    updateLivenessIndicator();
+    updateBottomBarStatus();
+}
+
 void MainWindow::applyTheme() {
     qApp->setProperty("astraDark", mThemeManager->isDark());
     qApp->setStyleSheet(mThemeManager->qssContent());
-    // Custom-painted widgets repaint with their theme-aware colors
+    restyleChrome();
+    // Custom-painted widgets repaint with their theme-aware colors.
     for (NavButton* btn : mNavButtons) {
-        btn->update();
+        btn->refreshThemeColors();
     }
-    if (mExitButton) mExitButton->update();
+    if (mExitButton) mExitButton->refreshThemeColors();
 }
 
 void MainWindow::toggleFullscreen(bool enter) {
@@ -758,6 +792,10 @@ void MainWindow::changeEvent(QEvent* event) {
             mFullscreenHintTimer.stop();
             mFullscreenHintVisible = false;
         }
+    } else if (event->type() == QEvent::PaletteChange) {
+        // ThemeManager swaps the application palette per theme; the shell's
+        // inline styles must be rebuilt to follow it.
+        if (mChromeReady) restyleChrome();
     }
     QMainWindow::changeEvent(event);
 }
@@ -769,14 +807,12 @@ void MainWindow::showFullscreenHint() {
 
     QLabel* hint = new QLabel(this);
     hint->setText("Press F11 to exit fullscreen");
+    const QPalette pal = qApp->palette();
     hint->setStyleSheet(
-        "QLabel { "
-        "background: rgba(15, 31, 53, 0.9); "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "padding: 6px 12px; "
-        "border-radius: 6px; "
-        "}"
+        QString("QLabel { background: %1; color: %2; font-size: 12px; "
+                "padding: 6px 12px; border-radius: 6px; }")
+            .arg(pal.color(QPalette::AlternateBase).name(),
+                 pal.color(QPalette::WindowText).name())
     );
     hint->setAttribute(Qt::WA_TransparentForMouseEvents);
     hint->move(width() - 280, 12);

@@ -42,6 +42,9 @@ public:
 
     void setApiClient(ApiClient* client);
     void showExitConfirmation();
+    // Applies the shell's inline styles from the current palette. Call once the
+    // window is shown (after setStyleSheet propagation has settled).
+    void initStyleChrome();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -70,6 +73,9 @@ private:
     void updateBottomBarStatus();
     void updateClock();
     void applyTheme();
+    // Re-applies the shell's inline styles from the current application
+    // palette, so the sidebar/top bar/bottom bar follow a theme switch.
+    void restyleChrome();
     void toggleFullscreen(bool enter);
     void showFullscreenHint();
     void hideFullscreenHint();
@@ -121,6 +127,10 @@ private:
 
     // Theme
     ThemeManager* mThemeManager = nullptr;
+    // True once setupSidebar/TopBar/BottomBar have built the shell widgets;
+    // restyleChrome() must not run before then (PaletteChange fires during
+    // construction when the application palette is first applied).
+    bool mChromeReady = false;
     bool mIsFullscreen = false;
     QTimer mFullscreenHintTimer;
     bool mFullscreenHintVisible = false;

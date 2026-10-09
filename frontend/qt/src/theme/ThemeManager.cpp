@@ -3,6 +3,8 @@
 #include <QApplication>
 #include <QStyle>
 #include <QTimer>
+#include <QColor>
+#include <QPalette>
 
 namespace astra {
 
@@ -14,16 +16,48 @@ ThemeManager::ThemeManager(QObject* parent)
 }
 
 void ThemeManager::setTheme(Theme theme) {
-    if (mCurrentTheme == theme) return;
+    const bool changed = (mCurrentTheme != theme);
     mCurrentTheme = theme;
-    emit themeChanged(theme);
+    if (changed) emit themeChanged(theme);
+    // Always (re)apply so the application palette is set even on the first call
+    // for the default theme (where there is no "changed" transition).
     applyTheme();
 }
 
 void ThemeManager::applyTheme() {
     QString resourceName = isDark() ? ":/theme/theme-dark.qss" : ":/theme/theme-light.qss";
+    applyPalette();
     loadQssFromResource(resourceName);
     emit qssApplied(mCurrentQss);
+}
+
+// The QSS uses plain widget selectors (QWidget { background: ... }), which Qt
+// does NOT translate into QPalette roles. Custom-painted widgets and inline
+// stylesheets read palette(), so set the application palette explicitly — with
+// the same hex values as the active QSS — or they would stay dark on light.
+void ThemeManager::applyPalette() {
+    const bool dark = isDark();
+    QPalette p = qApp->palette();
+    if (dark) {
+        p.setColor(QPalette::Window,        QColor("#0A1628"));
+        p.setColor(QPalette::Base,          QColor("#0F1F35"));
+        p.setColor(QPalette::AlternateBase, QColor("#0D1930"));
+        p.setColor(QPalette::Text,          QColor("#E8EEF5"));
+        p.setColor(QPalette::WindowText,    QColor("#8FA3BF"));
+        p.setColor(QPalette::PlaceholderText, QColor("#5A6B80"));
+        p.setColor(QPalette::Mid,           QColor("#162A44"));
+        p.setColor(QPalette::Highlight,     QColor("#4A90D9"));
+    } else {
+        p.setColor(QPalette::Window,        QColor("#F5F7FA"));
+        p.setColor(QPalette::Base,          QColor("#FFFFFF"));
+        p.setColor(QPalette::AlternateBase, QColor("#EDF1F6"));
+        p.setColor(QPalette::Text,          QColor("#0A1628"));
+        p.setColor(QPalette::WindowText,    QColor("#5A6B80"));
+        p.setColor(QPalette::PlaceholderText, QColor("#8FA3BF"));
+        p.setColor(QPalette::Mid,           QColor("#E1E6ED"));
+        p.setColor(QPalette::Highlight,     QColor("#2E6BB8"));
+    }
+    qApp->setPalette(p);
 }
 
 void ThemeManager::loadQssFromResource(const QString& resourcePath) {

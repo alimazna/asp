@@ -5,6 +5,7 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QFrame>
+#include <QEvent>
 #include "api/ApiClient.h"
 
 namespace astra {
@@ -24,17 +25,32 @@ public:
     void setApiClient(ApiClient* client);
     void updateFromHealth(const HealthResponse& resp);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setupLayout();
+    void restyle();
     void updateSystemStatus(const HealthResponse& resp);
 
     QFrame* mSystemCard = nullptr;
     QFrame* mTimeframesCard = nullptr;
     QGridLayout* mTimeframeGrid = nullptr;
 
+    QLabel* mSysTitle = nullptr;
+    QLabel* mTfTitle = nullptr;
+    QVector<QLabel*> mRowCaptions;
+    QVector<QFrame*> mDividers;
+    QVector<QFrame*> mTfItemFrames;
+    QVector<QLabel*> mTfItemLabels;
+
     // System status labels (pair: icon+dot + value)
     QVector<QLabel*> mStatusLabels;
     QVector<QLabel*> mStatusDots;
+    QVector<QLabel*> mTfStatusLabels;
+
+    HealthResponse mLastResp;
+    bool mHasResp = false;
 
     ApiClient* mApiClient = nullptr;
 };

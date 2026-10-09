@@ -2,6 +2,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QEvent>
 
 namespace astra {
 
@@ -21,9 +22,15 @@ public:
     // Do not redeclare it here — a declaration without a definition hides
     // the base implementation and breaks the link (undefined reference).
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void restyle();
+
     QLabel* mBar = nullptr;
     QLabel* mValueLabel = nullptr;
+    double mValue = -1.0;  // <0 means no value set
 };
 
 }  // namespace astra

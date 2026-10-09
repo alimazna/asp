@@ -1,6 +1,7 @@
 #include "LevelsCard.h"
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QPalette>
 
 namespace astra {
 
@@ -46,10 +47,8 @@ void LevelsCard::showAllUnavailable() {
     QLabel* msg = new QLabel(this);
     msg->setText("Levels unavailable \u2014 calibration pending");
     msg->setStyleSheet(
-        "QLabel { "
-        "color: #5A6B80; "
-        "font-size: 14px; "
-        "}"
+        QString("QLabel { color: %1; font-size: 14px; }")
+            .arg(palette().color(QPalette::PlaceholderText).name())
     );
     msg->setAlignment(Qt::AlignCenter);
     msg->setWordWrap(true);
@@ -64,12 +63,17 @@ void LevelsCard::showLevels(const Levels& levels) {
         delete item;
     }
 
+    const QPalette pal = palette();
+    const QString textPrimary = pal.color(QPalette::Text).name();
+    const QString textSecondary = pal.color(QPalette::WindowText).name();
+    const QString border = pal.color(QPalette::Mid).name();
+
     auto addRow = [&](const QString& label, const QString& value,
-                       const QString& color = "#E8EEF5", bool isDivider = false) {
+                       const QString& color = QString(), bool isDivider = false) {
         if (isDivider) {
             QFrame* div = new QFrame(this);
             div->setFixedHeight(1);
-            div->setStyleSheet("QFrame { background: rgba(138, 163, 191, 0.3); }");
+            div->setStyleSheet(QString("QFrame { background: %1; }").arg(border));
             mBodyLayout->addWidget(div);
             return;
         }
@@ -79,14 +83,14 @@ void LevelsCard::showLevels(const Levels& levels) {
 
         QLabel* lbl = new QLabel(this);
         lbl->setText(label);
-        lbl->setStyleSheet("QLabel { color: #8FA3BF; font-size: 14px; }");
+        lbl->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; }").arg(textSecondary));
 
         QLabel* val = new QLabel(this);
         val->setText(value);
         val->setStyleSheet(
             QString("QLabel { color: %1; font-size: 14px; "
                     "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
-                .arg(color));
+                .arg(color.isEmpty() ? textPrimary : color));
         val->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
         row->addWidget(lbl);
@@ -126,7 +130,7 @@ void LevelsCard::showLevels(const Levels& levels) {
     }
 
     // Divider before RR
-    addRow("", "", "#E8EEF5", true);
+    addRow("", "", QString(), true);
 
     // Reward/Risk
     if (levels.rewardRisk.has_value()) {
@@ -142,12 +146,12 @@ void LevelsCard::showLevels(const Levels& levels) {
 
     // Methods (if available)
     if (levels.slMethod.has_value() || levels.tpMethod.has_value()) {
-        addRow("", "", "#E8EEF5", true);
+        addRow("", "", QString(), true);
         if (levels.slMethod.has_value()) {
-            addRow("SL Method", levels.slMethod.value(), "#8FA3BF");
+            addRow("SL Method", levels.slMethod.value(), textSecondary);
         }
         if (levels.tpMethod.has_value()) {
-            addRow("TP Method", levels.tpMethod.value(), "#8FA3BF");
+            addRow("TP Method", levels.tpMethod.value(), textSecondary);
         }
     }
 }

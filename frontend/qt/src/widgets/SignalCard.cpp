@@ -1,6 +1,7 @@
 #include "SignalCard.h"
 #include <QTimer>
 #include <QFont>
+#include <QPalette>
 
 namespace astra {
 
@@ -8,6 +9,44 @@ SignalCard::SignalCard(QWidget* parent)
     : QWidget(parent)
 {
     setupLayout();
+    restyle();
+}
+
+void SignalCard::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        restyle();
+    }
+    QWidget::changeEvent(event);
+}
+
+void SignalCard::restyle() {
+    const QPalette pal = palette();
+    const QString textPrimary = pal.color(QPalette::Text).name();
+    const QString textSecondary = pal.color(QPalette::WindowText).name();
+    const QString textTertiary = pal.color(QPalette::PlaceholderText).name();
+    const QString surfaceAlt = pal.color(QPalette::AlternateBase).name();
+
+    mLabelLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; "
+                                       "font-weight: 500; letter-spacing: 0.05em; }")
+                                   .arg(textSecondary));
+    mValueLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 32px; "
+                                       "font-weight: 600; "
+                                       "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                                   .arg(textPrimary));
+    mBar->setStyleSheet(QString("QProgressBar { background: %1; border: none; "
+                                "border-radius: 3px; height: 6px; }"
+                                "QProgressBar::chunk { background: %2; border-radius: 3px; }")
+                            .arg(surfaceAlt, textTertiary));
+    mConfidenceLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; "
+                                            "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                                        .arg(textSecondary));
+    mHorizonLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; }").arg(textSecondary));
+    mModelLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; }").arg(textTertiary));
+    mUpdatedLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; }").arg(textSecondary));
+
+    if (mHasSignal) {
+        updateFromSignal(mLastSignal, mLastMeta);
+    }
 }
 
 void SignalCard::setupLayout() {
@@ -18,7 +57,6 @@ void SignalCard::setupLayout() {
     // Direction indicator — large ▲/▼/—
     mDirectionLabel = new QLabel(this);
     mDirectionLabel->setAlignment(Qt::AlignCenter);
-    mDirectionLabel->setStyleSheet("QLabel { font-size: 32px; font-weight: 600; }");
     layout->addWidget(mDirectionLabel);
 
     // Probability / Score
@@ -27,26 +65,10 @@ void SignalCard::setupLayout() {
 
     mLabelLabel = new QLabel(this);
     mLabelLabel->setText("SCORE");
-    mLabelLabel->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.05em; "
-        "}"
-    );
     scoreRow->addWidget(mLabelLabel);
 
     mValueLabel = new QLabel(this);
-    mValueLabel->setText("—");
-    mValueLabel->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-size: 32px; "
-        "font-weight: 600; "
-        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-        "}"
-    );
+    mValueLabel->setText("\u2014");
     scoreRow->addWidget(mValueLabel);
 
     layout->addLayout(scoreRow);
@@ -55,72 +77,38 @@ void SignalCard::setupLayout() {
     mBar = new QProgressBar(this);
     mBar->setMaximum(100);
     mBar->setFixedHeight(6);
-    mBar->setStyleSheet(
-        "QProgressBar { "
-        "background: #162A44; "
-        "border: none; "
-        "border-radius: 3px; "
-        "height: 6px; "
-        "}"
-        "QProgressBar::chunk { "
-        "background: #5A6B80; "
-        "border-radius: 3px; "
-        "}"
-    );
     layout->addWidget(mBar);
 
     // Confidence interval — hidden in uncalibrated mode
     mConfidenceLabel = new QLabel(this);
     mConfidenceLabel->setText("[\u2014 \u2014]");
-    mConfidenceLabel->setStyleSheet(
-        "QLabel { "
-        "color: #5A6B80; "
-        "font-size: 14px; "
-        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-        "}"
-    );
     mConfidenceLabel->setVisible(false);
     layout->addWidget(mConfidenceLabel);
 
     // Horizon — hidden in uncalibrated mode
     mHorizonLabel = new QLabel(this);
     mHorizonLabel->setText("Horizon: \u2014");
-    mHorizonLabel->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "}"
-    );
     mHorizonLabel->setVisible(false);
     layout->addWidget(mHorizonLabel);
 
     // Model version — hidden in uncalibrated mode
     mModelLabel = new QLabel(this);
     mModelLabel->setText("Model: \u2014");
-    mModelLabel->setStyleSheet(
-        "QLabel { "
-        "color: #5A6B80; "
-        "font-size: 12px; "
-        "}"
-    );
     mModelLabel->setVisible(false);
     layout->addWidget(mModelLabel);
 
     // Updated timestamp
     mUpdatedLabel = new QLabel(this);
     mUpdatedLabel->setText("Updated: just now");
-    mUpdatedLabel->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "}"
-    );
     layout->addWidget(mUpdatedLabel);
 
     layout->addStretch();
 }
 
 void SignalCard::updateFromSignal(const Signal& signal, const Meta& meta) {
+    mLastSignal = signal;
+    mLastMeta = meta;
+    mHasSignal = true;
     updateDirection(signal.direction);
     updateScoreOrProbability(signal, meta);
 
@@ -148,6 +136,7 @@ void SignalCard::updateFromSignal(const Signal& signal, const Meta& meta) {
 }
 
 void SignalCard::updateDirection(const QString& direction) {
+    const QString tertiary = palette().color(QPalette::PlaceholderText).name();
     if (direction == "UP" || direction == "LONG") {
         mDirectionLabel->setText("\u25B2 UP");
         mDirectionLabel->setStyleSheet("QLabel { font-size: 32px; font-weight: 600; color: #4CAF7A; }");
@@ -156,31 +145,36 @@ void SignalCard::updateDirection(const QString& direction) {
         mDirectionLabel->setStyleSheet("QLabel { font-size: 32px; font-weight: 600; color: #D95A5A; }");
     } else if (direction == "FLAT") {
         mDirectionLabel->setText("\u2014 FLAT");
-        mDirectionLabel->setStyleSheet("QLabel { font-size: 32px; font-weight: 600; color: #5A6B80; }");
+        mDirectionLabel->setStyleSheet(QString("QLabel { font-size: 32px; font-weight: 600; color: %1; }").arg(tertiary));
     } else {
         mDirectionLabel->setText("\u2014 NONE");
-        mDirectionLabel->setStyleSheet("QLabel { font-size: 32px; font-weight: 600; color: #5A6B80; }");
+        mDirectionLabel->setStyleSheet(QString("QLabel { font-size: 32px; font-weight: 600; color: %1; }").arg(tertiary));
     }
 }
 
 void SignalCard::updateScoreOrProbability(const Signal& signal, const Meta& meta) {
+    const QString surfaceAlt = palette().color(QPalette::AlternateBase).name();
+    const QString textTertiary = palette().color(QPalette::PlaceholderText).name();
+    auto barStyle = [&](const QString& chunk) {
+        return QString("QProgressBar { background: %1; border: none; border-radius: 3px; "
+                       "height: 6px; }"
+                       "QProgressBar::chunk { background: %2; border-radius: 3px; }")
+            .arg(surfaceAlt, chunk);
+    };
+    auto chunkFor = [&](int pct) -> QString {
+        if (pct < 55) return textTertiary;
+        if (pct < 60) return QString("#D9A14A");
+        if (pct < 65) return QString("#4A90D9");
+        return QString("#4CAF7A");
+    };
+
     if (signal.probabilityCalibrated && signal.probability.has_value()) {
         // Show probability
         double prob = signal.probability.value();
         int pct = qRound(qBound(0.0, prob, 1.0) * 100.0);
         mLabelLabel->setText("PROBABILITY");
         mValueLabel->setText(QString("%1%").arg(pct));
-
-        // Bar color based on probability
-        if (pct < 55) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #5A6B80; border-radius: 3px; }");
-        } else if (pct < 60) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #D9A14A; border-radius: 3px; }");
-        } else if (pct < 65) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #4A90D9; border-radius: 3px; }");
-        } else {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #4CAF7A; border-radius: 3px; }");
-        }
+        mBar->setStyleSheet(barStyle(chunkFor(pct)));
         mBar->setValue(pct);
         mBar->setVisible(true);
     } else {
@@ -189,17 +183,7 @@ void SignalCard::updateScoreOrProbability(const Signal& signal, const Meta& meta
         int pct = qRound(qBound(0.0, score, 1.0) * 100.0);
         mLabelLabel->setText("SCORE");
         mValueLabel->setText(QString("%1%").arg(pct));
-
-        // Bar color based on score
-        if (pct < 55) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #5A6B80; border-radius: 3px; }");
-        } else if (pct < 60) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #D9A14A; border-radius: 3px; }");
-        } else if (pct < 65) {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #4A90D9; border-radius: 3px; }");
-        } else {
-            mBar->setStyleSheet("QProgressBar::chunk { background: #4CAF7A; border-radius: 3px; }");
-        }
+        mBar->setStyleSheet(barStyle(chunkFor(pct)));
         mBar->setValue(pct);
         mBar->setVisible(true);
     }
@@ -227,11 +211,9 @@ void SignalCard::updateConfidence(const Signal& signal) {
                 .arg(QString::number(hi, 'f', 2))
         );
         mConfidenceLabel->setStyleSheet(
-            "QLabel { "
-            "color: #8FA3BF; "
-            "font-size: 14px; "
-            "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-            "}"
+            QString("QLabel { color: %1; font-size: 14px; "
+                    "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                .arg(palette().color(QPalette::WindowText).name())
         );
     } else {
         mConfidenceLabel->setText("[\u2014 \u2014]");
@@ -251,10 +233,8 @@ void SignalCard::updateModelVersion(const Signal& signal) {
     if (signal.modelVersion.has_value()) {
         mModelLabel->setText(QString("Model: %1").arg(signal.modelVersion.value()));
         mModelLabel->setStyleSheet(
-            "QLabel { "
-            "color: #5A6B80; "
-            "font-size: 12px; "
-            "}"
+            QString("QLabel { color: %1; font-size: 12px; }")
+                .arg(palette().color(QPalette::PlaceholderText).name())
         );
     } else {
         mModelLabel->setText("Model: \u2014");

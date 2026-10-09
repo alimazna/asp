@@ -1,6 +1,7 @@
 #pragma once
 #include <QWidget>
 #include <QLabel>
+#include <QEvent>
 
 namespace astra {
 
@@ -18,8 +19,15 @@ public:
     void setStale();
     void setUnavailable();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void restyle();
+
     QLabel* mLabel = nullptr;
+    QString mState;  // "fresh", "stale", "unavailable"
+    int mSeconds = 0;
 };
 
 }  // namespace astra

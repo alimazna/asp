@@ -4,6 +4,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QFrame>
+#include <QEvent>
 #include "widgets/CandleChart.h"
 #include "widgets/TimeframeSwitcher.h"
 #include "api/ApiClient.h"
@@ -30,8 +31,12 @@ public:
     void zoomOut();
     void resetZoom();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setupLayout();
+    void restyle();
     void updateChartForTimeframe(const QString& tf);
 
     // Widgets

@@ -23,7 +23,6 @@
 #include "MainWindow.h"
 #include "api/ApiClient.h"
 #include "theme/ThemeManager.h"
-
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -56,17 +55,22 @@ void emitKey(MainWindow* win, int key, Qt::KeyboardModifiers mods = Qt::NoModifi
     QApplication::sendEvent(win, &release);
 }
 
-void applyTheme(QApplication& app, const char* themeName) {
-    QFile qssFile(QString(":/theme/") + QString::fromUtf8(themeName));
-    if (qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+// Single ThemeManager shared by setup and every theme switch, so the
+// application palette and QSS always stay in sync.
+using astra::ThemeManager;
 
-        QString qss = QString::fromUtf8(qssFile.readAll());
-        app.setStyleSheet(qss);
-        qssFile.close();
-        qDebug() << "Applied theme" << themeName;
-    } else {
-        qWarning() << "Failed to load theme" << themeName;
-    }
+ThemeManager* themeManager() {
+    static ThemeManager* mgr = new ThemeManager();
+    return mgr;
+}
+
+// Applies a theme through ThemeManager so BOTH the QSS and the application
+// palette are updated (custom-painted widgets read palette()).
+void applyTheme(QApplication& app, const char* themeName) {
+    Q_UNUSED(app);
+    const bool dark = QString::fromLatin1(themeName).contains(QLatin1String("dark"));
+    themeManager()->setTheme(dark ? ThemeManager::Theme::Dark : ThemeManager::Theme::Light);
+    qDebug() << "Applied theme" << themeName;
 }
 
 // Replicates the startup sequence of frontend/qt/src/main.cpp verbatim so the
@@ -77,15 +81,8 @@ void setupApp(QApplication& app) {
     font.setPointSize(14);
     QApplication::setFont(font);
 
-    QFile qssFile(":/theme/theme-dark.qss");
-    if (qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QString qss = QString::fromUtf8(qssFile.readAll());
-        app.setStyleSheet(qss);
-        qssFile.close();
-        qDebug() << "Loaded dark theme QSS";
-    } else {
-        qWarning() << "Failed to load theme QSS from resources";
-    }
+    themeManager()->setTheme(ThemeManager::Theme::Dark);
+    qDebug() << "Loaded dark theme QSS";
 }
 
 void settle(int ms) {
@@ -229,16 +226,19 @@ int main(int argc, char* argv[]) {
 
     // ── dashboard, dark ────────────────────────────────────────────────────
     nav(win, 0);
+    win.initStyleChrome();
     ok &= capture(win, "dashboard_dark.png", outDir);
     debugDashboard(win);
 
     // ── dashboard, light (direct QSS apply) ───────────────────────────────
     applyTheme(app, "theme-light.qss");
+    win.initStyleChrome();
     settle(600);
     ok &= capture(win, "dashboard_light.png", outDir);
 
     // Back to dark.
     applyTheme(app, "theme-dark.qss");
+    win.initStyleChrome();
     settle(600);
 
     // ── chart page ─────────────────────────────────────────────────────────
@@ -260,6 +260,24 @@ int main(int argc, char* argv[]) {
     // ── coming soon (Research, nav index 4 -> shared ComingSoonPage) ───────
     nav(win, 4);
     ok &= capture(win, "coming_soon_dark.png", outDir);
+
+    // ── light-theme pass over the remaining pages ──────────────────────────
+    applyTheme(app, "theme-light.qss");
+    win.initStyleChrome();
+    settle(400);
+    nav(win, 1);
+    ok &= capture(win, "chart_light.png", outDir);
+    nav(win, 2);
+    ok &= capture(win, "history_light.png", outDir);
+    nav(win, 3);
+    ok &= capture(win, "health_light.png", outDir);
+    nav(win, 9);
+    ok &= capture(win, "settings_light.png", outDir);
+    nav(win, 4);
+    ok &= capture(win, "coming_soon_light.png", outDir);
+    applyTheme(app, "theme-dark.qss");
+    win.initStyleChrome();
+    settle(300);
 
     // ── fullscreen, dark (real F11 key event) ─────────────────────────────
     nav(win, 0);

@@ -1,6 +1,7 @@
 #include "SvgIcon.h"
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPalette>
 #ifdef ASTRA_HAVE_QTSVG
 #include <QSvgRenderer>
 #endif
@@ -36,6 +37,9 @@ void SvgIcon::paintEvent(QPaintEvent* /*event*/) {
 #ifdef ASTRA_HAVE_QTSVG
     if (!mRenderer || !mRenderer->isValid()) return;
 
+    const QColor tint = mColor.isValid() ? mColor
+                                         : palette().color(QPalette::WindowText);
+
     // Render once, then tint with CompositionMode_SourceIn so every icon
     // adopts the nav state color (thin-stroke outline stays intact).
     QImage img(size(), QImage::Format_ARGB32_Premultiplied);
@@ -44,7 +48,7 @@ void SvgIcon::paintEvent(QPaintEvent* /*event*/) {
         QPainter pi(&img);
         mRenderer->render(&pi, QRectF(QPointF(0, 0), QSizeF(size())));
         pi.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        pi.fillRect(img.rect(), mColor);
+        pi.fillRect(img.rect(), tint);
     }
     QPainter p(this);
     p.drawImage(0, 0, img);

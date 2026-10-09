@@ -11,15 +11,30 @@
 
 namespace astra {
 
-// Color constants (from ASTRA visual identity)
+// Semantic candle colors are shared by both themes and carry meaning.
 static const QColor COLORS_BULL = QColor("#4CAF7A");
 static const QColor COLORS_BEAR = QColor("#D95A5A");
-static const QColor COLORS_GRID = QColor("#162A44");
 static const QColor COLORS_ACCENT = QColor("#4A90D9");
-static const QColor COLORS_TEXT_SECONDARY = QColor("#8FA3BF");
-static const QColor COLORS_TEXT_PRIMARY = QColor("#E8EEF5");
-static const QColor COLORS_SURFACE = QColor("#0F1F35");
-static const QColor COLORS_SURFACE_2 = QColor("#162A44");
+
+// Surface/text/grid colors follow the active theme via the application
+// palette (set per theme in ThemeManager), not hardcoded dark values.
+namespace {
+QColor gridColor(const QWidget* w) {
+    return w->palette().color(QPalette::Mid);
+}
+QColor textSecondary(const QWidget* w) {
+    return w->palette().color(QPalette::WindowText);
+}
+QColor textPrimary(const QWidget* w) {
+    return w->palette().color(QPalette::Text);
+}
+QColor surfaceColor(const QWidget* w) {
+    return w->palette().color(QPalette::Base);
+}
+QColor surface2Color(const QWidget* w) {
+    return w->palette().color(QPalette::AlternateBase);
+}
+}  // namespace
 
 CandleChart::CandleChart(QWidget* parent)
     : QWidget(parent)
@@ -114,10 +129,10 @@ void CandleChart::paintEvent(QPaintEvent* /*event*/) {
     p.setRenderHint(QPainter::Antialiasing, false);  // HD 3000: no antialiasing
 
     // Background
-    p.fillRect(rect(), QColor("#0A1628"));
+    p.fillRect(rect(), surfaceColor(this));
 
     if (mCandles.isEmpty()) {
-        p.setPen(QPen(COLORS_TEXT_SECONDARY, 1));
+        p.setPen(QPen(textSecondary(this), 1));
         p.setFont(QFont("Inter", 14));
         p.drawText(rect().adjusted(20, 0, -20, 0),
                    Qt::AlignCenter,
@@ -150,7 +165,7 @@ void CandleChart::drawChart(QPainter& p) {
 }
 
 void CandleChart::drawGrid(QPainter& p) {
-    p.setPen(QPen(COLORS_GRID, 1, Qt::DotLine));
+    p.setPen(QPen(gridColor(this), 1, Qt::DotLine));
     p.setOpacity(0.3);
 
     // Horizontal grid lines — every ~5% of price range
@@ -222,15 +237,15 @@ void CandleChart::drawPriceAxis(QPainter& p) {
     // Background
     p.fillRect(mChartLeft + mChartWidth + mGap / 2, mChartTop,
                mPriceAxisWidth, mChartHeight,
-               COLORS_SURFACE);
+               surfaceColor(this));
 
     // Divider line
-    p.setPen(QPen(COLORS_GRID, 1));
+    p.setPen(QPen(gridColor(this), 1));
     p.drawLine(mChartLeft + mChartWidth + mGap / 2, mChartTop,
                mChartLeft + mChartWidth + mGap / 2, mChartTop + mChartHeight);
 
     // Labels — right-aligned
-    p.setPen(QPen(COLORS_TEXT_SECONDARY, 1));
+    p.setPen(QPen(textSecondary(this), 1));
     p.setFont(QFont("JetBrains Mono", 11));
 
     double range = mPriceMax - mPriceMin;
@@ -254,15 +269,15 @@ void CandleChart::drawTimeAxis(QPainter& p) {
     // Background
     p.fillRect(mChartLeft, mChartTop + mChartHeight + mGap / 2,
                mChartWidth, mTimeAxisHeight,
-               COLORS_SURFACE);
+               surfaceColor(this));
 
     // Divider line
-    p.setPen(QPen(COLORS_GRID, 1));
+    p.setPen(QPen(gridColor(this), 1));
     p.drawLine(mChartLeft, mChartTop + mChartHeight + mGap / 2,
                mChartLeft + mChartWidth, mChartTop + mChartHeight + mGap / 2);
 
     // Labels — centered under candles
-    p.setPen(QPen(COLORS_TEXT_SECONDARY, 1));
+    p.setPen(QPen(textSecondary(this), 1));
     p.setFont(QFont("JetBrains Mono", 11));
 
     int visibleCandles = qMin(mVisibleCount, mCandles.size());
@@ -353,7 +368,7 @@ void CandleChart::drawCrosshair(QPainter& p) {
     if (!mShowCrosshair) return;
 
     // Vertical line
-    p.setPen(QPen(COLORS_TEXT_SECONDARY, 1, Qt::DashLine));
+    p.setPen(QPen(textSecondary(this), 1, Qt::DashLine));
     p.setOpacity(0.5);
     p.drawLine(mCrosshairX, mChartTop + mGap,
                mCrosshairX, mChartTop + mChartHeight - mGap);
@@ -379,11 +394,11 @@ void CandleChart::drawOHCLBox(QPainter& p, const QPointF& pos, const CandleData&
     }
 
     // Background
-    p.fillRect(box, COLORS_SURFACE_2);
-    p.setPen(QPen(COLORS_GRID, 1));
+    p.fillRect(box, surface2Color(this));
+    p.setPen(QPen(gridColor(this), 1));
     p.drawRect(box);
 
-    p.setPen(QPen(COLORS_TEXT_PRIMARY, 1));
+    p.setPen(QPen(textPrimary(this), 1));
     p.setFont(QFont("JetBrains Mono", 12));
 
     int y = box.top() + 12;

@@ -5,7 +5,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QProgressBar>
-#include <QTimer>
+#include <QEvent>
 
 namespace astra {
 
@@ -22,8 +22,12 @@ public:
 
     void updateFromSignal(const Signal& signal, const Meta& meta);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setupLayout();
+    void restyle();
     void updateDirection(const QString& direction);
     void updateScoreOrProbability(const Signal& signal, const Meta& meta);
     void updateConfidence(const Signal& signal);
@@ -41,6 +45,9 @@ private:
     QLabel* mUpdatedLabel = nullptr;
     QTimer mUpdatedTimer;
     int mLastUpdateSec = 0;
+    bool mHasSignal = false;
+    Signal mLastSignal;
+    Meta mLastMeta;
 };
 
 }  // namespace astra

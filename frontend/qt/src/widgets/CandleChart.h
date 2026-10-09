@@ -5,6 +5,7 @@
 #include <QPointF>
 #include <QRectF>
 #include <QColor>
+#include <QPalette>
 
 namespace astra {
 

@@ -4,6 +4,9 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QVector>
+#include <QEvent>
+#include <QPalette>
+#include <QColor>
 
 namespace astra {
 
@@ -26,9 +29,13 @@ public:
 signals:
     void timeframeChanged(const QString& tf);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setupButtons();
     void updateActiveButton();
+    void updateButtonStyles();
 
     QVector<QPushButton*> mButtons;
     QString mCurrentTf;

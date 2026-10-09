@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QFont>
 #include <QColor>
+#include <QPalette>
 
 namespace astra {
 
@@ -11,10 +12,71 @@ HealthPage::HealthPage(QWidget* parent)
     : QWidget(parent)
 {
     setupLayout();
+    restyle();
+}
+
+void HealthPage::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        restyle();
+    }
+    QWidget::changeEvent(event);
 }
 
 void HealthPage::setApiClient(ApiClient* client) {
     mApiClient = client;
+}
+
+void HealthPage::restyle() {
+    const QPalette pal = palette();
+    const QString textPrimary = pal.color(QPalette::Text).name();
+    const QString textSecondary = pal.color(QPalette::WindowText).name();
+    const QString textTertiary = pal.color(QPalette::PlaceholderText).name();
+    const QString surface = pal.color(QPalette::Base).name();
+    const QString border = pal.color(QPalette::Mid).name();
+
+    const QString cardCaption =
+        QString("QLabel { color: %1; font-size: 12px; font-weight: 500; "
+                "letter-spacing: 0.05em; }").arg(textSecondary);
+    if (mSysTitle) mSysTitle->setStyleSheet(cardCaption);
+    if (mTfTitle) mTfTitle->setStyleSheet(cardCaption);
+
+    for (QLabel* l : mRowCaptions) {
+        if (l) l->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; }").arg(textSecondary));
+    }
+    for (QFrame* f : mDividers) {
+        if (f) f->setStyleSheet(QString("QFrame { background: %1; }").arg(border));
+    }
+    for (QLabel* l : mStatusLabels) {
+        if (l) {
+            l->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; "
+                                     "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                                 .arg(textPrimary));
+        }
+    }
+    const QString tfItem =
+        QString("QFrame { background: %1; border: 1px solid %2; border-radius: 8px; "
+                "padding: 16px; }").arg(surface, border);
+    for (QFrame* f : mTfItemFrames) {
+        if (f) f->setStyleSheet(tfItem);
+    }
+    for (QLabel* l : mTfItemLabels) {
+        if (l) {
+            l->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; font-weight: 500; "
+                                     "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                                 .arg(textPrimary));
+        }
+    }
+    // Semantic status colors are re-applied by re-running the last update.
+    if (mHasResp) {
+        updateFromHealth(mLastResp);
+    } else {
+        for (QLabel* d : mStatusDots) {
+            if (d) d->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(textTertiary));
+        }
+        for (QLabel* l : mTfStatusLabels) {
+            if (l) l->setStyleSheet(QString("QLabel { color: #4CAF7A; font-size: 12px; }"));
+        }
+    }
 }
 
 void HealthPage::setupLayout() {
@@ -30,17 +92,9 @@ void HealthPage::setupLayout() {
     sysLayout->setContentsMargins(20, 20, 20, 20);
     sysLayout->setSpacing(0);
 
-    QLabel* sysTitle = new QLabel(mSystemCard);
-    sysTitle->setText("SYSTEM STATUS");
-    sysTitle->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.05em; "
-        "}"
-    );
-    sysLayout->addWidget(sysTitle);
+    mSysTitle = new QLabel(mSystemCard);
+    mSysTitle->setText("SYSTEM STATUS");
+    sysLayout->addWidget(mSysTitle);
 
     QLabel* spacer = new QLabel(mSystemCard);
     spacer->setFixedHeight(16);
@@ -58,17 +112,15 @@ void HealthPage::setupLayout() {
 
         QLabel* lbl = new QLabel(mSystemCard);
         lbl->setText(labels[i]);
-        lbl->setStyleSheet("QLabel { color: #8FA3BF; font-size: 14px; }");
         row->addWidget(lbl);
+        mRowCaptions.append(lbl);
 
         QLabel* dot = new QLabel(mSystemCard);
         dot->setFixedSize(8, 8);
-        dot->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
         row->addWidget(dot, 0, Qt::AlignTop);
 
         QLabel* val = new QLabel(mSystemCard);
-        val->setText("—");
-        val->setStyleSheet("QLabel { color: #E8EEF5; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
+        val->setText("\u2014");
         row->addWidget(val);
 
         row->addStretch();
@@ -80,8 +132,8 @@ void HealthPage::setupLayout() {
         if (i < 5) {
             QFrame* div = new QFrame(mSystemCard);
             div->setFixedHeight(1);
-            div->setStyleSheet("QFrame { background: rgba(138, 163, 191, 0.3); }");
             sysLayout->addWidget(div);
+            mDividers.append(div);
         }
     }
 
@@ -95,17 +147,9 @@ void HealthPage::setupLayout() {
     tfLayout->setContentsMargins(20, 20, 20, 20);
     tfLayout->setSpacing(0);
 
-    QLabel* tfTitle = new QLabel(mTimeframesCard);
-    tfTitle->setText("TIMEFRAMES");
-    tfTitle->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "font-weight: 500; "
-        "letter-spacing: 0.05em; "
-        "}"
-    );
-    tfLayout->addWidget(tfTitle);
+    mTfTitle = new QLabel(mTimeframesCard);
+    mTfTitle->setText("TIMEFRAMES");
+    tfLayout->addWidget(mTfTitle);
 
     QLabel* tfSpacer = new QLabel(mTimeframesCard);
     tfSpacer->setFixedHeight(16);
@@ -120,14 +164,6 @@ void HealthPage::setupLayout() {
         QFrame* item = new QFrame(mTimeframesCard);
         item->setFixedSize(100, 56);
         item->setProperty("astraCard", true);
-        item->setStyleSheet(
-            "QFrame { "
-            "background: #0F1F35; "
-            "border: 1px solid #162A44; "
-            "border-radius: 8px; "
-            "padding: 16px; "
-            "}"
-        );
 
         QVBoxLayout* itemLayout = new QVBoxLayout(item);
         itemLayout->setContentsMargins(0, 0, 0, 0);
@@ -135,29 +171,18 @@ void HealthPage::setupLayout() {
 
         QLabel* tfLabel = new QLabel(item);
         tfLabel->setText(tfs[i]);
-        tfLabel->setStyleSheet(
-            "QLabel { "
-            "color: #E8EEF5; "
-            "font-size: 14px; "
-            "font-weight: 500; "
-            "font-family: 'JetBrains Mono', 'Consolas', monospace; "
-            "}"
-        );
         tfLabel->setAlignment(Qt::AlignLeft);
         itemLayout->addWidget(tfLabel);
 
         QLabel* statusLabel = new QLabel(item);
         statusLabel->setText("\u25CF OK");
-        statusLabel->setStyleSheet(
-            "QLabel { "
-            "color: #4CAF7A; "
-            "font-size: 12px; "
-            "}"
-        );
         statusLabel->setAlignment(Qt::AlignRight);
         itemLayout->addWidget(statusLabel);
 
         mTimeframeGrid->addWidget(item, i / 3, i % 3);
+        mTfItemFrames.append(item);
+        mTfItemLabels.append(tfLabel);
+        mTfStatusLabels.append(statusLabel);
     }
 
     tfLayout->addLayout(mTimeframeGrid);
@@ -166,92 +191,84 @@ void HealthPage::setupLayout() {
 }
 
 void HealthPage::updateFromHealth(const HealthResponse& resp) {
+    mLastResp = resp;
+    mHasResp = true;
     updateSystemStatus(resp);
 
     // Update timeframe grid — all green for now (mock data shows all OK)
-    const char* tfs[] = {"M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"};
-    for (int i = 0; i < 9; ++i) {
-        QLayoutItem* item = mTimeframeGrid->itemAtPosition(i / 3, i % 3);
-        if (item) {
-            QFrame* frame = qobject_cast<QFrame*>(item->widget());
-            if (frame) {
-                QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(frame->layout());
-                if (layout) {
-                    QLabel* statusLabel = qobject_cast<QLabel*>(layout->itemAt(1)->widget());
-                    if (statusLabel) {
-                        statusLabel->setText("\u25CF OK");
-                        statusLabel->setStyleSheet(
-                            "QLabel { color: #4CAF7A; font-size: 12px; }"
-                        );
-                    }
-                }
-            }
-        }
+    for (QLabel* statusLabel : mTfStatusLabels) {
+        statusLabel->setText("\u25CF OK");
+        statusLabel->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; }");
     }
 }
 
 void HealthPage::updateSystemStatus(const HealthResponse& resp) {
+    const QString mono = "font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace;";
+    const QString text = palette().color(QPalette::Text).name();
+    const QString tertiary = palette().color(QPalette::PlaceholderText).name();
+    const QString red = "#D95A5A";
+    const QString amber = "#D9A14A";
+    const QString green = "#4CAF7A";
+
+    auto setLabel = [&](int row, const QString& value, const QString& color) {
+        mStatusLabels[row]->setText(value);
+        mStatusLabels[row]->setStyleSheet(QString("QLabel { color: %1; %2 }").arg(color, mono));
+    };
+    auto setDot = [&](int row, const QString& color) {
+        mStatusDots[row]->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(color));
+    };
+    auto statusColor = [&](const QString& state) -> QString {
+        if (state == "offline") return red;
+        if (state == "degraded" || state == "stale") return amber;
+        return green;
+    };
+
     // Backend status
     if (resp.data.status == "offline") {
-        mStatusLabels[0]->setText("OFFLINE");
-        mStatusLabels[0]->setStyleSheet("QLabel { color: #D95A5A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[0]->setStyleSheet("QLabel { background: #D95A5A; border-radius: 4px; }");
+        setLabel(0, "OFFLINE", red);
     } else if (resp.data.status == "degraded") {
-        mStatusLabels[0]->setText("DEGRADED");
-        mStatusLabels[0]->setStyleSheet("QLabel { color: #D9A14A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[0]->setStyleSheet("QLabel { background: #D9A14A; border-radius: 4px; }");
+        setLabel(0, "DEGRADED", amber);
     } else {
-        mStatusLabels[0]->setText("ONLINE");
-        mStatusLabels[0]->setStyleSheet("QLabel { color: #4CAF7A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[0]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+        setLabel(0, "ONLINE", green);
     }
+    setDot(0, statusColor(resp.data.status));
 
     // Bridge status
     if (resp.data.bridge == "offline") {
-        mStatusLabels[1]->setText("OFFLINE");
-        mStatusLabels[1]->setStyleSheet("QLabel { color: #D95A5A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[1]->setStyleSheet("QLabel { background: #D95A5A; border-radius: 4px; }");
+        setLabel(1, "OFFLINE", red);
     } else if (resp.data.bridge == "stale" || resp.data.bridge == "degraded") {
-        mStatusLabels[1]->setText("STALE");
-        mStatusLabels[1]->setStyleSheet("QLabel { color: #D9A14A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[1]->setStyleSheet("QLabel { background: #D9A14A; border-radius: 4px; }");
+        setLabel(1, "STALE", amber);
     } else {
-        mStatusLabels[1]->setText("OK");
-        mStatusLabels[1]->setStyleSheet("QLabel { color: #4CAF7A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[1]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+        setLabel(1, "OK", green);
     }
+    setDot(1, statusColor(resp.data.bridge));
 
-    // Data freshness
+    // Uptime (row 4)
     if (resp.data.uptimeSec.has_value()) {
         int secs = resp.data.uptimeSec.value();
         int mins = secs / 60;
         int hours = mins / 60;
         mins %= 60;
-        mStatusLabels[4]->setText(QString("%1h %2m").arg(hours).arg(mins));
-        mStatusLabels[4]->setStyleSheet("QLabel { color: #E8EEF5; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[4]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+        setLabel(4, QString("%1h %2m").arg(hours).arg(mins), text);
+        setDot(4, green);
     } else {
-        mStatusLabels[4]->setText("—");
-        mStatusLabels[4]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[4]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
+        setLabel(4, "\u2014", tertiary);
+        setDot(4, tertiary);
     }
 
     // Freshness (row 2) — /health/v1 exposes no data-freshness field.
     // Unknown renders as em-dash; never fabricate a number.
-    mStatusLabels[2]->setText("\u2014");
-    mStatusLabels[2]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-    mStatusDots[2]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
+    setLabel(2, "\u2014", tertiary);
+    setDot(2, tertiary);
 
     // API Version (row 3)
-    mStatusLabels[3]->setText(resp.data.version);
-    mStatusLabels[3]->setStyleSheet("QLabel { color: #E8EEF5; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-    mStatusDots[3]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+    setLabel(3, resp.data.version, text);
+    setDot(3, green);
 
     // Coverage Tier (row 5) — coverage_tier lives on the analysis meta object,
     // not on /health/v1. Render as unavailable; never fabricate it.
-    mStatusLabels[5]->setText("\u2014");
-    mStatusLabels[5]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-    mStatusDots[5]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
+    setLabel(5, "\u2014", tertiary);
+    setDot(5, tertiary);
 }
 
 }  // namespace astra

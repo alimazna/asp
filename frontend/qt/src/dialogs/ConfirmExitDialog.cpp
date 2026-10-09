@@ -1,6 +1,7 @@
 #include "ConfirmExitDialog.h"
 #include <QApplication>
 #include <QKeyEvent>
+#include <QPalette>
 
 namespace astra {
 
@@ -23,36 +24,18 @@ ConfirmExitDialog::ConfirmExitDialog(QWidget* parent)
     mIconLabel = new QLabel(this);
     mIconLabel->setText("\u26A0");  // ⚠ warning sign
     mIconLabel->setAlignment(Qt::AlignCenter);
-    mIconLabel->setStyleSheet(
-        "QLabel { "
-        "color: #D9A14A; "
-        "font-size: 32px; "
-        "}"
-    );
+    mIconLabel->setStyleSheet("QLabel { color: #D9A14A; font-size: 32px; }");
     mainLayout->addWidget(mIconLabel, 0, Qt::AlignLeft);
 
     // Title
     mTitleLabel = new QLabel(this);
     mTitleLabel->setText("Exit ASTRA?");
-    mTitleLabel->setStyleSheet(
-        "QLabel { "
-        "color: #E8EEF5; "
-        "font-size: 18px; "
-        "font-weight: 600; "
-        "}"
-    );
     mTitleLabel->setAlignment(Qt::AlignLeft);
     mainLayout->addWidget(mTitleLabel);
 
     // Body
     mBodyLabel = new QLabel(this);
     mBodyLabel->setText("Are you sure you want to exit the application?");
-    mBodyLabel->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 14px; "
-        "}"
-    );
     mBodyLabel->setAlignment(Qt::AlignLeft);
     mBodyLabel->setWordWrap(true);
     mainLayout->addWidget(mBodyLabel);
@@ -96,7 +79,26 @@ ConfirmExitDialog::ConfirmExitDialog(QWidget* parent)
 
     mainLayout->addLayout(btnLayout);
 
+    restyle();
+
     // ESC key cancels — QDialog::keyPressEvent already rejects on Escape.
+}
+
+void ConfirmExitDialog::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        restyle();
+    }
+    QDialog::changeEvent(event);
+}
+
+void ConfirmExitDialog::restyle() {
+    const QPalette pal = palette();
+    mTitleLabel->setStyleSheet(
+        QString("QLabel { color: %1; font-size: 18px; font-weight: 600; }")
+            .arg(pal.color(QPalette::Text).name()));
+    mBodyLabel->setStyleSheet(
+        QString("QLabel { color: %1; font-size: 14px; }")
+            .arg(pal.color(QPalette::WindowText).name()));
 }
 
 }  // namespace astra

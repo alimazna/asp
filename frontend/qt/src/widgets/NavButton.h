@@ -27,6 +27,8 @@ public:
               bool comingSoon, QWidget* parent = nullptr);
 
     void setActive(bool active);
+    // Re-reads palette-derived colors (icon tint) after a theme switch.
+    void refreshThemeColors();
     [[nodiscard]] bool isActive() const { return mActive; }
     [[nodiscard]] bool isComingSoon() const { return mComingSoon; }
     [[nodiscard]] QString label() const { return mLabel; }

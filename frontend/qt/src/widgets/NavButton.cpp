@@ -7,12 +7,14 @@
 
 namespace astra {
 
-static const char* kBgActive     = "#162A44";
-static const char* kBgHover      = "#12233B";
-static const char* kAccent       = "#4A90D9";
-static const char* kTextPrimary  = "#E8EEF5";
-static const char* kTextSecondary= "#8FA3BF";
-static const char* kTextTertiary = "#5A6B80";
+// Nav colors follow the active theme via the application palette (set per
+// theme in ThemeManager); only the accent keeps a fixed brand hue fallback.
+static QColor bgActive(const QWidget* w)     { return w->palette().color(QPalette::Mid); }
+static QColor bgHover(const QWidget* w)      { return w->palette().color(QPalette::AlternateBase); }
+static QColor accentColor(const QWidget* w)  { return w->palette().color(QPalette::Highlight); }
+static QColor textPrimary(const QWidget* w)  { return w->palette().color(QPalette::Text); }
+static QColor textSecondary(const QWidget* w){ return w->palette().color(QPalette::WindowText); }
+static QColor textTertiary(const QWidget* w) { return w->palette().color(QPalette::PlaceholderText); }
 
 NavButton::NavButton(const QString& label, const QString& iconPath,
                      bool comingSoon, QWidget* parent)
@@ -38,21 +40,26 @@ void NavButton::setActive(bool active) {
     update();
 }
 
+void NavButton::refreshThemeColors() {
+    refreshIconColor();
+    update();
+}
+
 void NavButton::refreshIconColor() {
     if (!mIcon) return;
     if (mComingSoon && !mActive && !mHover) {
-        mIcon->setColor(QColor(kTextTertiary));
+        mIcon->setColor(textTertiary(this));
     } else if (mActive || mHover) {
-        mIcon->setColor(QColor(kTextPrimary));
+        mIcon->setColor(textPrimary(this));
     } else {
-        mIcon->setColor(QColor(kTextSecondary));
+        mIcon->setColor(textSecondary(this));
     }
 }
 
 QColor NavButton::textColor() const {
-    if (mComingSoon && !mActive && !mHover) return QColor(kTextTertiary);
-    if (mActive || mHover) return QColor(kTextPrimary);
-    return QColor(kTextSecondary);
+    if (mComingSoon && !mActive && !mHover) return textTertiary(this);
+    if (mActive || mHover) return textPrimary(this);
+    return textSecondary(this);
 }
 
 void NavButton::paintEvent(QPaintEvent* /*event*/) {
@@ -60,8 +67,8 @@ void NavButton::paintEvent(QPaintEvent* /*event*/) {
     p.setRenderHint(QPainter::Antialiasing, true);
 
     // Background: active (surface-2) or hover
-    QColor bg = mActive ? QColor(kBgActive)
-                        : (mHover ? QColor(kBgHover) : QColor(0, 0, 0, 0));
+    QColor bg = mActive ? bgActive(this)
+                        : (mHover ? bgHover(this) : QColor(0, 0, 0, 0));
     if (bg.alpha() > 0) {
         p.setPen(Qt::NoPen);
         p.setBrush(bg);
@@ -71,7 +78,7 @@ void NavButton::paintEvent(QPaintEvent* /*event*/) {
     // Active: 3px accent-blue left border
     if (mActive) {
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(kAccent));
+        p.setBrush(accentColor(this));
         p.drawRoundedRect(QRect(0, 3, 3, height() - 6), 1.5, 1.5);
     }
 
