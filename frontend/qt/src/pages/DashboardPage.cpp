@@ -113,7 +113,7 @@ QFrame* DashboardPage::makeCard(QWidget* parent, const QString& title) {
     card->setProperty("astraCard", true);
     card->setFrameStyle(QFrame::NoFrame);
     QVBoxLayout* lay = new QVBoxLayout(card);
-    lay->setContentsMargins(16, 14, 16, 14);
+    lay->setContentsMargins(20, 16, 20, 16);
     lay->setSpacing(4);
 
     QLabel* caption = new QLabel(card);
@@ -221,8 +221,8 @@ void DashboardPage::restyle() {
         if (auto* label = qobject_cast<QLabel*>(w)) {
             if (kind == "cardCaption") {
                 label->setStyleSheet(
-                    QString("QLabel { color: %1; font-size: 10px; font-weight: 500; "
-                            "letter-spacing: 0.08em; }").arg(textMuted.name()));
+                    QString("QLabel { color: %1; font-size: 12px; font-weight: 500; "
+                            "letter-spacing: 0.05em; }").arg(textMuted.name()));
             } else if (kind == "cardSub") {
                 label->setStyleSheet(
                     QString("QLabel { color: %1; font-size: 11px; }").arg(textMuted.name()));
@@ -273,8 +273,8 @@ void DashboardPage::restyle() {
                             "border-radius: 8px; font-size: 12px; }"
                             "QTableWidget::item { border-bottom: 1px solid %2; }"
                             "QHeaderView::section { background: %2; color: %3; border: none; "
-                            "padding: 6px 4px; font-size: 9px; font-weight: 500; "
-                            "letter-spacing: 0.02em; }")
+                            "padding: 6px 4px; font-size: 10px; font-weight: 500; "
+                            "letter-spacing: 0.05em; }")
                         .arg(surface.name(), border.name(), textMuted.name()));
             }
         }
@@ -330,12 +330,12 @@ void DashboardPage::setupLayout() {
     scroll->setWidget(page);
 
     QVBoxLayout* mainLayout = new QVBoxLayout(page);
-    mainLayout->setContentsMargins(20, 14, 20, 14);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(20, 16, 20, 16);
+    mainLayout->setSpacing(16);
 
     // ─────────────── ROW 1 — status cards ───────────────
     QHBoxLayout* row1 = new QHBoxLayout();
-    row1->setSpacing(12);
+    row1->setSpacing(16);
 
     QFrame* healthCard = makeCard(page, "SYSTEM HEALTH");
     mHealthValue = makeCardValue(healthCard);
@@ -380,7 +380,7 @@ void DashboardPage::setupLayout() {
 
     // ─────────────── ROW 2 — chart (60%) + signals (40%) ───────────────
     QHBoxLayout* row2 = new QHBoxLayout();
-    row2->setSpacing(14);
+    row2->setSpacing(16);
     row2->setStretch(0, 6);
     row2->setStretch(1, 4);
 
@@ -389,7 +389,7 @@ void DashboardPage::setupLayout() {
     chartCard->setProperty("astraCard", true);
     chartCard->setFrameStyle(QFrame::NoFrame);
     QVBoxLayout* chartLay = new QVBoxLayout(chartCard);
-    chartLay->setContentsMargins(16, 14, 16, 16);
+    chartLay->setContentsMargins(20, 16, 20, 16);
     chartLay->setSpacing(10);
 
     QHBoxLayout* chartHeader = new QHBoxLayout();
@@ -428,7 +428,7 @@ void DashboardPage::setupLayout() {
     histCard->setProperty("astraCard", true);
     histCard->setFrameStyle(QFrame::NoFrame);
     QVBoxLayout* histLay = new QVBoxLayout(histCard);
-    histLay->setContentsMargins(16, 14, 16, 16);
+    histLay->setContentsMargins(20, 16, 20, 16);
     histLay->setSpacing(8);
 
     QLabel* histCaption = new QLabel(histCard);
@@ -466,7 +466,7 @@ void DashboardPage::setupLayout() {
 
     // ─────────────── ROW 3 — timeframe matrix (60%) + risk panel (40%) ───
     QHBoxLayout* row3 = new QHBoxLayout();
-    row3->setSpacing(14);
+    row3->setSpacing(16);
     row3->setStretch(0, 6);
     row3->setStretch(1, 4);
 
@@ -474,7 +474,7 @@ void DashboardPage::setupLayout() {
     matrixCard->setProperty("astraCard", true);
     matrixCard->setFrameStyle(QFrame::NoFrame);
     QVBoxLayout* matrixLay = new QVBoxLayout(matrixCard);
-    matrixLay->setContentsMargins(16, 14, 16, 16);
+    matrixLay->setContentsMargins(20, 16, 20, 16);
     matrixLay->setSpacing(8);
 
     QLabel* matrixCaption = new QLabel(matrixCard);
@@ -570,7 +570,7 @@ void DashboardPage::setupLayout() {
     riskPanel->setProperty("astraCard", true);
     riskPanel->setFrameStyle(QFrame::NoFrame);
     QVBoxLayout* riskLay = new QVBoxLayout(riskPanel);
-    riskLay->setContentsMargins(16, 14, 16, 16);
+    riskLay->setContentsMargins(20, 16, 20, 16);
     riskLay->setSpacing(8);
 
     QLabel* riskCaption = new QLabel(riskPanel);
@@ -591,7 +591,7 @@ void DashboardPage::setupLayout() {
 
     // ─────────────── ROW 4 — 6 quick cards ───────────────
     QHBoxLayout* row4 = new QHBoxLayout();
-    row4->setSpacing(12);
+    row4->setSpacing(16);
     const char* quickLabels[] = {"Research", "Knowledge", "Candidates",
                                  "Validation", "Approval Center", "Schedule"};
     for (int i = 0; i < 6; ++i) {

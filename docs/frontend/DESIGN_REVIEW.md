@@ -122,3 +122,34 @@ Please confirm:
 2. Is anything missing?
 3. Any color / spacing adjustments?
 4. Should the chart placeholder be more prominent?
+
+## Polish pass
+
+A follow-up pass tightened typography, spacing and hierarchy without changing
+the layout structure, features or any palette hex value.
+
+Typography
+- KPI card caption: 10px / 0.08em → 12px / 0.05em, so the label no longer
+  reads as incidental micro-text. (SCORE ≠ PROBABILITY and other semantic
+  labels are unaffected.)
+- Timeframe-matrix header: 9px / 0.02em → 10px / 0.05em for legibility at
+  1440×900.
+- Page title in the top bar set to a consistent 22px / 600 (it was 18px),
+  matching the ComingSoon page title and giving a clear page > section > card
+  hierarchy.
+- SHADOW ONLY chip text 11px → 12px.
+
+Spacing
+- KPI card padding standardised to 20 / 16 (was 16 / 14).
+- Dashboard card grids: row gaps 12–14px → 16px; page padding 14px → 16px.
+- Content-card padding (chart, signals, matrix, risk) standardised to
+  20 / 16.
+- Sidebar nav item gap 2px → 4px.
+
+Chips / badges
+- SHADOW ONLY chip and ComingSoon badge: radius 8px → 12px to match the
+  editorial chip language.
+
+Unchanged: all colors (palette fixed), layout structure, behaviour, and every
+non-visual feature.
+

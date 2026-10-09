@@ -173,7 +173,7 @@ void MainWindow::setupSidebar() {
     QWidget* navArea = new QWidget(mSidebar);
     QVBoxLayout* navLayout = new QVBoxLayout(navArea);
     navLayout->setContentsMargins(12, 8, 12, 12);
-    navLayout->setSpacing(2);
+    navLayout->setSpacing(4);
 
     for (const NavGroup& group : mNavGroups) {
         QLabel* groupLabel = new QLabel(navArea);
@@ -707,15 +707,15 @@ void MainWindow::restyleChrome() {
     // Top bar
     if (mPageTitle) {
         mPageTitle->setStyleSheet(
-            QString("QLabel { color: %1; font-size: 18px; font-weight: 600; }")
+            QString("QLabel { color: %1; font-size: 22px; font-weight: 600; }")
                 .arg(textPrimary));
     }
     const QList<QLabel*> shadowChips = findChildren<QLabel*>("astraShadowChip");
     for (QLabel* l : shadowChips) {
         l->setStyleSheet(
-            QString("QLabel { color: %1; font-size: 11px; font-weight: 500; "
-                    "letter-spacing: 0.05em; border: 1px solid %2; border-radius: 8px; "
-                    "padding: 5px 10px; background: %3; }")
+            QString("QLabel { color: %1; font-size: 12px; font-weight: 500; "
+                    "letter-spacing: 0.05em; border: 1px solid %2; border-radius: 12px; "
+                    "padding: 4px 12px; background: %3; }")
                 .arg(textSecondary, border, surface));
     }
     const QList<QLabel*> rendererLabels = findChildren<QLabel*>("astraRendererLabel");

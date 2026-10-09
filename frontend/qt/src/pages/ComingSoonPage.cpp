@@ -60,11 +60,10 @@ void ComingSoonPage::restyle() {
     const QString border = pal.color(QPalette::Mid).name();
     const QString accent = pal.color(QPalette::Highlight).name();
 
-    mTitle->setStyleSheet(QString("QLabel { color: %1; font-size: 22px; font-weight: 600; "
-                                  "letter-spacing: 1px; }").arg(textPrimary));
-    mBadge->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; font-weight: 500; "
-                                  "letter-spacing: 0.08em; border: 1px solid %2; "
-                                  "border-radius: 8px; padding: 4px 12px; background: %3; }")
+    mTitle->setStyleSheet(QString("QLabel { color: %1; font-size: 22px; font-weight: 600; }").arg(textPrimary));
+    mBadge->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; font-weight: 500; "
+                                  "letter-spacing: 0.05em; border: 1px solid %2; "
+                                  "border-radius: 12px; padding: 4px 12px; background: %3; }")
                               .arg(accent, border, surface));
     mBody->setStyleSheet(QString("QLabel { color: %1; font-size: 14px; }").arg(textSecondary));
 }
