@@ -659,3 +659,96 @@ This task cannot proceed without either:
 
 The workflow file and all fix commits are ready. The build logic is sound (Qt 6.5.3, pinned deps, correct paths). It just needs a token to monitor and a running Actions environment to execute.
 
+## ASTRA Redesign — Final Report
+
+### Bugs fixed
+
+- **Exit does not close the app** — root cause: `ConfirmExitDialog`'s Exit
+  button was wired `QPushButton::clicked -> confirmed(bool)`, which delivered
+  `checked = false`, so `MainWindow::onExitConfirmed(false)` ran and did
+  nothing; the dialog itself never called `accept()`/`reject()` and was shown
+  asynchronously (`open()`) while `MainWindow::closeEvent` polled an
+  `mExitConfirmed` flag that could not become true inside the event handler.
+  Fix: Exit → `QDialog::accept()`, Cancel → `QDialog::reject()` (default, ESC
+  included); MainWindow now runs `dlg.exec()`, sets the flag, saves settings,
+  stops all timers/aborts pending requests, then accepts the close event.
+- **F11 hides the sidebar** — root cause: `MainWindow::toggleFullscreen()`
+  explicitly called `mSidebar->setVisible(false)` when entering fullscreen
+  (and `mTopBar`/child widgets were conditionally hidden on exit). Fix:
+  fullscreen now only calls `showFullScreen()`/`showNormal()` — no child widget
+  is ever hidden; a new `changeEvent()` override keeps `mIsFullscreen`
+  truthful for OS-driven state changes (Win+Shift arrows, taskbar).
+
+### Redesign
+
+- Grouped sidebar (4 groups + Exit): MONITORING (Dashboard, Chart, History,
+  Health) / INTELLIGENCE (Research, Knowledge) / GOVERNANCE (Approval Center,
+  Governance, Incidents) / SYSTEM (Configuration, Recovery), plus ASTRA lockup
+  and "XAUUSD Intelligence" subtitle. Group labels 10px uppercase
+  letter-spacing 0.08em text-tertiary; rows 36px radius 8; active row =
+  surface-2 background + 3px accent-blue left border; coming-soon rows are
+  text-tertiary and open a shared ComingSoonPage.
+- Header: page title, ● SYSTEM HEALTHY/DEGRADED/OFFLINE (from /api/v1/health),
+  🔒 SHADOW ONLY, Renderer: Qt6/QPainter, HH:MM:SS UTC clock (1s timer),
+  theme toggle, fullscreen toggle, close.
+- Dashboard: 5 status cards (SYSTEM HEALTH, DATA STREAMS, SIGNALS, RISK,
+  EXECUTION), XAUUSD chart placeholder (line-art, "Coming soon"), signals
+  table from /analysis/history?limit=20 with empty state, 9-row timeframe
+  matrix, risk panel, 6 quick cards, bottom action bar (Refresh enabled;
+  Checkpoint/Pause/Resume/Stop/Recovery disabled with tooltip).
+- ComingSoonPage for future modules — title = module name, message
+  "Enabled when the backend module ships."
+- Custom-painted NavButton/SvgIcon (QPainter + QSvgRenderer, optional
+  Qt6::Svg, text fallback without it). No QML, no OpenGL, no QGraphicsView,
+  no gradients/blur/glow; animations ≤ 300ms.
+
+### Tests
+
+- Local offscreen behavior tests at commit `2d4fae2`: **4/4 PASS**
+  (3× F11/ESC sidebar checks, exit-close/cancel)
+- Final combined offscreen suite: **9/9 PASS** (above 4 + grouped sidebar
+  layout, coming-soon navigation, dashboard action-bar state, exit via
+  sidebar button, close-event cancel-then-exit)
+- Visual verification: offscreen page screenshots (dashboard, chart,
+  coming-soon, history, health, settings, fullscreen) rendered with fonts
+  and reviewed; build 0 errors / 0 warnings on Qt 6.8.3 locally
+
+### Commits
+
+- `2d4fae2` fix(qt): exit closes app; F11 keeps sidebar
+- `64824de` feat(qt): grouped sidebar + reference dashboard
+- `96a071f` merge remote CI fixes (solo's Qt 6.8.3 Windows workflow —
+  conflicts resolved in favour of this branch's behaviour)
+- `<this commit>` docs(alpha): ASTRA redesign final report
+
+### CI
+
+- Status: **success**
+- Run URL: https://github.com/alimazna/asp/actions/runs/37917819427
+  (run 37917819427, head 96a071f, 2026-10-09 10:28:32Z → 10:31:06Z,
+  all steps green: Install Qt 6.8 → Configure CMake → Build Release →
+  windeployqt → Package → Upload)
+- Artifact: **ASTRA-windows**, 23,442,807 bytes ≈ **22.4 MB** (30-day
+  retention, not expired)
+- ASTRA.exe present: **yes** — `astra_desktop.exe` is gated by the
+  windeployqt step's explicit `Test-Path` check (job fails if absent) and the
+  zip is uploaded with `if-no-files-found: error`; both succeeded
+- Prior runs (last 3 before ours): `ee25a6e` success, `9669baf` failure,
+  `c16b462` failure (all fixed by solo's workflow commits, kept in the merge)
+
+### Notes on tooling
+
+- `GITHUB_TOKEN` was absent in this environment; run status, job steps and
+  artifact metadata were read from the **public unauthenticated GitHub API**
+  (no secrets used or written to any file). Downloading the artifact zip
+  itself requires authentication, so artifact contents were verified through
+  the job's own step gates rather than by re-downloading.
+
+### Known deferred items
+
+- `/api/v1/candles` — not in the frozen API contract; the Chart page and the
+  dashboard chart card are "coming soon" placeholders (no fabricated data)
+- Risk panel — static placeholder ("Enabled when the risk module ships.")
+  until the backend risk module ships
+- Governance / Intelligence pages — coming-soon via the shared
+  ComingSoonPage until their backend modules ship
