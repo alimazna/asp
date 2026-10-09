@@ -66,7 +66,14 @@ void CandleChart::setCandles(const QVector<CandleData>& candles) {
         mPriceRange = mPriceMax - mPriceMin;
         mLastClose = mCandles.last().close;
     }
-    mVisibleStart = qMax(0, mCandles.size() - mVisibleCount);
+    if (mIsPanned) {
+        // A user who scrolled back keeps their viewport across refreshes; only
+        // the clamp changes (a shorter series pulls the window in).
+        mVisibleStart = qBound(0, mVisibleStart,
+                               qMax(0, mCandles.size() - mVisibleCount));
+    } else {
+        mVisibleStart = qMax(0, mCandles.size() - mVisibleCount);
+    }
     updateGeometry();
     update();
 }
@@ -101,7 +108,10 @@ void CandleChart::zoomOut() {
 void CandleChart::resetZoom() {
     mVisibleCount = 100;
     mVisibleStart = qMax(0, mCandles.size() - mVisibleCount);
-    mIsPanned = false;
+    if (mIsPanned) {
+        mIsPanned = false;
+        emit pannedChanged(false);
+    }
     updateGeometry();
     update();
 }
@@ -464,7 +474,11 @@ void CandleChart::mouseMoveEvent(QMouseEvent* event) {
         double candleWidth = (mChartWidth - 2 * mGap) / mVisibleCount;
         int indexDelta = qRound(delta / candleWidth);
         mVisibleStart = qBound(0, mPanStartIndex - indexDelta, qMax(0, mCandles.size() - mVisibleCount));
-        mIsPanned = (mVisibleStart > 0);
+        const bool panned = (mVisibleStart > 0);
+        if (panned != mIsPanned) {
+            mIsPanned = panned;
+            emit pannedChanged(mIsPanned);
+        }
         update();
     }
 }

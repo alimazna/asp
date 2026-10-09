@@ -160,6 +160,110 @@ void ApiClient::fetchAnalysisHistory(int limit) {
         });
 }
 
+void ApiClient::fetchCandles(const QString& tf, int limit) {
+    // The frontend never talks to MT5 or the bridge directly: this is the only
+    // candle source, and it goes through the C++ loopback API.
+    QNetworkRequest request(QUrl(mBaseUrl + "candles?tf=" + tf +
+                                 "&limit=" + QString::number(qBound(1, limit, 1000))));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                CandlesResponse resp;
+                resp.envelope = env;
+                resp.data = parseCandlesData(env.data);
+                mCurrentCandles = resp;
+                mIsOnline = true;
+                emit candlesReceived(resp);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) {
+            emit error(msg, code);
+        });
+}
+
+void ApiClient::fetchResearchStatus() {
+    QNetworkRequest request(QUrl(mBaseUrl + "research/status"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                mCurrentResearch = parseResearchData(env.data);
+                emit researchReceived(mCurrentResearch);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) { emit error(msg, code); });
+}
+
+void ApiClient::fetchGovernanceStatus() {
+    QNetworkRequest request(QUrl(mBaseUrl + "governance/status"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                mCurrentGovernance = parseGovernanceData(env.data);
+                emit governanceReceived(mCurrentGovernance);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) { emit error(msg, code); });
+}
+
+void ApiClient::fetchAuditRecent() {
+    QNetworkRequest request(QUrl(mBaseUrl + "audit/recent"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                mCurrentAudit = parseAuditData(env.data);
+                emit auditReceived(mCurrentAudit);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) { emit error(msg, code); });
+}
+
+void ApiClient::fetchSystemState() {
+    QNetworkRequest request(QUrl(mBaseUrl + "system/state"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                mCurrentSystemState = parseSystemStateData(env.data);
+                emit systemStateReceived(mCurrentSystemState);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) { emit error(msg, code); });
+}
+
 void ApiClient::parseEnvelope(const QByteArray& raw, ApiEnvelope& envelope) {
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
@@ -300,6 +404,129 @@ HealthData ApiClient::parseHealthData(const QJsonObject& obj) {
     if (!isNullOrMissing(tierVal)) {
         d.coverageTier = tierVal.toString();
     }
+    return d;
+}
+
+CandlesData ApiClient::parseCandlesData(const QJsonObject& obj) {
+    CandlesData d;
+    d.timeframe = obj.value("timeframe").toString();
+    d.symbol = obj.value("symbol").toString();
+    d.freshness = obj.value("freshness").toString("UNKNOWN");
+
+    const QJsonArray arr = obj.value("bars").toArray();
+    d.bars.reserve(arr.size());
+    for (const QJsonValue& v : arr) {
+        const QJsonObject bar = v.toObject();
+        Candle c;
+        c.time = static_cast<qint64>(bar.value("time").toDouble());
+        c.open = bar.value("open").toDouble();
+        c.high = bar.value("high").toDouble();
+        c.low = bar.value("low").toDouble();
+        c.close = bar.value("close").toDouble();
+        c.tickVolume = static_cast<qint64>(bar.value("tick_volume").toDouble());
+        c.spread = bar.value("spread").toInt();
+        c.realVolume = static_cast<qint64>(bar.value("real_volume").toDouble());
+        d.bars.append(c);
+    }
+    // Only a non-empty, well-formed series counts as available. A count field
+    // that disagrees with the array is treated as unavailable, never padded.
+    const int declared = obj.value("count").toInt(-1);
+    d.available = !d.bars.isEmpty() &&
+                  (declared < 0 || declared == d.bars.size());
+    if (!d.available) d.bars.clear();
+    return d;
+}
+
+ResearchData ApiClient::parseResearchData(const QJsonObject& obj) {
+    ResearchData d;
+    d.available = obj.value("available").toBool(false);
+    d.mode = obj.value("mode").toString();
+    d.note = obj.value("note").toString();
+    d.experimentCount = obj.value("experiment_count").toInt(0);
+    d.failureCount = obj.value("failure_count").toInt(0);
+    for (const QJsonValue& v : obj.value("experiments").toArray()) {
+        const QJsonObject e = v.toObject();
+        ResearchExperiment r;
+        r.experimentId = e.value("experiment_id").toString();
+        r.hypothesisId = e.value("hypothesis_id").toString();
+        r.method = e.value("method").toString();
+        r.outcome = e.value("outcome").toString();
+        if (e.value("sample_size").isDouble()) r.sampleSize = e.value("sample_size").toDouble();
+        if (e.value("result_metric").isDouble()) r.resultMetric = e.value("result_metric").toDouble();
+        d.experiments.append(r);
+    }
+    for (const QJsonValue& v : obj.value("failures").toArray()) {
+        const QJsonObject f = v.toObject();
+        ResearchFailure r;
+        r.failureId = f.value("failure_id").toString();
+        r.category = f.value("category").toString();
+        r.summary = f.value("summary").toString();
+        if (f.value("occurrences").isDouble()) r.occurrences = f.value("occurrences").toDouble();
+        r.resolved = f.value("resolved").toBool(false);
+        d.failures.append(r);
+    }
+    return d;
+}
+
+GovernanceData ApiClient::parseGovernanceData(const QJsonObject& obj) {
+    GovernanceData d;
+    d.available = true;
+    d.liveTradingAuthorised = obj.value("live_trading_authorised").toBool(false);
+    d.pendingCount = obj.value("pending_count").toInt(0);
+    auto readReq = [](const QJsonObject& o) {
+        ApprovalRequest r;
+        r.requestId = o.value("request_id").toString();
+        r.kind = o.value("kind").toString();
+        r.subjectId = o.value("subject_id").toString();
+        r.status = o.value("status").toString();
+        r.requestedBy = o.value("requested_by").toString();
+        return r;
+    };
+    for (const QJsonValue& v : obj.value("pending").toArray())
+        d.pending.append(readReq(v.toObject()));
+    for (const QJsonValue& v : obj.value("history").toArray())
+        d.history.append(readReq(v.toObject()));
+    return d;
+}
+
+AuditData ApiClient::parseAuditData(const QJsonObject& obj) {
+    AuditData d;
+    d.available = true;
+    d.count = obj.value("count").toInt(0);
+    d.auditStreamSize = obj.value("audit_stream_size").toInt(0);
+    for (const QJsonValue& v : obj.value("audit_records").toArray()) {
+        const QJsonObject o = v.toObject();
+        AuditRecord r;
+        r.sequence = static_cast<qint64>(o.value("sequence").toDouble());
+        r.eventId = o.value("event_id").toString();
+        r.action = o.value("action").toString();
+        r.outcome = o.value("outcome").toString();
+        r.serviceState = o.value("service_state").toString();
+        r.actor = o.value("actor").toString();
+        r.subject = o.value("subject").toString();
+        r.details = o.value("details").toString();
+        d.records.append(r);
+    }
+    for (const QJsonValue& v : obj.value("active_incidents").toArray()) {
+        const QJsonObject o = v.toObject();
+        IncidentRecord r;
+        r.incidentId = o.value("incident_id").toString();
+        r.severity = o.value("severity").toString();
+        r.state = o.value("state").toString();
+        r.title = o.value("title").toString();
+        d.incidents.append(r);
+    }
+    return d;
+}
+
+SystemStateData ApiClient::parseSystemStateData(const QJsonObject& obj) {
+    SystemStateData d;
+    d.available = true;
+    d.mode = obj.value("mode").toString();
+    d.shadowOnly = obj.value("shadow_only").toBool(false);
+    d.ready = obj.value("ready").toBool(false);
+    d.bridgeState = obj.value("bridge_state").toString();
+    d.startupStage = obj.value("startup_stage").toString();
     return d;
 }
 

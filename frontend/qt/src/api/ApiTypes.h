@@ -99,6 +99,118 @@ struct ContextResponse {
     ContextData data;
 };
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Candle series — GET /api/v1/candles?tf={tf}&limit={N}
+//   data: { bars:[{time,open,high,low,close,tick_volume,spread,real_volume}],
+//           timeframe, symbol, count, closed_only, newest_closed_time, freshness }
+// Closed-bar only; the forming bar is never returned.
+// ──────────────────────────────────────────────────────────────────────────────
+
+struct Candle {
+    qint64 time = 0;        // epoch seconds (bar open)
+    double open = 0.0;
+    double high = 0.0;
+    double low = 0.0;
+    double close = 0.0;
+    qint64 tickVolume = 0;
+    int spread = 0;
+    qint64 realVolume = 0;
+};
+
+struct CandlesData {
+    bool available = false;      // true only when at least one bar arrived
+    QString timeframe;
+    QString symbol;
+    QString freshness;           // FRESH | STALE | UNKNOWN
+    QVector<Candle> bars;
+};
+
+struct CandlesResponse {
+    ApiEnvelope envelope;
+    CandlesData data;
+};
+
+// ── Governance / system surfaces (additive, read-only) ───────────────────────
+// These mirror the real backend/fixture shapes. Every unknown or absent field
+// is rendered by the UI as "\u2014" (em dash); nothing is fabricated.
+
+// GET /api/v1/research/status
+struct ResearchExperiment {
+    QString experimentId;
+    QString hypothesisId;
+    QString method;
+    QString outcome;
+    std::optional<double> sampleSize;
+    std::optional<double> resultMetric;
+};
+struct ResearchFailure {
+    QString failureId;
+    QString category;
+    QString summary;
+    std::optional<double> occurrences;
+    bool resolved = false;
+};
+struct ResearchData {
+    bool available = false;
+    QString mode;
+    QString note;
+    int experimentCount = 0;
+    int failureCount = 0;
+    QVector<ResearchExperiment> experiments;
+    QVector<ResearchFailure> failures;
+};
+
+// GET /api/v1/governance/status
+struct ApprovalRequest {
+    QString requestId;
+    QString kind;
+    QString subjectId;
+    QString status;
+    QString requestedBy;
+};
+struct GovernanceData {
+    bool available = false;
+    bool liveTradingAuthorised = false;
+    int pendingCount = 0;
+    QVector<ApprovalRequest> pending;
+    QVector<ApprovalRequest> history;
+};
+
+// GET /api/v1/audit/recent
+struct AuditRecord {
+    qint64 sequence = 0;
+    QString eventId;
+    QString action;
+    QString outcome;
+    QString serviceState;
+    QString actor;
+    QString subject;
+    QString details;
+};
+struct IncidentRecord {
+    QString incidentId;
+    QString severity;
+    QString state;
+    QString title;
+};
+struct AuditData {
+    bool available = false;
+    int count = 0;
+    int auditStreamSize = 0;
+    QVector<AuditRecord> records;
+    QVector<IncidentRecord> incidents;
+};
+
+// GET /api/v1/system/state
+struct SystemStateData {
+    bool available = false;
+    QString mode;
+    bool shadowOnly = false;
+    bool ready = false;
+    QString bridgeState;
+    QString startupStage;
+};
+
 // Error body (flat, NOT enveloped)
 struct ApiError {
     QString code;

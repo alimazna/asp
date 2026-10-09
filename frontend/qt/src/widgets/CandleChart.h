@@ -58,6 +58,13 @@ public:
     void resetZoom();
     void goToLive();
 
+    // True while the viewport is scrolled back from the newest bar, which is
+    // what drives the "Go to live" affordance.
+    [[nodiscard]] bool isPanned() const { return mIsPanned; }
+
+signals:
+    void pannedChanged(bool panned);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;

@@ -34,7 +34,14 @@ set(ASTRA_SOURCES
     src/pages/ChartPage.cpp
     src/pages/HistoryPage.cpp
     src/pages/HealthPage.cpp
+    src/pages/ResearchPage.cpp
+    src/pages/KnowledgePage.cpp
+    src/pages/ApprovalPage.cpp
+    src/pages/GovernancePage.cpp
+    src/pages/IncidentsPage.cpp
+    src/pages/RecoveryPage.cpp
     src/pages/SettingsPage.cpp
+    src/widgets/InfoCard.cpp
     src/widgets/SignalCard.cpp
     src/widgets/LevelsCard.cpp
     src/widgets/RegimeChip.cpp
@@ -59,7 +66,14 @@ set(ASTRA_HEADERS
     src/pages/ChartPage.h
     src/pages/HistoryPage.h
     src/pages/HealthPage.h
+    src/pages/ResearchPage.h
+    src/pages/KnowledgePage.h
+    src/pages/ApprovalPage.h
+    src/pages/GovernancePage.h
+    src/pages/IncidentsPage.h
+    src/pages/RecoveryPage.h
     src/pages/SettingsPage.h
+    src/widgets/InfoCard.h
     src/widgets/SignalCard.h
     src/widgets/LevelsCard.h
     src/widgets/RegimeChip.h
@@ -131,7 +145,14 @@ if(BUILD_ASTRA_SNAPSHOT)
         src/pages/ChartPage.cpp
         src/pages/HistoryPage.cpp
         src/pages/HealthPage.cpp
+        src/pages/ResearchPage.cpp
+        src/pages/KnowledgePage.cpp
+        src/pages/ApprovalPage.cpp
+        src/pages/GovernancePage.cpp
+        src/pages/IncidentsPage.cpp
+        src/pages/RecoveryPage.cpp
         src/pages/SettingsPage.cpp
+        src/widgets/InfoCard.cpp
         src/widgets/SignalCard.cpp
         src/widgets/LevelsCard.cpp
         src/widgets/RegimeChip.cpp

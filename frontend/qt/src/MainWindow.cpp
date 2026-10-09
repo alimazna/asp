@@ -4,6 +4,12 @@
 #include "pages/HistoryPage.h"
 #include "pages/HealthPage.h"
 #include "pages/SettingsPage.h"
+#include "pages/ResearchPage.h"
+#include "pages/KnowledgePage.h"
+#include "pages/ApprovalPage.h"
+#include "pages/GovernancePage.h"
+#include "pages/IncidentsPage.h"
+#include "pages/RecoveryPage.h"
 #include "pages/ComingSoonPage.h"
 #include "dialogs/ConfirmExitDialog.h"
 #include "widgets/NavButton.h"
@@ -117,7 +123,12 @@ void MainWindow::setApiClient(ApiClient* client) {
     if (auto* chart = qobject_cast<ChartPage*>(mPages[Chart])) chart->setApiClient(client);
     if (auto* hist = qobject_cast<HistoryPage*>(mPages[History])) hist->setApiClient(client);
     if (auto* hp = qobject_cast<HealthPage*>(mPages[Health])) hp->setApiClient(client);
+    if (auto* rp = qobject_cast<ResearchPage*>(mPages[Research])) rp->setApiClient(client);
+    if (auto* ap = qobject_cast<ApprovalPage*>(mPages[Approval])) ap->setApiClient(client);
+    if (auto* gp = qobject_cast<GovernancePage*>(mPages[Governance])) gp->setApiClient(client);
+    if (auto* ip = qobject_cast<IncidentsPage*>(mPages[Incidents])) ip->setApiClient(client);
     if (auto* sp = qobject_cast<SettingsPage*>(mPages[Settings])) sp->setApiClient(client);
+    if (auto* rcp = qobject_cast<RecoveryPage*>(mPages[Recovery])) rcp->setApiClient(client);
 
     // Initial fetches
     client->fetchAnalysisLatest();
@@ -137,17 +148,17 @@ void MainWindow::setupSidebar() {
             { "Health",    Health,    ":/icons/health.svg" },
         }},
         { "INTELLIGENCE", {
-            { "Research", -1, "" },
-            { "Knowledge", -1, "" },
+            { "Research",  Research,  "" },
+            { "Knowledge", Knowledge, "" },
         }},
         { "GOVERNANCE", {
-            { "Approval Center", -1, "" },
-            { "Governance",      -1, "" },
-            { "Incidents",       -1, "" },
+            { "Approval Center", Approval,   "" },
+            { "Governance",      Governance, "" },
+            { "Incidents",       Incidents,  "" },
         }},
         { "SYSTEM", {
             { "Configuration", Settings, ":/icons/settings.svg" },
-            { "Recovery",      -1,       "" },
+            { "Recovery",      Recovery, "" },
         }},
     };
 
@@ -427,11 +438,17 @@ void MainWindow::setupContentArea() {
     // Create pages
     mPages.resize(PageCount);
     mPages[Dashboard] = new DashboardPage(this);
-    mPages[Chart] = new ChartPage(this);       // stub — no /candles endpoint
+    mPages[Chart] = new ChartPage(this);
     mPages[History] = new HistoryPage(this);
     mPages[Health] = new HealthPage(this);
+    mPages[Research] = new ResearchPage(this);
+    mPages[Knowledge] = new KnowledgePage(this);
+    mPages[Approval] = new ApprovalPage(this);
+    mPages[Governance] = new GovernancePage(this);
+    mPages[Incidents] = new IncidentsPage(this);
     mPages[Settings] = new SettingsPage(this);
-    mPages[ComingSoon] = new ComingSoonPage(this);
+    mPages[Recovery] = new RecoveryPage(this);
+    mPages[ComingSoon] = new ComingSoonPage(this);  // 404 fallback
 
     for (int i = 0; i < PageCount; ++i) {
         mContentStack->addWidget(mPages[i]);

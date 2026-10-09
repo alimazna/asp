@@ -24,7 +24,13 @@ class DashboardPage;
 class ChartPage;
 class HistoryPage;
 class HealthPage;
+class ResearchPage;
+class KnowledgePage;
+class ApprovalPage;
+class GovernancePage;
+class IncidentsPage;
 class SettingsPage;
+class RecoveryPage;
 class ComingSoonPage;
 
 namespace astra {
@@ -95,8 +101,13 @@ private:
     void stopAllTimers();
     [[nodiscard]] int navIndexOfPage(int pageIndex) const;
 
-    // Navigation
-    enum Page { Dashboard, Chart, History, Health, Settings, ComingSoon, PageCount };
+    // Navigation. ComingSoon is retained as the 404 fallback for any sidebar
+    // entry that is not wired to a real page.
+    enum Page {
+        Dashboard, Chart, History, Health,
+        Research, Knowledge, Approval, Governance, Incidents,
+        Settings, Recovery, ComingSoon, PageCount
+    };
     QStackedWidget* mContentStack = nullptr;
     QVector<QWidget*> mPages;
 

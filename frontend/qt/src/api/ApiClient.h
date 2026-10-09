@@ -30,15 +30,27 @@ public:
     void fetchHealth();
     void fetchContextLatest();
     void fetchAnalysisHistory(int limit = 50);
+    void fetchCandles(const QString& tf, int limit = 500);
+    void fetchResearchStatus();
+    void fetchGovernanceStatus();
+    void fetchAuditRecent();
+    void fetchSystemState();
 
     // Cancel pending requests
     void cancelAll();
+
+    // Latest governance responses (available after the matching signal).
+    [[nodiscard]] ResearchData currentResearch() const { return mCurrentResearch; }
+    [[nodiscard]] GovernanceData currentGovernance() const { return mCurrentGovernance; }
+    [[nodiscard]] AuditData currentAudit() const { return mCurrentAudit; }
+    [[nodiscard]] SystemStateData currentSystemState() const { return mCurrentSystemState; }
 
     // Latest results (available after finished signal)
     [[nodiscard]] AnalysisResponse currentAnalysis() const { return mCurrentAnalysis; }
     [[nodiscard]] QVector<AnalysisData> currentHistory() const { return mCurrentHistory; }
     [[nodiscard]] HealthResponse currentHealth() const { return mCurrentHealth; }
     [[nodiscard]] ContextResponse currentContext() const { return mCurrentContext; }
+    [[nodiscard]] CandlesResponse currentCandles() const { return mCurrentCandles; }
 
     // Connection state
     [[nodiscard]] bool isOnline() const { return mIsOnline; }
@@ -49,6 +61,11 @@ signals:
     void historyReceived(const QVector<AnalysisData>& items);
     void healthReceived(const HealthResponse& response);
     void contextReceived(const ContextResponse& response);
+    void candlesReceived(const CandlesResponse& response);
+    void researchReceived(const ResearchData& data);
+    void governanceReceived(const GovernanceData& data);
+    void auditReceived(const AuditData& data);
+    void systemStateReceived(const SystemStateData& data);
     void error(const QString& message, const QString& code);
     void offline();
     void online();
@@ -58,6 +75,11 @@ private:
     AnalysisData parseAnalysisData(const QJsonObject& obj);
     ContextData parseContextData(const QJsonObject& obj);
     HealthData parseHealthData(const QJsonObject& obj);
+    CandlesData parseCandlesData(const QJsonObject& obj);
+    ResearchData parseResearchData(const QJsonObject& obj);
+    GovernanceData parseGovernanceData(const QJsonObject& obj);
+    AuditData parseAuditData(const QJsonObject& obj);
+    SystemStateData parseSystemStateData(const QJsonObject& obj);
     void handleReply(QNetworkReply* reply, std::function<void(const QByteArray&)> onSuccess,
                      std::function<void(const QString&, const QString&)> onError);
     void scheduleRetry();
@@ -70,6 +92,11 @@ private:
     QVector<AnalysisData> mCurrentHistory;
     HealthResponse mCurrentHealth;
     ContextResponse mCurrentContext;
+    CandlesResponse mCurrentCandles;
+    ResearchData mCurrentResearch;
+    GovernanceData mCurrentGovernance;
+    AuditData mCurrentAudit;
+    SystemStateData mCurrentSystemState;
 
     bool mIsOnline = false;
     bool mIsDegraded = false;

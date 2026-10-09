@@ -9,9 +9,13 @@
 //
 // Produces, under <output-directory>:
 //   dashboard_dark.png      dashboard_light.png
-//   chart_dark.png          history_dark.png
-//   health_dark.png         settings_dark.png
-//   coming_soon_dark.png    fullscreen_dark.png
+//   chart_dark.png          chart_light.png
+//   chart_live_dark.png     chart_live_light.png
+//   history_dark.png        health_dark.png
+//   research_dark.png       knowledge_dark.png
+//   approval_dark.png       governance_dark.png
+//   incidents_dark.png      recovery_dark.png
+//   settings_dark.png       fullscreen_dark.png
 //
 // The bare offscreen QPA platform reports an 800x800 screen, so normal pages
 // are resized to 1440x900 and grabbed with QWidget::grab() (independent of the
@@ -256,9 +260,10 @@ int main(int argc, char* argv[]) {
     win.initStyleChrome();
     settle(600);
 
-    // ── chart page ─────────────────────────────────────────────────────────
+    // ── chart page (live candles from /api/v1/candles) ─────────────────────
     nav(win, 1);
     ok &= capture(win, "chart_dark.png", outDir);
+    ok &= capture(win, "chart_live_dark.png", outDir);
 
     // ── history ────────────────────────────────────────────────────────────
     nav(win, 2);
@@ -268,13 +273,24 @@ int main(int argc, char* argv[]) {
     nav(win, 3);
     ok &= capture(win, "health_dark.png", outDir);
 
+    // ── governance + intelligence pages (nav 4..8, 10) ─────────────────────
+    nav(win, 4);
+    ok &= capture(win, "research_dark.png", outDir);
+    nav(win, 5);
+    ok &= capture(win, "knowledge_dark.png", outDir);
+    nav(win, 6);
+    ok &= capture(win, "approval_dark.png", outDir);
+    nav(win, 7);
+    ok &= capture(win, "governance_dark.png", outDir);
+    nav(win, 8);
+    ok &= capture(win, "incidents_dark.png", outDir);
+
     // ── settings (Configuration, nav index 9) ──────────────────────────────
     nav(win, 9);
     ok &= capture(win, "settings_dark.png", outDir);
 
-    // ── coming soon (Research, nav index 4 -> shared ComingSoonPage) ───────
-    nav(win, 4);
-    ok &= capture(win, "coming_soon_dark.png", outDir);
+    nav(win, 10);
+    ok &= capture(win, "recovery_dark.png", outDir);
 
     // ── light-theme pass over the remaining pages ──────────────────────────
     applyTheme(app, "theme-light.qss");
@@ -282,14 +298,25 @@ int main(int argc, char* argv[]) {
     settle(400);
     nav(win, 1);
     ok &= capture(win, "chart_light.png", outDir);
+    ok &= capture(win, "chart_live_light.png", outDir);
     nav(win, 2);
     ok &= capture(win, "history_light.png", outDir);
     nav(win, 3);
     ok &= capture(win, "health_light.png", outDir);
+    nav(win, 4);
+    ok &= capture(win, "research_light.png", outDir);
+    nav(win, 5);
+    ok &= capture(win, "knowledge_light.png", outDir);
+    nav(win, 6);
+    ok &= capture(win, "approval_light.png", outDir);
+    nav(win, 7);
+    ok &= capture(win, "governance_light.png", outDir);
+    nav(win, 8);
+    ok &= capture(win, "incidents_light.png", outDir);
     nav(win, 9);
     ok &= capture(win, "settings_light.png", outDir);
-    nav(win, 4);
-    ok &= capture(win, "coming_soon_light.png", outDir);
+    nav(win, 10);
+    ok &= capture(win, "recovery_light.png", outDir);
     applyTheme(app, "theme-dark.qss");
     win.initStyleChrome();
     settle(300);
