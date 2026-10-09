@@ -40,10 +40,18 @@ GET /v1/health
 GET /v1/handshake
 GET /v1/symbol
 GET /v1/candles?symbol=XAUUSD&timeframe=M15&count=500&closed_only=true
+GET /v1/candles?tf=M15&limit=500
 GET /v1/tick?symbol=XAUUSD
 ```
 
-`/v1/candles` accepts two optional decision-grade guards:
+`/v1/candles?tf={tf}&limit={N}` is the ASTRA chart series alias. It accepts
+`tf` for `timeframe` and `limit` for `count` (1..1000, default 500) and returns
+`{bars, timeframe, symbol, count, newest_closed_time, freshness}` — a direct
+series for the chart, closed-bar only. Validation failures return HTTP 400;
+MT5/symbol unavailability returns HTTP 503. A successful read is cached for 5s
+per `(symbol, tf, limit)` so rapid UI interactions do not hammer MT5.
+
+`/v1/candles` also accepts two optional decision-grade guards:
 
 - `min_count=N` — fail with `INSUFFICIENT_HISTORY` when fewer than `N` closed
   bars are available, so a short window never masquerades as a full sample.
@@ -78,6 +86,14 @@ freshness, error, version, bind, and SIGTERM contracts without a broker:
 
 ```text
 python3 tests/integration/test_bridge_t06.py
+```
+
+The ASTRA candle-series alias has its own unit test, which injects an
+in-process MetaTrader5 double and drives the real route over loopback HTTP
+(shape, closed-bar, validation, cache, unavailability):
+
+```text
+python3 bridge/tests/test_candles_route.py
 ```
 
 ## Environment

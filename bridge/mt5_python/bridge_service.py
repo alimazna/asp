@@ -9,6 +9,7 @@ Endpoints (MT5_PYTHON_BRIDGE_V1.md):
     GET /v1/handshake
     GET /v1/symbol
     GET /v1/candles?symbol=XAUUSD&timeframe=M15&count=500&closed_only=true
+    GET /v1/candles?tf=M15&limit=500       (ASTRA chart alias; closed-bar only)
     GET /v1/tick?symbol=XAUUSD
 
 Security boundary:
@@ -27,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
@@ -64,6 +66,13 @@ DEFAULT_PORT = 8791
 # Tolerance for client clock skew when rejecting future-dated request stamps.
 _FUTURE_SKEW_SECONDS = 300
 
+# ASTRA chart route (/v1/candles?tf&limit) bounds and short-TTL response cache.
+# The cache stops rapid UI interactions (timeframe switches, pan/zoom) from
+# hammering MT5 with identical reads; it is keyed by (symbol, tf, limit).
+_CHART_MAX_LIMIT = 1000
+_CHART_DEFAULT_LIMIT = 500
+_CACHE_TTL_SECONDS = 5.0
+
 
 class BridgeState:
     """Shared, long-lived service state."""
@@ -81,6 +90,11 @@ class BridgeState:
         # failure) instead of a generic downstream error.
         self.bootstrap_error_code: str = ""
         self.bootstrap_error_message: str = ""
+        # Short-TTL candle cache. Keyed by (symbol, timeframe, limit); value is
+        # (expiry_monotonic, payload). Guarded by a lock because the server is
+        # threaded. Only successful, non-stale reads are cached.
+        self._candle_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any]]] = {}
+        self._candle_cache_lock = threading.Lock()
 
     def bootstrap(self) -> None:
         """Attempt MT5 init + symbol resolution. Failure is recorded, not fatal."""
@@ -111,6 +125,28 @@ class BridgeState:
 
     def mark_error(self, text: str) -> None:
         self.last_error = text
+
+    # -- candle cache -------------------------------------------------------
+
+    def cache_get(self, symbol: str, timeframe: str, limit: int) -> Optional[Dict[str, Any]]:
+        """Return a cached chart payload if still within TTL, else None."""
+        key = (symbol, timeframe, limit)
+        now = time.monotonic()
+        with self._candle_cache_lock:
+            entry = self._candle_cache.get(key)
+            if entry is None:
+                return None
+            expiry, payload = entry
+            if now >= expiry:
+                self._candle_cache.pop(key, None)
+                return None
+            return payload
+
+    def cache_put(self, symbol: str, timeframe: str, limit: int,
+                  payload: Dict[str, Any]) -> None:
+        key = (symbol, timeframe, limit)
+        with self._candle_cache_lock:
+            self._candle_cache[key] = (time.monotonic() + _CACHE_TTL_SECONDS, payload)
 
 
 def _handshake_payload(state: BridgeState) -> Dict[str, Any]:
@@ -279,6 +315,14 @@ class BridgeHandler(BaseHTTPRequestHandler):
                                     source=SOURCE_NAME, symbol=state.resolved_symbol))
 
     def _handle_candles(self, state: BridgeState, query: Dict[str, list]) -> None:
+        # ASTRA chart alias: ?tf=<tf>&limit=<n>. Accepts `tf` for `timeframe`
+        # and `limit` for `count`, and returns a bar series with a "bars" key
+        # so the frontend chart has a direct series source. The canonical
+        # params keep their original behaviour.
+        if "tf" in query or "limit" in query:
+            self._handle_chart_candles(state, query)
+            return
+
         symbol = (query.get("symbol") or [state.resolved_symbol or state.preferred_symbol])[0]
         timeframe = (query.get("timeframe") or [PRIMARY_OPERATIONAL_TIMEFRAME])[0]
         count_raw = (query.get("count") or ["500"])[0]
@@ -363,6 +407,90 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
         state.mark_success()
         self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
+                                    source=SOURCE_NAME, broker=state.client.broker,
+                                    symbol=symbol, timeframe=timeframe,
+                                    quality=QUALITY_VALID))
+
+    def _handle_chart_candles(self, state: BridgeState, query: Dict[str, list]) -> None:
+        """ASTRA chart series: GET /v1/candles?tf={tf}&limit={N}.
+
+        Closed-bar only (the forming bar is never returned), so the chart never
+        plots a bar the decision chain has not yet accepted. Successful reads
+        are served from a 5s cache to absorb rapid UI interactions.
+        """
+        symbol = (query.get("symbol") or [state.resolved_symbol or state.preferred_symbol])[0]
+        timeframe = (query.get("tf") or [PRIMARY_OPERATIONAL_TIMEFRAME])[0]
+        limit_raw = (query.get("limit") or [str(_CHART_DEFAULT_LIMIT)])[0]
+
+        if timeframe not in TIMEFRAMES:
+            self._error(ErrorInfo(code=ERR_BAD_REQUEST,
+                                  message=f"unsupported timeframe {timeframe}",
+                                  context={"supported": TIMEFRAMES},
+                                  recovery="request a canonical timeframe"), 400)
+            return
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError):
+            self._error(ErrorInfo(code=ERR_BAD_REQUEST, message="limit is not an integer"), 400)
+            return
+        if limit < 1 or limit > _CHART_MAX_LIMIT:
+            self._error(ErrorInfo(code=ERR_BAD_REQUEST,
+                                  message=f"limit out of range (1..{_CHART_MAX_LIMIT})"), 400)
+            return
+
+        cached = state.cache_get(symbol, timeframe, limit)
+        if cached is not None:
+            self._send_json(ok_envelope(cached, generated_at_utc=int(time.time()),
+                                        source=SOURCE_NAME, broker=state.client.broker,
+                                        symbol=symbol, timeframe=timeframe,
+                                        quality=QUALITY_VALID))
+            return
+
+        result = state.client.read_candles(symbol, timeframe, limit, closed_only=True)
+        if not result.ok:
+            state.mark_error(result.message)
+            code = result.error_code
+            message = result.message
+            if not state.mt5_ready and state.bootstrap_error_code:
+                code = state.bootstrap_error_code
+                message = state.bootstrap_error_message
+            # Terminal/symbol unavailability is a dependency outage, not a
+            # client error: report 503 so the frontend can distinguish it.
+            http_status = 503 if code in (ERR_MT5_TERMINAL_UNAVAILABLE,
+                                          ERR_MT5_SYMBOL_UNRESOLVED) else 200
+            self._error(ErrorInfo(code=code, message=message,
+                                  context={"symbol": symbol, "timeframe": timeframe},
+                                  recovery="verify MT5 terminal, symbol, and data availability"),
+                        http_status)
+            return
+
+        # Staleness is surfaced as an explicit error, never a silent VALID.
+        freshness = result.data.get("freshness", "UNKNOWN")
+        if freshness == "STALE":
+            state.mark_error("stale market data")
+            self._error(ErrorInfo(
+                code=ERR_MARKET_DATA_STALE,
+                state=QUALITY_UNKNOWN,
+                message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
+                context={"symbol": symbol, "timeframe": timeframe,
+                         "newest_closed_time": result.data.get("newest_closed_time"),
+                         "age_seconds": result.data.get("age_seconds")},
+                recovery="verify the MT5 terminal feed is live and the market is open"))
+            return
+
+        bars = result.data.get("candles", [])
+        payload = {
+            "bars": bars,
+            "timeframe": timeframe,
+            "symbol": symbol,
+            "count": len(bars),
+            "closed_only": True,
+            "newest_closed_time": result.data.get("newest_closed_time"),
+            "freshness": freshness,
+        }
+        state.cache_put(symbol, timeframe, limit, payload)
+        state.mark_success()
+        self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
                                     source=SOURCE_NAME, broker=state.client.broker,
                                     symbol=symbol, timeframe=timeframe,
                                     quality=QUALITY_VALID))
