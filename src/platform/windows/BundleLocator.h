@@ -24,6 +24,10 @@ struct BundleLayout {
     PythonRuntimeSource pythonSource = PythonRuntimeSource::NONE;
     std::string pythonExecutable;    // absolute path to python interpreter
     std::string bridgeScript;        // absolute path to bridge_service.py
+    // True when the bridge is a frozen executable (bridge.exe) rather than a
+    // script run by an interpreter. The supervisor then launches it directly,
+    // with no interpreter argument.
+    bool bridgeIsFrozen = false;
     std::vector<std::string> searched;   // candidates examined (diagnostics)
     std::string error;
 };

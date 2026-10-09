@@ -57,6 +57,26 @@ user never installs Python and never opens a CMD window.
 - POSIX (development/CI): `resources/python/python3`, or a system interpreter
   passed explicitly for local smoke tests only.
 
+## Windows installer (end-to-end)
+
+`packaging/windows/` assembles the three runtime pieces into one setup:
+
+| Piece | Built by | Staged path |
+|---|---|---|
+| Qt desktop frontend | `frontend/qt` (CMake + windeployqt) | `frontend/qt/build/bin/Release/` |
+| C++ backend host | root `CMakeLists.txt` (`aura_backend_host`) | `build/Release/aura_backend_host.exe` |
+| Frozen Python bridge | `packaging/windows/astra-bridge.spec` (PyInstaller) | `dist/bridge.exe` |
+
+`packaging/windows/astra-setup.iss` (Inno Setup) bundles them into
+`ASTRA-Setup.exe`, installing to `{autopf}\ASTRA`. The frozen bridge lands at
+`resources/bridge/mt5_python/bridge.exe`, which `BundleLocator` prefers over the
+script path; the backend launches it directly with no interpreter. If the frozen
+bridge is absent the locator falls back to the bundled interpreter running
+`bridge_service.py`, so development layouts keep working.
+
+MetaTrader5 is optional at freeze time: without it the bridge still boots and
+reports `MT5_TERMINAL_UNAVAILABLE`, and the installer is still produced.
+
 `BundleLocator` treats a system interpreter as `SYSTEM_FALLBACK` and only when
 `allowSystemFallback` is set; `PackagingConfig::validate` rejects a config that
 neither bundles nor permits a fallback.

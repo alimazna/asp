@@ -5,6 +5,10 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/qt/**'
+      - 'src/**'
+      - 'bridge/**'
+      - 'packaging/**'
+      - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
 jobs:
@@ -25,17 +29,16 @@ jobs:
           dir: ${{ runner.temp }}\Qt
           cache: 'true'
 
-      - name: Configure CMake
-        # Single line: the runner shell is PowerShell, so cmd's '^' continuation
-        # is not valid. Let CMake pick the installed Visual Studio generator.
+      # ---------------------------------------------------------------- 1/5
+      - name: Configure Qt frontend
         run: cmake -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DBUILD_ASTRA_DESKTOP=ON
         working-directory: frontend/qt
 
-      - name: Build Release
+      - name: Build frontend Release
         run: cmake --build build --config Release --parallel
         working-directory: frontend/qt
 
-      - name: Deploy with windeployqt
+      - name: Deploy frontend with windeployqt
         run: |
           $exe = "build/bin/Release/astra_desktop.exe"
           if (-Not (Test-Path $exe)) {
@@ -47,7 +50,7 @@ jobs:
           Write-Host "windeployqt completed for $exe"
         working-directory: frontend/qt
 
-      - name: Package deployment folder
+      - name: Package portable deployment folder
         run: |
           $deployDir = "build/bin/Release"
           $zipPath = "build/ASTRA-windows.zip"
@@ -56,10 +59,85 @@ jobs:
           Get-Item $zipPath | Select-Object Name, Length
         working-directory: frontend/qt
 
-      - name: Upload artifact
+      # Uploaded first so the portable artifact survives any later failure.
+      - name: Upload portable artifact (ASTRA-windows)
         uses: actions/upload-artifact@v4
         with:
           name: ASTRA-windows
           path: frontend/qt/build/ASTRA-windows.zip
           retention-days: 30
           if-no-files-found: error
+
+      # ---------------------------------------------------------------- 2/5
+      - name: Configure C++ backend host
+        run: cmake -B build -A x64
+        working-directory: .
+
+      - name: Build backend Release
+        run: cmake --build build --config Release --target aura_backend_host --parallel
+        working-directory: .
+
+      # ---------------------------------------------------------------- 3/5
+      - name: Freeze Python bridge with PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          pyinstaller --clean --noconfirm --workpath build-pyinstaller packaging/windows/astra-bridge.spec
+          if (-Not (Test-Path "dist/bridge.exe")) {
+            Write-Error "bridge.exe not produced"
+            exit 1
+          }
+          Get-Item dist/bridge.exe | Select-Object Name, Length
+        working-directory: .
+
+      # ---------------------------------------------------------------- 4/5
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer (ASTRA-Setup.exe)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\astra-setup.iss
+          $setup = "packaging\windows\Output\ASTRA-Setup.exe"
+          if (-Not (Test-Path $setup)) {
+            Write-Error "ASTRA-Setup.exe not produced"
+            exit 1
+          }
+          Get-Item $setup | Select-Object Name, Length
+        working-directory: .
+
+      - name: Upload installer artifact (ASTRA-windows-installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASTRA-windows-installer
+          path: packaging/windows/Output/ASTRA-Setup.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      # ---------------------------------------------------------------- 5/5
+      - name: Smoke test installer (silent install, launch, uninstall)
+        run: |
+          $setup = "packaging\windows\Output\ASTRA-Setup.exe"
+          $installDir = "$env:ProgramFiles\ASTRA"
+          Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+          if (-Not (Test-Path "$installDir\astra_desktop.exe")) {
+            Write-Error "Install did not place astra_desktop.exe in $installDir"
+            exit 1
+          }
+          if (-Not (Test-Path "$installDir\resources\bridge\mt5_python\bridge.exe")) {
+            Write-Error "Install did not place the frozen bridge"
+            exit 1
+          }
+          $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
+          Start-Sleep -Seconds 5
+          if ($proc.HasExited) {
+            Write-Error "ASTRA exited early with code $($proc.ExitCode)"
+            exit 1
+          }
+          Stop-Process -Id $proc.Id -Force
+          Write-Host "ASTRA launched and stayed up for 5s"
+          $un = "$installDir\unins000.exe"
+          if (Test-Path $un) {
+            Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+            Write-Host "Uninstalled cleanly"
+          }
+        working-directory: .

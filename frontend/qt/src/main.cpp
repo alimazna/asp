@@ -6,6 +6,49 @@
 #include <QIcon>
 #include <QDebug>
 #include <QStyleFactory>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+
+#if defined(Q_OS_WIN)
+#include <QProcess>
+#include <windows.h>
+
+namespace {
+
+// Start the backend host next to the frontend so a double-clicked ASTRA.exe
+// brings up the whole chain (frontend -> backend :8790 -> bridge :8791).
+// The backend supervises the frozen bridge itself. If a backend is already
+// listening (another instance, or a dev run) the bind fails harmlessly and the
+// existing one serves. Set AURA_NO_BACKEND=1 to suppress (dev/snapshot).
+bool backendAlreadyRunning() {
+    HANDLE mutex = OpenMutexA(SYNCHRONIZE, FALSE, "Global\\AURA_BACKEND_HOST_SINGLETON");
+    if (mutex != nullptr) {
+        CloseHandle(mutex);
+        return true;
+    }
+    return false;
+}
+
+void startBackendHost() {
+    if (qEnvironmentVariableIsSet("AURA_NO_BACKEND"))
+        return;
+    if (backendAlreadyRunning())
+        return;
+    const QString exe = QDir(QCoreApplication::applicationDirPath())
+                            .filePath("aura_backend_host.exe");
+    if (!QFileInfo::exists(exe)) {
+        qWarning() << "backend host not found next to frontend:" << exe;
+        return;
+    }
+    // Detached: the backend outlives no frontend state and owns its own
+    // supervised bridge child.
+    if (!QProcess::startDetached(exe, {"--api-port", "8790"}))
+        qWarning() << "failed to start backend host:" << exe;
+}
+
+}  // namespace
+#endif
 
 // Force meta-object compilation for QObject-derived classes
 // (MOC handles this automatically via qt_standard_project_setup)
@@ -47,6 +90,10 @@ int main(int argc, char* argv[]) {
                                         : astra::ThemeManager::Theme::Light);
         qApp->setProperty("astraDark", darkTheme);
     }
+
+#if defined(Q_OS_WIN)
+    startBackendHost();
+#endif
 
     // Create API client
     astra::ApiClient apiClient;

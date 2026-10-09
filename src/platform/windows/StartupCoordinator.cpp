@@ -37,10 +37,17 @@ bool StartupCoordinator::run(StartupReport& report) {
     if (options_.launchBridgeProcess) {
         ProcessLaunchSpec spec;
         spec.executable = report.bundle.pythonExecutable;
-        spec.args = {report.bundle.bridgeScript,
-                     "--host", "127.0.0.1",
-                     "--port", "8791",
-                     "--symbol", options_.preferredSymbol};
+        if (report.bundle.bridgeIsFrozen) {
+            // A frozen bridge is the executable itself; it takes only flags.
+            spec.args = {"--host", "127.0.0.1",
+                         "--port", "8791",
+                         "--symbol", options_.preferredSymbol};
+        } else {
+            spec.args = {report.bundle.bridgeScript,
+                         "--host", "127.0.0.1",
+                         "--port", "8791",
+                         "--symbol", options_.preferredSymbol};
+        }
         spec.workingDir = report.paths.bridgeDir;
         spec.environment["PYTHONUNBUFFERED"] = "1";
         supervisor_ = std::make_unique<ProcessSupervisor>(spec);

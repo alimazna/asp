@@ -31,6 +31,30 @@ BundleLayout BundleLocator::locate(bool allowSystemFallback) const {
     BundleLayout layout;
     layout.bridgeScript = paths_.bridgeScript;
 
+    // Preferred: a self-contained frozen bridge (bridge.exe). It needs no
+    // interpreter at all, which is what the installer ships.
+    const std::vector<std::string> frozenCandidates = {
+        PathResolver::join(paths_.bridgeDir, "bridge.exe"),
+        PathResolver::join(paths_.bridgeDir, "bridge"),
+    };
+#ifdef _WIN32
+    const std::vector<std::string> frozenOrder = {frozenCandidates[0]};
+#else
+    const std::vector<std::string> frozenOrder = {frozenCandidates[1]};
+#endif
+    for (const auto& candidate : frozenOrder) {
+        layout.searched.push_back(candidate);
+        if (fileExists(candidate)) {
+            layout.pythonSource = PythonRuntimeSource::BUNDLED;
+            layout.pythonExecutable = candidate;
+            layout.bridgeScript = candidate;
+            layout.bridgeIsFrozen = true;
+            layout.found = true;
+            layout.error.clear();
+            return layout;
+        }
+    }
+
     if (!fileExists(paths_.bridgeScript)) {
         layout.error = "bridge script not found at " + paths_.bridgeScript;
     }
