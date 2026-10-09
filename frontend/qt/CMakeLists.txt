@@ -78,6 +78,14 @@ add_executable(astra_desktop WIN32 ${ASTRA_SOURCES} ${ASTRA_HEADERS})
 # Compile the existing resources.qrc (single source of truth for resource paths).
 set_source_files_properties(src/resources/resources.qrc PROPERTIES AUTORCC ON)
 
+# Windows resource script: embeds the multi-size astra.ico as the .exe icon
+# shown in Explorer / taskbar / Alt-Tab. The RC compiler is Windows-only, so
+# this must stay guarded or CMake errors on Linux/macOS.
+if(WIN32)
+    target_sources(astra_desktop PRIVATE
+        src/resources/app.rc)
+endif()
+
 target_include_directories(astra_desktop PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
