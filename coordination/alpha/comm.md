@@ -767,3 +767,23 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
   dark surfaces (#0A1628 etc.) drop to text-only pixels. All page light
   screenshots regenerated and checked.
 - Commit: 3e85ec8
+
+## Frontend Verification — Tofu Glyphs + Theme at Startup
+
+- Verified ASTRA desktop frontend end to end (build, offscreen run,
+  13 screenshots at 1440x900 in both themes).
+- Found: two codepoints had no glyph in the target fonts and rendered as
+  tofu boxes in the top bar — U+1F512 (lock emoji) and U+26F6 (fullscreen).
+  Audited every non-ASCII codepoint in the Qt sources by rendering and
+  perceptual-hashing against an unassigned codepoint; all other glyphs
+  (U+25CF, U+25B2/BC, U+263D, U+2600, U+26A0, U+2713/17, U+2014) render.
+- Fix: SHADOW ONLY chip uses the filled dot (U+25CF), matching the bottom
+  bar; fullscreen button renders the existing fullscreen.svg via SvgIcon,
+  tinted per theme. No new assets.
+- Also: main.cpp previously set only the QSS at startup and left the
+  application palette on Qt's default light palette until the first theme
+  toggle. It now applies the persisted theme through ThemeManager before
+  any widget is built, so palette-derived widgets are correct on first paint.
+- Verified: dashboard_light.png dominant color #F5F7FA (dark #0A1628 drops
+  to text-only pixels); no dark rectangle >22px in any light screenshot.
+- Commit: fa0f385
