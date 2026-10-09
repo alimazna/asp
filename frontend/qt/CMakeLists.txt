@@ -11,6 +11,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
 
+# QtSvg is OPTIONAL: it renders the thin-stroke outline icons from
+# src/resources/icons/. Without it the sidebar still works (text labels).
+find_package(Qt6 QUIET COMPONENTS Svg)
+
 # Qt standard project setup (auto-includes, auto-moc).
 # Called BEFORE add_executable so AUTOMOC applies to our target.
 qt_standard_project_setup()
@@ -39,6 +43,9 @@ set(ASTRA_SOURCES
     src/widgets/CandleChart.cpp
     src/widgets/TimeframeSwitcher.cpp
     src/dialogs/ConfirmExitDialog.cpp
+    src/widgets/NavButton.cpp
+    src/widgets/SvgIcon.cpp
+    src/pages/ComingSoonPage.cpp
     # Resources (AUTORCC): paths resolve to /astra-*.svg, /icons/*, /theme/*
     src/resources/resources.qrc
 )
@@ -61,6 +68,9 @@ set(ASTRA_HEADERS
     src/widgets/CandleChart.h
     src/widgets/TimeframeSwitcher.h
     src/dialogs/ConfirmExitDialog.h
+    src/widgets/NavButton.h
+    src/widgets/SvgIcon.h
+    src/pages/ComingSoonPage.h
 )
 
 add_executable(astra_desktop WIN32 ${ASTRA_SOURCES} ${ASTRA_HEADERS})
@@ -77,6 +87,11 @@ target_link_libraries(astra_desktop PRIVATE
     Qt6::Widgets
     Qt6::Network
 )
+
+if(TARGET Qt6::Svg)
+    target_link_libraries(astra_desktop PRIVATE Qt6::Svg)
+    target_compile_definitions(astra_desktop PRIVATE ASTRA_HAVE_QTSVG)
+endif()
 
 if(WIN32)
     set_target_properties(astra_desktop PROPERTIES

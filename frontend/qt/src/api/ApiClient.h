@@ -6,6 +6,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QTimer>
+#include <QVector>
 
 namespace astra {
 
@@ -35,6 +36,7 @@ public:
 
     // Latest results (available after finished signal)
     [[nodiscard]] AnalysisResponse currentAnalysis() const { return mCurrentAnalysis; }
+    [[nodiscard]] QVector<AnalysisData> currentHistory() const { return mCurrentHistory; }
     [[nodiscard]] HealthResponse currentHealth() const { return mCurrentHealth; }
     [[nodiscard]] ContextResponse currentContext() const { return mCurrentContext; }
 
@@ -44,6 +46,7 @@ public:
 
 signals:
     void analysisReceived(const AnalysisResponse& response);
+    void historyReceived(const QVector<AnalysisData>& items);
     void healthReceived(const HealthResponse& response);
     void contextReceived(const ContextResponse& response);
     void error(const QString& message, const QString& code);
@@ -64,6 +67,7 @@ private:
     QList<QNetworkReply*> mPendingReplies;
 
     AnalysisResponse mCurrentAnalysis;
+    QVector<AnalysisData> mCurrentHistory;
     HealthResponse mCurrentHealth;
     ContextResponse mCurrentContext;
 

@@ -195,6 +195,25 @@ void HistoryPage::setupLayout() {
     updateSummary(empty);
 }
 
+void HistoryPage::updateFromHistory(const QVector<AnalysisData>& items) {
+    // v1 SHADOW mode has no realised outcomes — nothing is fabricated here.
+    QVector<HistoryEntry> entries;
+    entries.reserve(items.size());
+    for (const AnalysisData& d : items) {
+        HistoryEntry e;
+        e.timestamp = d.timestamp.has_value() ? d.timestamp.value() : QStringLiteral("\u2014");
+        e.direction = d.signal.direction;
+        e.score = d.signal.score;
+        e.probabilityCalibrated = d.signal.probabilityCalibrated;
+        e.coverageTier = d.meta.coverageTier;
+        e.outcome = "pending";
+        e.rMultiple = 0.0;
+        entries.append(e);
+    }
+    populateTable(entries);
+    updateSummary(entries);
+}
+
 void HistoryPage::refresh() {
     if (mApiClient) {
         mApiClient->fetchAnalysisHistory(50);
@@ -302,22 +321,44 @@ void HistoryPage::updateSummary(const QVector<HistoryEntry>& entries) {
         return nullptr;
     };
 
+    const QString em = QStringLiteral("\u2014");
+    const QString mono =
+        "font-size: 24px; font-weight: 600; font-family: 'JetBrains Mono', 'Consolas', monospace;";
+
     QLabel* winRateVal = findValueLabel(mSummaryCard1);
+    QLabel* totalRVal = findValueLabel(mSummaryCard2);
+    QLabel* pfVal = findValueLabel(mSummaryCard3);
+
+    if (total == 0) {
+        // No realised outcomes in SHADOW mode — every summary stays "—".
+        if (winRateVal) {
+            winRateVal->setText(em);
+            winRateVal->setStyleSheet(QString("QLabel { color: #5A6B80; %1 }").arg(mono));
+        }
+        if (totalRVal) {
+            totalRVal->setText(em);
+            totalRVal->setStyleSheet(QString("QLabel { color: #5A6B80; %1 }").arg(mono));
+        }
+        if (pfVal) {
+            pfVal->setText(em);
+            pfVal->setStyleSheet(QString("QLabel { color: #5A6B80; %1 }").arg(mono));
+        }
+        return;
+    }
+
     if (winRateVal) {
         winRateVal->setText(QString("%1%").arg(qRound(winRate)));
     }
 
-    QLabel* totalRVal = findValueLabel(mSummaryCard2);
     if (totalRVal) {
         totalRVal->setText(QString("%+1.%1R").arg(totalR, 0, 'f', 1));
         totalRVal->setStyleSheet(totalR < 0
-            ? "QLabel { color: #D95A5A; font-size: 24px; font-weight: 600; font-family: 'JetBrains Mono', 'Consolas', monospace; }"
-            : "QLabel { color: #4CAF7A; font-size: 24px; font-weight: 600; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
+            ? QString("QLabel { color: #D95A5A; %1 }").arg(mono)
+            : QString("QLabel { color: #4CAF7A; %1 }").arg(mono));
     }
 
-    QLabel* pfVal = findValueLabel(mSummaryCard3);
     if (pfVal) {
-        double realizedPF = (wins + losses) > 0 ? totalR / (wins + losses) : 0;
+        double realizedPF = totalR / total;
         pfVal->setText(QString("1.%1").arg(qAbs(realizedPF), 0, 'f', 2));
     }
 }

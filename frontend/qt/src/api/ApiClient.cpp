@@ -46,13 +46,17 @@ void ApiClient::fetchAnalysisLatest() {
     mPendingReplies.append(reply);
     handleReply(reply,
         [this](const QByteArray& raw) {
-            ApiEnvelope env;
-            parseEnvelope(raw, env);
-            AnalysisResponse resp;
-            resp.envelope = env;
-            resp.data = parseAnalysisData(env.data);
-            mCurrentAnalysis = resp;
-            emit analysisReceived(resp);
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                AnalysisResponse resp;
+                resp.envelope = env;
+                resp.data = parseAnalysisData(env.data);
+                mCurrentAnalysis = resp;
+                emit analysisReceived(resp);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
         },
         [this](const QString& msg, const QString& code) {
             mIsOnline = false;
@@ -69,19 +73,23 @@ void ApiClient::fetchHealth() {
     mPendingReplies.append(reply);
     handleReply(reply,
         [this](const QByteArray& raw) {
-            ApiEnvelope env;
-            parseEnvelope(raw, env);
-            HealthResponse resp;
-            resp.envelope = env;
-            resp.data = parseHealthData(env.data);
-            mCurrentHealth = resp;
-            mIsOnline = true;
-            mIsDegraded = resp.data.status == "degraded";
-            if (mIsOnline && mRetryCount > 0) {
-                mRetryCount = 0;
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                HealthResponse resp;
+                resp.envelope = env;
+                resp.data = parseHealthData(env.data);
+                mCurrentHealth = resp;
+                mIsOnline = true;
+                mIsDegraded = resp.data.status == "degraded";
+                if (mIsOnline && mRetryCount > 0) {
+                    mRetryCount = 0;
+                }
+                emit healthReceived(resp);
+                if (mIsOnline) emit online();
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
             }
-            emit healthReceived(resp);
-            if (mIsOnline) emit online();
         },
         [this](const QString& msg, const QString& code) {
             mIsOnline = false;
@@ -117,12 +125,37 @@ void ApiClient::fetchAnalysisHistory(int limit) {
     auto* reply = mNetworkManager.get(request);
     mPendingReplies.append(reply);
     handleReply(reply,
-        [](const QByteArray& raw) {
-            // History handled separately by consumer
-            Q_UNUSED(raw);
+        [this](const QByteArray& raw) {
+            // GET /analysis/history -> envelope { api, schema, data: [ ... ] }
+            // (data is an ARRAY here, not an object)
+            try {
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+                if (err.error != QJsonParseError::NoError) {
+                    throw std::runtime_error("JSON parse error: " + err.errorString().toStdString());
+                }
+                QJsonObject obj = doc.object();
+                if (obj.value("api").toString() != "v1") {
+                    throw std::runtime_error("Unexpected api field");
+                }
+                if (obj.value("schema").toString() != "1.0") {
+                    throw std::runtime_error("Unexpected schema field");
+                }
+                QVector<AnalysisData> items;
+                const QJsonArray arr = obj.value("data").toArray();
+                items.reserve(arr.size());
+                for (const QJsonValue& v : arr) {
+                    items.append(parseAnalysisData(v.toObject()));
+                }
+                mCurrentHistory = items;
+                mIsOnline = true;
+                emit historyReceived(items);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
         },
-        [](const QString& msg, const QString& code) {
-            Q_UNUSED(msg); Q_UNUSED(code);
+        [this](const QString& msg, const QString& code) {
+            emit error(msg, code);
         });
 }
 

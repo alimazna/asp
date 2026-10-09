@@ -38,6 +38,9 @@ public:
     void setApiClient(ApiClient* client);
     void refresh();
 
+    // Feed rows from ApiClient::historyReceived (AnalysisData -> HistoryEntry)
+    void updateFromHistory(const QVector<AnalysisData>& items);
+
 private:
     void setupLayout();
     void populateTable(const QVector<HistoryEntry>& entries);

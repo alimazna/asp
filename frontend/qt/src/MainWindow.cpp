@@ -4,7 +4,9 @@
 #include "pages/HistoryPage.h"
 #include "pages/HealthPage.h"
 #include "pages/SettingsPage.h"
+#include "pages/ComingSoonPage.h"
 #include "dialogs/ConfirmExitDialog.h"
+#include "widgets/NavButton.h"
 #include <QApplication>
 #include <QKeyEvent>
 #include <QCloseEvent>
@@ -13,12 +15,15 @@
 #include <QFile>
 #include <QTimer>
 #include <QToolTip>
+#include <QDateTime>
+#include <QFrame>
+#include <QSpacerItem>
 
 namespace astra {
 
-static constexpr int SIDEBAR_WIDTH = 200;
-static constexpr int TOP_BAR_HEIGHT = 52;
-static constexpr int BOTTOM_BAR_HEIGHT = 36;
+static constexpr int SIDEBAR_WIDTH = 232;
+static constexpr int TOP_BAR_HEIGHT = 56;
+static constexpr int BOTTOM_BAR_HEIGHT = 32;
 static constexpr int MIN_WIDTH = 1366;
 static constexpr int MIN_HEIGHT = 768;
 static constexpr int DEFAULT_WIDTH = 1440;
@@ -41,6 +46,8 @@ MainWindow::MainWindow(QWidget* parent)
     mThemeManager = new ThemeManager(this);
     bool darkTheme = mSettings.value("themeDark", true).toBool();
     mThemeManager->setTheme(darkTheme ? ThemeManager::Theme::Dark : ThemeManager::Theme::Light);
+    // Custom-painted widgets (NavButton, chart placeholder) read this flag.
+    qApp->setProperty("astraDark", darkTheme);
 
     // Layout
     QWidget* central = new QWidget(this);
@@ -57,6 +64,12 @@ MainWindow::MainWindow(QWidget* parent)
     // Fullscreen hint
     connect(&mFullscreenHintTimer, &QTimer::timeout, this, &MainWindow::hideFullscreenHint);
 
+    // Header clock — HH:MM:SS UTC, ticks every second
+    mClockTimer.setInterval(1000);
+    connect(&mClockTimer, &QTimer::timeout, this, &MainWindow::updateClock);
+    updateClock();
+    mClockTimer.start();
+
     // Polling timers
     mAnalysisPollTimer.setInterval(5000);  // 5s per spec
     mHealthPollTimer.setInterval(10000);    // 10s per spec
@@ -68,9 +81,6 @@ MainWindow::MainWindow(QWidget* parent)
         if (mApiClient) mApiClient->fetchHealth();
     });
 
-    // Keyboard shortcuts
-    // (handled in keyPressEvent)
-
     // Start health polling immediately
     mHealthPollTimer.start();
 }
@@ -79,16 +89,53 @@ void MainWindow::setApiClient(ApiClient* client) {
     mApiClient = client;
     connect(client, &ApiClient::analysisReceived, this, &MainWindow::onAnalysisUpdated);
     connect(client, &ApiClient::healthReceived, this, &MainWindow::onHealthUpdated);
+    connect(client, &ApiClient::historyReceived, this, &MainWindow::onHistoryUpdated);
     connect(client, &ApiClient::offline, this, &MainWindow::onOffline);
     connect(client, &ApiClient::online, this, &MainWindow::onOnline);
+
+    // Pages own their data sources
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) dash->setApiClient(client);
+    if (auto* chart = qobject_cast<ChartPage*>(mPages[Chart])) chart->setApiClient(client);
+    if (auto* hist = qobject_cast<HistoryPage*>(mPages[History])) hist->setApiClient(client);
+    if (auto* hp = qobject_cast<HealthPage*>(mPages[Health])) hp->setApiClient(client);
+    if (auto* sp = qobject_cast<SettingsPage*>(mPages[Settings])) sp->setApiClient(client);
 
     // Initial fetches
     client->fetchAnalysisLatest();
     client->fetchHealth();
+    client->fetchAnalysisHistory(20);
     mAnalysisPollTimer.start();
 }
 
 void MainWindow::setupSidebar() {
+    // Grouped navigation model:
+    //   pageIndex >= 0 -> real page; -1 -> shared ComingSoonPage
+    mNavGroups = {
+        { "MONITORING", {
+            { "Dashboard", Dashboard, ":/icons/dashboard.svg" },
+            { "Chart",     Chart,     ":/icons/chart.svg" },
+            { "History",   History,   ":/icons/history.svg" },
+            { "Health",    Health,    ":/icons/health.svg" },
+        }},
+        { "INTELLIGENCE", {
+            { "Research", -1, "" },
+            { "Knowledge", -1, "" },
+        }},
+        { "GOVERNANCE", {
+            { "Approval Center", -1, "" },
+            { "Governance",      -1, "" },
+            { "Incidents",       -1, "" },
+        }},
+        { "SYSTEM", {
+            { "Configuration", Settings, ":/icons/settings.svg" },
+            { "Recovery",      -1,       "" },
+        }},
+    };
+
+    mNavEntryPage.clear();
+    mNavEntryLabel.clear();
+    mNavButtons.clear();
+
     mSidebar = new QWidget(this);
     mSidebar->setObjectName("astraSidebar");  // stable handle for tests
     mSidebar->setFixedWidth(SIDEBAR_WIDTH);
@@ -96,117 +143,93 @@ void MainWindow::setupSidebar() {
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
 
-    // Logo area — 64px height
+    // ── ASTRA lockup + subtitle ──
     QWidget* logoArea = new QWidget(mSidebar);
-    logoArea->setFixedHeight(64);
-    QHBoxLayout* logoLayout = new QHBoxLayout(logoArea);
-    logoLayout->setContentsMargins(16, 0, 16, 0);
-    logoLayout->setSpacing(0);
+    logoArea->setFixedHeight(72);
+    QVBoxLayout* logoLayout = new QVBoxLayout(logoArea);
+    logoLayout->setContentsMargins(20, 16, 20, 10);
+    logoLayout->setSpacing(2);
 
-    // ASTRA lockup — load SVG, height 28px
     mLogoLabel = new QLabel(logoArea);
-    mLogoLabel->setFixedHeight(28);
+    mLogoLabel->setText("ASTRA");
     mLogoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    mLogoLabel->setStyleSheet("QLabel { color: transparent; }");
-    // Load lockup SVG
-    QFile lockupFile(":/astra-lockup.svg");
-    if (lockupFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QString svg = QString::fromUtf8(lockupFile.readAll());
-        // Simple SVG rendering via QSvgWidget would require QtSvg module.
-        // For now, use text label "ASTRA" with styling as fallback.
-        // The spec says to use SVGs; QtSvg is optional. We'll use a QLabel with
-        // styled text as the initial implementation.
-        mLogoLabel->setText("ASTRA");
-        mLogoLabel->setStyleSheet(
-            "QLabel { "
-            "color: #E8EEF5; "
-            "font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; "
-            "font-size: 16px; "
-            "font-weight: 600; "
-            "letter-spacing: 3px; "
-            "}"
-        );
-    }
+    mLogoLabel->setStyleSheet(
+        "QLabel { "
+        "color: #E8EEF5; "
+        "font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; "
+        "font-size: 18px; "
+        "font-weight: 600; "
+        "letter-spacing: 4px; "
+        "}"
+    );
+    logoLayout->addWidget(mLogoLabel);
 
-    logoLayout->addWidget(mLogoLabel, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    QLabel* subtitle = new QLabel(logoArea);
+    subtitle->setText("XAUUSD Intelligence");
+    subtitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    subtitle->setStyleSheet(
+        "QLabel { "
+        "color: #5A6B80; "
+        "font-size: 10px; "
+        "letter-spacing: 0.08em; "
+        "}"
+    );
+    logoLayout->addWidget(subtitle);
 
-    // Vertical divider below logo — 1px, full width
+    // Divider below lockup
     QFrame* divider = new QFrame(mSidebar);
     divider->setFixedHeight(1);
     divider->setStyleSheet("QFrame { background: #162A44; }");
-    divider->setFixedWidth(SIDEBAR_WIDTH);
 
-    // Navigation
+    // ── Groups ──
     QWidget* navArea = new QWidget(mSidebar);
     QVBoxLayout* navLayout = new QVBoxLayout(navArea);
-    navLayout->setContentsMargins(0, 8, 0, 0);
-    navLayout->setSpacing(4);  // 4px between sidebar items
+    navLayout->setContentsMargins(12, 8, 12, 12);
+    navLayout->setSpacing(2);
 
-    const char* navLabels[] = { "Dashboard", "Chart", "History", "Health", "Settings" };
-    for (int i = 0; i < 5; ++i) {
-        QPushButton* btn = new QPushButton(navArea);
-        btn->setText(navLabels[i]);
-        btn->setFixedHeight(40);
-        btn->setStyleSheet(
-            "QPushButton { "
-            "background: transparent; "
-            "border: none; "
-            "border-left: 3px solid transparent; "
-            "color: #8FA3BF; "
-            "padding: 10px 16px; "
-            "border-radius: 0; "
-            "font-size: 14px; "
+    for (const NavGroup& group : mNavGroups) {
+        QLabel* groupLabel = new QLabel(navArea);
+        groupLabel->setText(group.title.toUpper());
+        groupLabel->setStyleSheet(
+            "QLabel { "
+            "color: #5A6B80; "
+            "font-size: 10px; "
             "font-weight: 500; "
-            "}"
-            "QPushButton:hover { "
-            "background: #162A44; "
-            "color: #E8EEF5; "
-            "}"
-            "QPushButton:pressed { "
-            "background: #162A44; "
-            "color: #E8EEF5; "
+            "letter-spacing: 0.08em; "
+            "padding: 12px 8px 4px 8px; "
             "}"
         );
-        btn->setProperty("pageIndex", i);
-        navLayout->addWidget(btn);
-        mNavButtons.append(btn);
-        connect(btn, &QPushButton::clicked, this, [this, i]() {
-            onNavClicked(i);
-        });
+        navLayout->addWidget(groupLabel);
+
+        for (const NavEntry& entry : group.entries) {
+            const bool comingSoon = entry.pageIndex < 0;
+            NavButton* btn = new NavButton(entry.label, entry.iconPath, comingSoon, navArea);
+            if (comingSoon) {
+                btn->setToolTip("Coming soon — enabled when the backend module ships.");
+            }
+            const int navIndex = mNavButtons.size();
+            mNavEntryPage.append(entry.pageIndex);
+            mNavEntryLabel.append(entry.label);
+            mNavButtons.append(btn);
+            navLayout->addWidget(btn);
+            connect(btn, &NavButton::clicked, this, [this, navIndex]() {
+                onNavClicked(navIndex);
+            });
+        }
     }
 
-    // Spacer to push exit to bottom
-    QSpacerItem* spacer = new QSpacerItem(20, 20, QSizePolicy::Minimum, QSizePolicy::Expanding);
-    navLayout->addSpacerItem(spacer);
+    // Spacer pushes Exit to the bottom
+    navLayout->addStretch();
 
-    // Exit button — pinned to bottom
-    mExitButton = new QPushButton(navArea);
+    // ── Exit ──
+    mExitButton = new NavButton("Exit", ":/icons/exit.svg", false, navArea);
     mExitButton->setObjectName("astraExitButton");  // stable handle for tests
-    mExitButton->setText("Exit");
-    mExitButton->setFixedHeight(40);
-    mExitButton->setStyleSheet(
-        "QPushButton { "
-        "background: transparent; "
-        "border: none; "
-        "color: #8FA3BF; "
-        "padding: 10px 16px; "
-        "font-size: 14px; "
-        "font-weight: 500; "
-        "}"
-        "QPushButton:hover { "
-        "background: #162A44; "
-        "color: #E8EEF5; "
-        "}"
-    );
-    connect(mExitButton, &QPushButton::clicked, this, &MainWindow::onExitClicked);
+    connect(mExitButton, &NavButton::clicked, this, &MainWindow::onExitClicked);
     navLayout->addWidget(mExitButton);
 
     sidebarLayout->addWidget(logoArea);
     sidebarLayout->addWidget(divider);
     sidebarLayout->addWidget(navArea);
-
-    // Hack: fix the divider width to match sidebar
-    // (done after layout)
 }
 
 void MainWindow::setupTopBar() {
@@ -214,133 +237,118 @@ void MainWindow::setupTopBar() {
     mTopBar->setFixedHeight(TOP_BAR_HEIGHT);
 
     // Outer column owns the widget: [ content row, 1px bottom border ].
-    // (Previously a second layout was installed on mTopBar, which Qt rejected.)
     QVBoxLayout* topBarInner = new QVBoxLayout(mTopBar);
     topBarInner->setContentsMargins(0, 0, 0, 0);
     topBarInner->setSpacing(0);
 
     QHBoxLayout* topLayout = new QHBoxLayout();
     topBarInner->addLayout(topLayout);
-    topLayout->setContentsMargins(16, 0, 16, 0);
+    topLayout->setContentsMargins(20, 0, 20, 0);
     topLayout->setSpacing(12);
 
     // Left: page title
     mPageTitle = new QLabel(mTopBar);
+    mPageTitle->setObjectName("pageTitle");  // stable handle for tests
     mPageTitle->setText("Dashboard");
     mPageTitle->setStyleSheet(
         "QLabel { "
         "color: #E8EEF5; "
-        "font-size: 16px; "
-        "font-weight: 500; "
+        "font-size: 18px; "
+        "font-weight: 600; "
         "}"
     );
-
     topLayout->addWidget(mPageTitle);
 
-    // Spacer
     QSpacerItem* titleSpacer = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     topLayout->addSpacerItem(titleSpacer);
 
-    // Right: live indicator
-    QHBoxLayout* liveLayout = new QHBoxLayout();
-    liveLayout->setSpacing(6);
-
-    mLiveDot = new QLabel(mTopBar);
-    mLiveDot->setFixedSize(8, 8);
-    mLiveDot->setStyleSheet(
-        "QLabel { "
-        "background: #4CAF7A; "
-        "border-radius: 4px; "
-        "}"
+    // Right: system health chip (● SYSTEM HEALTHY | DEGRADED | OFFLINE)
+    QWidget* healthChip = new QWidget(mTopBar);
+    QHBoxLayout* healthLayout = new QHBoxLayout(healthChip);
+    healthLayout->setContentsMargins(0, 0, 0, 0);
+    healthLayout->setSpacing(6);
+    mHealthDot = new QLabel(healthChip);
+    mHealthDot->setFixedSize(8, 8);
+    mHealthDot->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+    mHealthLabel = new QLabel(healthChip);
+    mHealthLabel->setText("SYSTEM HEALTHY");
+    mHealthLabel->setStyleSheet(
+        "QLabel { color: #4CAF7A; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }"
     );
+    healthLayout->addWidget(mHealthDot, 0, Qt::AlignVCenter);
+    healthLayout->addWidget(mHealthLabel);
+    topLayout->addWidget(healthChip);
 
-    mLiveLabel = new QLabel(mTopBar);
-    mLiveLabel->setText("LIVE");
-    mLiveLabel->setStyleSheet(
+    // 🔒 SHADOW ONLY
+    QLabel* shadowChip = new QLabel(mTopBar);
+    shadowChip->setText(QStringLiteral("\U0001F512 SHADOW ONLY"));
+    shadowChip->setStyleSheet(
         "QLabel { "
-        "color: #4CAF7A; "
-        "font-size: 12px; "
+        "color: #8FA3BF; "
+        "font-size: 11px; "
         "font-weight: 500; "
+        "letter-spacing: 0.05em; "
+        "border: 1px solid #162A44; "
+        "border-radius: 8px; "
+        "padding: 5px 10px; "
+        "background: #0F1F35; "
         "}"
     );
+    topLayout->addWidget(shadowChip);
 
-    liveLayout->addWidget(mLiveDot, 0, Qt::AlignTop);
-    liveLayout->addWidget(mLiveLabel);
-    topLayout->addLayout(liveLayout);
+    // Renderer
+    QLabel* rendererLabel = new QLabel(mTopBar);
+    rendererLabel->setText("Renderer: Qt6/QPainter");
+    rendererLabel->setStyleSheet("QLabel { color: #5A6B80; font-size: 11px; }");
+    topLayout->addWidget(rendererLabel);
 
-    QSpacerItem* rightSpacer = new QSpacerItem(8, 8, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    topLayout->addSpacerItem(rightSpacer);
-
-    // Refresh button
-    mRefreshBtn = new QPushButton(mTopBar);
-    mRefreshBtn->setFixedSize(32, 32);
-    mRefreshBtn->setStyleSheet(
-        "QPushButton { "
-        "background: transparent; "
-        "border: none; "
-        "padding: 4px; "
-        "}"
-        "QPushButton:hover { "
-        "background: #162A44; "
+    // Clock — HH:MM:SS UTC (updates every second)
+    mClockLabel = new QLabel(mTopBar);
+    mClockLabel->setStyleSheet(
+        "QLabel { "
+        "color: #8FA3BF; "
+        "font-size: 12px; "
+        "font-family: 'JetBrains Mono', 'Consolas', monospace; "
         "}"
     );
-    mRefreshBtn->setText("\u21BB");
-    mRefreshBtn->setShortcut(Qt::CTRL | Qt::Key_R);
-    connect(mRefreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshClicked);
-
-    // Fullscreen button
-    mFullscreenBtn = new QPushButton(mTopBar);
-    mFullscreenBtn->setFixedSize(32, 32);
-    mFullscreenBtn->setStyleSheet(
-        "QPushButton { "
-        "background: transparent; "
-        "border: none; "
-        "padding: 4px; "
-        "}"
-        "QPushButton:hover { "
-        "background: #162A44; "
-        "}"
-    );
-    mFullscreenBtn->setText("\u26F6");  // fullscreen icon
-    connect(mFullscreenBtn, &QPushButton::clicked, this, &MainWindow::onFullscreenToggled);
+    topLayout->addWidget(mClockLabel);
 
     // Theme toggle
     mThemeBtn = new QPushButton(mTopBar);
     mThemeBtn->setFixedSize(32, 32);
+    mThemeBtn->setToolTip("Toggle theme (Ctrl+T)");
     mThemeBtn->setStyleSheet(
-        "QPushButton { "
-        "background: transparent; "
-        "border: none; "
-        "padding: 4px; "
-        "}"
-        "QPushButton:hover { "
-        "background: #162A44; "
-        "}"
+        "QPushButton { background: transparent; border: none; padding: 4px; }"
+        "QPushButton:hover { background: #162A44; }"
     );
-    mThemeBtn->setText("\u263D");  // moon icon initially
+    mThemeBtn->setText(QStringLiteral("\u263D"));  // moon initially
     connect(mThemeBtn, &QPushButton::clicked, this, &MainWindow::onThemeToggled);
 
-    // Close button
+    // Fullscreen toggle
+    mFullscreenBtn = new QPushButton(mTopBar);
+    mFullscreenBtn->setFixedSize(32, 32);
+    mFullscreenBtn->setToolTip("Toggle fullscreen (F11)");
+    mFullscreenBtn->setStyleSheet(
+        "QPushButton { background: transparent; border: none; padding: 4px; }"
+        "QPushButton:hover { background: #162A44; }"
+    );
+    mFullscreenBtn->setText(QStringLiteral("\u26F6"));
+    connect(mFullscreenBtn, &QPushButton::clicked, this, &MainWindow::onFullscreenToggled);
+
+    // Close (X)
     mCloseBtn = new QPushButton(mTopBar);
     mCloseBtn->setFixedSize(32, 32);
+    mCloseBtn->setToolTip("Close");
     mCloseBtn->setStyleSheet(
-        "QPushButton { "
-        "background: transparent; "
-        "border: none; "
-        "padding: 4px; "
-        "}"
-        "QPushButton:hover { "
-        "background: #D95A5A; "
-        "color: white; "
-        "}"
+        "QPushButton { background: transparent; border: none; padding: 4px; }"
+        "QPushButton:hover { background: #D95A5A; color: white; }"
     );
     mCloseBtn->setText("X");
     connect(mCloseBtn, &QPushButton::clicked, this, &MainWindow::onCloseClicked);
 
-    topLayout->addWidget(mRefreshBtn, 0, Qt::AlignRight);
-    topLayout->addWidget(mFullscreenBtn, 0, Qt::AlignRight);
-    topLayout->addWidget(mThemeBtn, 0, Qt::AlignRight);
-    topLayout->addWidget(mCloseBtn, 0, Qt::AlignRight);
+    topLayout->addWidget(mThemeBtn);
+    topLayout->addWidget(mFullscreenBtn);
+    topLayout->addWidget(mCloseBtn);
 
     // Bottom border line — stretches with the bar
     QFrame* bottomLine = new QFrame(mTopBar);
@@ -365,80 +373,75 @@ void MainWindow::setupBottomBar() {
 
     QHBoxLayout* bottomLayout = new QHBoxLayout();
     bbInner->addLayout(bottomLayout);
-    bottomLayout->setContentsMargins(16, 0, 16, 0);
+    bottomLayout->setContentsMargins(20, 0, 20, 0);
     bottomLayout->setSpacing(24);
 
-    // Runtime status
+    // Left: ● Runtime | ● Streams | ● Persistence | ● Recovery
     mBackendStatus = new QLabel(mBottomBar);
-    mBackendStatus->setText("\u25CF Runtime");
-    mBackendStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
-
-    // Bridge / streams status
     mBridgeStatus = new QLabel(mBottomBar);
-    mBridgeStatus->setText("\u25CF Streams");
-    mBridgeStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
-
-    // Freshness / persistence
     mFreshnessStatus = new QLabel(mBottomBar);
-    mFreshnessStatus->setText("\u25CF Persistence: \u2014");
-    mFreshnessStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
+    QLabel* recovery = new QLabel(mBottomBar);
+
+    mBackendStatus->setObjectName("runtimeLabel");
+    mBridgeStatus->setObjectName("streamsLabel");
+    mFreshnessStatus->setObjectName("persistenceLabel");
+    recovery->setObjectName("recoveryLabel");
+
+    const QString baseStyle =
+        "QLabel { color: #8FA3BF; font-size: 11px; letter-spacing: 0.03em; }";
+    mBackendStatus->setText(QStringLiteral("\u25CF Runtime: \u2014"));
+    mBackendStatus->setStyleSheet(baseStyle);
+    mBridgeStatus->setText(QStringLiteral("\u25CF Streams: \u2014"));
+    mBridgeStatus->setStyleSheet(baseStyle);
+    mFreshnessStatus->setText(QStringLiteral("\u25CF Persistence: \u2014"));
+    mFreshnessStatus->setStyleSheet(baseStyle);
+    recovery->setText(QStringLiteral("\u25CF Recovery: \u2014"));
+    recovery->setStyleSheet(baseStyle);
 
     bottomLayout->addWidget(mBackendStatus);
     bottomLayout->addWidget(mBridgeStatus);
     bottomLayout->addWidget(mFreshnessStatus);
-
-    // Recovery
-    QLabel* recovery = new QLabel(mBottomBar);
-    recovery->setText("\u25CF Recovery: \u2014");
-    recovery->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
     bottomLayout->addWidget(recovery);
 
     QSpacerItem* spacer = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     bottomLayout->addSpacerItem(spacer);
 
-    // Right side: SHADOW ONLY + system health
+    // Right: ● SHADOW ONLY | System Health
     QLabel* shadow = new QLabel(mBottomBar);
-    shadow->setText("\u25CF SHADOW ONLY");
-    shadow->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
+    shadow->setText(QStringLiteral("\u25CF SHADOW ONLY"));
+    shadow->setStyleSheet(
+        "QLabel { color: #8FA3BF; font-size: 11px; letter-spacing: 0.03em; }"
+    );
     bottomLayout->addWidget(shadow);
 
     mDisclaimer = new QLabel(mBottomBar);
+    mDisclaimer->setObjectName("systemHealthLabel");
     mDisclaimer->setText("System Health: \u2014");
-    mDisclaimer->setStyleSheet("QLabel { color: #5A6B80; font-size: 12px; }");
+    mDisclaimer->setStyleSheet("QLabel { color: #5A6B80; font-size: 11px; }");
     bottomLayout->addWidget(mDisclaimer);
+
+    updateBottomBarStatus();
 }
 
 void MainWindow::setupContentArea() {
     mContentStack = new QStackedWidget(this);
 
     // Create pages
-    mPages.resize(5);
-    mPages[0] = new DashboardPage(this);
-    mPages[1] = new ChartPage(this);       // stub — no /candles endpoint
-    mPages[2] = new HistoryPage(this);
-    mPages[3] = new HealthPage(this);
-    mPages[4] = new SettingsPage(this);
+    mPages.resize(PageCount);
+    mPages[Dashboard] = new DashboardPage(this);
+    mPages[Chart] = new ChartPage(this);       // stub — no /candles endpoint
+    mPages[History] = new HistoryPage(this);
+    mPages[Health] = new HealthPage(this);
+    mPages[Settings] = new SettingsPage(this);
+    mPages[ComingSoon] = new ComingSoonPage(this);
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < PageCount; ++i) {
         mContentStack->addWidget(mPages[i]);
     }
 
-    // Set initial active nav button
+    // Initial active nav row
     if (!mNavButtons.isEmpty()) {
-        mNavButtons[0]->setStyleSheet(
-            "QPushButton { "
-            "background: #162A44; "
-            "border-left: 3px solid #4A90D9; "
-            "color: #E8EEF5; "
-            "padding: 10px 16px; "
-            "font-size: 14px; "
-            "font-weight: 500; "
-            "}"
-            "QPushButton:hover { "
-            "background: #162A44; "
-            "color: #E8EEF5; "
-            "}"
-        );
+        mNavButtons[0]->setActive(true);
     }
 
     // Layout: sidebar on left, top bar, content, bottom bar
@@ -458,65 +461,49 @@ void MainWindow::setupContentArea() {
     centralLayout->addLayout(rowLayout);
 }
 
-void MainWindow::onNavClicked(int pageIndex) {
-    if (pageIndex < 0 || pageIndex >= PageCount) return;
-    if (pageIndex == mCurrentPage) return;
-
-    // Update nav button styles
-    for (int i = 0; i < mNavButtons.size(); ++i) {
-        QPushButton* btn = mNavButtons[i];
-        if (i == pageIndex) {
-            btn->setStyleSheet(
-                "QPushButton { "
-                "background: #162A44; "
-                "border-left: 3px solid #4A90D9; "
-                "color: #E8EEF5; "
-                "padding: 10px 16px; "
-                "font-size: 14px; "
-                "font-weight: 500; "
-                "}"
-                "QPushButton:hover { "
-                "background: #162A44; "
-                "color: #E8EEF5; "
-                "}"
-            );
-        } else {
-            btn->setStyleSheet(
-                "QPushButton { "
-                "background: transparent; "
-                "border: none; "
-                "border-left: 3px solid transparent; "
-                "color: #8FA3BF; "
-                "padding: 10px 16px; "
-                "border-radius: 0; "
-                "font-size: 14px; "
-                "font-weight: 500; "
-                "}"
-                "QPushButton:hover { "
-                "background: #162A44; "
-                "color: #E8EEF5; "
-                "}"
-            );
-        }
+int MainWindow::navIndexOfPage(int pageIndex) const {
+    for (int i = 0; i < mNavEntryPage.size(); ++i) {
+        if (mNavEntryPage[i] == pageIndex) return i;
     }
+    return -1;
+}
 
-    mCurrentPage = pageIndex;
-    mContentStack->setCurrentIndex(pageIndex);
+void MainWindow::onNavClicked(int navIndex) {
+    if (navIndex < 0 || navIndex >= mNavButtons.size()) return;
+    if (mNavButtons[navIndex]->isActive()) return;  // already the active row
 
-    // Update page title
-    const char* titles[] = { "Dashboard", "Chart", "History", "Health", "Settings" };
-    mPageTitle->setText(titles[pageIndex]);
+    // Active state across the whole sidebar (including coming-soon rows)
+    for (NavButton* btn : mNavButtons) {
+        btn->setActive(false);
+    }
+    mNavButtons[navIndex]->setActive(true);
 
-    // Start/stops polling as needed
-    if (pageIndex == 0) {  // Dashboard
-        if (mApiClient) mApiClient->fetchAnalysisLatest();
+    const int targetPage = mNavEntryPage[navIndex];
+    if (targetPage >= 0) {
+        mCurrentPage = targetPage;
+        mContentStack->setCurrentIndex(targetPage);
+    } else {
+        // Shared "Coming soon" destination, titled after the clicked module
+        auto* cs = qobject_cast<ComingSoonPage*>(mPages[ComingSoon]);
+        if (cs) cs->setModuleName(mNavEntryLabel[navIndex]);
+        mCurrentPage = ComingSoon;
+        mContentStack->setCurrentIndex(ComingSoon);
+    }
+    mPageTitle->setText(mNavEntryLabel[navIndex]);
+
+    // Polling per page
+    if (mCurrentPage == Dashboard) {
+        if (mApiClient) {
+            mApiClient->fetchAnalysisLatest();
+            mApiClient->fetchAnalysisHistory(20);
+        }
         mAnalysisPollTimer.start();
     } else {
         mAnalysisPollTimer.stop();
     }
 
-    if (pageIndex == 1) {  // Chart
-        // Chart polling handled by ChartPage
+    if (mCurrentPage == History && mApiClient) {
+        mApiClient->fetchAnalysisHistory(50);
     }
 }
 
@@ -524,6 +511,11 @@ void MainWindow::onRefreshClicked() {
     if (mApiClient) {
         mApiClient->fetchAnalysisLatest();
         mApiClient->fetchHealth();
+        if (mCurrentPage == History) {
+            mApiClient->fetchAnalysisHistory(50);
+        } else {
+            mApiClient->fetchAnalysisHistory(20);
+        }
     }
 }
 
@@ -535,7 +527,8 @@ void MainWindow::onThemeToggled() {
     mThemeManager->setTheme(newTheme);
     mSettings.setValue("themeDark", mThemeManager->isDark());
     // Update icon
-    mThemeBtn->setText(mThemeManager->isDark() ? "\u263D" : "\u2600");  // moon / sun
+    mThemeBtn->setText(mThemeManager->isDark() ? QStringLiteral("\u263D")
+                                               : QStringLiteral("\u2600"));  // moon / sun
     applyTheme();
 }
 
@@ -560,6 +553,7 @@ void MainWindow::saveSettings() {
 void MainWindow::stopAllTimers() {
     mAnalysisPollTimer.stop();
     mHealthPollTimer.stop();
+    mClockTimer.stop();
     mFullscreenHintTimer.stop();
     if (mApiClient) {
         mApiClient->cancelAll();
@@ -567,10 +561,9 @@ void MainWindow::stopAllTimers() {
 }
 
 void MainWindow::onAnalysisUpdated(const AnalysisResponse& /*resp*/) {
-    // Update dashboard page
-    if (mCurrentPage == Dashboard) {
-        auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard]);
-        if (dash) dash->updateFromAnalysis(mApiClient->currentAnalysis());
+    // Keep the dashboard in sync regardless of the visible page
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->updateFromAnalysis(mApiClient->currentAnalysis());
     }
     updateLivenessIndicator();
     updateBottomBarStatus();
@@ -580,114 +573,165 @@ void MainWindow::onHealthUpdated(const HealthResponse& resp) {
     updateLivenessIndicator();
     updateBottomBarStatus();
 
-    // Update health page if visible
-    if (mCurrentPage == Health) {
-        auto* hp = qobject_cast<HealthPage*>(mPages[Health]);
-        if (hp) hp->updateFromHealth(resp);
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->updateFromHealth(resp);
+    }
+    if (auto* hp = qobject_cast<HealthPage*>(mPages[Health])) {
+        hp->updateFromHealth(resp);
+    }
+}
+
+void MainWindow::onHistoryUpdated(const QVector<AnalysisData>& items) {
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->updateFromHistory(items);
+    }
+    if (auto* hist = qobject_cast<HistoryPage*>(mPages[History])) {
+        hist->updateFromHistory(items);
     }
 }
 
 void MainWindow::onOffline() {
     updateLivenessIndicator();
     updateBottomBarStatus();
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->setOnline(false);
+    }
 }
 
 void MainWindow::onOnline() {
     updateLivenessIndicator();
     updateBottomBarStatus();
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->setOnline(true);
+    }
 }
 
 void MainWindow::updateLivenessIndicator() {
-    if (!mApiClient) {
-        mLiveDot->setStyleSheet("QLabel { background: #D95A5A; border-radius: 4px; }");
-        mLiveLabel->setText("OFFLINE");
-        mLiveLabel->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; font-weight: 500; }");
-        return;
+    QString state;
+    QString color;
+
+    if (!mApiClient || !mApiClient->isOnline()) {
+        state = "SYSTEM OFFLINE";
+        color = "#D95A5A";
+    } else {
+        const HealthData health = mApiClient->currentHealth().data;
+        if (health.status == "offline" || !mApiClient->isOnline()) {
+            state = "SYSTEM OFFLINE";
+            color = "#D95A5A";
+        } else if (health.status == "degraded" || mApiClient->isDegraded()) {
+            state = "SYSTEM DEGRADED";
+            color = "#D9A14A";
+        } else {
+            state = "SYSTEM HEALTHY";
+            color = "#4CAF7A";
+        }
     }
 
-    if (!mApiClient->isOnline()) {
-        mLiveDot->setStyleSheet("QLabel { background: #D95A5A; border-radius: 4px; }");
-        mLiveLabel->setText("OFFLINE");
-        mLiveLabel->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; font-weight: 500; }");
-        return;
-    }
-
-    auto health = mApiClient->currentHealth();
-    if (health.data.status == "degraded") {
-        mLiveDot->setStyleSheet("QLabel { background: #D9A14A; border-radius: 4px; }");
-        mLiveLabel->setText("DEGRADED");
-        mLiveLabel->setStyleSheet("QLabel { color: #D9A14A; font-size: 12px; font-weight: 500; }");
-        return;
-    }
-
-    // Online and not degraded
-    mLiveDot->setStyleSheet(
-        "QLabel { "
-        "background: #4CAF7A; "
-        "border-radius: 4px; "
-        "}"
-    );
-    mLiveLabel->setText("LIVE");
-    mLiveLabel->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; font-weight: 500; }");
-
-    // Pulse animation via QPropertyAnimation would go here.
-    // For simplicity, we use a timer-based opacity toggle.
+    mHealthLabel->setText(state);
+    mHealthLabel->setStyleSheet(
+        QString("QLabel { color: %1; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }")
+            .arg(color));
+    mHealthDot->setStyleSheet(
+        QString("QLabel { background: %1; border-radius: 4px; }").arg(color));
 }
 
 void MainWindow::updateBottomBarStatus() {
+    const QString em = QStringLiteral("\u2014");
+    const QString red = "#D95A5A";
+    const QString amber = "#D9A14A";
+    const QString green = "#4CAF7A";
+    const QString grey = "#8FA3BF";
+    const QString dim = "#5A6B80";
+
+    auto styleFor = [](const QString& color) {
+        return QString("QLabel { color: %1; font-size: 11px; letter-spacing: 0.03em; }").arg(color);
+    };
+
     if (!mApiClient) {
-        mBackendStatus->setText("\u25CF Backend OFFLINE");
-        mBackendStatus->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; }");
-        mBridgeStatus->setText("\u25CF Bridge OFFLINE");
-        mBridgeStatus->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; }");
-        mFreshnessStatus->setText("\u25CF Fresh: \u2014");
+        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: ") + em);
+        mBackendStatus->setStyleSheet(styleFor(grey));
+        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: ") + em);
+        mBridgeStatus->setStyleSheet(styleFor(grey));
+        mDisclaimer->setText("System Health: " + em);
+        mDisclaimer->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 11px; }").arg(dim));
         return;
     }
 
-    auto health = mApiClient->currentHealth();
-    if (health.data.status == "offline") {
-        mBackendStatus->setText("\u25CF Backend OFFLINE");
-        mBackendStatus->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; }");
-    } else if (health.data.status == "degraded") {
-        mBackendStatus->setText("\u25CF Backend DEGRADED");
-        mBackendStatus->setStyleSheet("QLabel { color: #D9A14A; font-size: 12px; }");
-    } else {
-        mBackendStatus->setText("\u25CF Backend ONLINE");
-        mBackendStatus->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; }");
+    // Persistence / Recovery have no backend surface in the frozen contract
+    mFreshnessStatus->setText(QStringLiteral("\u25CF Persistence: ") + em);
+    mFreshnessStatus->setStyleSheet(styleFor(grey));
+
+    if (!mApiClient->isOnline()) {
+        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: OFFLINE"));
+        mBackendStatus->setStyleSheet(styleFor(red));
+        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OFFLINE"));
+        mBridgeStatus->setStyleSheet(styleFor(red));
+        mDisclaimer->setText("System Health: OFFLINE");
+        mDisclaimer->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 11px; }").arg(red));
+        return;
     }
 
-    if (health.data.bridge == "offline") {
-        mBridgeStatus->setText("\u25CF Bridge OFFLINE");
-        mBridgeStatus->setStyleSheet("QLabel { color: #D95A5A; font-size: 12px; }");
-    } else if (health.data.bridge == "stale") {
-        mBridgeStatus->setText("\u25CF Bridge STALE");
-        mBridgeStatus->setStyleSheet("QLabel { color: #D9A14A; font-size: 12px; }");
+    const HealthData health = mApiClient->currentHealth().data;
+
+    // ● Runtime — backend aggregate status
+    if (health.status == "ok") {
+        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: ONLINE"));
+        mBackendStatus->setStyleSheet(styleFor(green));
+    } else if (health.status == "degraded") {
+        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: DEGRADED"));
+        mBackendStatus->setStyleSheet(styleFor(amber));
     } else {
-        mBridgeStatus->setText("\u25CF Bridge OK");
-        mBridgeStatus->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; }");
+        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: OFFLINE"));
+        mBackendStatus->setStyleSheet(styleFor(red));
     }
 
-    // Freshness
-    auto analysis = mApiClient->currentAnalysis();
-    if (analysis.data.meta.dataFreshnessSec.has_value()) {
-        int secs = analysis.data.meta.dataFreshnessSec.value();
-        mFreshnessStatus->setText(QString("\u25CF Fresh %1s").arg(secs));
-        if (secs > 60) {
-            mFreshnessStatus->setStyleSheet("QLabel { color: #D9A14A; font-size: 12px; }");
-        } else {
-            mFreshnessStatus->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; }");
-        }
+    // ● Streams — bridge status
+    if (health.bridge == "ok") {
+        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OK"));
+        mBridgeStatus->setStyleSheet(styleFor(green));
+    } else if (health.bridge == "stale") {
+        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: STALE"));
+        mBridgeStatus->setStyleSheet(styleFor(amber));
     } else {
-        mFreshnessStatus->setText("\u25CF Fresh: \u2014");
-        mFreshnessStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
+        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OFFLINE"));
+        mBridgeStatus->setStyleSheet(styleFor(red));
     }
+
+    // Right side: System Health
+    QString healthState;
+    QString healthColor;
+    if (health.status == "ok") {
+        healthState = "OK";
+        healthColor = green;
+    } else if (health.status == "degraded") {
+        healthState = "DEGRADED";
+        healthColor = amber;
+    } else {
+        healthState = "OFFLINE";
+        healthColor = red;
+    }
+    mDisclaimer->setText("System Health: " + healthState);
+    mDisclaimer->setStyleSheet(
+        QString("QLabel { color: %1; font-size: 11px; }").arg(healthColor));
+}
+
+void MainWindow::updateClock() {
+    if (!mClockLabel) return;
+    const QString now =
+        QDateTime::currentDateTimeUtc().toString("HH:mm:ss") + QStringLiteral(" UTC");
+    mClockLabel->setText(now);
 }
 
 void MainWindow::applyTheme() {
-    // Theme is applied via ThemeManager; this just triggers a repolish
+    qApp->setProperty("astraDark", mThemeManager->isDark());
     qApp->setStyleSheet(mThemeManager->qssContent());
-    // Re-apply widget-specific styling that might have been overridden
-    // The QSS handles most styling; individual widget styles supplement
+    // Custom-painted widgets repaint with their theme-aware colors
+    for (NavButton* btn : mNavButtons) {
+        btn->update();
+    }
+    if (mExitButton) mExitButton->update();
 }
 
 void MainWindow::toggleFullscreen(bool enter) {
@@ -719,8 +763,7 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::showFullscreenHint() {
-    // Create a temporary label at top-right showing "Press F11 to exit fullscreen"
-    // Fades after 3 seconds
+    // Transient top-right hint; fades after 3 seconds
     if (mFullscreenHintVisible) return;
     mFullscreenHintVisible = true;
 
@@ -775,27 +818,27 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     }
 
     if (ctrlDown && event->key() == Qt::Key_Comma) {
-        onNavClicked(Settings);
+        onNavClicked(navIndexOfPage(Settings));
         return;
     }
 
     if (ctrlDown && event->key() == Qt::Key_D) {
-        onNavClicked(Dashboard);
+        onNavClicked(navIndexOfPage(Dashboard));
         return;
     }
 
     if (ctrlDown && event->key() == Qt::Key_H) {
-        onNavClicked(Chart);
+        onNavClicked(navIndexOfPage(Chart));
         return;
     }
 
     if (ctrlDown && event->key() == Qt::Key_L) {
-        onNavClicked(History);
+        onNavClicked(navIndexOfPage(History));
         return;
     }
 
     if (ctrlDown && event->key() == Qt::Key_K) {
-        onNavClicked(Health);
+        onNavClicked(navIndexOfPage(Health));
         return;
     }
 
@@ -805,14 +848,12 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // ESC — exit fullscreen or cancel dialog
+    // ESC — exit fullscreen
     if (event->key() == Qt::Key_Escape) {
         if (mIsFullscreen) {
             toggleFullscreen(false);
             return;
         }
-        // Check if exit dialog is open
-        // (handled by the dialog itself)
     }
 
     // Chart page: 1-9 for timeframe
@@ -867,6 +908,5 @@ void MainWindow::showExitConfirmation() {
         close();  // closeEvent() sees mExitConfirmed and accepts immediately
     }
 }
-
 
 }  // namespace astra

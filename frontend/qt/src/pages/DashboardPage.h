@@ -1,21 +1,31 @@
 #pragma once
 #include "api/ApiTypes.h"
 #include <QWidget>
-#include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QFrame>
-#include "widgets/SignalCard.h"
-#include "widgets/LevelsCard.h"
-#include "widgets/RegimeChip.h"
+#include <QTableWidget>
+#include <QStackedWidget>
+#include <QPushButton>
+#include <QVector>
+
+class QScrollArea;
 
 namespace astra {
 
+class ApiClient;
+
 // ──────────────────────────────────────────────────────────────────────────────
-// Dashboard — 2 columns (60/40) + full-width row below
-// Left: Context card. Right: Signal card.
-// Full-width below: Levels card.
+// Dashboard — reference layout (4 rows + bottom action bar)
+//   Row 1: SYSTEM HEALTH | DATA STREAMS | SIGNALS | RISK | EXECUTION
+//   Row 2: CHART (60%, /api/v1/candles missing -> "Coming soon")
+//          + SIGNALS table (40%, /analysis/history?limit=20)
+//   Row 3: TIMEFRAME MATRIX (60%) + RISK PANEL (40%)
+//   Row 4: Research | Knowledge | Candidates | Validation |
+//          Approval Center | Schedule
+//   Bar:   [Refresh] enabled, others disabled until the backend ships.
+// Every unknown value renders as "—" or "UNKNOWN" — never fabricated.
 // ──────────────────────────────────────────────────────────────────────────────
 
 class DashboardPage : public QWidget {
@@ -24,38 +34,53 @@ class DashboardPage : public QWidget {
 public:
     explicit DashboardPage(QWidget* parent = nullptr);
 
+    void setApiClient(ApiClient* client);
     void updateFromAnalysis(const AnalysisResponse& resp);
+    void updateFromHealth(const HealthResponse& resp);
+    void updateFromHistory(const QVector<AnalysisData>& items);
+    void setOnline(bool online);
 
 private:
     void setupLayout();
-    void updateContextCard(const AnalysisData& data);
-    void updateSignalCard(const AnalysisData& data);
-    void updateLevelsCard(const AnalysisData& data);
+    QFrame* makeCard(QWidget* parent, const QString& title);
+    QLabel* makeCardValue(QWidget* parent);
+    QLabel* makeCardSub(QWidget* parent);
+    void setCardValue(QLabel* label, const QString& text, const QString& color);
 
-    // Cards
-    QFrame* mContextCard = nullptr;
-    QFrame* mSignalCard = nullptr;
-    QFrame* mLevelsCard = nullptr;
+    ApiClient* mApiClient = nullptr;
 
-    // Context card widgets
-    QLabel* mContextTitle = nullptr;
-    RegimeChip* mRegimeChip = nullptr;
-    QLabel* mH4BiasLabel = nullptr;
-    QLabel* mH4BiasValue = nullptr;
-    QLabel* mM15TriggerLabel = nullptr;
-    QLabel* mM15TriggerValue = nullptr;
-    QLabel* mMtfAgreementLabel = nullptr;
-    QLabel* mMtfAgreementBar = nullptr;
-    QLabel* mMtfAgreementValue = nullptr;
+    // Row 1 — status cards
+    QLabel* mHealthValue = nullptr;
+    QLabel* mHealthSub = nullptr;
+    QLabel* mStreamsValue = nullptr;
+    QLabel* mStreamsSub = nullptr;
+    QLabel* mSignalsValue = nullptr;
+    QLabel* mSignalsSub = nullptr;
+    QLabel* mRiskValue = nullptr;
+    QLabel* mRiskSub = nullptr;
+    QLabel* mExecutionValue = nullptr;
+    QLabel* mExecutionSub = nullptr;
 
-    // Signal card
-    SignalCard* mSignalCardWidget = nullptr;
+    // Row 2 — chart placeholder + signals table
+    QTableWidget* mSignalsTable = nullptr;
+    QStackedWidget* mSignalsStack = nullptr;
+    QLabel* mSignalsEmpty = nullptr;
 
-    // Levels card
-    LevelsCard* mLevelsCardWidget = nullptr;
+    // Row 3 — timeframe matrix + risk panel
+    QTableWidget* mMatrix = nullptr;
 
-    // Polling
-    QTimer mPollTimer;
+    // Row 4 — quick cards
+    QVector<QLabel*> mQuickValues;
+
+    // Action bar
+    QPushButton* mRefreshBtn = nullptr;
+
+    // Last known state (so offline transitions can be rendered honestly)
+    HealthResponse mLastHealth;
+    bool mHasHealth = false;
+    bool mOnline = false;
+    int mHistoryCount = 0;
+    bool mHasHistory = false;
 };
 
 }  // namespace astra
