@@ -32,11 +32,16 @@
 #include <QFont>
 #include <QImageWriter>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMetaObject>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QDebug>
 #include <QPixmap>
 #include <QScreen>
 #include <QDir>
+#include <QFrame>
+#include <algorithm>
 
 #include <cstdio>
 
@@ -117,6 +122,72 @@ void nav(MainWindow& win, int index) {
     QApplication::processEvents();
 }
 
+// Dump the vertical geometry of the dashboard's scroll page so overflow can
+// be measured precisely. Enabled with ASTRA_SHOT_DEBUG=1.
+void debugDashboard(const MainWindow& win) {
+    if (qgetenv("ASTRA_SHOT_DEBUG").isEmpty()) return;
+
+    const QList<QWidget*> pages = win.findChildren<QWidget*>();
+    for (QWidget* w : pages) {
+        if (QScrollArea* sc = qobject_cast<QScrollArea*>(w)) {
+            QWidget* inner = sc->widget();
+            if (!inner) continue;
+            const int vmax = sc->verticalScrollBar() ? sc->verticalScrollBar()->maximum()
+                                                     : 0;
+            printf("SCROLLAREA  vmax=%d  inner.bottom=%d  viewport.h=%d\n",
+                   vmax, inner->geometry().bottom(), sc->viewport()->height());
+        }
+    }
+    // Locate the Refresh action button and the first quick card's caption.
+    QWidget* refr = win.findChild<QWidget*>("dashRefreshButton");
+    QWidget* central = win.centralWidget();
+    if (!central) central = const_cast<MainWindow*>(&win);
+    if (refr) {
+        QPoint topLeft = refr->mapTo(central, QPoint(0, 0));
+        printf("ACTIONBAR Refresh    y=%d h=%d  (visible if y+h <= %d)\n",
+               topLeft.y(), refr->height(), 867);
+    }
+    // Dump every QFrame in the scroll page in geometry order.
+    QWidget* page = nullptr;
+    for (QWidget* w : win.findChildren<QScrollArea*>()) {
+        if (w->inherits("QScrollArea") && !w->inherits("QTableWidget")) {
+            page = w;
+            break;
+        }
+    }
+    if (page) {
+        QList<QWidget*> all = page->findChildren<QWidget*>();
+        // include the page itself
+        all.prepend(page);
+        QList<QWidget*> cands;
+        for (QWidget* w : all) {
+            if (qobject_cast<QFrame*>(w) && w->y() > 0 && w->height() > 10)
+                cands.append(w);
+        }
+        std::sort(cands.begin(), cands.end(),
+                  [](QWidget* a, QWidget* b) { return a->y() < b->y(); });
+        for (QWidget* w : cands) {
+            const QString name = w->objectName().isEmpty()
+                ? (w->property("astraCard").toBool() ? QString("(card)")
+                        : QLatin1String(w->metaObject()->className()))
+                : w->objectName();
+            printf("FRAME %-24s y=%4d h=%3d bottom=%4d visible=%d\n",
+                   qPrintable(name), w->y(), w->height(),
+                   w->y() + w->height(), w->isVisible());
+        }
+    }
+    const QList<QLabel*> labels = win.findChildren<QLabel*>();
+    for (const QLabel* l : labels) {
+        if (l->text() == "Y" || l->text().isEmpty()) continue;
+        const QString t = l->text().simplified();
+        if (t.contains("RESEARCH", Qt::CaseInsensitive) && t.size() < 24) {
+            QPoint topLeft = l->mapTo(central, QPoint(0, 0));
+            printf("ROW4 caption '%s'  y=%d\n", qPrintable(t), topLeft.y());
+            break;
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -146,6 +217,7 @@ int main(int argc, char* argv[]) {
     // ── dashboard, dark ────────────────────────────────────────────────────
     nav(win, 0);
     ok &= capture(win, "dashboard_dark.png", outDir);
+    debugDashboard(win);
 
     // ── dashboard, light (real Ctrl+T theme toggle) ───────────────────────
     emitKey(&win, Qt::Key_T, Qt::ControlModifier);

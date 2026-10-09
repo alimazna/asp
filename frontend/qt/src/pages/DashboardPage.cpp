@@ -158,8 +158,8 @@ void DashboardPage::setupLayout() {
     scroll->setWidget(page);
 
     QVBoxLayout* mainLayout = new QVBoxLayout(page);
-    mainLayout->setContentsMargins(20, 18, 20, 18);
-    mainLayout->setSpacing(14);
+    mainLayout->setContentsMargins(20, 14, 20, 14);
+    mainLayout->setSpacing(12);
 
     // ─────────────── ROW 1 — status cards ───────────────
     QHBoxLayout* row1 = new QHBoxLayout();
@@ -354,7 +354,7 @@ void DashboardPage::setupLayout() {
             item->setFont(m2);
             mMatrix->setItem(r, c, item);
         }
-        mMatrix->setRowHeight(r, 26);
+        mMatrix->setRowHeight(r, 24);
     }
     // Size the fixed columns to their widest header/cell (never clip a
     // header), and let the last column absorb the remainder so the table
@@ -366,7 +366,7 @@ void DashboardPage::setupLayout() {
     mMatrix->verticalHeader()->setVisible(false);
     // QAbstractScrollArea::sizeHint() is small; ask for header + 9 rows so
     // the card grows instead of putting the matrix behind an inner scrollbar.
-    mMatrix->setMinimumHeight(26 + 9 * 26 + 6);
+    mMatrix->setMinimumHeight(26 + 9 * 24 + 6);
     mMatrix->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     mMatrix->setSelectionMode(QAbstractItemView::NoSelection);
     mMatrix->setEditTriggers(QAbstractItemView::NoEditTriggers);

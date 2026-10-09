@@ -16,7 +16,6 @@ QFrame[astraCard="true"] {
     background-color: #FFFFFF;
     border: 1px solid #E1E6ED;
     border-radius: 12px;
-    padding: 20px;
 }
 
 /* ── Buttons ── */
