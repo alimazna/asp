@@ -21,6 +21,9 @@ class SvgIcon;
 
 class NavButton : public QWidget {
     Q_OBJECT
+    // Opacity of the painted label only; the icon is a child widget and stays
+    // at full opacity. Animated by MainWindow during sidebar collapse/expand.
+    Q_PROPERTY(qreal textOpacity READ textOpacity WRITE setTextOpacity)
 
 public:
     NavButton(const QString& label, const QString& iconPath,
@@ -30,6 +33,8 @@ public:
     // Re-reads palette-derived colors (icon tint) after a theme switch.
     void refreshThemeColors();
     [[nodiscard]] bool isActive() const { return mActive; }
+    [[nodiscard]] qreal textOpacity() const { return mTextOpacity; }
+    void setTextOpacity(qreal opacity);
     [[nodiscard]] bool isComingSoon() const { return mComingSoon; }
     [[nodiscard]] QString label() const { return mLabel; }
 
@@ -54,6 +59,7 @@ private:
     bool mActive = false;
     bool mHover = false;
     bool mComingSoon = false;
+    qreal mTextOpacity = 1.0;
     SvgIcon* mIcon = nullptr;
 };
 

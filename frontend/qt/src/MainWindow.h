@@ -15,6 +15,10 @@ class QPushButton;
 class QCloseEvent;
 class QEvent;
 class QKeyEvent;
+class QGraphicsOpacityEffect;
+class QPropertyAnimation;
+class QVariantAnimation;
+class QSequentialAnimationGroup;
 
 class DashboardPage;
 class ChartPage;
@@ -47,6 +51,11 @@ public:
     // window is shown (after setStyleSheet propagation has settled).
     void initStyleChrome();
 
+    // Sidebar collapse state (200px expanded <-> 64px icons-only). Exposed for
+    // tests and the offscreen snapshot tool. animate=false applies instantly.
+    [[nodiscard]] bool isSidebarCollapsed() const { return mSidebarCollapsed; }
+    void setSidebarCollapsed(bool collapsed, bool animate);
+
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
@@ -57,6 +66,7 @@ private slots:
     void onRefreshClicked();
     void onThemeToggled();
     void onFullscreenToggled();
+    void onSidebarToggled();
     void onCloseClicked();
     void onExitClicked();
     void onAnalysisUpdated(const AnalysisResponse& resp);
@@ -80,6 +90,7 @@ private:
     void toggleFullscreen(bool enter);
     void showFullscreenHint();
     void hideFullscreenHint();
+    void animateSidebar(bool collapsed, bool animate);
     void saveSettings();
     void stopAllTimers();
     [[nodiscard]] int navIndexOfPage(int pageIndex) const;
@@ -107,6 +118,21 @@ private:
     NavButton* mExitButton = nullptr;
     QWidget* mSidebar = nullptr;
     QLabel* mLogoLabel = nullptr;
+    QLabel* mSubtitleLabel = nullptr;
+
+    // Collapsible sidebar
+    static constexpr int SIDEBAR_EXPANDED = 200;
+    static constexpr int SIDEBAR_COLLAPSED = 64;
+    QPushButton* mSidebarToggleBtn = nullptr;
+    SvgIcon* mSidebarToggleIcon = nullptr;
+    bool mSidebarCollapsed = false;
+    QSequentialAnimationGroup* mSidebarGroup = nullptr;
+    // Every faded text label (nav labels, group headers, lockup). One shared
+    // QGraphicsOpacityEffect per label — Qt allows only one effect per widget.
+    QVector<QGraphicsOpacityEffect*> mTextEffects;
+    // Subset hidden entirely when collapsed (group headers + lockup), so they
+    // cannot intercept clicks in the 64px rail.
+    QVector<QGraphicsOpacityEffect*> mCollapseHiddenEffects;
 
     // Top bar
     QWidget* mTopBar = nullptr;

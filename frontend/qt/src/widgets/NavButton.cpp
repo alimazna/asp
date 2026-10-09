@@ -33,6 +33,13 @@ NavButton::NavButton(const QString& label, const QString& iconPath,
     refreshIconColor();
 }
 
+void NavButton::setTextOpacity(qreal opacity) {
+    const qreal clamped = qBound(0.0, opacity, 1.0);
+    if (qFuzzyCompare(mTextOpacity, clamped)) return;
+    mTextOpacity = clamped;
+    update(QRect(14, 0, width(), height()));
+}
+
 void NavButton::setActive(bool active) {
     if (mActive == active) return;
     mActive = active;
@@ -86,7 +93,9 @@ void NavButton::paintEvent(QPaintEvent* /*event*/) {
 
     // Label
     const int textX = mIcon ? 34 : 14;
-    p.setPen(textColor());
+    QColor labelColor = textColor();
+    labelColor.setAlphaF(labelColor.alphaF() * mTextOpacity);
+    p.setPen(labelColor);
     QFont f = font();
     f.setPixelSize(13);
     f.setWeight(QFont::Medium);

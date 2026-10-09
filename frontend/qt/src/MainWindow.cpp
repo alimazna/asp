@@ -19,10 +19,23 @@
 #include <QDateTime>
 #include <QFrame>
 #include <QSpacerItem>
+#include <QGraphicsOpacityEffect>
+#include <QPropertyAnimation>
+#include <QVariantAnimation>
+#include <QParallelAnimationGroup>
+#include <QSequentialAnimationGroup>
+#include <QAbstractAnimation>
+#include <QButtonGroup>
+#include <QPixmap>
 
 namespace astra {
 
-static constexpr int SIDEBAR_WIDTH = 232;
+// Collapsible-sidebar durations (ms). All <= 250ms, per the animation rule.
+static constexpr int SIDEBAR_ANIM_MS = 220;   // width transition
+static constexpr int TEXT_FADE_MS = 120;      // collapse: text fades first
+static constexpr int TEXT_FADE_IN_DELAY = 180; // expand: width, then fade in
+static constexpr int TEXT_FADE_IN_MS = 120;
+
 static constexpr int TOP_BAR_HEIGHT = 56;
 static constexpr int BOTTOM_BAR_HEIGHT = 32;
 static constexpr int MIN_WIDTH = 1366;
@@ -63,6 +76,9 @@ MainWindow::MainWindow(QWidget* parent)
     setupContentArea();
     mChromeReady = true;
     restyleChrome();
+
+    // Restore the persisted sidebar state (no animation on startup).
+    setSidebarCollapsed(mSettings.value("sidebarCollapsed", false).toBool(), false);
 
     // Fullscreen hint
     connect(&mFullscreenHintTimer, &QTimer::timeout, this, &MainWindow::hideFullscreenHint);
@@ -141,7 +157,7 @@ void MainWindow::setupSidebar() {
 
     mSidebar = new QWidget(this);
     mSidebar->setObjectName("astraSidebar");  // stable handle for tests
-    mSidebar->setFixedWidth(SIDEBAR_WIDTH);
+    mSidebar->setFixedWidth(SIDEBAR_EXPANDED);
     QVBoxLayout* sidebarLayout = new QVBoxLayout(mSidebar);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
@@ -158,11 +174,11 @@ void MainWindow::setupSidebar() {
     mLogoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     logoLayout->addWidget(mLogoLabel);
 
-    QLabel* subtitle = new QLabel(logoArea);
-    subtitle->setText("XAUUSD Intelligence");
-    subtitle->setObjectName("astraSubtitle");
-    subtitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    logoLayout->addWidget(subtitle);
+    mSubtitleLabel = new QLabel(logoArea);
+    mSubtitleLabel->setText("XAUUSD Intelligence");
+    mSubtitleLabel->setObjectName("astraSubtitle");
+    mSubtitleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    logoLayout->addWidget(mSubtitleLabel);
 
     // Divider below lockup
     QFrame* divider = new QFrame(mSidebar);
@@ -178,7 +194,7 @@ void MainWindow::setupSidebar() {
     for (const NavGroup& group : mNavGroups) {
         QLabel* groupLabel = new QLabel(navArea);
         groupLabel->setText(group.title.toUpper());
-        groupLabel->setObjectName("astraGroupLabel");
+        groupLabel->setObjectName("astraGroupHeader");
         navLayout->addWidget(groupLabel);
 
         for (const NavEntry& entry : group.entries) {
@@ -210,6 +226,43 @@ void MainWindow::setupSidebar() {
     sidebarLayout->addWidget(logoArea);
     sidebarLayout->addWidget(divider);
     sidebarLayout->addWidget(navArea);
+
+    // ── Text labels that fade with the collapse ──
+    // NavButton paints its label itself, so it gets a plain qreal property;
+    // the QLabel-based text (lockup, subtitle, group headers) gets a single
+    // QGraphicsOpacityEffect each (Qt allows one effect per widget).
+    QVector<QWidget*> labelWrappers;
+    labelWrappers << mLogoLabel << mSubtitleLabel;
+    for (QLabel* l : mSidebar->findChildren<QLabel*>("astraGroupHeader")) {
+        labelWrappers << l;
+    }
+
+    mTextEffects.clear();
+    mCollapseHiddenEffects.clear();
+    for (QWidget* w : labelWrappers) {
+        auto* eff = new QGraphicsOpacityEffect(w);
+        eff->setOpacity(1.0);
+        w->setGraphicsEffect(eff);
+        mTextEffects << eff;
+        // Group headers and the wordmark carry no information when the rail is
+        // 64px wide, so they are hidden (not just transparent) when collapsed.
+        if (w->objectName() == "astraGroupHeader" || w == mLogoLabel || w == mSubtitleLabel) {
+            mCollapseHiddenEffects << eff;
+        }
+    }
+
+    // 40x40 flat toggle button (hamburger painted with QPainter so no icon
+    // font is needed). Lives in the top bar, before the page title.
+    mSidebarToggleBtn = new QPushButton();
+    mSidebarToggleBtn->setObjectName("astraSidebarToggle");
+    mSidebarToggleBtn->setFixedSize(40, 40);
+    mSidebarToggleBtn->setCursor(Qt::PointingHandCursor);
+    mSidebarToggleBtn->setToolTip("Toggle sidebar (Ctrl+B)");
+    mSidebarToggleIcon = new SvgIcon(":/icons/menu.svg", 20, mSidebarToggleBtn);
+    mSidebarToggleIcon->setObjectName("menuIcon");
+    mSidebarToggleIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+    mSidebarToggleIcon->move(10, 10);
+    connect(mSidebarToggleBtn, &QPushButton::clicked, this, &MainWindow::onSidebarToggled);
 }
 
 void MainWindow::setupTopBar() {
@@ -226,7 +279,8 @@ void MainWindow::setupTopBar() {
     topLayout->setContentsMargins(20, 0, 20, 0);
     topLayout->setSpacing(12);
 
-    // Left: page title
+    // Left: sidebar toggle, then page title
+    topLayout->addWidget(mSidebarToggleBtn);
     mPageTitle = new QLabel(mTopBar);
     mPageTitle->setObjectName("pageTitle");  // stable handle for tests
     mPageTitle->setText("Dashboard");
@@ -695,7 +749,7 @@ void MainWindow::restyleChrome() {
         l->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; "
                                  "letter-spacing: 0.08em; }").arg(textMuted));
     }
-    const QList<QLabel*> groupLabels = findChildren<QLabel*>("astraGroupLabel");
+    const QList<QLabel*> groupLabels = findChildren<QLabel*>("astraGroupHeader");
     for (QLabel* l : groupLabels) {
         l->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; font-weight: 500; "
                                  "letter-spacing: 0.08em; padding: 12px 8px 4px 8px; }")
@@ -729,7 +783,7 @@ void MainWindow::restyleChrome() {
                     "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
                 .arg(textSecondary));
     }
-    for (QPushButton* b : {mThemeBtn, mFullscreenBtn}) {
+    for (QPushButton* b : {mThemeBtn, mFullscreenBtn, mSidebarToggleBtn}) {
         if (b) {
             b->setStyleSheet(
                 QString("QPushButton { background: transparent; border: none; padding: 4px; }"
@@ -737,6 +791,7 @@ void MainWindow::restyleChrome() {
         }
     }
     if (mFullscreenIcon) mFullscreenIcon->setColor(textSecondary);
+    if (mSidebarToggleIcon) mSidebarToggleIcon->setColor(textSecondary);
     if (mCloseBtn) {
         mCloseBtn->setStyleSheet(
             "QPushButton { background: transparent; border: none; padding: 4px; }"
@@ -774,6 +829,121 @@ void MainWindow::applyTheme() {
         btn->refreshThemeColors();
     }
     if (mExitButton) mExitButton->refreshThemeColors();
+}
+
+void MainWindow::onSidebarToggled() {
+    setSidebarCollapsed(!mSidebarCollapsed, true);
+}
+
+void MainWindow::setSidebarCollapsed(bool collapsed, bool animate) {
+    if (!mSidebar) return;
+    animateSidebar(collapsed, animate);
+}
+
+void MainWindow::animateSidebar(bool collapsed, bool animate) {
+    mSidebarCollapsed = collapsed;
+    const int to = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+
+    // Stop any in-flight animation so rapid toggles cannot leave the rail at an
+    // intermediate width.
+    if (mSidebarGroup) mSidebarGroup->stop();
+
+    // Shared text-opacity pools: QLabel-based text via one effect each, and
+    // NavButton-painted labels via their textOpacity property.
+    QVector<QObject*> textTargets;
+    for (QGraphicsOpacityEffect* eff : mTextEffects) textTargets << eff;
+    for (NavButton* btn : mNavButtons) textTargets << btn;
+    if (mExitButton) textTargets << mExitButton;
+
+    auto makeFadeGroup = [&](qreal from, qreal to_) {
+        auto* g = new QParallelAnimationGroup;
+        for (QObject* t : textTargets) {
+            const char* prop = qobject_cast<QGraphicsOpacityEffect*>(t) ? "opacity"
+                                                                        : "textOpacity";
+            auto* a = new QPropertyAnimation(t, prop, g);
+            a->setDuration(collapsed ? TEXT_FADE_MS : TEXT_FADE_IN_MS);
+            a->setStartValue(from);
+            a->setEndValue(to_);
+            a->setEasingCurve(QEasingCurve::InOutCubic);
+            g->addAnimation(a);
+        }
+        return g;
+    };
+
+    if (!animate) {
+        mSidebar->setFixedWidth(to);
+        // A width change clamps the widget but not its children's cached
+        // backing store, so force the whole subtree to repaint at the new size.
+        mSidebar->repaint();
+        for (QWidget* c : mSidebar->findChildren<QWidget*>()) c->repaint();
+        for (QGraphicsOpacityEffect* eff : mTextEffects) eff->setOpacity(collapsed ? 0.0 : 1.0);
+        for (NavButton* btn : mNavButtons) btn->setTextOpacity(collapsed ? 0.0 : 1.0);
+        if (mExitButton) mExitButton->setTextOpacity(collapsed ? 0.0 : 1.0);
+        if (collapsed) {
+            for (QGraphicsOpacityEffect* eff : mCollapseHiddenEffects) {
+                if (QWidget* w = qobject_cast<QWidget*>(eff->parent())) w->setVisible(false);
+            }
+        }
+        return;
+    }
+
+    // Animate the real width: the icon column (fixed x=12 in NavButton) stays
+    // put while the label area shrinks away (220ms, InOutCubic).
+    auto* widthAnim = new QPropertyAnimation(mSidebar, "minimumWidth");
+    widthAnim->setDuration(SIDEBAR_ANIM_MS);
+    widthAnim->setStartValue(mSidebar->width());
+    widthAnim->setEndValue(to);
+    widthAnim->setEasingCurve(QEasingCurve::InOutCubic);
+    connect(widthAnim, &QPropertyAnimation::valueChanged, this,
+            [this](const QVariant& v) {
+                mSidebar->setFixedWidth(v.toInt());
+            });
+
+    // Persistent, single-owner group: it owns both the width and fade
+    // animations and is deleted only when the next toggle starts.
+    auto* group = new QSequentialAnimationGroup(this);
+    if (collapsed) {
+        // Fade text out first (0-120ms), pause, then shrink the width
+        // (200-420ms) — the spec's Option A.
+        for (QGraphicsOpacityEffect* eff : mTextEffects) eff->setOpacity(1.0);
+        for (NavButton* btn : mNavButtons) btn->setTextOpacity(1.0);
+        if (mExitButton) mExitButton->setTextOpacity(1.0);
+        group->addAnimation(makeFadeGroup(1.0, 0.0));
+        group->addPause(80);
+        group->addAnimation(widthAnim);
+    } else {
+        // Grow the width first, then fade text in (180-300ms).
+        for (QGraphicsOpacityEffect* eff : mTextEffects) {
+            if (QWidget* w = qobject_cast<QWidget*>(eff->parent())) w->setVisible(true);
+            eff->setOpacity(0.0);
+        }
+        for (NavButton* btn : mNavButtons) btn->setTextOpacity(0.0);
+        if (mExitButton) mExitButton->setTextOpacity(0.0);
+        group->addAnimation(widthAnim);
+        group->addPause(TEXT_FADE_IN_DELAY - SIDEBAR_ANIM_MS);
+        group->addAnimation(makeFadeGroup(0.0, 1.0));
+    }
+    connect(group, &QSequentialAnimationGroup::finished, this, [this, collapsed]() {
+        // Settled: pin to the exact width (clips to 64 or relaxes to 200).
+        mSidebar->setFixedWidth(collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED);
+        // Persist the settled state (never an intermediate width).
+        mSettings.setValue("sidebarCollapsed", collapsed);
+        mSettings.sync();
+        // Collapsed: now that the rail is 64px, drop the information-free text
+        // (group headers, wordmark) so it cannot intercept clicks.
+        if (collapsed) {
+            for (QGraphicsOpacityEffect* eff : mCollapseHiddenEffects) {
+                if (QWidget* w = qobject_cast<QWidget*>(eff->parent())) w->setVisible(false);
+            }
+        }
+    });
+    // Replace the previous group (owns its animations) now that we have one.
+    if (mSidebarGroup) {
+        mSidebarGroup->stop();
+        mSidebarGroup->deleteLater();
+    }
+    mSidebarGroup = group;
+    group->start();
 }
 
 void MainWindow::toggleFullscreen(bool enter) {
@@ -858,6 +1028,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 
     if (ctrlDown && event->key() == Qt::Key_T) {
         onThemeToggled();
+        return;
+    }
+
+    if (ctrlDown && event->key() == Qt::Key_B) {
+        onSidebarToggled();
         return;
     }
 
