@@ -822,3 +822,37 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - /api/v1/candles — still needed from backend
 - Risk module — pending
 - Governance / Research / Knowledge — coming soon
+
+## .exe Icon — Complete
+
+- astra.ico: 7 sizes (16–256), committed
+- app.rc: wired into CMake (WIN32 only)
+- resources.qrc: astra.ico registered
+- main.cpp: prefers .ico, falls back to SVG
+- Commits:
+    6da97a1 asset(qt): add multi-size astra.ico
+    1083b54 build(qt): embed app.rc icon on Windows
+    32cbefe feat(qt): use astra.ico for window icon
+- Linux build: clean
+- Windows CI: run 37984678210, conclusion success
+- Artifact ASTRA-windows: uploaded (23.5 MB, not expired)
+
+### Detail
+- Master (256x256): astra-symbol.svg rendered 165x180 (native 110:120
+  aspect preserved), composited centred on a rounded square
+  (radius 56px, fill #0A1628). Navy dominates 83% of pixels; corner
+  alpha 0. Verified before building the .ico.
+- astra.ico: 20197 bytes, ICO header reports 7 images
+  (16, 24, 32, 48, 64, 128, 256). Committed as a binary asset — the
+  build never invokes ImageMagick/Pillow.
+- app.rc: single line `IDI_ICON1 ICON DISCARDABLE "icons/astra.ico"`.
+- CMake: ADD-ONLY `if(WIN32) target_sources(astra_desktop PRIVATE
+  src/resources/app.rc) endif()` — RC compiler is Windows-only, so the
+  guard keeps Linux/macOS configuring.
+- Local Linux verify: cmake configure + `cmake --build` exit 0 with the
+  WIN32 block present (Qt6 6.8.2, g++). resources.qrc embeds astra.ico.
+- Windows verify: downloaded the ASTRA-windows artifact and inspected
+  astra_desktop.exe with pefile — RT_GROUP_ICON present and 7 RT_ICON
+  entries; the 256px RT_ICON is byte-identical (sha256 6bbc4695...) to
+  the generated master. The .exe now carries the ASTRA symbol.
+- main.cpp: QIcon(":/icons/astra.ico") with SVG fallback retained.
