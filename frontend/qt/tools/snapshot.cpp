@@ -56,6 +56,19 @@ void emitKey(MainWindow* win, int key, Qt::KeyboardModifiers mods = Qt::NoModifi
     QApplication::sendEvent(win, &release);
 }
 
+void applyTheme(QApplication& app, const char* themeName) {
+    QFile qssFile(QString(":/theme/") + QString::fromUtf8(themeName));
+    if (qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+
+        QString qss = QString::fromUtf8(qssFile.readAll());
+        app.setStyleSheet(qss);
+        qssFile.close();
+        qDebug() << "Applied theme" << themeName;
+    } else {
+        qWarning() << "Failed to load theme" << themeName;
+    }
+}
+
 // Replicates the startup sequence of frontend/qt/src/main.cpp verbatim so the
 // snapshots show exactly what the shipped app shows.
 void setupApp(QApplication& app) {
@@ -219,14 +232,14 @@ int main(int argc, char* argv[]) {
     ok &= capture(win, "dashboard_dark.png", outDir);
     debugDashboard(win);
 
-    // ── dashboard, light (real Ctrl+T theme toggle) ───────────────────────
-    emitKey(&win, Qt::Key_T, Qt::ControlModifier);
-    QApplication::processEvents();
+    // ── dashboard, light (direct QSS apply) ───────────────────────────────
+    applyTheme(app, "theme-light.qss");
+    settle(600);
     ok &= capture(win, "dashboard_light.png", outDir);
 
     // Back to dark.
-    emitKey(&win, Qt::Key_T, Qt::ControlModifier);
-    QApplication::processEvents();
+    applyTheme(app, "theme-dark.qss");
+    settle(600);
 
     // ── chart page ─────────────────────────────────────────────────────────
     nav(win, 1);
