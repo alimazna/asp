@@ -19,9 +19,13 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
 
     // Window icon (also the taskbar/alt-tab icon). The .exe icon itself is set
-    // from resources/app.rc on Windows; this covers the running window. The
-    // symbol lives at the qrc root, not under /icons.
-    app.setWindowIcon(QIcon(":/astra-symbol.svg"));
+    // from resources/app.rc on Windows; this covers the running window. Prefer
+    // the multi-size .ico for crisp taskbar/Alt-Tab rendering, falling back to
+    // the SVG symbol (which lives at the qrc root, not under /icons).
+    QIcon icon(":/icons/astra.ico");
+    if (icon.isNull())
+        icon = QIcon(":/astra-symbol.svg");
+    app.setWindowIcon(icon);
 
     // Font — try Inter, fallback to system
     QFont font = QApplication::font();

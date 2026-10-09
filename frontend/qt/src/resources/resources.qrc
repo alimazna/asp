@@ -15,6 +15,7 @@
     <file>icons/refresh.svg</file>
     <file>icons/fullscreen.svg</file>
     <file>icons/close.svg</file>
+    <file>icons/astra.ico</file>
     <file>theme/theme-dark.qss</file>
     <file>theme/theme-light.qss</file>
   </qresource>
