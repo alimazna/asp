@@ -3,9 +3,10 @@
 ## What this is
 
 Offscreen screenshots of the ASTRA desktop, rendered at 1440×900 in both
-themes against the mock API. Every pixel came from the running Qt app
-(`astra_snapshot`, the same shell and widgets as `astra_desktop`). None is
-fabricated.
+themes against the live backend (`127.0.0.1:8790` -> bridge `8791`). Every
+pixel came from the running Qt app (`astra_snapshot`, the same shell and
+widgets as `astra_desktop`). None is fabricated. The chart series shown is the
+real OHLC series served through the bridge.
 
 ## Verified
 
@@ -22,11 +23,11 @@ fabricated.
 
 ### dashboard_dark.png
 ![Dashboard, dark](screenshots/dashboard_dark.png)
-What it shows: the default landing page — five KPI cards, the chart
-placeholder, the latest-signals panel, the timeframe matrix, the risk panel,
-six quick cards and the bottom action bar.
-Look at: KPI row hierarchy; the "Coming soon" chart placeholder; the
-9-row timeframe matrix reading "—" on every unavailable field.
+What it shows: the default landing page — five KPI cards, the chart panel,
+the latest-signals panel, the timeframe matrix, the risk panel, six quick
+cards and the bottom action bar.
+Look at: KPI row hierarchy; the chart panel; the 9-row timeframe matrix
+reading "—" on every unavailable field.
 
 ### dashboard_light.png
 ![Dashboard, light](screenshots/dashboard_light.png)
@@ -79,16 +80,49 @@ Look at: form field styling and label alignment.
 What it shows: the Configuration page on the light theme.
 Look at: input borders and placeholder contrast on light.
 
-### coming_soon_dark.png
-![Coming soon, dark](screenshots/coming_soon_dark.png)
-What it shows: the shared ComingSoonPage reached from Research, Knowledge,
-Approval Center, Governance, Incidents and Recovery.
-Look at: the honest "module not yet available" messaging — no fake data.
+### chart_live_dark.png
+![Chart live, dark](screenshots/chart_live_dark.png)
+What it shows: the Chart page rendering a real candle series fetched from
+`/api/v1/candles?tf=M15&limit=500` through the backend proxy and the MT5
+bridge. Timeframe switcher, price axis (right, 60px), time axis (bottom,
+32px), crosshair/OHLC readout on hover, and the accent-blue last-price line.
+Look at: green/red candle bodies and wicks, grid and axis colours from the
+active palette, the dashed last-price line.
 
-### coming_soon_light.png
-![Coming soon, light](screenshots/coming_soon_light.png)
-What it shows: the shared ComingSoonPage on the light theme.
-Look at: consistency of the empty-state treatment with the dark theme.
+### chart_live_light.png
+![Chart live, light](screenshots/chart_live_light.png)
+What it shows: the same live candle series on the light theme.
+Look at: candle contrast against the light plot background; grid subtlety.
+
+### research_dark.png
+![Research, dark](screenshots/research_dark.png)
+What it shows: the Research page backed by `/api/v1/research/status` — the
+readiness/ledger view with an honest empty state when fields are absent.
+
+### knowledge_dark.png
+![Knowledge, dark](screenshots/knowledge_dark.png)
+What it shows: the Knowledge page — static reference content plus the
+empty state for the not-yet-published reference set.
+
+### approval_dark.png
+![Approval Center, dark](screenshots/approval_dark.png)
+What it shows: the Approval Center backed by `/api/v1/governance/status` —
+the pending-approval ledger with the empty state when nothing is queued.
+
+### governance_dark.png
+![Governance, dark](screenshots/governance_dark.png)
+What it shows: the Governance page — the live-trading authorisation card
+(SHADOW ONLY, never authorised) and the instrument allow-list.
+
+### incidents_dark.png
+![Incidents, dark](screenshots/incidents_dark.png)
+What it shows: the Incidents page backed by `/api/v1/audit/recent` — the
+audit ledger with the empty state until rows arrive.
+
+### recovery_dark.png
+![Recovery, dark](screenshots/recovery_dark.png)
+What it shows: the Recovery page backed by `/api/v1/system/state` — mode,
+shadow-only flag and readiness readouts.
 
 ### fullscreen_dark.png
 ![Fullscreen, dark](screenshots/fullscreen_dark.png)
@@ -103,17 +137,22 @@ Real:
 - Theme system: dark + light, both palette-driven
 - Live header clock, `/health` status badge
 - Timeframe matrix (9 rows)
-
-Placeholder:
-- Chart page: needs `/api/v1/candles` (not in the frozen API)
-- Risk panel: backend risk module pending
+- Chart page: live candle series from `/api/v1/candles` (zoom, pan,
+  crosshair, OHLC readout, last-price line, SL/TP overlay ready)
 - Research / Knowledge / Approval Center / Governance / Incidents /
-  Recovery: coming soon
+  Recovery: built pages over their respective v1 routes
+
+Pending (honest empty states, never fabricated):
+- Risk panel: backend risk module pending
+- Any field a route does not return renders as "—" / "unavailable"
 
 ## How to build and run
 
-See `frontend/qt/README.md`. The Windows `.exe` is produced by CI and
-uploaded as the artifact `ASTRA-windows`.
+See `frontend/qt/README.md`. CI produces two Windows artifacts: the portable
+folder `ASTRA-windows` and the installer `ASTRA-windows-installer`
+(`ASTRA-Setup.exe`), which bundles the frontend, the C++ backend host and the
+frozen Python bridge. The frontend starts the backend host automatically on
+Windows; the backend supervises the bridge.
 
 ## Requested review
 
@@ -121,7 +160,6 @@ Please confirm:
 1. Does the layout match the reference?
 2. Is anything missing?
 3. Any color / spacing adjustments?
-4. Should the chart placeholder be more prominent?
 
 ## Polish pass
 

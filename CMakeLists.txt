@@ -16,7 +16,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-add_compile_options(-Wall -Wextra)
+if(MSVC)
+  # MSVC takes /W4 rather than -Wall/-Wextra (which cl rejects as D8021).
+  add_compile_options(/W4)
+else()
+  add_compile_options(-Wall -Wextra)
+endif()
 
 find_package(Threads REQUIRED)
 
