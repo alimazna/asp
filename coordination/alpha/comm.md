@@ -787,3 +787,38 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - Verified: dashboard_light.png dominant color #F5F7FA (dark #0A1628 drops
   to text-only pixels); no dark rectangle >22px in any light screenshot.
 - Commit: fa0f385
+
+## Verification Close-out + Polish — 2026-10-09
+
+### Windows CI
+- Latest run: 37971976532, sha 7bcada2, conclusion success (Windows .exe).
+- The next commit (c7b4a3b) was docs/screenshots only; the workflow
+  path-filters `frontend/qt/**`, so it correctly triggered no run.
+- No fix commit needed.
+
+### DESIGN_REVIEW.md
+- Created at docs/frontend/DESIGN_REVIEW.md (per-page screenshot review,
+  real vs placeholder, how to build, requested review).
+- Commit: 977a2fc
+
+### Polish pass
+- Typography: KPI card caption 10px/0.08em -> 12px/0.05em; timeframe-matrix
+  header 9px -> 10px; top-bar page title 18px -> 22px; SHADOW ONLY chip
+  11px -> 12px.
+- Spacing: KPI card padding -> 20/16; dashboard row gaps -> 16px; content
+  cards (chart, signals, matrix, risk) padding -> 20/16; sidebar nav gap
+  2px -> 4px.
+- Chips: SHADOW ONLY chip and ComingSoon badge radius 8px -> 12px.
+- Unchanged: colors (palette fixed), layout structure, features, behaviour.
+- Screenshots regenerated (13 PNGs, both themes, 1440x900, all > 20 KB).
+- Verified: dark dominant #0C192C (antialiased #0A1628), light dominant
+  #F5F7FA; no dark run > 20px in any light screenshot.
+
+### Commits
+- 977a2fc docs(frontend): add design review
+- 247a4f2 polish(qt): typography, spacing, hierarchy
+
+### Open items
+- /api/v1/candles — still needed from backend
+- Risk module — pending
+- Governance / Research / Knowledge — coming soon
