@@ -135,6 +135,8 @@ if(BUILD_ASTRA_SNAPSHOT)
         src/widgets/NavButton.cpp
         src/widgets/SvgIcon.cpp
         src/pages/ComingSoonPage.cpp
+        # Resources (AUTORCC): paths resolve to /astra-*.svg, /icons/*, /theme/*
+        src/resources/resources.qrc
     )
     add_executable(astra_snapshot
         tools/snapshot.cpp
