@@ -104,3 +104,54 @@ endif()
 install(TARGETS astra_desktop
     RUNTIME DESTINATION .
 )
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Offscreen snapshot tool (OFF by default).
+# Renders every page to PNG under docs/frontend/screenshots/ so visual
+# regressions can be reviewed. Shares all app sources (the same widgets) but
+# its own main(). Do NOT enable unless you need screenshots.
+# ──────────────────────────────────────────────────────────────────────────────
+option(BUILD_ASTRA_SNAPSHOT "Build offscreen snapshot tool" OFF)
+if(BUILD_ASTRA_SNAPSHOT)
+    # Everything except src/main.cpp (the snapshot tool provides its own main).
+    set(ASTRA_SNAPSHOT_SOURCES
+        src/MainWindow.cpp
+        src/api/ApiClient.cpp
+        src/api/ApiTypes.cpp
+        src/theme/ThemeManager.cpp
+        src/pages/DashboardPage.cpp
+        src/pages/ChartPage.cpp
+        src/pages/HistoryPage.cpp
+        src/pages/HealthPage.cpp
+        src/pages/SettingsPage.cpp
+        src/widgets/SignalCard.cpp
+        src/widgets/LevelsCard.cpp
+        src/widgets/RegimeChip.cpp
+        src/widgets/MtfMeter.cpp
+        src/widgets/FreshnessBar.cpp
+        src/widgets/CandleChart.cpp
+        src/widgets/TimeframeSwitcher.cpp
+        src/dialogs/ConfirmExitDialog.cpp
+        src/widgets/NavButton.cpp
+        src/widgets/SvgIcon.cpp
+        src/pages/ComingSoonPage.cpp
+    )
+    add_executable(astra_snapshot
+        tools/snapshot.cpp
+        ${ASTRA_SNAPSHOT_SOURCES}
+        ${ASTRA_HEADERS}
+    )
+    set_source_files_properties(src/resources/resources.qrc PROPERTIES AUTORCC ON)
+    target_include_directories(astra_snapshot PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_snapshot PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    if(TARGET Qt6::Svg)
+        target_link_libraries(astra_snapshot PRIVATE Qt6::Svg)
+        target_compile_definitions(astra_snapshot PRIVATE ASTRA_HAVE_QTSVG)
+    endif()
+endif()
