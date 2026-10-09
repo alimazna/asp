@@ -40,6 +40,7 @@
 #include <QScreen>
 #include <QDir>
 #include <QFrame>
+#include <QSettings>
 #include <algorithm>
 
 #include <cstdio>
@@ -109,7 +110,21 @@ bool capture(MainWindow& win, const char* name, const QString& outDir,
     win.show();
     settle(500);
 
-    QPixmap px = win.grab();
+    // Re-applying the stylesheet forces a full re-polish/repaint of every
+    // widget; offscreen, a programmatic resize alone can leave children painted
+    // at their pre-resize geometry.
+    const QString qss = qApp->styleSheet();
+    qApp->setStyleSheet(QString());
+    qApp->setStyleSheet(qss);
+    settle(200);
+
+    // Render (not grab): render() issues a fresh full paint of the whole tree so
+    // children resized by the sidebar collapse are painted at their new size
+    // instead of being served from a stale backing store.
+    QPixmap px(win.size());
+    px.setDevicePixelRatio(win.devicePixelRatioF());
+    px.fill(Qt::transparent);
+    win.render(&px);
     const QString path = outDir + "/" + QLatin1String(name);
     if (!writePng(path, px)) return false;
 
@@ -276,6 +291,39 @@ int main(int argc, char* argv[]) {
     nav(win, 4);
     ok &= capture(win, "coming_soon_light.png", outDir);
     applyTheme(app, "theme-dark.qss");
+    win.initStyleChrome();
+    settle(300);
+
+    // ── sidebar collapsed (icons-only rail), dark + light ────────────────
+    // Captured from a window built with the collapsed state already persisted:
+    // this is what a user sees after toggling once and restarting (headless
+    // offscreen cannot repaint a runtime width change).
+    {
+        QSettings st("ASTRA", "Desktop");
+        st.setValue("sidebarCollapsed", true);
+        st.sync();
+
+        MainWindow rail;
+        rail.setApiClient(&apiClient);
+        rail.resize(1440, 900);
+        rail.show();
+        settle(1100);
+
+        applyTheme(app, "theme-dark.qss");
+        rail.initStyleChrome();
+        settle(400);
+        ok &= capture(rail, "sidebar_collapsed_dark.png", outDir);
+
+        applyTheme(app, "theme-light.qss");
+        rail.initStyleChrome();
+        settle(400);
+        ok &= capture(rail, "sidebar_collapsed_light.png", outDir);
+
+        st.setValue("sidebarCollapsed", false);
+        st.sync();
+    }
+
+    // Restore dark before the fullscreen grab.
     win.initStyleChrome();
     settle(300);
 
