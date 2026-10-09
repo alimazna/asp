@@ -2,8 +2,7 @@
 #include "api/ApiClient.h"
 #include "theme/ThemeManager.h"
 #include <QApplication>
-#include <QFile>
-#include <QDir>
+#include <QSettings>
 #include <QDebug>
 #include <QStyleFactory>
 
@@ -24,26 +23,19 @@ int main(int argc, char* argv[]) {
     font.setPointSize(14);
     QApplication::setFont(font);
 
-    // Load QSS theme from resources
-    // After qt_add_resources, files are available at :/path
-    QFile qssFile(":/theme/theme-dark.qss");
-    if (qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QString qss = QString::fromUtf8(qssFile.readAll());
-        qApp->setStyleSheet(qss);
-        qssFile.close();
-        qDebug() << "Loaded dark theme QSS";
-    } else {
-        qWarning() << "Failed to load theme QSS from resources, trying fallback";
-        // Fallback: try to read from file system (for development)
-        QFile fsFile("frontend/qt/src/resources/theme/theme-dark.qss");
-        if (fsFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString qss = QString::fromUtf8(fsFile.readAll());
-            qApp->setStyleSheet(qss);
-            fsFile.close();
-            qDebug() << "Loaded dark theme QSS from filesystem";
-        } else {
-            qWarning() << "Failed to load theme QSS entirely";
-        }
+    // Apply the persisted theme (dark by default) BEFORE any widget exists, so
+    // the application palette AND stylesheet are correct for the first paint.
+    // ThemeManager::setTheme also sets the per-theme QPalette that the
+    // custom-painted widgets read via palette(); a bare setStyleSheet() here
+    // would leave the palette on the default light palette until the user
+    // toggled the theme.
+    {
+        QSettings settings("ASTRA", "Desktop");
+        const bool darkTheme = settings.value("themeDark", true).toBool();
+        astra::ThemeManager themeManager;
+        themeManager.setTheme(darkTheme ? astra::ThemeManager::Theme::Dark
+                                        : astra::ThemeManager::Theme::Light);
+        qApp->setProperty("astraDark", darkTheme);
     }
 
     // Create API client

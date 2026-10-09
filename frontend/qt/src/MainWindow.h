@@ -26,6 +26,7 @@ class ComingSoonPage;
 namespace astra {
 
 class NavButton;
+class SvgIcon;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // MainWindow — ASTRA shell
@@ -115,6 +116,7 @@ private:
     QLabel* mClockLabel = nullptr;
     QTimer mClockTimer;
     QPushButton* mFullscreenBtn = nullptr;
+    SvgIcon* mFullscreenIcon = nullptr;
     QPushButton* mThemeBtn = nullptr;
     QPushButton* mCloseBtn = nullptr;
 

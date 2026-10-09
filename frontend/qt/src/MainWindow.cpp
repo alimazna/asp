@@ -7,6 +7,7 @@
 #include "pages/ComingSoonPage.h"
 #include "dialogs/ConfirmExitDialog.h"
 #include "widgets/NavButton.h"
+#include "widgets/SvgIcon.h"
 #include <QApplication>
 #include <QKeyEvent>
 #include <QCloseEvent>
@@ -251,10 +252,12 @@ void MainWindow::setupTopBar() {
     healthLayout->addWidget(mHealthLabel);
     topLayout->addWidget(healthChip);
 
-    // 🔒 SHADOW ONLY
+    // ● SHADOW ONLY — the lock emoji (U+1F512) has no glyph in the target
+    // fonts (renders as a tofu box), so use the same filled dot as the bottom
+    // bar. Keeps SHADOW ONLY double-labelled in top and bottom bars.
     QLabel* shadowChip = new QLabel(mTopBar);
     shadowChip->setObjectName("astraShadowChip");
-    shadowChip->setText(QStringLiteral("\U0001F512 SHADOW ONLY"));
+    shadowChip->setText(QStringLiteral("\u25CF SHADOW ONLY"));
     topLayout->addWidget(shadowChip);
 
     // Renderer
@@ -276,12 +279,16 @@ void MainWindow::setupTopBar() {
     mThemeBtn->setText(QStringLiteral("\u263D"));  // moon initially
     connect(mThemeBtn, &QPushButton::clicked, this, &MainWindow::onThemeToggled);
 
-    // Fullscreen toggle
+    // Fullscreen toggle — the ⛶ glyph (U+26F6) has no font coverage on the
+    // target platform (tofu box), so render the existing fullscreen.svg icon
+    // tinted to the active theme instead.
     mFullscreenBtn = new QPushButton(mTopBar);
     mFullscreenBtn->setObjectName("astraFullscreenBtn");
     mFullscreenBtn->setFixedSize(32, 32);
     mFullscreenBtn->setToolTip("Toggle fullscreen (F11)");
-    mFullscreenBtn->setText(QStringLiteral("\u26F6"));
+    mFullscreenIcon = new SvgIcon(":/icons/fullscreen.svg", 16, mFullscreenBtn);
+    mFullscreenIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+    mFullscreenIcon->move(8, 8);
     connect(mFullscreenBtn, &QPushButton::clicked, this, &MainWindow::onFullscreenToggled);
 
     // Close (X)
@@ -729,6 +736,7 @@ void MainWindow::restyleChrome() {
                         "QPushButton:hover { background: %1; }").arg(surface2));
         }
     }
+    if (mFullscreenIcon) mFullscreenIcon->setColor(textSecondary);
     if (mCloseBtn) {
         mCloseBtn->setStyleSheet(
             "QPushButton { background: transparent; border: none; padding: 4px; }"
