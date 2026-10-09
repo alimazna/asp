@@ -131,6 +131,37 @@
         "last_successful_update": {"type": ["integer", "null"]}
       }
     },
+    "GET /api/v1/candles": {
+      "status": 200,
+      "required": ["api", "schema", "data"],
+      "data_required": ["bars", "timeframe", "symbol", "count"],
+      "data_properties": {
+        "bars": {
+          "type": "array",
+          "element_required": ["time", "open", "high", "low", "close"],
+          "element_properties": {
+            "time": {"type": "integer"},
+            "open": {"type": "number"},
+            "high": {"type": "number"},
+            "low": {"type": "number"},
+            "close": {"type": "number"},
+            "tick_volume": {"type": ["integer", "null"]},
+            "spread": {"type": ["integer", "null"]},
+            "real_volume": {"type": ["integer", "null"]}
+          }
+        },
+        "timeframe": {"enum": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]},
+        "symbol": {"type": "string"},
+        "count": {"type": "integer"},
+        "closed_only": {"type": "boolean"},
+        "newest_closed_time": {"type": ["integer", "null"]},
+        "freshness": {"type": "string"}
+      },
+      "query": {
+        "tf": {"type": "string"},
+        "limit": {"type": "integer", "default": 500, "minimum": 1, "maximum": 1000}
+      }
+    },
     "GET /api/v1/analysis/latest": {
       "status": 200,
       "required": ["api", "schema", "data"],

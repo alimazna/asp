@@ -60,6 +60,10 @@ public:
     ApiResponse health() const;
     ApiResponse timeframes() const;
     ApiResponse timeframeSnapshot(const std::string& timeframe) const;
+    // Candle series for the ASTRA chart. Proxies the Python bridge (8791) and
+    // wraps its series in the standard envelope. Validates tf/limit here too
+    // (defense in depth) and never caches (the bridge already does).
+    ApiResponse candles(const std::string& timeframe, int limit) const;
     ApiResponse latestSignal() const;
     ApiResponse latestProbability() const;
     ApiResponse latestRisk() const;

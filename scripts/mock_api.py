@@ -27,9 +27,23 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
+
+# DEV-ONLY synthetic candle series for /api/v1/candles. It exists so the chart
+# page can be built and tested without MT5, a bridge, or a live terminal. The
+# series is deterministic (seeded by timeframe) and is NEVER shipped: the real
+# candle data comes only from the bridge, which reads MT5. This is the one
+# place in the mock that invents market data, and it is labelled as such.
+_CANDLE_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+_CANDLE_TF_SECONDS = {
+    "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+    "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800, "MN1": 2592000,
+}
+_CANDLE_BASE_PRICE = 2650.0
 
 SCHEMA_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -251,6 +265,49 @@ def analysis_obj(calibrated: bool, index: int = 0) -> dict:
     }
 
 
+def candles_payload(tf: str, limit: int) -> dict:
+    """DEV-ONLY deterministic synthetic candle series (seeded by timeframe).
+
+    This is the mock's one fabricated market-data path, present so the chart
+    page can be exercised without MT5. It is never used by the shipped product.
+    """
+    interval = _CANDLE_TF_SECONDS[tf]
+    seed = 0
+    for ch in tf:
+        seed = (seed * 131 + ord(ch)) & 0xFFFFFFFF
+    rng = random.Random(seed)
+    anchor = int(time.time()) - (int(time.time()) % interval)
+    start_time = anchor - limit * interval
+    bars = []
+    price = _CANDLE_BASE_PRICE
+    for i in range(limit):
+        t = start_time + i * interval
+        o = price
+        c = o + rng.uniform(-1.5, 1.5)
+        h = max(o, c) + rng.uniform(0.0, 1.0)
+        l = min(o, c) - rng.uniform(0.0, 1.0)
+        bars.append({
+            "time": t,
+            "open": round(o, 2),
+            "high": round(h, 2),
+            "low": round(l, 2),
+            "close": round(c, 2),
+            "tick_volume": rng.randint(50, 5000),
+            "spread": rng.randint(10, 40),
+            "real_volume": 0,
+        })
+        price = c
+    return {
+        "bars": bars,
+        "timeframe": tf,
+        "symbol": "XAUUSD",
+        "count": len(bars),
+        "closed_only": True,
+        "newest_closed_time": bars[-1]["time"] if bars else None,
+        "freshness": "FRESH",
+    }
+
+
 def build_payloads(schema: dict, calibrated: bool) -> dict:
     """Every frozen endpoint -> its response body."""
     payloads: dict[str, dict] = {
@@ -392,6 +449,8 @@ def build_payloads(schema: dict, calibrated: bool) -> dict:
                 "active_incidents": [],
             }
         ),
+        # DEV-ONLY synthetic candle series (see candles_payload).
+        "GET /api/v1/candles": envelope(candles_payload("M15", 500)),
     }
     # Snapshot is templated on the timeframe; validate a representative one.
     snapshot = schema["endpoints"]["GET /api/v1/timeframes/{tf}/snapshot"]
@@ -506,6 +565,33 @@ class Handler(BaseHTTPRequestHandler):
                 analysis_obj(self.calibrated, i) for i in range(limit)
             ]
             self._send(200, envelope(entries))
+            return
+
+        if path == "/api/v1/candles":
+            # DEV-ONLY synthetic series (see candles_payload). Validates tf and
+            # limit exactly as the real backend/bridge do, so the frontend can
+            # exercise both the happy path and the 400 path offline.
+            params = {}
+            for part in query.split("&"):
+                if "=" in part:
+                    k, _, v = part.partition("=")
+                    params[k] = v
+            tf = params.get("tf", "")
+            if tf not in _CANDLE_TIMEFRAMES:
+                self._send(400, error_body(
+                    "unknown_timeframe", f"unsupported timeframe {tf!r}"))
+                return
+            limit = 500
+            if "limit" in params:
+                try:
+                    limit = int(params["limit"])
+                except ValueError:
+                    self._send(400, error_body("invalid_limit", "limit is not an integer"))
+                    return
+            if limit < 1 or limit > 1000:
+                self._send(400, error_body("invalid_limit", "limit out of range (1..1000)"))
+                return
+            self._send(200, envelope(candles_payload(tf, limit)))
             return
 
         if path in by_path:

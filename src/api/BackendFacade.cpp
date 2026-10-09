@@ -2,17 +2,59 @@
 
 #include "api/BackendFacade.h"
 
+#include "foundation/HttpClient.h"
+#include "foundation/Json.h"
 #include "resilience/TimeframeCapabilityImpact.h"
 
+#include <cstdlib>
 #include <sstream>
 
 namespace aura {
 
 namespace {
 
+// The Python bridge is the ONLY component that talks to MT5. The backend
+// reaches it over loopback and never contacts the broker directly.
+constexpr const char* kBridgeHost = "127.0.0.1";
+constexpr std::uint16_t kDefaultBridgePort = 8791;
+
+// The bridge port is fixed at 8791 in production; an environment override lets
+// the test harness point the route at an isolated bridge instance.
+std::uint16_t bridgePort() {
+    const char* raw = std::getenv("ASTRA_BRIDGE_PORT");
+    if (raw != nullptr) {
+        try {
+            const int port = std::stoi(raw);
+            if (port > 0 && port < 65536) return static_cast<std::uint16_t>(port);
+        } catch (...) {
+        }
+    }
+    return kDefaultBridgePort;
+}
+
 ApiResponse unavailable(const std::string& what) {
     return errorResponse(503, "dependency_unavailable",
                          std::string("backend component unavailable: ") + what);
+}
+
+// Extract a single query parameter (first occurrence) from a raw query string
+// without a leading '?'. Returns an empty string when absent.
+std::string queryParam(const std::string& query, const std::string& key) {
+    const std::string needle = key + "=";
+    std::size_t at = 0;
+    while (at <= query.size()) {
+        const std::size_t pos = query.find(needle, at);
+        if (pos == std::string::npos) return std::string();
+        if (pos == 0 || query[pos - 1] == '&') {
+            const std::size_t end = query.find('&', pos);
+            return query.substr(pos + needle.size(),
+                                end == std::string::npos
+                                    ? std::string::npos
+                                    : end - (pos + needle.size()));
+        }
+        at = pos + needle.size();
+    }
+    return std::string();
 }
 
 std::string qualityJson(DataQualityState quality) {
@@ -203,6 +245,69 @@ ApiResponse BackendFacade::timeframeSnapshot(const std::string& timeframe) const
                       capabilityImpactJson(parsed, state.quality), true});
     return ApiResponse{200, "application/json",
                        envelope(jsonObject(fields)), true};
+}
+
+ApiResponse BackendFacade::candles(const std::string& timeframe, int limit) const {
+    // Validate at this layer too: the bridge validates, but a malformed request
+    // should be rejected before it is proxied (defense in depth).
+    Timeframe parsed;
+    if (!parseTimeframe(timeframe, parsed)) {
+        return errorResponse(400, "unknown_timeframe",
+                             "unknown timeframe: " + timeframe);
+    }
+    if (limit < 1 || limit > 1000) {
+        return errorResponse(400, "invalid_limit",
+                             "limit out of range (1..1000): " +
+                                 std::to_string(limit));
+    }
+
+    HttpRequest request;
+    request.host = kBridgeHost;
+    request.port = bridgePort();
+    request.path = "/v1/candles?tf=" + timeframe +
+                   "&limit=" + std::to_string(limit);
+    request.readTimeoutMillis = 5000;
+
+    const HttpResponse response = httpGet(request);
+    if (!response.ok) {
+        return errorResponse(503, "dependency_unavailable",
+                             "python bridge not reachable");
+    }
+
+    JsonValue root;
+    std::string parseError;
+    if (!JsonValue::parse(response.body, root, parseError)) {
+        return errorResponse(502, "bridge_schema_mismatch",
+                             "bridge returned invalid JSON: " + parseError);
+    }
+    const std::string bridgeStatus = root["status"].asString();
+    if (!root.isObject() || bridgeStatus.empty()) {
+        return errorResponse(502, "bridge_schema_mismatch",
+                             "bridge response is not a bridge envelope");
+    }
+
+    // Propagate a bridge-side error as a structured, correctly-coded response.
+    if (bridgeStatus == "ERROR") {
+        const JsonValue& err = root["error"];
+        std::string code = err["code"].asString();
+        if (code.empty()) code = "bridge_error";
+        std::string message = err["message"].asString();
+        if (message.empty()) message = "bridge reported an error";
+        int status = 502;
+        if (code == "BAD_REQUEST" || code == "MARKET_DATA_INVALID") {
+            status = 400;
+        } else if (code == "MT5_TERMINAL_UNAVAILABLE" ||
+                   code == "MT5_SYMBOL_UNRESOLVED") {
+            status = 503;
+        }
+        return errorResponse(status, code, message);
+    }
+
+    // The bridge payload is the data member; the transport wraps it in the
+    // standard envelope. Only the payload is forwarded, never the bridge's own
+    // protocol envelope (the frontend speaks only the v1 contract).
+    return ApiResponse{200, "application/json",
+                       envelope(root["payload"].dump()), true};
 }
 
 ApiResponse BackendFacade::latestSignal() const {
@@ -721,6 +826,27 @@ ApiResponse BackendFacade::handle(const std::string& method,
     }
     if (path == "/api/v1/context/latest") return contextLatest();
     if (path == "/api/v1/health/v1") return healthV1();
+
+    // Candle series for the ASTRA chart. `tf` is required; `limit` defaults to
+    // 500 and is bounded to 1..1000. The route proxies the Python bridge.
+    if (path == "/api/v1/candles") {
+        const std::string tf = queryParam(query, "tf");
+        if (tf.empty()) {
+            return errorResponse(400, "missing_timeframe",
+                                 "candles requires a tf query parameter");
+        }
+        int limit = 500;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try {
+                limit = std::stoi(limitRaw);
+            } catch (...) {
+                return errorResponse(400, "invalid_limit",
+                                     "limit is not an integer: " + limitRaw);
+            }
+        }
+        return candles(tf, limit);
+    }
 
     const std::string prefix = "/api/v1/timeframes/";
     if (path.size() > prefix.size() &&

@@ -49,6 +49,7 @@
     "GET /api/v1/health",
     "GET /api/v1/timeframes",
     "GET /api/v1/timeframes/{tf}/snapshot",
+    "GET /api/v1/candles",
     "GET /api/v1/signals/latest",
     "GET /api/v1/risk/latest",
     "GET /api/v1/shadow/positions",

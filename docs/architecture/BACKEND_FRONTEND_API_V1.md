@@ -33,6 +33,7 @@ GET  /api/v1/health
 GET  /api/v1/health/v1
 GET  /api/v1/timeframes
 GET  /api/v1/timeframes/{tf}/snapshot
+GET  /api/v1/candles?tf=M15&limit=500
 GET  /api/v1/signals/latest
 GET  /api/v1/probability/latest
 GET  /api/v1/risk/latest
@@ -72,6 +73,52 @@ Honesty contract for this surface (binding):
 - **History.** `/analysis/history` returns most-recent-first, `limit` default 50,
   max 500. Per-entry context and levels are not persisted and are reported as
   `null`/`UNKNOWN` in history entries.
+
+## Candle series (additive in v1)
+
+`GET /api/v1/candles?tf={tf}&limit={N}` returns the candle series the ASTRA
+chart plots. `tf` is one of the nine canonical timeframes (required); `limit`
+is `1..1000` (default `500`). The route proxies the Python bridge
+(`127.0.0.1:8791`), which is the only component that talks to MT5, and wraps
+the bridge series in the standard envelope:
+
+```json
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "bars": [
+      {"time": 1760001900, "open": 2650.75, "high": 2651.90,
+       "low": 2650.10, "close": 2651.60,
+       "tick_volume": 967, "spread": 21, "real_volume": 0}
+    ],
+    "timeframe": "M15",
+    "symbol": "XAUUSD",
+    "count": 1,
+    "closed_only": true,
+    "newest_closed_time": 1760001900,
+    "freshness": "FRESH"
+  }
+}
+```
+
+Semantics:
+
+- **Closed bars only.** The forming bar is never returned, so the chart never
+  plots a bar the decision chain has not accepted.
+- **Validation is layered.** An unknown `tf` → `400 unknown_timeframe`; a
+  missing `tf` → `400 missing_timeframe`; an out-of-range or non-integer
+  `limit` → `400 invalid_limit`. Both the backend and the bridge validate.
+- **Dependency outage.** An unreachable bridge → `503 dependency_unavailable`
+  (`"python bridge not reachable"`); an unavailable terminal/symbol is
+  propagated as a `503` with the bridge's code. A `503` is never fabricated
+  data.
+- **No backend caching.** The bridge caches successful reads for 5s per
+  `(symbol, tf, limit)`; the backend proxies each request.
+
+`API_V1_SCHEMA.json` carries the machine-readable shape
+(`tests/fixtures/api_v1/valid/candles.json` is the conformant fixture). This is
+an additive v1 change: no existing route, field, or behaviour is altered.
 
 ## Error schema
 

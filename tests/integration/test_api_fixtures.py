@@ -36,6 +36,7 @@ VALID_ROUTES = {
     "health_v1.json": "GET /api/v1/health/v1",
     "timeframes.json": "GET /api/v1/timeframes",
     "timeframe_snapshot.json": "GET /api/v1/timeframes/{tf}/snapshot",
+    "candles.json": "GET /api/v1/candles",
     "analysis_latest.json": "GET /api/v1/analysis/latest",
     "analysis_latest_calibrated.json": "GET /api/v1/analysis/latest",
     "analysis_history.json": "GET /api/v1/analysis/history",
