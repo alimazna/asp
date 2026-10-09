@@ -856,3 +856,73 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
   entries; the 256px RT_ICON is byte-identical (sha256 6bbc4695...) to
   the generated master. The .exe now carries the ASTRA symbol.
 - main.cpp: QIcon(":/icons/astra.ico") with SVG fallback retained.
+
+## End-to-End Integration — Complete
+
+### Python bridge
+- `GET /v1/candles?tf={tf}&limit={N}` serves closed-bar historical OHLC from
+  MT5 (canonical 9 timeframes; limit 1..1000, default 500).
+- Validation -> 400 (`unknown_timeframe`/`missing_timeframe`/`invalid_limit`);
+  MT5/symbol outage -> 503 (`MT5_TERMINAL_UNAVAILABLE`/symbol_unresolved).
+  Never fabricates bars.
+- Cache: 5s TTL per (symbol, tf, limit).
+- Test: `bridge/tests/test_candles_route.py` — 30/30 pass.
+- Commit: 3939a27
+
+### C++ backend
+- `GET /api/v1/candles?tf={tf}&limit={N}` proxies the bridge (8791) and wraps
+  the series in the standard envelope `{api,schema,data}`.
+- Layered validation; structured errors; unreachable bridge -> 503
+  `dependency_unavailable` ("python bridge not reachable"). No backend cache.
+- Mock (`scripts/mock_api.py`) serves a deterministic dev series; conformant
+  fixture `tests/fixtures/api_v1/valid/candles.json`.
+- Test: `tests/CandlesApiTests.cpp` (+ full suite 20/20 pass).
+- Commit: ea0a19a
+
+### Frontend
+- Chart page fully built: 9-timeframe switcher; QPainter CandleChart (grid,
+  right price axis, bottom time axis, hover crosshair + OHLC box, accent-blue
+  dashed last-price line, SL/TP overlay ready); wheel zoom 20..500 (default
+  100); click-drag pan + "Go to live"; 10s auto-refresh only while the Chart
+  page is active; loading/error/empty overlays. QPainter only.
+- 6 governance pages built over their v1 routes (Research, Knowledge, Approval
+  Center, Governance, Incidents, Recovery); missing field -> "—", null ->
+  "unavailable".
+- Commit: c6f552e
+
+### Installer
+- `packaging/windows/astra-setup.iss` bundles frontend + `aura_backend_host.exe`
+  + frozen `bridge.exe` into `ASTRA-Setup.exe` (install to `{autopf}\ASTRA`,
+  Start Menu + Desktop, uninstaller, launched after install).
+- Frozen bridge: `packaging/windows/astra-bridge.spec` (PyInstaller, stdlib
+  only). `BundleLocator` prefers `bridge.exe` and falls back to a bundled
+  interpreter; the frontend starts the backend on Windows, which supervises
+  the bridge.
+- Commit: 39adf49 (+ cde9970 MSVC build fixes, dc4dd1b ERROR-macro fix)
+
+### CI
+- Run: 37993893786 — success (all steps)
+- Artifacts: `ASTRA-windows` (22.5 MB portable folder) and
+  `ASTRA-windows-installer` (25.5 MB, `ASTRA-Setup.exe`)
+- Installer smoke test in CI: silent install, launch, kill, silent uninstall — pass.
+
+### End-to-end test
+- MT5 -> bridge (8791) -> backend (8790) -> frontend: verified.
+- `/api/v1/candles?tf=M15&limit=10` returns bars with `closed_only:true`,
+  `newest_closed_time`, `freshness:FRESH`; envelope `{api,schema,data}` correct.
+- Chart renders live candles; screenshots `chart_live_dark.png`,
+  `chart_live_light.png` (color analysis confirmed bull/bear/accent pixels).
+
+### Constraints honoured
+- SHADOW only — no live-trading path; no execution command; `live.execute`
+  never enabled.
+- Frontend talks only to 8790; backend talks only to the bridge; only the
+  bridge touches MT5.
+- No fabricated data — missing fields render "—"/"unavailable".
+- SCORE never labelled PROBABILITY; ASTRA visual identity unchanged; QPainter
+  only; animations <= 300 ms.
+
+### Ready for use
+- Install: yes (`ASTRA-Setup.exe`)
+- Chart with live data: yes
+- All pages built: no "Coming soon"
