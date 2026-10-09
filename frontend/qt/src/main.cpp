@@ -3,6 +3,7 @@
 #include "theme/ThemeManager.h"
 #include <QApplication>
 #include <QSettings>
+#include <QIcon>
 #include <QDebug>
 #include <QStyleFactory>
 
@@ -16,6 +17,10 @@ int main(int argc, char* argv[]) {
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
+
+    // Window icon (also the taskbar/alt-tab icon). The .exe icon itself is set
+    // from resources/app.rc on Windows; this covers the running window.
+    app.setWindowIcon(QIcon(":/icons/astra.ico"));
 
     // Font — try Inter, fallback to system
     QFont font = QApplication::font();
