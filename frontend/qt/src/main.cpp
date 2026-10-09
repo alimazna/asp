@@ -11,12 +11,12 @@
 // (MOC handles this automatically via qt_standard_project_setup)
 
 int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
-
-    // High DPI scaling
+    // High-DPI rounding policy must be set BEFORE the QApplication exists.
+    // (Qt::AA_EnableHighDpiScaling is a no-op on Qt 6 — high-DPI is always on.)
     QApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+
+    QApplication app(argc, argv);
 
     // Font — try Inter, fallback to system
     QFont font = QApplication::font();

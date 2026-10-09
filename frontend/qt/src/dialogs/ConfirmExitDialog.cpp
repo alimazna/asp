@@ -69,7 +69,6 @@ ConfirmExitDialog::ConfirmExitDialog(QWidget* parent)
     mCancelBtn->setFixedSize(80, 36);
     mCancelBtn->setDefault(true);
     connect(mCancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    connect(this, &QDialog::rejected, this, &ConfirmExitDialog::rejected);
     btnLayout->addWidget(mCancelBtn, 0, Qt::AlignRight);
 
     mExitBtn = new QPushButton(this);
@@ -91,14 +90,13 @@ ConfirmExitDialog::ConfirmExitDialog(QWidget* parent)
         "background: #C94A4A; "
         "}"
     );
-    connect(mExitBtn, &QPushButton::clicked, this, &ConfirmExitDialog::confirmed);
+    // Exit accepts the dialog; callers read the result from exec().
+    connect(mExitBtn, &QPushButton::clicked, this, &QDialog::accept);
     btnLayout->addWidget(mExitBtn, 0, Qt::AlignRight);
 
     mainLayout->addLayout(btnLayout);
 
-    // ESC key cancels
-    setEscapeButton(mCancelBtn);
-    open();
+    // ESC key cancels — QDialog::keyPressEvent already rejects on Escape.
 }
 
 }  // namespace astra

@@ -113,7 +113,7 @@ constexpr int NUM_TIMEFRAMES = 9;
 
 // Helpers
 [[nodiscard]] inline bool isNullOrMissing(const QJsonValue& v) {
-    return !v.isDefined() || v.isNull();
+    return v.isUndefined() || v.isNull();
 }
 
 inline QString scoreToPercent(double score) {

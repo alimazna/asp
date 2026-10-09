@@ -11,6 +11,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
 
+# Qt standard project setup (auto-includes, auto-moc).
+# Called BEFORE add_executable so AUTOMOC applies to our target.
+qt_standard_project_setup()
+
+# AUTORCC is set explicitly (qt_standard_project_setup only guarantees AUTOMOC)
+# so resources.qrc is compiled into the binary.
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
 set(ASTRA_SOURCES
     src/main.cpp
     src/MainWindow.cpp
@@ -30,6 +39,8 @@ set(ASTRA_SOURCES
     src/widgets/CandleChart.cpp
     src/widgets/TimeframeSwitcher.cpp
     src/dialogs/ConfirmExitDialog.cpp
+    # Resources (AUTORCC): paths resolve to /astra-*.svg, /icons/*, /theme/*
+    src/resources/resources.qrc
 )
 
 set(ASTRA_HEADERS
@@ -54,6 +65,9 @@ set(ASTRA_HEADERS
 
 add_executable(astra_desktop WIN32 ${ASTRA_SOURCES} ${ASTRA_HEADERS})
 
+# Compile the existing resources.qrc (single source of truth for resource paths).
+set_source_files_properties(src/resources/resources.qrc PROPERTIES AUTORCC ON)
+
 target_include_directories(astra_desktop PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -63,30 +77,6 @@ target_link_libraries(astra_desktop PRIVATE
     Qt6::Widgets
     Qt6::Network
 )
-
-# Resources — compile .qrc into binary
-qt_add_resources(astra_desktop "resources"
-    PREFIX "/"
-    FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/astra-symbol.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/astra-lockup.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/dashboard.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/chart.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/history.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/health.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/settings.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/exit.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/sun.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/moon.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/refresh.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/fullscreen.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/icons/close.svg
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/theme/theme-dark.qss
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/resources/theme/theme-light.qss
-)
-
-# Qt standard project setup (auto-includes, auto-moc, auto-rcc)
-qt_standard_project_setup()
 
 if(WIN32)
     set_target_properties(astra_desktop PROPERTIES

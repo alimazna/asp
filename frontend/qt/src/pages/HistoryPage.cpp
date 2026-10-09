@@ -88,7 +88,7 @@ void HistoryPage::setupLayout() {
     mTable->setColumnWidth(2, 80);
     mTable->setColumnWidth(3, 100);
     mTable->setColumnWidth(4, 120);
-    mTable->setRowHeight(36);
+    mTable->verticalHeader()->setDefaultSectionSize(36);
     mTable->setAlternatingRowColors(true);
     mTable->horizontalHeader()->setStyleSheet(
         "QHeaderView::section { "
@@ -322,3 +322,4 @@ void HistoryPage::updateSummary(const QVector<HistoryEntry>& entries) {
     }
 }
 
+}  // namespace astra

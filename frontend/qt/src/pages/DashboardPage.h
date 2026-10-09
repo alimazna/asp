@@ -1,6 +1,7 @@
 #pragma once
 #include "api/ApiTypes.h"
 #include <QWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>

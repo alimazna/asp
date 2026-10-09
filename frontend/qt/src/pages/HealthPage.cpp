@@ -173,7 +173,7 @@ void HealthPage::updateFromHealth(const HealthResponse& resp) {
     for (int i = 0; i < 9; ++i) {
         QLayoutItem* item = mTimeframeGrid->itemAtPosition(i / 3, i % 3);
         if (item) {
-            QFrame* frame = item->widget();
+            QFrame* frame = qobject_cast<QFrame*>(item->widget());
             if (frame) {
                 QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(frame->layout());
                 if (layout) {
@@ -236,35 +236,22 @@ void HealthPage::updateSystemStatus(const HealthResponse& resp) {
         mStatusDots[4]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
     }
 
-    // Freshness (row 2)
-    if (!resp.data.uptimeSec.has_value()) {
-        mStatusLabels[2]->setText("—");
-        mStatusLabels[2]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[2]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
-    } else {
-        mStatusLabels[2]->setText(QString("%1s").arg(resp.data.uptimeSec.value()));
-        mStatusLabels[2]->setStyleSheet("QLabel { color: #4CAF7A; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
-        mStatusDots[2]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
-    }
+    // Freshness (row 2) — /health/v1 exposes no data-freshness field.
+    // Unknown renders as em-dash; never fabricate a number.
+    mStatusLabels[2]->setText("\u2014");
+    mStatusLabels[2]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
+    mStatusDots[2]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
 
     // API Version (row 3)
     mStatusLabels[3]->setText(resp.data.version);
     mStatusLabels[3]->setStyleSheet("QLabel { color: #E8EEF5; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
     mStatusDots[3]->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
 
-    // Coverage Tier (row 5)
-    QString tier = resp.data.coverageTier.toUpper();
-    QColor tierColor;
-    if (tier == "HIGH") tierColor = QColor("#4CAF7A");
-    else if (tier == "MEDIUM") tierColor = QColor("#D9A14A");
-    else if (tier == "LOW") tierColor = QColor("#D95A5A");
-    else tierColor = QColor("#5A6B80");
-
-    mStatusLabels[5]->setText(tier);
-    mStatusLabels[5]->setStyleSheet(
-        QString("QLabel { color: %1; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }")
-            .arg(tierColor.name()));
-    mStatusDots[5]->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(tierColor.name()));
+    // Coverage Tier (row 5) — coverage_tier lives on the analysis meta object,
+    // not on /health/v1. Render as unavailable; never fabricate it.
+    mStatusLabels[5]->setText("\u2014");
+    mStatusLabels[5]->setStyleSheet("QLabel { color: #5A6B80; font-size: 14px; font-family: 'JetBrains Mono', 'Consolas', monospace; }");
+    mStatusDots[5]->setStyleSheet("QLabel { background: #5A6B80; border-radius: 4px; }");
 }
 
 }  // namespace astra

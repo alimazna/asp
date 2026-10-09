@@ -17,7 +17,9 @@ public:
     explicit MtfMeter(QWidget* parent = nullptr);
 
     void setAgreement(double value);  // 0.0 to 1.0
-    void setVisible(bool visible);
+    // NOTE: QWidget::setVisible(bool) is a non-virtual QWidget member.
+    // Do not redeclare it here — a declaration without a definition hides
+    // the base implementation and breaks the link (undefined reference).
 
 private:
     QLabel* mBar = nullptr;

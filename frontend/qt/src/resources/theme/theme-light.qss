@@ -17,7 +17,6 @@ QFrame[astraCard="true"] {
     border: 1px solid #E1E6ED;
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(10, 22, 40, 0.06);
 }
 
 /* ── Buttons ── */
@@ -54,17 +53,14 @@ QPushButton[primary="true"] {
     background: #2E6BB8;
     color: white;
     border: 1px solid #2E6BB8;
-    box-shadow: 0 2px 8px rgba(46, 107, 184, 0.25);
 }
 
 QPushButton[primary="true"]:hover {
     background: #3A7BC0;
-    box-shadow: 0 3px 10px rgba(46, 107, 184, 0.35);
 }
 
 QPushButton[primary="true"]:pressed {
     background: #245A9F;
-    box-shadow: 0 1px 4px rgba(46, 107, 184, 0.15);
 }
 
 /* Danger buttons */

@@ -20,10 +20,6 @@ class ConfirmExitDialog : public QDialog {
 public:
     explicit ConfirmExitDialog(QWidget* parent = nullptr);
 
-signals:
-    void confirmed(bool confirmed);
-    void rejected();
-
 private:
     QLabel* mIconLabel = nullptr;
     QLabel* mTitleLabel = nullptr;

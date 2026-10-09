@@ -38,6 +38,7 @@ public:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private slots:
     void onNavClicked(int pageIndex);
@@ -46,13 +47,14 @@ private slots:
     void onFullscreenToggled();
     void onCloseClicked();
     void onExitClicked();
-    void onExitConfirmed(bool confirmed);
     void onAnalysisUpdated(const AnalysisResponse& resp);
     void onHealthUpdated(const HealthResponse& resp);
     void onOffline();
     void onOnline();
 
 private:
+    void saveSettings();
+    void stopAllTimers();
     void setupSidebar();
     void setupTopBar();
     void setupBottomBar();

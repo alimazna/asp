@@ -53,17 +53,14 @@ QPushButton[primary="true"] {
     background: #4A90D9;
     color: white;
     border: 1px solid #4A90D9;
-    box-shadow: 0 2px 8px rgba(74, 144, 217, 0.3);
 }
 
 QPushButton[primary="true"]:hover {
     background: #5AA0E9;
-    box-shadow: 0 3px 10px rgba(74, 144, 217, 0.4);
 }
 
 QPushButton[primary="true"]:pressed {
     background: #3A80C9;
-    box-shadow: 0 1px 4px rgba(74, 144, 217, 0.2);
 }
 
 /* Danger buttons */

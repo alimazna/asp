@@ -7,6 +7,8 @@
 #include "dialogs/ConfirmExitDialog.h"
 #include <QApplication>
 #include <QKeyEvent>
+#include <QCloseEvent>
+#include <QEvent>
 #include <QMessageBox>
 #include <QFile>
 #include <QTimer>
@@ -88,6 +90,7 @@ void MainWindow::setApiClient(ApiClient* client) {
 
 void MainWindow::setupSidebar() {
     mSidebar = new QWidget(this);
+    mSidebar->setObjectName("astraSidebar");  // stable handle for tests
     mSidebar->setFixedWidth(SIDEBAR_WIDTH);
     QVBoxLayout* sidebarLayout = new QVBoxLayout(mSidebar);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
@@ -178,6 +181,7 @@ void MainWindow::setupSidebar() {
 
     // Exit button — pinned to bottom
     mExitButton = new QPushButton(navArea);
+    mExitButton->setObjectName("astraExitButton");  // stable handle for tests
     mExitButton->setText("Exit");
     mExitButton->setFixedHeight(40);
     mExitButton->setStyleSheet(
@@ -208,7 +212,15 @@ void MainWindow::setupSidebar() {
 void MainWindow::setupTopBar() {
     mTopBar = new QWidget(this);
     mTopBar->setFixedHeight(TOP_BAR_HEIGHT);
-    QHBoxLayout* topLayout = new QHBoxLayout(mTopBar);
+
+    // Outer column owns the widget: [ content row, 1px bottom border ].
+    // (Previously a second layout was installed on mTopBar, which Qt rejected.)
+    QVBoxLayout* topBarInner = new QVBoxLayout(mTopBar);
+    topBarInner->setContentsMargins(0, 0, 0, 0);
+    topBarInner->setSpacing(0);
+
+    QHBoxLayout* topLayout = new QHBoxLayout();
+    topBarInner->addLayout(topLayout);
     topLayout->setContentsMargins(16, 0, 16, 0);
     topLayout->setSpacing(12);
 
@@ -229,8 +241,7 @@ void MainWindow::setupTopBar() {
     QSpacerItem* titleSpacer = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     topLayout->addSpacerItem(titleSpacer);
 
-    // Right: 32x32 buttons + live indicator
-    // LIVE indicator: pulsing green dot + "LIVE" text
+    // Right: live indicator
     QHBoxLayout* liveLayout = new QHBoxLayout();
     liveLayout->setSpacing(6);
 
@@ -273,8 +284,7 @@ void MainWindow::setupTopBar() {
         "background: #162A44; "
         "}"
     );
-    // Would load refresh.svg icon here
-    mRefreshBtn->setText("↻");
+    mRefreshBtn->setText("\u21BB");
     mRefreshBtn->setShortcut(Qt::CTRL | Qt::Key_R);
     connect(mRefreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshClicked);
 
@@ -332,87 +342,70 @@ void MainWindow::setupTopBar() {
     topLayout->addWidget(mThemeBtn, 0, Qt::AlignRight);
     topLayout->addWidget(mCloseBtn, 0, Qt::AlignRight);
 
-    // Bottom border line
+    // Bottom border line — stretches with the bar
     QFrame* bottomLine = new QFrame(mTopBar);
     bottomLine->setFixedHeight(1);
     bottomLine->setStyleSheet("QFrame { background: #162A44; }");
-    bottomLine->setFixedWidth(this->width() - SIDEBAR_WIDTH - 32);
-
-    QVBoxLayout* topBarInner = new QVBoxLayout(mTopBar);
-    topBarInner->setContentsMargins(0, 0, 0, 0);
-    topBarInner->setSpacing(0);
-    topBarInner->addLayout(topLayout);
     topBarInner->addWidget(bottomLine);
 }
 
 void MainWindow::setupBottomBar() {
     mBottomBar = new QWidget(this);
     mBottomBar->setFixedHeight(BOTTOM_BAR_HEIGHT);
-    QHBoxLayout* bottomLayout = new QHBoxLayout(mBottomBar);
+
+    // Outer column owns the widget: [ 1px top border, content row ].
+    QVBoxLayout* bbInner = new QVBoxLayout(mBottomBar);
+    bbInner->setContentsMargins(0, 0, 0, 0);
+    bbInner->setSpacing(0);
+
+    QFrame* topLine = new QFrame(mBottomBar);
+    topLine->setFixedHeight(1);
+    topLine->setStyleSheet("QFrame { background: #162A44; }");
+    bbInner->addWidget(topLine);
+
+    QHBoxLayout* bottomLayout = new QHBoxLayout();
+    bbInner->addLayout(bottomLayout);
     bottomLayout->setContentsMargins(16, 0, 16, 0);
     bottomLayout->setSpacing(24);
 
-    // Backend status
+    // Runtime status
     mBackendStatus = new QLabel(mBottomBar);
-    mBackendStatus->setText("\u25CF Backend ONLINE");
-    mBackendStatus->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "}"
-        "QLabel { "
-        "color: #4CAF7A; "
-        "}"
-    );
+    mBackendStatus->setText("\u25CF Runtime");
+    mBackendStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
 
-    // Bridge status
+    // Bridge / streams status
     mBridgeStatus = new QLabel(mBottomBar);
-    mBridgeStatus->setText("\u25CF Bridge OK");
-    mBridgeStatus->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "}"
-    );
+    mBridgeStatus->setText("\u25CF Streams");
+    mBridgeStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
 
-    // Freshness
+    // Freshness / persistence
     mFreshnessStatus = new QLabel(mBottomBar);
-    mFreshnessStatus->setText("\u25CF Fresh: \u2014");
-    mFreshnessStatus->setStyleSheet(
-        "QLabel { "
-        "color: #8FA3BF; "
-        "font-size: 12px; "
-        "}"
-    );
+    mFreshnessStatus->setText("\u25CF Persistence: \u2014");
+    mFreshnessStatus->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
 
     bottomLayout->addWidget(mBackendStatus);
     bottomLayout->addWidget(mBridgeStatus);
     bottomLayout->addWidget(mFreshnessStatus);
 
-    // Spacer
+    // Recovery
+    QLabel* recovery = new QLabel(mBottomBar);
+    recovery->setText("\u25CF Recovery: \u2014");
+    recovery->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
+    bottomLayout->addWidget(recovery);
+
     QSpacerItem* spacer = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     bottomLayout->addSpacerItem(spacer);
 
-    // Disclaimer — right-aligned
-    mDisclaimer = new QLabel(mBottomBar);
-    mDisclaimer->setText("Not financial advice");
-    mDisclaimer->setStyleSheet(
-        "QLabel { "
-        "color: #5A6B80; "
-        "font-size: 12px; "
-        "}"
-    );
-    bottomLayout->addWidget(mDisclaimer);
+    // Right side: SHADOW ONLY + system health
+    QLabel* shadow = new QLabel(mBottomBar);
+    shadow->setText("\u25CF SHADOW ONLY");
+    shadow->setStyleSheet("QLabel { color: #8FA3BF; font-size: 12px; }");
+    bottomLayout->addWidget(shadow);
 
-    // Divider above bottom bar
-    QFrame* topLine = new QFrame(mBottomBar);
-    topLine->setFixedHeight(1);
-    topLine->setStyleSheet("QFrame { background: #162A44; }");
-    QVBoxLayout* bbInner = new QVBoxLayout(mBottomBar);
-    bbInner->setContentsMargins(0, 0, 0, 0);
-    bbInner->setSpacing(0);
-    bbInner->addWidget(topLine);
-    bbInner->addLayout(bottomLayout);
+    mDisclaimer = new QLabel(mBottomBar);
+    mDisclaimer->setText("System Health: \u2014");
+    mDisclaimer->setStyleSheet("QLabel { color: #5A6B80; font-size: 12px; }");
+    bottomLayout->addWidget(mDisclaimer);
 }
 
 void MainWindow::setupContentArea() {
@@ -558,14 +551,18 @@ void MainWindow::onExitClicked() {
     showExitConfirmation();
 }
 
-void MainWindow::onExitConfirmed(bool confirmed) {
-    mExitConfirmed = confirmed;
-    if (confirmed) {
-        // Save settings
-        mSettings.setValue("windowGeometry", saveGeometry());
-        mSettings.setValue("windowState", saveState());
-        mSettings.setValue("themeDark", mThemeManager->isDark());
-        qApp->quit();
+void MainWindow::saveSettings() {
+    mSettings.setValue("windowGeometry", saveGeometry());
+    mSettings.setValue("windowState", saveState());
+    mSettings.setValue("themeDark", mThemeManager->isDark());
+}
+
+void MainWindow::stopAllTimers() {
+    mAnalysisPollTimer.stop();
+    mHealthPollTimer.stop();
+    mFullscreenHintTimer.stop();
+    if (mApiClient) {
+        mApiClient->cancelAll();
     }
 }
 
@@ -694,23 +691,31 @@ void MainWindow::applyTheme() {
 }
 
 void MainWindow::toggleFullscreen(bool enter) {
+    // Fullscreen removes only the OS window chrome. Sidebar, top bar and
+    // bottom bar all stay visible — no child widget is ever hidden here.
     if (enter) {
         showFullScreen();
         mIsFullscreen = true;
-        // Hide sidebar
-        mSidebar->setVisible(false);
-        // Top bar: keep tiny hint
-        mTopBar->setVisible(true);
-        // Show F11 hint
         showFullscreenHint();
     } else {
         showNormal();
         mIsFullscreen = false;
-        mSidebar->setVisible(true);
-        mTopBar->setVisible(true);
         mFullscreenHintTimer.stop();
         mFullscreenHintVisible = false;
     }
+}
+
+void MainWindow::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::WindowStateChange) {
+        // Keep mIsFullscreen truthful when the OS (Win+Shift+Arrows, taskbar)
+        // changes the window state — and never hide child widgets.
+        mIsFullscreen = isFullScreen();
+        if (!mIsFullscreen) {
+            mFullscreenHintTimer.stop();
+            mFullscreenHintVisible = false;
+        }
+    }
+    QMainWindow::changeEvent(event);
 }
 
 void MainWindow::showFullscreenHint() {
@@ -753,42 +758,43 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_Q)) {
+    const bool ctrlDown = (event->modifiers() & Qt::CTRL) != 0;
+    if (ctrlDown && event->key() == Qt::Key_Q) {
         showExitConfirmation();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_R)) {
+    if (ctrlDown && event->key() == Qt::Key_R) {
         onRefreshClicked();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_T)) {
+    if (ctrlDown && event->key() == Qt::Key_T) {
         onThemeToggled();
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_Comma)) {
+    if (ctrlDown && event->key() == Qt::Key_Comma) {
         onNavClicked(Settings);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_D)) {
+    if (ctrlDown && event->key() == Qt::Key_D) {
         onNavClicked(Dashboard);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_H)) {
+    if (ctrlDown && event->key() == Qt::Key_H) {
         onNavClicked(Chart);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_L)) {
+    if (ctrlDown && event->key() == Qt::Key_L) {
         onNavClicked(History);
         return;
     }
 
-    if (event == QKeySequence(Qt::CTRL | Qt::Key_K)) {
+    if (ctrlDown && event->key() == Qt::Key_K) {
         onNavClicked(Health);
         return;
     }
@@ -823,7 +829,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         } else if (event->key() == Qt::Key_Minus) {
             auto* chart = qobject_cast<ChartPage*>(mPages[Chart]);
             if (chart) chart->zoomOut();
-        } else if (event->matches(QKeySequence(Qt::CTRL | Qt::Key_0))) {
+        } else if (ctrlDown && event->key() == Qt::Key_0) {
             auto* chart = qobject_cast<ChartPage*>(mPages[Chart]);
             if (chart) chart->resetZoom();
         }
@@ -833,9 +839,15 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    mExitConfirmed = false;
-    showExitConfirmation();
     if (mExitConfirmed) {
+        event->accept();
+        return;
+    }
+    ConfirmExitDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        mExitConfirmed = true;
+        saveSettings();
+        stopAllTimers();
         event->accept();
     } else {
         event->ignore();
@@ -843,13 +855,17 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::showExitConfirmation() {
-    ConfirmExitDialog* dialog = new ConfirmExitDialog(this);
-    connect(dialog, &ConfirmExitDialog::confirmed, this, &MainWindow::onExitConfirmed);
-    connect(dialog, &ConfirmExitDialog::rejected, this, [this, dialog]() {
-        mExitConfirmed = false;
-        dialog->deleteLater();
-    });
-    dialog->open();
+    if (mExitConfirmed) {
+        close();
+        return;
+    }
+    ConfirmExitDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        mExitConfirmed = true;
+        saveSettings();
+        stopAllTimers();
+        close();  // closeEvent() sees mExitConfirmed and accepts immediately
+    }
 }
 
 
