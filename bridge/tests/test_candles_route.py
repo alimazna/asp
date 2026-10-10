@@ -269,6 +269,17 @@ def scenario_happy_and_cache() -> None:
               body4.get("payload", {}).get("count") == 5)
         check("canonical route has candles key",
               isinstance(body4.get("payload", {}).get("candles"), list))
+
+        # A canonical request that carries an unrelated `limit` must answer the
+        # canonical timeframe, not be diverted to the chart alias (which would
+        # silently substitute the alias default timeframe).
+        code5, body5 = s.get("/v1/candles?timeframe=H1&limit=10")
+        check("timeframe+limit stays canonical", code5 == 200, f"http={code5}")
+        check("canonical timeframe honored",
+              body5.get("payload", {}).get("timeframe") == "H1",
+              str(body5.get("payload", {}).get("timeframe")))
+        check("canonical payload uses candles key",
+              isinstance(body5.get("payload", {}).get("candles"), list))
     finally:
         s.stop()
 

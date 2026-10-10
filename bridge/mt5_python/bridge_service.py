@@ -319,7 +319,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
         # and `limit` for `count`, and returns a bar series with a "bars" key
         # so the frontend chart has a direct series source. The canonical
         # params keep their original behaviour.
-        if "tf" in query or "limit" in query:
+        #
+        # `limit` alone must not select the alias: a canonical request that
+        # adds an unrelated `limit` (e.g. ?timeframe=H1&limit=10) would be
+        # silently answered with the alias default timeframe — wrong-timeframe
+        # data the caller never asked for.
+        if "tf" in query or ("limit" in query and "timeframe" not in query
+                             and "count" not in query):
             self._handle_chart_candles(state, query)
             return
 
