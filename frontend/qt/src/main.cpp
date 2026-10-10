@@ -70,7 +70,19 @@ bool backendListening() {
     return probe.waitForConnected(300);
 }
 
+// The auto-start must run at most once per process lifetime. Without this guard
+// a second call (e.g. a re-entrant startup path) probes the port before the
+// backend has bound it and spawns a duplicate; the log showed two "spawn ok"
+// lines in the same second. A duplicate host loses the single-instance lock and
+// exits, but its brief bind attempt is still noise.
+bool g_spawnAttempted = false;
+
 void startBackendHost() {
+    if (g_spawnAttempted) {
+        appendAutostartLog("auto-start already attempted; not spawning again");
+        return;
+    }
+    g_spawnAttempted = true;
     if (qEnvironmentVariableIsSet("AURA_NO_BACKEND")) {
         appendAutostartLog("auto-start suppressed by AURA_NO_BACKEND");
         return;
@@ -161,11 +173,18 @@ int main(int argc, char* argv[]) {
 
     // Create main window
     astra::MainWindow mainWindow;
-    mainWindow.setApiClient(&apiClient);
 #if defined(Q_OS_WIN)
     if (!g_backendStartFailure.isEmpty())
         mainWindow.setBackendStartFailure(g_backendStartFailure);
+    // We spawned a host (or found one already listening): the backend binds 8790
+    // only after the bridge handshake, so poll it in for the next 20s before
+    // declaring failure. Left false when the executable was missing, where the
+    // banner is already showing the reason. MUST be set before setApiClient(),
+    // which starts the fast retry poll when this is true.
+    if (g_spawnAttempted && g_backendStartFailure.isEmpty())
+        mainWindow.setBackendAutostartInProgress(true);
 #endif
+    mainWindow.setApiClient(&apiClient);
 
     // Show
     mainWindow.show();
