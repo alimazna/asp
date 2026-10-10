@@ -307,12 +307,16 @@ void MainWindow::setupTopBar() {
     healthLayout->setSpacing(6);
     mHealthDot = new QLabel(healthChip);
     mHealthDot->setFixedSize(8, 8);
-    mHealthDot->setStyleSheet("QLabel { background: #4CAF7A; border-radius: 4px; }");
+    // Start neutral: no health has been observed yet. Painting green "HEALTHY"
+    // before the first /health reply would assert a state we do not know.
+    mHealthDot->setStyleSheet(
+        QString("QLabel { background: %1; border-radius: 4px; }")
+            .arg(palette().color(QPalette::PlaceholderText).name()));
     mHealthLabel = new QLabel(healthChip);
-    mHealthLabel->setText("SYSTEM HEALTHY");
+    mHealthLabel->setText(QStringLiteral("SYSTEM \u2014"));
     mHealthLabel->setStyleSheet(
-        "QLabel { color: #4CAF7A; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }"
-    );
+        QString("QLabel { color: %1; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }")
+            .arg(palette().color(QPalette::PlaceholderText).name()));
     healthLayout->addWidget(mHealthDot, 0, Qt::AlignVCenter);
     healthLayout->addWidget(mHealthLabel);
     topLayout->addWidget(healthChip);
@@ -631,15 +635,20 @@ void MainWindow::updateLivenessIndicator() {
         color = "#D95A5A";
     } else {
         const HealthData health = mApiClient->currentHealth().data;
-        if (health.status == "offline" || !mApiClient->isOnline()) {
+        if (health.status == "offline") {
             state = "SYSTEM OFFLINE";
             color = "#D95A5A";
         } else if (health.status == "degraded" || mApiClient->isDegraded()) {
             state = "SYSTEM DEGRADED";
             color = "#D9A14A";
-        } else {
+        } else if (health.status == "ok") {
             state = "SYSTEM HEALTHY";
             color = "#4CAF7A";
+        } else {
+            // Online (some request succeeded) but no health status observed yet.
+            // Never claim HEALTHY for a status we have not received.
+            state = QStringLiteral("SYSTEM \u2014");
+            color = palette().color(QPalette::PlaceholderText).name();
         }
     }
 
