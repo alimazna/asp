@@ -36,7 +36,7 @@ struct Signal {
     std::optional<QString> horizon;       // null in v1 uncalibrated
     std::optional<double> probability;    // null when uncalibrated
     bool probabilityCalibrated;           // false in v1 uncalibrated
-    double score;                         // ALWAYS present (0-1 range, but treat as 0-100 for display)
+    std::optional<double> score;          // null when the backend omits it — never fabricated
     std::optional<double> confidenceLo;   // null in v1 uncalibrated
     std::optional<double> confidenceHi;   // null in v1 uncalibrated
     std::optional<QString> modelVersion;  // null in v1 uncalibrated

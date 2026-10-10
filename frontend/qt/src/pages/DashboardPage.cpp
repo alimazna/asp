@@ -702,8 +702,11 @@ void DashboardPage::updateFromAnalysis(const AnalysisResponse& resp) {
     // SIGNALS sub-caption: latest direction + raw score (never a probability)
     const Signal& sig = resp.data.signal;
     QString dir = sig.direction.isEmpty() ? QString(kEm) : sig.direction;
+    const QString scoreText = sig.score.has_value()
+        ? QString::number(sig.score.value(), 'f', 3)
+        : QString(kEm);
     mSignalsSub->setText(
-        QString("latest %1 \u00B7 score %2").arg(dir).arg(sig.score, 0, 'f', 3));
+        QString("latest %1 \u00B7 score %2").arg(dir, scoreText));
     if (!mHasHistory) {
         setCardValue(mSignalsValue, kEm, QString());
     }
@@ -749,9 +752,11 @@ void DashboardPage::updateFromHistory(const QVector<AnalysisData>& items) {
         }
         mSignalsTable->setItem(i, 1, dirItem);
 
-        // Score — raw score, never labelled "probability"
+        // Score — raw score, never labelled "probability"; "—" when absent
         QTableWidgetItem* scoreItem = new QTableWidgetItem(
-            QString::number(d.signal.score, 'f', 3));
+            d.signal.score.has_value()
+                ? QString::number(d.signal.score.value(), 'f', 3)
+                : QString(kEm));
         scoreItem->setForeground(primaryText());
         mSignalsTable->setItem(i, 2, scoreItem);
 

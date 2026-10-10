@@ -250,4 +250,22 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_health_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # SignalCard score honesty: a missing score must not render a fabricated
+    # value (ApiClient used to substitute 0.5).
+    add_executable(astra_signal_tests
+        tests/SignalScoreHonestyTests.cpp
+        src/widgets/SignalCard.cpp
+    )
+    target_include_directories(astra_signal_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_signal_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+    )
+    add_test(NAME astra_signal_tests COMMAND astra_signal_tests)
+    set_tests_properties(astra_signal_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()

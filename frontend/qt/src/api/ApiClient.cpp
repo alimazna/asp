@@ -322,9 +322,9 @@ AnalysisData ApiClient::parseAnalysisData(const QJsonObject& obj) {
     QJsonValue scoreVal = sigObj.value("score");
     if (!isNullOrMissing(scoreVal) && scoreVal.isDouble()) {
         d.signal.score = scoreVal.toDouble();
-    } else {
-        d.signal.score = 0.5; // fallback — should not happen
     }
+    // No fallback: a missing score stays absent so the UI shows "—" rather than
+    // a fabricated value.
     QJsonValue cloVal = sigObj.value("confidence_lo");
     if (!isNullOrMissing(cloVal) && cloVal.isDouble()) {
         d.signal.confidenceLo = cloVal.toDouble();

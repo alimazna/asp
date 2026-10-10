@@ -177,15 +177,21 @@ void SignalCard::updateScoreOrProbability(const Signal& signal, const Meta& meta
         mBar->setStyleSheet(barStyle(chunkFor(pct)));
         mBar->setValue(pct);
         mBar->setVisible(true);
-    } else {
+    } else if (signal.score.has_value()) {
         // Show score (uncalibrated or missing probability)
-        double score = signal.score;
+        double score = signal.score.value();
         int pct = qRound(qBound(0.0, score, 1.0) * 100.0);
         mLabelLabel->setText("SCORE");
         mValueLabel->setText(QString("%1%").arg(pct));
         mBar->setStyleSheet(barStyle(chunkFor(pct)));
         mBar->setValue(pct);
         mBar->setVisible(true);
+    } else {
+        // Neither a calibrated probability nor a score was observed. Never
+        // fabricate one: show "—" and hide the bar.
+        mLabelLabel->setText("SCORE");
+        mValueLabel->setText(QStringLiteral("\u2014"));
+        mBar->setVisible(false);
     }
 
     // Mute styling if degraded

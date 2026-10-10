@@ -236,12 +236,14 @@ void HistoryPage::populateTable(const QVector<HistoryEntry>& entries) {
         dirItem->setFont(QFont("JetBrains Mono", 13));
         mTable->setItem(i, 1, dirItem);
 
-        // Prob — "63%" or "Score"
+        // Prob — "63%" or "Score"; never fabricate a missing score
         QTableWidgetItem* probItem = new QTableWidgetItem();
-        if (e.probabilityCalibrated) {
-            probItem->setText(QString("%1%").arg(qRound(e.score * 100)));
-        } else {
+        if (e.probabilityCalibrated && e.score.has_value()) {
+            probItem->setText(QString("%1%").arg(qRound(e.score.value() * 100)));
+        } else if (e.score.has_value()) {
             probItem->setText("Score");
+        } else {
+            probItem->setText("\u2014");
         }
         probItem->setForeground(QColor(textSecondary));
         probItem->setFont(QFont("JetBrains Mono", 13));

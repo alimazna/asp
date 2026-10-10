@@ -23,7 +23,7 @@ namespace astra {
 struct HistoryEntry {
     QString timestamp;
     QString direction;
-    double score;
+    std::optional<double> score;
     bool probabilityCalibrated;
     QString coverageTier;
     QString outcome;  // "win", "loss", "pending"
