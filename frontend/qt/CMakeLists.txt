@@ -211,4 +211,24 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_chart_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # HistoryPage summary formatting (Total R / PF format-string regression).
+    # Needs the real HistoryPage translation unit; ApiClient pulls in Qt Network.
+    add_executable(astra_history_tests
+        tests/HistorySummaryTests.cpp
+        src/pages/HistoryPage.cpp
+        src/api/ApiClient.cpp
+    )
+    target_include_directories(astra_history_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_history_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_history_tests COMMAND astra_history_tests)
+    set_tests_properties(astra_history_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()

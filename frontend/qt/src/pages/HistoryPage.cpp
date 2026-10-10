@@ -319,7 +319,10 @@ void HistoryPage::updateSummary(const QVector<HistoryEntry>& entries) {
     }
 
     if (totalRVal) {
-        totalRVal->setText(QString("%+1.%1R").arg(totalR, 0, 'f', 1));
+        QString totalRText = QString::number(totalR, 'f', 1);
+        if (totalR >= 0) totalRText.prepend('+');
+        totalRText += 'R';
+        totalRVal->setText(totalRText);
         totalRVal->setStyleSheet(totalR < 0
             ? QString("QLabel { color: #D95A5A; %1 }").arg(mono)
             : QString("QLabel { color: #4CAF7A; %1 }").arg(mono));
@@ -327,7 +330,7 @@ void HistoryPage::updateSummary(const QVector<HistoryEntry>& entries) {
 
     if (pfVal) {
         double realizedPF = totalR / total;
-        pfVal->setText(QString("1.%1").arg(qAbs(realizedPF), 0, 'f', 2));
+        pfVal->setText(QString::number(qAbs(realizedPF), 'f', 2));
     }
 }
 

@@ -42,6 +42,11 @@ public:
     // Feed rows from ApiClient::historyReceived (AnalysisData -> HistoryEntry)
     void updateFromHistory(const QVector<AnalysisData>& items);
 
+    // Test seam: feed summary rows directly (outcome != "pending").
+    void setSummaryEntriesForTest(const QVector<HistoryEntry>& entries) {
+        updateSummary(entries);
+    }
+
 protected:
     void changeEvent(QEvent* event) override;
 
