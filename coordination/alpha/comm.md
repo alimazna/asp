@@ -1537,3 +1537,32 @@ chart says "Connect to backend". Branch: `fix/ui-recovery`.
   fix, all pass. In CI the human's real DEGRADED envelope is observed
   (`aggregate=DEGRADED`, `status=` empty), which is the same
   health-yes/analysis-no shape.
+
+
+## fix/ui-recovery Merged to Main — 2026-10-10
+
+- Merge commit: `3f78b15` (`docs(coordination): autostart second-attempt report (UI false-OFFLINE)`)
+- Merge type: **fast-forward** (`5690156..3f78b15`; `origin/main` was an ancestor of the branch)
+- Branch deleted: **yes** (remote `fix/ui-recovery` deleted; local copy had no separate ref in this clone)
+- CI on main: run **38087451538** — **success** (job `114316817370`, build 5m2s), triggered by the push to `main`
+- Smoke log excerpt (proof the UI now shows DEGRADED, not OFFLINE, when `/health` is reachable):
+  ```
+  [2026-10-10T21:27:59Z] ui health ok: aggregate=DEGRADED status=
+  [2026-10-10T21:27:59Z] backend reachable after 3s
+  t+2s counts: backend=1
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 9.3s
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+- New installer: `ASTRA-Setup.exe` = **39,782,229 bytes** (~37.9 MiB); artifact
+  `ASTRA-windows-installer` = 39,282,536 bytes
+- Portable: `ASTRA-windows` artifact = **23,577,916 bytes**
+- Run URL: https://github.com/alimazna/asp/actions/runs/38087451538
+
+The `ui health ok: aggregate=DEGRADED` line is emitted by the Qt window itself
+(`MainWindow::onHealthUpdated`), and the smoke step now fails if that line is
+absent or if the last liveness line is offline while `/health` answers. Its
+presence on the main build confirms the field bug — UI painting OFFLINE while
+every backend endpoint answers — is fixed in the shipped installer.
