@@ -222,31 +222,37 @@ void HealthPage::updateSystemStatus(const HealthResponse& resp) {
     auto setDot = [&](int row, const QString& color) {
         mStatusDots[row]->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(color));
     };
-    auto statusColor = [&](const QString& state) -> QString {
-        if (state == "offline") return red;
-        if (state == "degraded" || state == "stale") return amber;
-        return green;
-    };
 
-    // Backend status
+    // Backend status. An unrecognised/absent status is not "ONLINE": show the
+    // unavailable marker rather than a fabricated green, per the honesty rule.
     if (resp.data.status == "offline") {
         setLabel(0, "OFFLINE", red);
+        setDot(0, red);
     } else if (resp.data.status == "degraded") {
         setLabel(0, "DEGRADED", amber);
-    } else {
+        setDot(0, amber);
+    } else if (resp.data.status == "ok") {
         setLabel(0, "ONLINE", green);
+        setDot(0, green);
+    } else {
+        setLabel(0, "\u2014", tertiary);
+        setDot(0, tertiary);
     }
-    setDot(0, statusColor(resp.data.status));
 
-    // Bridge status
+    // Bridge status — same rule: unknown is unavailable, never green "OK".
     if (resp.data.bridge == "offline") {
         setLabel(1, "OFFLINE", red);
+        setDot(1, red);
     } else if (resp.data.bridge == "stale" || resp.data.bridge == "degraded") {
         setLabel(1, "STALE", amber);
-    } else {
+        setDot(1, amber);
+    } else if (resp.data.bridge == "ok") {
         setLabel(1, "OK", green);
+        setDot(1, green);
+    } else {
+        setLabel(1, "\u2014", tertiary);
+        setDot(1, tertiary);
     }
-    setDot(1, statusColor(resp.data.bridge));
 
     // Uptime (row 4)
     if (resp.data.uptimeSec.has_value()) {

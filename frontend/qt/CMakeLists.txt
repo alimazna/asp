@@ -231,4 +231,23 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_history_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # HealthPage status honesty (unknown token must not render green "ONLINE").
+    add_executable(astra_health_tests
+        tests/HealthStatusTests.cpp
+        src/pages/HealthPage.cpp
+        src/api/ApiClient.cpp
+    )
+    target_include_directories(astra_health_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_health_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_health_tests COMMAND astra_health_tests)
+    set_tests_properties(astra_health_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()
