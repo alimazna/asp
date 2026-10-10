@@ -31,11 +31,20 @@ jobs:
 
       # ---------------------------------------------------------------- 1/5
       - name: Configure Qt frontend
-        run: cmake -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DBUILD_ASTRA_DESKTOP=ON
+        run: cmake -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DBUILD_ASTRA_DESKTOP=ON -DBUILD_ASTRA_TESTS=ON
         working-directory: frontend/qt
 
       - name: Build frontend Release
         run: cmake --build build --config Release --parallel
+        working-directory: frontend/qt
+
+      - name: Run offscreen frontend tests (incl. auto-start retry)
+        # These run BEFORE deployment. They are pure/offscreen (mock loopback
+        # server, no external services) and include astra_health_retry_tests which
+        # pins the fix for the "declared OFFLINE on the first probe" bug.
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --test-dir build -C Release --output-on-failure
         working-directory: frontend/qt
 
       - name: Deploy frontend with windeployqt
@@ -184,14 +193,37 @@ jobs:
           }
 
           # Launch the installed app exactly as the Start-Menu shortcut does.
+          $launchClock = [System.Diagnostics.Stopwatch]::StartNew()
           $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
           if ($proc.HasExited) {
             Write-Error "astra_desktop.exe exited immediately (code $($proc.ExitCode))"; exit 1
           }
 
-          # Wait up to 20s for the auto-start chain: frontend -> backend -> bridge.
+          # Fail if the red failure banner / OFFLINE marker was written to the
+          # auto-start log. The retry bug wrote no such line; this guards a
+          # regression that would declare OFFLINE before the retry window expired.
+          function Assert-NoPrematureOffline([string]$label) {
+            if (Test-Path $autostartLog) {
+              $lines = @(Get-Content $autostartLog)
+              if ($lines -match "no response on 127.0.0.1:8790") {
+                Write-Error "[$label] auto-start log recorded an OFFLINE marker:"
+                $lines | Write-Host; exit 1
+              }
+            }
+          }
+
+          # ---- t+2s: the auto-start chain must have spawned exactly one backend
+          Start-Sleep -Seconds 2
+          Assert-NoPrematureOffline "t+2s"
+          $b = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+          $g = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "t+2s counts: backend=$b bridge=$g"
+          if ($b -ne 1) { Write-Error "t+2s: expected exactly 1 aura_backend_host.exe, found $b"; exit 1 }
+          if ($g -lt 1) { Write-Error "t+2s: expected at least 1 bridge.exe, found $g"; exit 1 }
+
+          # ---- t+5s: the API must be reachable, bridge ONLINE
           $backendUp = $false; $bridgeUp = $false
-          for ($i = 0; $i -lt 40; $i++) {
+          for ($i = 0; $i -lt 12; $i++) {
             Start-Sleep -Milliseconds 500
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
             try {
@@ -200,6 +232,13 @@ jobs:
             } catch { }
             if ($backendUp -and $bridgeUp) { break }
           }
+          Assert-NoPrematureOffline "t+5s"
+          if (-Not $backendUp) { Write-Error "t+5s: backend did not answer 2xx on 127.0.0.1:8790"; exit 1 }
+          if (-Not $bridgeUp) { Write-Error "t+5s: bridge did not answer OK/ONLINE on 127.0.0.1:8791"; exit 1 }
+
+          # ---- t+10s: the retry must have succeeded and logged it
+          Start-Sleep -Seconds 5
+          Assert-NoPrematureOffline "t+10s"
 
           Write-Host "---- process state ----"
           tasklist | findstr /I "astra_desktop aura_backend_host bridge"
@@ -209,19 +248,10 @@ jobs:
           $backendLog = "$env:LOCALAPPDATA\ASTRA\logs\backend-host.log"
           if (Test-Path $backendLog) { Get-Content $backendLog } else { Write-Host "(missing)" }
 
-          if (-Not $backendUp) {
-            Write-Error "backend did not answer on 127.0.0.1:8790 within 20s of launching the installed app"
-            exit 1
-          }
-          if (-Not $bridgeUp) {
-            Write-Error "bridge did not answer OK/ONLINE on 127.0.0.1:8791 within 20s"
-            exit 1
-          }
-
           $desktopCount = @(Get-Process -Name "astra_desktop" -ErrorAction SilentlyContinue).Count
           $backendCount = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
           $bridgeCount  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
-          Write-Host "counts: desktop=$desktopCount backend=$backendCount bridge=$bridgeCount"
+          Write-Host "final counts: desktop=$desktopCount backend=$backendCount bridge=$bridgeCount"
           if ($desktopCount -ne 1) { Write-Error "expected exactly 1 astra_desktop.exe, found $desktopCount"; exit 1 }
           if ($backendCount -ne 1) { Write-Error "expected exactly 1 aura_backend_host.exe, found $backendCount"; exit 1 }
           if ($bridgeCount -lt 1) { Write-Error "expected at least 1 bridge.exe, found $bridgeCount"; exit 1 }
@@ -235,6 +265,16 @@ jobs:
           if (-Not ($logLines -match "spawn ok")) {
             Write-Error "auto-start log has no successful spawn line:"; $logLines | Write-Host; exit 1
           }
+          # Retry-fix evidence: the frontend logged that it reached the backend
+          # after the bake-in rather than declaring OFFLINE.
+          if (-Not ($logLines -match "backend reachable")) {
+            Write-Error "auto-start log has no 'backend reachable' line (retry fix not exercised):"
+            $logLines | Write-Host; exit 1
+          }
+          # Duplicate-spawn guard evidence: exactly one spawn attempt.
+          $spawnOkCount = @($logLines | Where-Object { $_ -match "spawn ok" }).Count
+          if ($spawnOkCount -ne 1) { Write-Error "expected exactly 1 'spawn ok' line, found $spawnOkCount"; exit 1 }
+          Write-Host "smoke elapsed: $($launchClock.Elapsed.TotalSeconds.ToString('0.0'))s"
 
           # Clean shutdown, then uninstall, so no process is left holding the ports.
           foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {

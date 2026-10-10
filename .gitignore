@@ -64,4 +64,5 @@ research/features_real/corpus/*.json
 
 # Local Qt test build directories
 build-test/
+build-tests/
 build-be/
