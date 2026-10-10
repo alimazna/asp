@@ -970,3 +970,79 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - SHADOW only
 - Frontend still talks only to 127.0.0.1:8790 (ApiClient base URL unchanged)
 - Honesty rule intact: absent fields still render em-dash / unavailable
+
+## Bridge Fix — 2026-10-10
+
+### Bug 1: frozen bridge missing MetaTrader5
+- Root cause: the MetaTrader5 wheel is a **single top-level compiled extension**
+  (`MetaTrader5.pyd`), not an importable Python package. `collect_all`/
+  `collect_submodules('MetaTrader5')` therefore return an empty list, so the
+  frozen `bridge.exe` never contained the `.pyd`. The build host had MetaTrader5
+  installed (a `pip install` succeeded), but PyInstaller silently excluded it and
+  the installed app reported `No module named 'MetaTrader5'`.
+- Fix: list `"MetaTrader5"` in `hiddenimports` so modulegraph bundles the `.pyd`
+  and its native deps, and add `"numpy"` because MetaTrader5 imports numpy from
+  its compiled core (modulegraph cannot see that import inside a `.pyd`). Keep
+  `collect_all` as a forward-compatible safety net. CI installs the runtime deps
+  (`MetaTrader5`, `numpy`) on the Windows build host before freezing.
+- Commits: `3a7a9b9` (initial `collect_all` attempt + CI dep install), `d71127d`
+  (definitive hiddenimports; the `collect_all`-only version still failed in CI,
+  which is what exposed the real cause).
+
+### Bug 2: bridge_service.py crashes per request
+- Root cause (the traceback the field never captured): the HTTP handler's write
+  path raised `BrokenPipeError`/`ConnectionResetError` when a client hung up
+  mid-response. `do_GET` caught it and then retried an error-envelope write on
+  the same dead socket, which raised again and escaped `handle_one_request`;
+  socketserver's default `handle_error` printed only
+  `Exception occurred during processing of request from (...)` with no cause. A
+  connection reset during the request line produced the same noise.
+- Fix: `_send_json` tolerates a dead peer; `do_GET` routes failures through
+  `traceback.print_exc()` (detail logged, never sent to the client) and no longer
+  retries a write on a closed socket; `handle_error` is overridden to print the
+  real traceback for genuine failures while silencing client-hangup resets.
+- Regression test: `bridge/tests/test_request_resilience.py` drives the real
+  handler over a real socket, disconnects mid-response, and asserts no
+  traceback/`Exception occurred` line on stderr plus that the next request still
+  succeeds. It reproduces the exact field symptom on the pre-fix handler.
+- Commit: `30fa801`.
+
+### Bug 3: no auto-start on Windows
+- Root cause: `startBackendHost()` gated on
+  `OpenMutexA("Global\\AURA_BACKEND_HOST_SINGLETON")`, but **no component ever
+  creates that mutex** — the guard was dead, so a second frontend always spawned
+  a second backend, whose loopback bind fails, leaving the UI pointed at an API
+  server it cannot reach. Compounding it, every launch failure was reported only
+  via `qWarning()`, and the desktop target is built `WIN32_EXECUTABLE` (no
+  console), so a failed auto-start was completely silent.
+- Fix: detect an already-running backend by probing `127.0.0.1:8790` (the real
+  signal); record the auto-start outcome to
+  `<appRoot>/logs/frontend-autostart.log` with an explicit failure reason; mirror
+  the backend host's own startup/bridge-launch diagnostics to
+  `<appRoot>/logs/backend-host.log` (the backend is spawned detached, so its
+  stdout is otherwise invisible). The backend's existing bridge launch in
+  `backend-main()` is unchanged and works once `bridge.exe` is correct.
+- Commit: `2f6a19a`.
+
+### Verification
+- Local bridge test: `bridge/tests/` **6/6 pass** (incl. the new resilience test,
+  which fails on the pre-fix handler); backend `ctest` **20/20 pass**.
+- bridge.exe `package_available`: **true** (Windows CI, frozen bundle).
+- Windows CI run **38053098663** (commit `d71127d`) — **success**:
+  - `Verify frozen bridge bundles MetaTrader5`: "Frozen bridge reports package_available=true"
+  - `Smoke test installer`: "ASTRA auto-started backend (8790) and bridge (8791)"
+    (frontend log: `spawned backend: C:/Program Files/ASTRA/aura_backend_host.exe`), then uninstalled cleanly.
+  - The prior runs `38052489478` and `38052597337` failed the same MetaTrader5
+    check, confirming the assertion genuinely catches Bug 1.
+  - MT5 terminal is absent on the CI runner, so `initialized=false` there; this
+    is the documented degraded path. `package_available=true` is the Bug 1 gate.
+
+### New artifacts
+- ASTRA-windows-installer (`ASTRA-Setup.exe`): **39,764,985 bytes (~37.9 MB)**
+- ASTRA-windows (portable zip): 23,587,070 bytes
+
+### Constraints honoured
+- Only the three reported bugs touched; no redesign, no new features, no visual changes
+- SHADOW only; frontend still talks only to 127.0.0.1:8790
+- Fixed the real causes (several differed from the initial hypothesis — see Bug 1 and Bug 3)
+
