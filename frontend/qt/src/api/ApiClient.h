@@ -31,6 +31,7 @@ public:
     void fetchContextLatest();
     void fetchAnalysisHistory(int limit = 50);
     void fetchCandles(const QString& tf, int limit = 500);
+    void fetchTimeframes();
     void fetchResearchStatus();
     void fetchGovernanceStatus();
     void fetchAuditRecent();
@@ -51,6 +52,7 @@ public:
     [[nodiscard]] HealthResponse currentHealth() const { return mCurrentHealth; }
     [[nodiscard]] ContextResponse currentContext() const { return mCurrentContext; }
     [[nodiscard]] CandlesResponse currentCandles() const { return mCurrentCandles; }
+    [[nodiscard]] QVector<TimeframeData> currentTimeframes() const { return mCurrentTimeframes; }
 
     // Connection state
     [[nodiscard]] bool isOnline() const { return mIsOnline; }
@@ -62,6 +64,7 @@ signals:
     void healthReceived(const HealthResponse& response);
     void contextReceived(const ContextResponse& response);
     void candlesReceived(const CandlesResponse& response);
+    void timeframesReceived(const QVector<TimeframeData>& timeframes);
     void researchReceived(const ResearchData& data);
     void governanceReceived(const GovernanceData& data);
     void auditReceived(const AuditData& data);
@@ -76,6 +79,7 @@ private:
     ContextData parseContextData(const QJsonObject& obj);
     HealthData parseHealthData(const QJsonObject& obj);
     CandlesData parseCandlesData(const QJsonObject& obj);
+    TimeframeData parseTimeframeData(const QJsonObject& obj);
     ResearchData parseResearchData(const QJsonObject& obj);
     GovernanceData parseGovernanceData(const QJsonObject& obj);
     AuditData parseAuditData(const QJsonObject& obj);
@@ -93,6 +97,7 @@ private:
     HealthResponse mCurrentHealth;
     ContextResponse mCurrentContext;
     CandlesResponse mCurrentCandles;
+    QVector<TimeframeData> mCurrentTimeframes;
     ResearchData mCurrentResearch;
     GovernanceData mCurrentGovernance;
     AuditData mCurrentAudit;

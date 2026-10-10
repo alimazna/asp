@@ -2,6 +2,7 @@
 #include <QString>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QVector>
 #include <optional>
 
 namespace astra {
@@ -128,6 +129,43 @@ struct CandlesData {
 struct CandlesResponse {
     ApiEnvelope envelope;
     CandlesData data;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Timeframe capability/quality/freshness — GET /api/v1/timeframes
+//   data: [ { timeframe, observed, has_closed_bar, quality{state,decision_grade},
+//             decision_grade, freshness{state,is_fresh,last_update,age_millis,
+//             max_age_millis} | null, last_successful_update,
+//             last_closed_bar_open?, sequence?, capability_impact[] } ] × 9
+// Canonical order M1..MN1. Every field may be absent/null: it is then rendered
+// as "—", never as zero or "fresh".
+// ──────────────────────────────────────────────────────────────────────────────
+
+struct TimeframeFreshness {
+    QString state;                       // FRESH | STALE | UNKNOWN
+    bool isFresh = false;
+    std::optional<qint64> lastUpdate;    // epoch millis
+    std::optional<qint64> ageMillis;
+    std::optional<qint64> maxAgeMillis;
+};
+
+struct TimeframeCapabilityImpact {
+    QString capability;
+    QString impact;
+    QString reason;
+};
+
+struct TimeframeData {
+    QString timeframe;
+    std::optional<bool> observed;
+    std::optional<bool> hasClosedBar;
+    QString qualityState;                        // VALID | DEGRADED | UNKNOWN …
+    std::optional<bool> decisionGrade;
+    std::optional<TimeframeFreshness> freshness; // empty when null/absent
+    std::optional<qint64> lastSuccessfulUpdate;
+    std::optional<qint64> lastClosedBarOpen;
+    std::optional<qint64> sequence;
+    QVector<TimeframeCapabilityImpact> capabilityImpact;
 };
 
 // ── Governance / system surfaces (additive, read-only) ───────────────────────

@@ -194,6 +194,46 @@ void ApiClient::fetchCandles(const QString& tf, int limit) {
         });
 }
 
+void ApiClient::fetchTimeframes() {
+    // GET /api/v1/timeframes -> envelope { api, schema, data: [ ... ] }
+    // (data is an ARRAY of 9 objects in canonical M1..MN1 order.)
+    QNetworkRequest request(QUrl(mBaseUrl + "timeframes"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+                if (err.error != QJsonParseError::NoError) {
+                    throw std::runtime_error("JSON parse error: " + err.errorString().toStdString());
+                }
+                QJsonObject obj = doc.object();
+                if (obj.value("api").toString() != "v1") {
+                    throw std::runtime_error("Unexpected api field");
+                }
+                if (obj.value("schema").toString() != "1.0") {
+                    throw std::runtime_error("Unexpected schema field");
+                }
+                QVector<TimeframeData> items;
+                const QJsonArray arr = obj.value("data").toArray();
+                items.reserve(arr.size());
+                for (const QJsonValue& v : arr) {
+                    items.append(parseTimeframeData(v.toObject()));
+                }
+                mCurrentTimeframes = items;
+                mIsOnline = true;
+                emit timeframesReceived(items);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) {
+            emit error(msg, code);
+        });
+}
+
 void ApiClient::fetchResearchStatus() {
     QNetworkRequest request(QUrl(mBaseUrl + "research/status"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -440,6 +480,54 @@ CandlesData ApiClient::parseCandlesData(const QJsonObject& obj) {
     d.available = !d.bars.isEmpty() &&
                   (declared < 0 || declared == d.bars.size());
     if (!d.available) d.bars.clear();
+    return d;
+}
+
+TimeframeData ApiClient::parseTimeframeData(const QJsonObject& obj) {
+    TimeframeData d;
+    d.timeframe = obj.value("timeframe").toString();
+
+    // Each field is optional: keep it empty when absent/null so the UI renders
+    // "—" rather than a fabricated false/zero.
+    if (obj.contains("observed") && !isNullOrMissing(obj.value("observed")))
+        d.observed = obj.value("observed").toBool();
+    if (obj.contains("has_closed_bar") && !isNullOrMissing(obj.value("has_closed_bar")))
+        d.hasClosedBar = obj.value("has_closed_bar").toBool();
+
+    const QJsonValue qualityVal = obj.value("quality");
+    if (qualityVal.isObject())
+        d.qualityState = qualityVal.toObject().value("state").toString();
+
+    if (obj.contains("decision_grade") && !isNullOrMissing(obj.value("decision_grade")))
+        d.decisionGrade = obj.value("decision_grade").toBool();
+
+    const QJsonValue freshVal = obj.value("freshness");
+    if (freshVal.isObject()) {
+        const QJsonObject f = freshVal.toObject();
+        TimeframeFreshness fr;
+        fr.state = f.value("state").toString();
+        fr.isFresh = f.value("is_fresh").toBool(false);
+        if (!isNullOrMissing(f.value("last_update"))) fr.lastUpdate = static_cast<qint64>(f.value("last_update").toDouble());
+        if (!isNullOrMissing(f.value("age_millis"))) fr.ageMillis = static_cast<qint64>(f.value("age_millis").toDouble());
+        if (!isNullOrMissing(f.value("max_age_millis"))) fr.maxAgeMillis = static_cast<qint64>(f.value("max_age_millis").toDouble());
+        d.freshness = fr;
+    }
+
+    if (!isNullOrMissing(obj.value("last_successful_update")))
+        d.lastSuccessfulUpdate = static_cast<qint64>(obj.value("last_successful_update").toDouble());
+    if (!isNullOrMissing(obj.value("last_closed_bar_open")))
+        d.lastClosedBarOpen = static_cast<qint64>(obj.value("last_closed_bar_open").toDouble());
+    if (!isNullOrMissing(obj.value("sequence")))
+        d.sequence = static_cast<qint64>(obj.value("sequence").toDouble());
+
+    for (const QJsonValue& v : obj.value("capability_impact").toArray()) {
+        const QJsonObject o = v.toObject();
+        TimeframeCapabilityImpact ci;
+        ci.capability = o.value("capability").toString();
+        ci.impact = o.value("impact").toString();
+        ci.reason = o.value("reason").toString();
+        d.capabilityImpact.append(ci);
+    }
     return d;
 }
 
