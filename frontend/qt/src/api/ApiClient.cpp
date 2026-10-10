@@ -12,6 +12,10 @@ ApiClient::ApiClient(QObject* parent)
     : QObject(parent)
     , mBaseUrl("http://127.0.0.1:8790/api/v1/")
 {
+    // Bound every request: without a transfer timeout a hung backend leaves
+    // replies pending forever, so the UI never flips to OFFLINE.
+    mNetworkManager.setTransferTimeout(5000);
+
     connect(&mRetryTimer, &QTimer::timeout, this, [this]() {
         mRetryTimer.stop();
         mRetryCount++;
