@@ -188,6 +188,19 @@ def main() -> int:
             method, _, path = route.partition(" ")
             assert method == "GET", route
             live_path = path.replace("{tf}", "M15")
+            # Routes that declare query parameters (candles, analysis/history)
+            # must be probed with valid values or the server correctly rejects
+            # them (400). Use the schema default when present, and the canonical
+            # primary operational timeframe for the required `tf`.
+            query_spec = spec.get("query") or {}
+            query_parts = []
+            for param, pspec in query_spec.items():
+                if "default" in pspec:
+                    query_parts.append(f"{param}={pspec['default']}")
+                elif param == "tf":
+                    query_parts.append("tf=M15")
+            if query_parts:
+                live_path = live_path + "?" + "&".join(query_parts)
             try:
                 status, ctype, body = fetch(server.base + live_path)
             except urllib.error.HTTPError as exc:  # noqa: BLE001
