@@ -74,7 +74,7 @@ void HealthPage::restyle() {
             if (d) d->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(textTertiary));
         }
         for (QLabel* l : mTfStatusLabels) {
-            if (l) l->setStyleSheet(QString("QLabel { color: #4CAF7A; font-size: 12px; }"));
+            if (l) l->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; }").arg(textTertiary));
         }
     }
 }
@@ -175,7 +175,7 @@ void HealthPage::setupLayout() {
         itemLayout->addWidget(tfLabel);
 
         QLabel* statusLabel = new QLabel(item);
-        statusLabel->setText("\u25CF OK");
+        statusLabel->setText("\u25CF \u2014");
         statusLabel->setAlignment(Qt::AlignRight);
         itemLayout->addWidget(statusLabel);
 
@@ -195,10 +195,15 @@ void HealthPage::updateFromHealth(const HealthResponse& resp) {
     mHasResp = true;
     updateSystemStatus(resp);
 
-    // Update timeframe grid — all green for now (mock data shows all OK)
+    // /health/v1 exposes no per-timeframe state, so the grid must render
+    // unavailable rather than a fabricated green "OK" — never show "safe" for
+    // data we do not have. Reuse the page's tertiary (unavailable) colour.
+    const QString tertiary = palette().color(QPalette::PlaceholderText).name();
+    const QString style =
+        QString("QLabel { color: %1; font-size: 12px; }").arg(tertiary);
     for (QLabel* statusLabel : mTfStatusLabels) {
-        statusLabel->setText("\u25CF OK");
-        statusLabel->setStyleSheet("QLabel { color: #4CAF7A; font-size: 12px; }");
+        statusLabel->setText("\u25CF \u2014");
+        statusLabel->setStyleSheet(style);
     }
 }
 
