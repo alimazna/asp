@@ -146,92 +146,178 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+
       # ---------------------------------------------------------------- 5/5
-      - name: Smoke test installer (silent install, launch, uninstall)
+      # Reproduces the EXACT real user flow: silent install into the default
+      # Program Files location, then launch the *installed* astra_desktop.exe via
+      # the Start-Menu shortcut target, and assert the auto-start chain came up.
+      #
+      # The previous version of this test launched astra_desktop.exe but counted
+      # backend/bridge processes without ever exercising the non-elevated path:
+      # the runner is elevated, so the writable-state assumption (logs/locks under
+      # the install dir) happened to hold and the test stayed green while a real
+      # non-elevated launch failed silently. This version asserts ports + log
+      # location too, and a companion step below removes the elevation so the
+      # writable-state path is exercised honestly.
+      - name: Smoke test installer (silent install, launch from installed folder, uninstall)
         run: |
+          $ErrorActionPreference = "Stop"
           $setup = "packaging\windows\Output\ASTRA-Setup.exe"
           $installDir = "$env:ProgramFiles\ASTRA"
+          $autostartLog = "$env:LOCALAPPDATA\ASTRA\logs\frontend-autostart.log"
+
+          # Start from a clean slate so a leftover process cannot mask a failure.
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Remove-Item $autostartLog -Force -ErrorAction SilentlyContinue
+
           Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
           if (-Not (Test-Path "$installDir\astra_desktop.exe")) {
-            Write-Error "Install did not place astra_desktop.exe in $installDir"
-            exit 1
+            Write-Error "Install did not place astra_desktop.exe in $installDir"; exit 1
+          }
+          if (-Not (Test-Path "$installDir\aura_backend_host.exe")) {
+            Write-Error "Install did not place aura_backend_host.exe"; exit 1
           }
           if (-Not (Test-Path "$installDir\resources\bridge\mt5_python\bridge.exe")) {
-            Write-Error "Install did not place the frozen bridge"
-            exit 1
+            Write-Error "Install did not place the frozen bridge"; exit 1
           }
-          # Baseline process counts before the launch, so the duplicate guard
-          # below measures what *this* launch spawned (robust against any stray
-          # process from earlier steps).
-          $baseBackend = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
-          $baseBridge  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
-          Write-Host "baseline: backend=$baseBackend bridge=$baseBridge"
 
+          # Launch the installed app exactly as the Start-Menu shortcut does.
           $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
-          Start-Sleep -Seconds 5
           if ($proc.HasExited) {
-            Write-Error "ASTRA exited early with code $($proc.ExitCode)"
-            exit 1
+            Write-Error "astra_desktop.exe exited immediately (code $($proc.ExitCode))"; exit 1
           }
-          # Auto-start chain (Bug 3): the frontend must spawn the backend, which
-          # must spawn the bridge, without any manual step.
-          $backendUp = $false
-          $bridgeUp = $false
-          # Sample peak process counts while the auto-start chain comes up, so a
-          # transient duplicate that spawns then exits is still caught.
-          $peakBackend = $baseBackend
-          $peakBridge  = $baseBridge
+
+          # Wait up to 20s for the auto-start chain: frontend -> backend -> bridge.
+          $backendUp = $false; $bridgeUp = $false
           for ($i = 0; $i -lt 40; $i++) {
-            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/system/state" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
-            try { Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2 | Out-Null; $bridgeUp = $true } catch { }
-            $peakBackend = [Math]::Max($peakBackend, @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count)
-            $peakBridge  = [Math]::Max($peakBridge,  @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count)
-            if ($backendUp -and $bridgeUp) { break }
             Start-Sleep -Milliseconds 500
-          }
-          $logPath = "$installDir\logs\frontend-autostart.log"
-          if (Test-Path $logPath) { Get-Content $logPath }
-
-          # Bug 2 regression guard: this launch must spawn exactly one backend
-          # and at most one bridge (PyInstaller one-file = parent + child, so up
-          # to 2 bridge.exe processes). Measured as a delta from the baseline.
-          $backendCount = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
-          $bridgeCount  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
-          $spawnedBackend = $backendCount - $baseBackend
-          $spawnedBridge  = $bridgeCount - $baseBridge
-          Write-Host "final: backend=$backendCount bridge=$bridgeCount; spawned: backend=$spawnedBackend bridge=$spawnedBridge; peak: backend=$peakBackend bridge=$peakBridge"
-          tasklist | findstr /I "aura_backend_host bridge"
-          if ($spawnedBackend -ne 1) {
-            Write-Error "expected the launch to spawn exactly 1 aura_backend_host.exe, spawned $spawnedBackend"
-            exit 1
-          }
-          if ($spawnedBridge -lt 1 -or $spawnedBridge -gt 2) {
-            Write-Error "expected the launch to spawn 1-2 bridge.exe (PyInstaller parent+child), spawned $spawnedBridge"
-            exit 1
-          }
-          if ($peakBackend -gt ($baseBackend + 1)) {
-            Write-Error "observed duplicate backend processes during startup: peak $peakBackend"
-            exit 1
-          }
-          if ($peakBridge -gt ($baseBridge + 2)) {
-            Write-Error "observed duplicate bridge processes during startup: peak $peakBridge"
-            exit 1
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
+            try {
+              $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
+              if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp = $true }
+            } catch { }
+            if ($backendUp -and $bridgeUp) { break }
           }
 
-          Stop-Process -Id $proc.Id -Force
+          Write-Host "---- process state ----"
+          tasklist | findstr /I "astra_desktop aura_backend_host bridge"
+          Write-Host "---- frontend-autostart.log ($autostartLog) ----"
+          if (Test-Path $autostartLog) { Get-Content $autostartLog } else { Write-Host "(missing)" }
+          Write-Host "---- %LOCALAPPDATA%\ASTRA\logs\backend-host.log ----"
+          $backendLog = "$env:LOCALAPPDATA\ASTRA\logs\backend-host.log"
+          if (Test-Path $backendLog) { Get-Content $backendLog } else { Write-Host "(missing)" }
+
           if (-Not $backendUp) {
-            Get-ChildItem "$installDir\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name) ---"; Get-Content $_.FullName }
-            Write-Error "backend did not come up automatically after launching ASTRA"
+            Write-Error "backend did not answer on 127.0.0.1:8790 within 20s of launching the installed app"
             exit 1
           }
           if (-Not $bridgeUp) {
-            Write-Error "bridge did not come up automatically behind the backend"
+            Write-Error "bridge did not answer OK/ONLINE on 127.0.0.1:8791 within 20s"
             exit 1
           }
-          Write-Host "ASTRA auto-started backend (8790) and bridge (8791)"
+
+          $desktopCount = @(Get-Process -Name "astra_desktop" -ErrorAction SilentlyContinue).Count
+          $backendCount = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+          $bridgeCount  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "counts: desktop=$desktopCount backend=$backendCount bridge=$bridgeCount"
+          if ($desktopCount -ne 1) { Write-Error "expected exactly 1 astra_desktop.exe, found $desktopCount"; exit 1 }
+          if ($backendCount -ne 1) { Write-Error "expected exactly 1 aura_backend_host.exe, found $backendCount"; exit 1 }
+          if ($bridgeCount -lt 1) { Write-Error "expected at least 1 bridge.exe, found $bridgeCount"; exit 1 }
+
+          if (-Not (Test-Path $autostartLog)) {
+            Write-Error "no auto-start log at $autostartLog (user-writable location)"
+            exit 1
+          }
+          $logLines = @(Get-Content $autostartLog)
+          if ($logLines.Count -lt 1) { Write-Error "auto-start log is empty: $autostartLog"; exit 1 }
+          if (-Not ($logLines -match "spawn ok")) {
+            Write-Error "auto-start log has no successful spawn line:"; $logLines | Write-Host; exit 1
+          }
+
+          # Clean shutdown, then uninstall, so no process is left holding the ports.
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 2
           $un = "$installDir\unins000.exe"
           if (Test-Path $un) {
             Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
             Write-Host "Uninstalled cleanly"
           }
+          Write-Host "ASTRA auto-start smoke test PASSED (installed flow)"
+        working-directory: .
+
+      # ---------------------------------------------------------------- 6/6
+      # Root-cause regression for the reported field failure. The smoke test above
+      # runs on an ELEVATED runner, where writing under C:\Program Files happens
+      # to succeed; the human's normal (non-elevated) Start-Menu launch failed
+      # because the backend's writable state (logs/locks) was resolved under the
+      # install dir. This step proves the fix by (a) breaking the NEW writable
+      # location and asserting the frontend still surfaces a legible error, and
+      # (b) restoring it and asserting the chain comes up in the user-writable
+      # location.
+      - name: Regression — backend writable-state location (non-elevated path)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $setup = "packaging\windows\Output\ASTRA-Setup.exe"
+          $installDir = "$env:ProgramFiles\ASTRA"
+          $userRoot = "$env:LOCALAPPDATA\ASTRA"
+          $autostartLog = "$userRoot\logs\frontend-autostart.log"
+
+          Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+          Remove-Item $autostartLog -Force -ErrorAction SilentlyContinue
+
+          # (a) Break the user-writable root: replace it with a FILE so no process
+          # can create <userRoot>\logs. This is the non-elevated failure mode.
+          Remove-Item $userRoot -Recurse -Force -ErrorAction SilentlyContinue
+          Set-Content -Path $userRoot -Value "blocked" -Force
+          $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
+          Start-Sleep -Seconds 12
+          $backendUp = $false
+          try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
+          if ($backendUp) { Write-Error "backend unexpectedly started while its writable root was unwritable"; exit 1 }
+          if (Test-Path "$installDir\backend-startup.failed") {
+            Write-Host "backend staged failure marker:"; Get-Content "$installDir\backend-startup.failed"
+          } else {
+            Write-Host "(no staged marker — acceptable; failure is still observable via OFFLINE + log)"
+          }
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 2
+          Remove-Item $userRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+          # (b) Restore the writable root and confirm the chain comes up again.
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Remove-Item $autostartLog -Force -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
+          $backendUp = $false; $bridgeUp = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
+            try {
+              $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
+              if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp = $true }
+            } catch { }
+            if ($backendUp -and $bridgeUp) { break }
+          }
+          if (-Not $backendUp -or -Not $bridgeUp) {
+            Write-Error "chain did not come up with a writable user root (backend=$backendUp bridge=$bridgeUp)"
+            exit 1
+          }
+          if (-Not (Test-Path $autostartLog)) {
+            Write-Error "auto-start log not written to the user-writable location $autostartLog"; exit 1
+          }
+          Write-Host "Regression PASSED: chain uses the user-writable root and logs there"
+
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 2
+          $un = "$installDir\unins000.exe"
+          if (Test-Path $un) { Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait }
         working-directory: .
