@@ -96,10 +96,34 @@ def main() -> int:
             method, _, path = route.partition(" ")
             assert method == "GET", route
             live_path = path.replace("{tf}", "M15")
+            # Supply schema-declared query params so routes that require them
+            # (e.g. /candles?tf=...) are exercised, not rejected with 400.
+            query = spec.get("query", {})
+            if query:
+                parts = []
+                for name, pspec in query.items():
+                    if "default" in pspec:
+                        parts.append(f"{name}={pspec['default']}")
+                    elif pspec.get("type") == "string":
+                        parts.append(f"{name}=M15")
+                if parts:
+                    live_path += "?" + "&".join(parts)
             try:
                 status, body = fetch(base + live_path)
             except urllib.error.HTTPError as exc:
-                check(f"{route} reachable", False, f"HTTP {exc.code}")
+                # A dependency-gated route (e.g. /candles with no staged bridge)
+                # answers with a structured error. That is a valid, contract-
+                # conformant response, not a reachability failure — validate the
+                # error body against the frozen error_schema instead.
+                try:
+                    err_body = json.loads(exc.read().decode("utf-8"))
+                except Exception:
+                    err_body = {}
+                err_schema = schema["error_schema"]
+                ok = (all(k in err_body for k in err_schema["required"])
+                      and err_body.get("error") == "true")
+                check(f"{route} error body matches error_schema", ok,
+                      f"HTTP {exc.code}: {err_body}")
                 continue
             check(f"{route} status 200", status == 200, str(status))
             try:

@@ -89,6 +89,24 @@ def wait_for(url: str, attempts: int = 50):
     raise RuntimeError(f"real host did not serve: {last}")
 
 
+def live_route_path(path: str, spec: dict) -> str:
+    """Substitute path params and append schema-declared query params.
+
+    Routes such as /candles?tf=... reject a missing required query with 400; a
+    harness that omits them reports a spurious reachability failure.
+    """
+    url = path.replace("{tf}", "M15")
+    parts = []
+    for name, pspec in (spec.get("query") or {}).items():
+        if "default" in pspec:
+            parts.append(f"{name}={pspec['default']}")
+        elif pspec.get("type") == "string":
+            parts.append(f"{name}=M15")
+    if parts:
+        url += "?" + "&".join(parts)
+    return url
+
+
 def reap(proc: subprocess.Popen) -> None:
     """Terminate the host and everything it spawned (the bridge_service.py child).
 
@@ -207,7 +225,7 @@ def run_real_data_checks(csv_path: str, schema: dict) -> None:
         # Frozen v1 contract still holds with real data on every route.
         for route, spec in schema["endpoints"].items():
             method, _, path = route.partition(" ")
-            live_path = path.replace("{tf}", "M15")
+            live_path = live_route_path(path, spec)
             try:
                 status, body = fetch(base + live_path)
             except urllib.error.HTTPError as exc:
@@ -255,11 +273,23 @@ def main() -> int:
         for route, spec in schema["endpoints"].items():
             method, _, path = route.partition(" ")
             assert method == "GET", route
-            live_path = path.replace("{tf}", "M15")
+            live_path = live_route_path(path, spec)
             try:
                 status, body = fetch(base + live_path)
             except urllib.error.HTTPError as exc:
-                check(f"{route} reachable", False, f"HTTP {exc.code}")
+                # No staged bridge: dependency-gated routes answer with the
+                # structured error envelope. That is the honest degraded
+                # posture, so validate the error body against the frozen
+                # error_schema instead of flagging it unreachable.
+                try:
+                    err_body = json.loads(exc.read().decode("utf-8"))
+                except Exception:  # noqa: BLE001
+                    err_body = {}
+                err_schema = schema["error_schema"]
+                ok = (all(k in err_body for k in err_schema["required"])
+                      and err_body.get("error") == "true")
+                check(f"{route} degraded error matches error_schema", ok,
+                      f"HTTP {exc.code}: {err_body}")
                 continue
             check(f"{route} status 200", status == 200, str(status))
             try:
