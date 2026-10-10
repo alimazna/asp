@@ -1226,3 +1226,137 @@ runner is elevated (`runneradmin` is an admin), so writing under
   `ASTRA-windows-installer` = 39,276,504 bytes. Portable
   `ASTRA-windows` artifact = 23,576,213 bytes.
 - Build from commit `518ff02` (includes the fix and the CI change).
+
+## Autostart — Second Attempt (frontend stays OFFLINE) — 2026-10-10
+
+The prior report's claim ("autostart now works, backend IS spawned and comes up")
+was correct, and `699d028` did fix the writable-state root cause. But it left a
+**second, independent** bug the human then hit: the backend comes up (netstat
+shows 8790/8791 LISTENING, curl returns a DEGRADED envelope) while the frontend
+stays OFFLINE forever. This section is that fix, plus a duplicate-spawn fix and a
+hardened CI smoke test. (The previous CI was green and did exercise the
+installed flow, so it was not fake; it was simply not asserting frontend
+liveness, which is why it missed this.)
+
+### Root cause (Bug 1 — frontend stays OFFLINE forever)
+- Q1-Q4 (spawn path + conditions) are unchanged from the prior report:
+  `main.cpp:80` `startBackendHost()` -> `main.cpp:92` `QProcess::startDetached`
+  with the absolute path `QDir(QCoreApplication::applicationDirPath()).filePath(
+  "aura_backend_host.exe")` (`main.cpp:75`). The backend resolves the bridge
+  itself via `BundleLocator::locate()`. All paths are valid after install; the
+  processes now start.
+- The real defect is the probing side, in `MainWindow`: `setApiClient()`
+  (`MainWindow.cpp:143`) kicked a single `fetchHealth()` and started only the
+  **5 s analysis** timer. The **health** timer ran at its 10 s interval
+  (`MainWindow.cpp:123`) and `onOffline()` (`MainWindow.cpp:737`) fires on the
+  first failed poll. The backend binds 8790 only after the bridge handshake (CI
+  measured ~3 s; order is frontend -> backend -> bridge -> bind), so the first
+  health probe always failed and the UI latched OFFLINE. Nothing retried the
+  health probe aggressively, and no code path cleared the state back to
+  DEGRADED. That is exactly the observed "OFFLINE forever".
+- Q5 ("backend unreachable"/"bridge unreachable"): `pages/DashboardPage.cpp:635-638`
+  via `MainWindow::onOffline()` — set on the first failed health poll, which (per
+  the bug above) was guaranteed during the bake-in.
+- Q6 (log path): already user-writable after the previous fix
+  (`%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log`); not the bug this round.
+- Q7 (CI): the smoke test launched the installed `astra_desktop.exe` and waited
+  up to 20 s for both ports, so it reached DEGRADED — but it never asserted what
+  the **UI** displayed, and the build it launched was the one that latches
+  OFFLINE. A 20 s retry loop in the test hid a UI that gave up after one probe.
+  Honest statement: the previous smoke test was not fake, but it was incomplete —
+  it proved the backend comes up, not that the frontend reflects it.
+
+### Root cause (Bug 2 — duplicate backend spawn)
+- The auto-start log showed two `spawn ok` lines in the same second from one
+  launch. The executable was valid, so this was a re-entrant/duplicate call to
+  `startBackendHost()`; the loopback port probe (`main.cpp:90`) cannot catch it
+  because the backend has not bound 8790 yet during the bake-in.
+- (A stale orphaned `bridge.exe` from a prior run can coexist with the fresh one;
+  that is the `bridge=2` the CI reports and is expected, not a duplicate spawn by
+  one launch.)
+
+### Fix
+- frontend/qt (Bug 1): `MainWindow::setApiClient()` now enters an explicit
+  auto-start bake-in when `mAutostartInProgress` is set: it resets the window
+  clock and runs the health timer at 1 s (`kFastHealthPollMs`,
+  `MainWindow.cpp:177`) for up to 20 s (`kAutostartWindowMs`, `MainWindow.h`).
+  Every failed poll during the window is swallowed (`onAutostartHealthMiss()`,
+  `MainWindow.cpp:185`) — the UI shows an honest transient OFFLINE but does not
+  latch the red failure banner. The first successful response
+  (`onHealthUpdated`, `MainWindow.cpp:692`) marks the backend reachable, hides
+  the banner, and drops the poll back to 10 s. Only after the whole 20 s window
+  expires with no response does the banner appear (`MainWindow.cpp:194`). The
+  periodic 10 s poll is never stopped by a single miss.
+- frontend/qt (evidence logging): on the first successful contact the frontend
+  appends `[<time>] backend reachable after <N>s` to the same user-writable
+  `frontend-autostart.log` the spawn attempt is recorded in
+  (`MainWindow.cpp:46-58`).
+- frontend/qt (Bug 2): `main.cpp` gained a process-lifetime guard
+  `g_spawnAttempted` (`main.cpp:78`); `startBackendHost()` (`main.cpp:80`) runs
+  its spawn at most once — later calls log and return. The port probe still runs
+  first (`main.cpp:90`), so an already-listening backend is never duplicated.
+- main.cpp wiring: `main()` flags the retry window
+  (`mainWindow.setBackendAutostartInProgress(true)`) only when a spawn was
+  attempted and no failure was staged.
+- Commit (Bug 1): `0885594`; Commit (Bug 2): `6e8b54a`. Branch
+  `fix/autostart-writable-state`.
+
+### CI smoke test
+- Old test was: install silently, launch the installed `astra_desktop.exe`, then
+  poll the ports for up to 20 s and count processes. It could not detect a
+  frontend that stopped looking after the first probe.
+- New test does: (1) run the offscreen frontend suite in CI
+  (`-DBUILD_ASTRA_TESTS=ON`, `ctest`) — 7 tests incl. the new
+  `astra_health_retry_tests`; (2) install -> launch the installed
+  `astra_desktop.exe` -> t+2 s assert exactly 1 `aura_backend_host.exe` and no
+  premature OFFLINE marker in the log; t+5 s assert 2xx `/api/v1/health` on 8790,
+  `OK`/`ONLINE` on 8791, and >=1 `bridge.exe`; t+10 s assert the log has a
+  `backend reachable` line and exactly one `spawn ok` line (duplicate-spawn
+  guard); fail loudly with all logs otherwise.
+- New offscreen regression `astra_health_retry_tests`
+  (`frontend/qt/tests/HealthRetryTests.cpp`) drives the real
+  `MainWindow::setApiClient()` path against a mock loopback server answering only
+  after ~3 s: asserts no banner during the bake-in or after the backend answers,
+  that the UI lands on DEGRADED, and that the banner appears only after the
+  window expires.
+- Commit (test + CMake): `8d9886d`; Commit (workflow): `d158037`.
+
+### CI run
+- Run id: `38079460639` (workflow_dispatch on `fix/autostart-writable-state`)
+- Status: success (all steps green)
+- Log excerpt (offscreen suite):
+  ```
+  1/7 Test #1: astra_chart_tests ................   Passed
+  2/7 Test #2: astra_history_tests ..............   Passed
+  3/7 Test #3: astra_health_tests ...............   Passed
+  4/7 Test #4: astra_signal_tests ...............   Passed
+  5/7 Test #5: astra_chart_stale_tests ..........   Passed
+  6/7 Test #6: astra_health_aggregate_tests .....   Passed
+  7/7 Test #7: astra_health_retry_tests .........   Passed    8.25 sec
+  100% tests passed out of 7
+  ```
+- Log excerpt (smoke):
+  ```
+  t+2s counts: backend=1
+  post-health counts: bridge=2
+  ---- frontend-autostart.log (C:\Users\runneradmin\AppData\Local\ASTRA\logs\frontend-autostart.log) ----
+  [2026-10-10T19:28:13Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [2026-10-10T19:28:13Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  [2026-10-10T19:28:21Z] backend reachable after 3s
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 9.6s
+  ASTRA auto-start smoke test PASSED (installed flow)
+  ```
+- Regression step: `Regression PASSED: chain uses the user-writable root and logs there`.
+- Honesty note: the runner is elevated, so CI still cannot reproduce a
+  non-elevated Program-Files write failure directly; the writable-state
+  regression step forces that precondition instead. All five success criteria
+  from the brief are asserted by the smoke test, and the UI-liveness half is
+  additionally pinned by the offscreen retry test that would have failed before
+  this fix.
+
+### New installer
+- `ASTRA-Setup.exe` = 39,782,815 bytes (~37.9 MiB); artifact
+  `ASTRA-windows-installer` = 39,283,123 bytes. Portable `ASTRA-windows`
+  artifact uploaded. Built from commit `d158037`.
+
