@@ -646,35 +646,31 @@ void DashboardPage::updateFromHealth(const HealthResponse& resp) {
     mHasHealth = true;
     mOnline = true;
 
-    // SYSTEM HEALTH
-    if (resp.data.status == "ok") {
-        setCardValue(mHealthValue, "HEALTHY", kGreen);
-        mHealthSub->setText("status ok");
-    } else if (resp.data.status == "degraded") {
-        setCardValue(mHealthValue, "DEGRADED", kAmber);
-        mHealthSub->setText("status degraded");
-    } else if (resp.data.status == "offline") {
-        setCardValue(mHealthValue, "OFFLINE", kRed);
-        mHealthSub->setText("status offline");
-    } else {
-        setCardValue(mHealthValue, kEm, QString());
-        mHealthSub->setText(kEm);
-    }
+    auto levelColor = [](HealthLevel level) -> QString {
+        switch (level) {
+            case HealthLevel::Ok:    return QString(kGreen);
+            case HealthLevel::Warn:  return QString(kAmber);
+            case HealthLevel::Error: return QString(kRed);
+            case HealthLevel::Unknown: break;
+        }
+        return QString();  // placeholder -> muted palette role
+    };
 
-    // DATA STREAMS — bridge status (no stream counts in the contract)
-    if (resp.data.bridge == "ok") {
-        setCardValue(mStreamsValue, "OK", kGreen);
-        mStreamsSub->setText("bridge ok");
-    } else if (resp.data.bridge == "stale") {
-        setCardValue(mStreamsValue, "STALE", kAmber);
-        mStreamsSub->setText("bridge stale");
-    } else if (resp.data.bridge == "offline") {
-        setCardValue(mStreamsValue, "OFFLINE", kRed);
-        mStreamsSub->setText("bridge offline");
-    } else {
-        setCardValue(mStreamsValue, kEm, QString());
-        mStreamsSub->setText(kEm);
-    }
+    // SYSTEM HEALTH — backend aggregate. DEGRADED/STARTING render distinctly,
+    // never collapsed into OFFLINE.
+    const HealthDisplay backend = backendHealthDisplay(resp.data);
+    setCardValue(mHealthValue, backend.text, levelColor(backend.level));
+    mHealthSub->setText(backend.level == HealthLevel::Unknown
+                            ? kEm
+                            : QString("aggregate %1").arg(backend.text.toLower()));
+
+    // DATA STREAMS — bridge process state. ONLINE renders "OK"; a degraded/
+    // stale bridge is a warning, not an outage.
+    const HealthDisplay bridge = bridgeHealthDisplay(resp.data);
+    setCardValue(mStreamsValue, bridge.text, levelColor(bridge.level));
+    mStreamsSub->setText(bridge.level == HealthLevel::Unknown
+                             ? kEm
+                             : QString("bridge %1").arg(bridge.text.toLower()));
 }
 
 void DashboardPage::updateFromAnalysis(const AnalysisResponse& resp) {

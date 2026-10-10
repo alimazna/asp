@@ -292,4 +292,53 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_chart_stale_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # Health mapping: DEGRADED/STARTING must render distinctly from OFFLINE at
+    # every layer (card, liveness chip, bottom bar), and an unreachable backend
+    # (no aggregate) must render OFFLINE. Covers the bug where the frontend
+    # collapsed everything other than ONLINE into OFFLINE.
+    add_executable(astra_health_aggregate_tests
+        tests/HealthAggregateTests.cpp
+        src/pages/HealthPage.cpp
+        src/pages/DashboardPage.cpp
+        src/MainWindow.cpp
+        src/widgets/CandleChart.cpp
+        src/widgets/TimeframeSwitcher.cpp
+        src/theme/ThemeManager.cpp
+        src/dialogs/ConfirmExitDialog.cpp
+        src/widgets/NavButton.cpp
+        src/widgets/SvgIcon.cpp
+        src/pages/ChartPage.cpp
+        src/pages/HistoryPage.cpp
+        src/pages/ResearchPage.cpp
+        src/pages/KnowledgePage.cpp
+        src/pages/ApprovalPage.cpp
+        src/pages/GovernancePage.cpp
+        src/pages/IncidentsPage.cpp
+        src/pages/RecoveryPage.cpp
+        src/pages/SettingsPage.cpp
+        src/pages/ComingSoonPage.cpp
+        src/widgets/InfoCard.cpp
+        src/widgets/SignalCard.cpp
+        src/widgets/LevelsCard.cpp
+        src/widgets/RegimeChip.cpp
+        src/widgets/MtfMeter.cpp
+        src/widgets/FreshnessBar.cpp
+        src/api/ApiClient.cpp
+        src/api/ApiTypes.cpp
+        src/resources/resources.qrc
+    )
+    set_source_files_properties(src/resources/resources.qrc PROPERTIES AUTORCC ON)
+    target_include_directories(astra_health_aggregate_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_health_aggregate_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_health_aggregate_tests COMMAND astra_health_aggregate_tests)
+    set_tests_properties(astra_health_aggregate_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()

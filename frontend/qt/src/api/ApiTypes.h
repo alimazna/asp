@@ -77,6 +77,19 @@ struct AnalysisResponse {
 };
 
 struct HealthData {
+    // Authoritative backend aggregate from GET /api/v1/health data.aggregate
+    // (ONLINE | DEGRADED | STARTING | RECOVERING | OFFLINE | ERROR | PAUSED |
+    // BLOCKED). This is the robust liveness source: it is served by the host
+    // core and does not depend on the analysis surface.
+    QString aggregate;
+    // Bridge process state from GET /api/v1/bridge/status data.process_state
+    // (ONLINE | STARTING | DEGRADED | OFFLINE | ...). The bridge's own
+    // /v1/health payload carries the same value; the backend proxies it here so
+    // the frontend never contacts the bridge directly.
+    QString processState;
+    // Legacy /api/v1/health/v1 liveness surface, kept as a fallback source for
+    // the version/uptime rows and for the pre-existing ok/degraded/offline
+    // vocabulary.
     QString status;          // "ok" | "degraded" | "offline"
     QString bridge;          // "ok" | "stale" | "offline"
     QString version;         // "v1"
@@ -88,6 +101,74 @@ struct HealthResponse {
     ApiEnvelope envelope;
     HealthData data;
 };
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Health status presentation
+//
+// The mapping from a raw backend/bridge token to what the UI shows. These are
+// pure functions so the distinct DEGRADED/ONLINE/OFFLINE states can be unit
+// tested offscreen. The old bug was that everything other than "ONLINE"
+// collapsed to "OFFLINE"; here the states stay distinct.
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum class HealthLevel { Ok, Warn, Error, Unknown };
+
+struct HealthDisplay {
+    QString text;
+    HealthLevel level = HealthLevel::Unknown;
+};
+
+// Backend card: aggregate -> display. Falls back to the /health/v1 vocabulary
+// when the aggregate field is absent, so a partially-populated response still
+// renders honestly.
+inline HealthDisplay backendHealthDisplay(const HealthData& d) {
+    QString s = d.aggregate.toUpper();
+    if (s.isEmpty()) {
+        if (d.status == "ok")            s = QStringLiteral("ONLINE");
+        else if (d.status == "degraded") s = QStringLiteral("DEGRADED");
+        else if (d.status == "offline")  s = QStringLiteral("OFFLINE");
+    }
+    if (s == "ONLINE")     return {QStringLiteral("ONLINE"),     HealthLevel::Ok};
+    if (s == "DEGRADED")   return {QStringLiteral("DEGRADED"),   HealthLevel::Warn};
+    if (s == "STARTING")   return {QStringLiteral("STARTING"),   HealthLevel::Warn};
+    if (s == "RECOVERING") return {QStringLiteral("RECOVERING"), HealthLevel::Warn};
+    if (s == "PAUSED")     return {QStringLiteral("PAUSED"),     HealthLevel::Warn};
+    if (s == "OFFLINE")    return {QStringLiteral("OFFLINE"),    HealthLevel::Error};
+    if (s == "ERROR")      return {QStringLiteral("ERROR"),      HealthLevel::Error};
+    if (s == "BLOCKED")    return {QStringLiteral("BLOCKED"),    HealthLevel::Error};
+    return {QStringLiteral("UNKNOWN"), HealthLevel::Unknown};
+}
+
+// Bridge card: process_state -> display, falling back to the /health/v1
+// vocabulary when process_state is absent.
+inline HealthDisplay bridgeHealthDisplay(const HealthData& d) {
+    if (!d.processState.isEmpty()) {
+        const QString s = d.processState.toUpper();
+        if (s == "ONLINE")   return {QStringLiteral("OK"),       HealthLevel::Ok};
+        if (s == "STARTING") return {QStringLiteral("STARTING"), HealthLevel::Warn};
+        if (s == "DEGRADED") return {QStringLiteral("DEGRADED"), HealthLevel::Warn};
+        if (s == "RECOVERING") return {QStringLiteral("RECOVERING"), HealthLevel::Warn};
+        if (s == "OFFLINE")  return {QStringLiteral("OFFLINE"),  HealthLevel::Error};
+        if (s == "ERROR")    return {QStringLiteral("ERROR"),    HealthLevel::Error};
+        return {QStringLiteral("UNKNOWN"), HealthLevel::Unknown};
+    }
+    if (d.bridge == "ok")       return {QStringLiteral("OK"),       HealthLevel::Ok};
+    if (d.bridge == "stale")    return {QStringLiteral("STALE"),    HealthLevel::Warn};
+    if (d.bridge == "degraded") return {QStringLiteral("DEGRADED"), HealthLevel::Warn};
+    if (d.bridge == "offline")  return {QStringLiteral("OFFLINE"),  HealthLevel::Error};
+    return {QStringLiteral("UNKNOWN"), HealthLevel::Unknown};
+}
+
+// Semantic accent for a level; empty means "use the muted placeholder color".
+inline QString healthLevelHex(HealthLevel level) {
+    switch (level) {
+        case HealthLevel::Ok:    return QStringLiteral("#4CAF7A");
+        case HealthLevel::Warn:  return QStringLiteral("#D9A14A");
+        case HealthLevel::Error: return QStringLiteral("#D95A5A");
+        case HealthLevel::Unknown: break;
+    }
+    return QString();
+}
 
 struct ContextData {
     std::optional<QString> timestamp;

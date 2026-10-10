@@ -13,8 +13,9 @@ ApiClient::ApiClient(QObject* parent)
     , mBaseUrl("http://127.0.0.1:8790/api/v1/")
 {
     // Bound every request: without a transfer timeout a hung backend leaves
-    // replies pending forever, so the UI never flips to OFFLINE.
-    mNetworkManager.setTransferTimeout(5000);
+    // replies pending forever, so the UI never flips to OFFLINE. Kept <= 3s so a
+    // dead backend is reported quickly rather than after a long hang.
+    mNetworkManager.setTransferTimeout(3000);
 
     connect(&mRetryTimer, &QTimer::timeout, this, [this]() {
         mRetryTimer.stop();
@@ -74,7 +75,12 @@ void ApiClient::fetchAnalysisLatest() {
 }
 
 void ApiClient::fetchHealth() {
-    QNetworkRequest request(QUrl(mBaseUrl + "health/v1"));
+    // GET /api/v1/health is the authoritative liveness source: the host core
+    // serves data.aggregate directly, so it does not depend on the analysis
+    // surface or the bridge. Its failure is the ONLY thing that flips the client
+    // offline. The version/uptime rows and the bridge process state come from
+    // the secondary surfaces chained on success.
+    QNetworkRequest request(QUrl(mBaseUrl + "health"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     auto* reply = mNetworkManager.get(request);
     mPendingReplies.append(reply);
@@ -85,24 +91,98 @@ void ApiClient::fetchHealth() {
                 parseEnvelope(raw, env);
                 HealthResponse resp;
                 resp.envelope = env;
-                resp.data = parseHealthData(env.data);
+                // Preserve a previously-observed version/uptime/process state so
+                // the secondary surfaces can layer onto this aggregate response.
+                resp.data.version = mCurrentHealth.data.version.isEmpty()
+                                        ? QStringLiteral("v1")
+                                        : mCurrentHealth.data.version;
+                resp.data.uptimeSec = mCurrentHealth.data.uptimeSec;
+                resp.data.processState = mCurrentHealth.data.processState;
+                resp.data.bridge = mCurrentHealth.data.bridge;
+                resp.data.status = mCurrentHealth.data.status;
+                resp.data.aggregate = env.data.value("aggregate").toString();
                 mCurrentHealth = resp;
                 mIsOnline = true;
-                mIsDegraded = resp.data.status == "degraded";
-                if (mIsOnline && mRetryCount > 0) {
-                    mRetryCount = 0;
-                }
+                mIsDegraded = resp.data.aggregate == "DEGRADED";
+                if (mRetryCount > 0) mRetryCount = 0;
                 emit healthReceived(resp);
-                if (mIsOnline) emit online();
+                emit online();
+                // Layer the secondary liveness surfaces; their failures never
+                // flip the client offline.
+                fetchHealthV1();
+                fetchBridgeStatus();
             } catch (const std::exception& ex) {
                 emit error(QString::fromUtf8(ex.what()), "parse_error");
             }
         },
         [this](const QString& msg, const QString& code) {
             mIsOnline = false;
+            mIsDegraded = false;
+            // Backend unreachable: nothing has been observed, so clear the stale
+            // fields rather than re-reporting a state from the last good poll.
+            mCurrentHealth = HealthResponse{};
             emit offline();
             emit error(msg, code);
             scheduleRetry();
+        });
+}
+
+void ApiClient::fetchHealthV1() {
+    // Legacy liveness surface. Supplies version/uptime and, when the aggregate
+    // is unavailable, an ok/degraded/offline fallback. A failure here is not a
+    // backend outage (the aggregate already answered), so it must not emit
+    // offline(); it is merely reported as an error.
+    QNetworkRequest request(QUrl(mBaseUrl + "health/v1"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                HealthData layered = mCurrentHealth.data;
+                const HealthData v1 = parseHealthData(env.data);
+                layered.status = v1.status;
+                layered.bridge = v1.bridge;
+                if (!v1.version.isEmpty()) layered.version = v1.version;
+                if (v1.uptimeSec.has_value()) layered.uptimeSec = v1.uptimeSec;
+                if (layered.processState.isEmpty()) layered.processState = v1.bridge;
+                mCurrentHealth.data = layered;
+                emit healthReceived(mCurrentHealth);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) {
+            emit error(msg, code);
+        });
+}
+
+void ApiClient::fetchBridgeStatus() {
+    // GET /api/v1/bridge/status proxies the bridge's own process_state. It is
+    // the authoritative bridge-liveness source. A failure here (e.g. the bridge
+    // is not up yet) is not a backend outage, so it must not emit offline();
+    // the bridge card simply reports OFFLINE/UNKNOWN from the absent state.
+    QNetworkRequest request(QUrl(mBaseUrl + "bridge/status"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    auto* reply = mNetworkManager.get(request);
+    mPendingReplies.append(reply);
+    handleReply(reply,
+        [this](const QByteArray& raw) {
+            try {
+                ApiEnvelope env;
+                parseEnvelope(raw, env);
+                HealthData layered = mCurrentHealth.data;
+                parseBridgeStatus(env.data, layered);
+                mCurrentHealth.data = layered;
+                emit healthReceived(mCurrentHealth);
+            } catch (const std::exception& ex) {
+                emit error(QString::fromUtf8(ex.what()), "parse_error");
+            }
+        },
+        [this](const QString& msg, const QString& code) {
+            emit error(msg, code);
         });
 }
 
@@ -439,8 +519,10 @@ ContextData ApiClient::parseContextData(const QJsonObject& obj) {
 
 HealthData ApiClient::parseHealthData(const QJsonObject& obj) {
     HealthData d;
-    d.status = obj.value("status").toString("offline");
-    d.bridge = obj.value("bridge").toString("offline");
+    // /health/v1 vocabulary. An absent status stays empty so a caller can tell
+    // "not reported" from an explicit "offline".
+    d.status = obj.value("status").toString();
+    d.bridge = obj.value("bridge").toString();
     d.version = obj.value("version").toString("v1");
     QJsonValue upVal = obj.value("uptime_sec");
     if (!isNullOrMissing(upVal) && upVal.isDouble()) {
@@ -451,6 +533,21 @@ HealthData ApiClient::parseHealthData(const QJsonObject& obj) {
         d.coverageTier = tierVal.toString();
     }
     return d;
+}
+
+void ApiClient::parseBridgeStatus(const QJsonObject& obj, HealthData& health) {
+    // Prefer the live observed process_state; fall back to the runtime-derived
+    // bridge_process_state when the *bridge* health has not been observed yet.
+    // Never fabricate: an absent field stays empty and the card renders UNKNOWN.
+    QJsonValue psVal = obj.value("process_state");
+    if (!isNullOrMissing(psVal) && !psVal.toString().isEmpty()) {
+        health.processState = psVal.toString();
+    } else {
+        QJsonValue bpsVal = obj.value("bridge_process_state");
+        if (!isNullOrMissing(bpsVal) && !bpsVal.toString().isEmpty()) {
+            health.processState = bpsVal.toString();
+        }
+    }
 }
 
 CandlesData ApiClient::parseCandlesData(const QJsonObject& obj) {

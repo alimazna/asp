@@ -28,6 +28,9 @@ public:
     // Polling
     void fetchAnalysisLatest();
     void fetchHealth();
+    // Bridge lifecycle (GET /bridge/status -> process_state). The frontend
+    // never contacts 127.0.0.1:8791; the backend proxies the bridge state.
+    void fetchBridgeStatus();
     void fetchContextLatest();
     void fetchAnalysisHistory(int limit = 50);
     void fetchCandles(const QString& tf, int limit = 500);
@@ -74,10 +77,17 @@ signals:
     void online();
 
 private:
+    // Secondary liveness surfaces, chained off fetchHealth(): the version/uptime
+    // rows come from /health/v1 and the bridge process state from /bridge/status.
+    // Their failures never flip the client offline — only /health (the aggregate)
+    // does that.
+    void fetchHealthV1();
+
     void parseEnvelope(const QByteArray& raw, ApiEnvelope& envelope);
     AnalysisData parseAnalysisData(const QJsonObject& obj);
     ContextData parseContextData(const QJsonObject& obj);
     HealthData parseHealthData(const QJsonObject& obj);
+    void parseBridgeStatus(const QJsonObject& obj, HealthData& health);
     CandlesData parseCandlesData(const QJsonObject& obj);
     TimeframeData parseTimeframeData(const QJsonObject& obj);
     ResearchData parseResearchData(const QJsonObject& obj);

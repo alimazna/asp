@@ -599,6 +599,8 @@ void MainWindow::onAnalysisUpdated(const AnalysisResponse& /*resp*/) {
 }
 
 void MainWindow::onHealthUpdated(const HealthResponse& resp) {
+    mLastHealth = resp;
+    mHasHealth = true;
     updateLivenessIndicator();
     updateBottomBarStatus();
 
@@ -629,6 +631,10 @@ void MainWindow::onTimeframesUpdated(const QVector<TimeframeData>& items) {
 }
 
 void MainWindow::onOffline() {
+    // Backend unreachable: no health observed. The chip and bottom bar must
+    // report OFFLINE, not a state carried over from the last good poll.
+    mHasHealth = false;
+    mLastHealth = HealthResponse{};
     updateLivenessIndicator();
     updateBottomBarStatus();
     if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
@@ -649,25 +655,26 @@ void MainWindow::updateLivenessIndicator() {
     QString state;
     QString color;
 
-    if (!mApiClient || !mApiClient->isOnline()) {
+    if (!mApiClient || !mHasHealth) {
+        // No health payload observed (not yet polled, or the backend is
+        // unreachable). Never claim a state we have not received.
         state = "SYSTEM OFFLINE";
         color = "#D95A5A";
     } else {
-        const HealthData health = mApiClient->currentHealth().data;
-        if (health.status == "offline") {
-            state = "SYSTEM OFFLINE";
-            color = "#D95A5A";
-        } else if (health.status == "degraded" || mApiClient->isDegraded()) {
-            state = "SYSTEM DEGRADED";
-            color = "#D9A14A";
-        } else if (health.status == "ok") {
+        // The chip reflects the backend aggregate. DEGRADED/STARTING must show
+        // as such, never collapse to OFFLINE.
+        const HealthDisplay disp = backendHealthDisplay(mLastHealth.data);
+        const QString hex = healthLevelHex(disp.level);
+        color = hex.isEmpty() ? palette().color(QPalette::PlaceholderText).name()
+                              : hex;
+        if (disp.level == HealthLevel::Ok) {
             state = "SYSTEM HEALTHY";
-            color = "#4CAF7A";
-        } else {
-            // Online (some request succeeded) but no health status observed yet.
-            // Never claim HEALTHY for a status we have not received.
+        } else if (disp.level == HealthLevel::Unknown) {
+            // Online (aggregate reached) but no recognised state yet. Never
+            // claim HEALTHY for a status we have not received.
             state = QStringLiteral("SYSTEM \u2014");
-            color = palette().color(QPalette::PlaceholderText).name();
+        } else {
+            state = "SYSTEM " + disp.text;
         }
     }
 
@@ -707,7 +714,9 @@ void MainWindow::updateBottomBarStatus() {
     mFreshnessStatus->setText(QStringLiteral("\u25CF Persistence: ") + em);
     mFreshnessStatus->setStyleSheet(styleFor(grey));
 
-    if (!mApiClient->isOnline()) {
+    if (!mHasHealth) {
+        // No health payload observed: the backend is unreachable (or not yet
+        // polled), so nothing has been reported to render.
         mBackendStatus->setText(QStringLiteral("\u25CF Runtime: OFFLINE"));
         mBackendStatus->setStyleSheet(styleFor(red));
         mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OFFLINE"));
@@ -718,48 +727,34 @@ void MainWindow::updateBottomBarStatus() {
         return;
     }
 
-    const HealthData health = mApiClient->currentHealth().data;
+    const HealthData health = mLastHealth.data;
 
-    // ● Runtime — backend aggregate status
-    if (health.status == "ok") {
-        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: ONLINE"));
-        mBackendStatus->setStyleSheet(styleFor(green));
-    } else if (health.status == "degraded") {
-        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: DEGRADED"));
-        mBackendStatus->setStyleSheet(styleFor(amber));
-    } else {
-        mBackendStatus->setText(QStringLiteral("\u25CF Runtime: OFFLINE"));
-        mBackendStatus->setStyleSheet(styleFor(red));
-    }
+    auto levelColor = [&](HealthLevel level) -> QString {
+        switch (level) {
+            case HealthLevel::Ok:    return green;
+            case HealthLevel::Warn:  return amber;
+            case HealthLevel::Error: return red;
+            case HealthLevel::Unknown: break;
+        }
+        return grey;
+    };
 
-    // ● Streams — bridge status
-    if (health.bridge == "ok") {
-        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OK"));
-        mBridgeStatus->setStyleSheet(styleFor(green));
-    } else if (health.bridge == "stale") {
-        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: STALE"));
-        mBridgeStatus->setStyleSheet(styleFor(amber));
-    } else {
-        mBridgeStatus->setText(QStringLiteral("\u25CF Streams: OFFLINE"));
-        mBridgeStatus->setStyleSheet(styleFor(red));
-    }
+    // ● Runtime — backend aggregate status. DEGRADED stays DEGRADED.
+    const HealthDisplay backend = backendHealthDisplay(health);
+    mBackendStatus->setText(QStringLiteral("\u25CF Runtime: ") + backend.text);
+    mBackendStatus->setStyleSheet(styleFor(levelColor(backend.level)));
 
-    // Right side: System Health
-    QString healthState;
-    QString healthColor;
-    if (health.status == "ok") {
-        healthState = "OK";
-        healthColor = green;
-    } else if (health.status == "degraded") {
-        healthState = "DEGRADED";
-        healthColor = amber;
-    } else {
-        healthState = "OFFLINE";
-        healthColor = red;
-    }
-    mDisclaimer->setText("System Health: " + healthState);
+    // ● Streams — bridge process state (online/…/offline). A stale bridge is a
+    // warning, not an outage.
+    const HealthDisplay bridge = bridgeHealthDisplay(health);
+    mBridgeStatus->setText(QStringLiteral("\u25CF Streams: ") + bridge.text);
+    mBridgeStatus->setStyleSheet(styleFor(levelColor(bridge.level)));
+
+    // Right side: System Health mirrors the backend aggregate.
+    mDisclaimer->setText("System Health: " + backend.text);
     mDisclaimer->setStyleSheet(
-        QString("QLabel { color: %1; font-size: 11px; }").arg(healthColor));
+        QString("QLabel { color: %1; font-size: 11px; }")
+            .arg(levelColor(backend.level)));
 }
 
 void MainWindow::updateClock() {

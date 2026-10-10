@@ -283,36 +283,27 @@ void HealthPage::updateSystemStatus(const HealthResponse& resp) {
         mStatusDots[row]->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(color));
     };
 
-    // Backend status. An unrecognised/absent status is not "ONLINE": show the
-    // unavailable marker rather than a fabricated green, per the honesty rule.
-    if (resp.data.status == "offline") {
-        setLabel(0, "OFFLINE", red);
-        setDot(0, red);
-    } else if (resp.data.status == "degraded") {
-        setLabel(0, "DEGRADED", amber);
-        setDot(0, amber);
-    } else if (resp.data.status == "ok") {
-        setLabel(0, "ONLINE", green);
-        setDot(0, green);
-    } else {
-        setLabel(0, "\u2014", tertiary);
-        setDot(0, tertiary);
-    }
+    auto levelColor = [&](HealthLevel level) -> QString {
+        switch (level) {
+            case HealthLevel::Ok:    return green;
+            case HealthLevel::Warn:  return amber;
+            case HealthLevel::Error: return red;
+            case HealthLevel::Unknown: break;
+        }
+        return tertiary;
+    };
+
+    // Backend status — the aggregate. DEGRADED/STARTING are distinct from
+    // OFFLINE; an unrecognised/absent status shows the unavailable marker
+    // rather than a fabricated green, per the honesty rule.
+    const HealthDisplay backend = backendHealthDisplay(resp.data);
+    setLabel(0, backend.text, levelColor(backend.level));
+    setDot(0, levelColor(backend.level));
 
     // Bridge status — same rule: unknown is unavailable, never green "OK".
-    if (resp.data.bridge == "offline") {
-        setLabel(1, "OFFLINE", red);
-        setDot(1, red);
-    } else if (resp.data.bridge == "stale" || resp.data.bridge == "degraded") {
-        setLabel(1, "STALE", amber);
-        setDot(1, amber);
-    } else if (resp.data.bridge == "ok") {
-        setLabel(1, "OK", green);
-        setDot(1, green);
-    } else {
-        setLabel(1, "\u2014", tertiary);
-        setDot(1, tertiary);
-    }
+    const HealthDisplay bridge = bridgeHealthDisplay(resp.data);
+    setLabel(1, bridge.text, levelColor(bridge.level));
+    setDot(1, levelColor(bridge.level));
 
     // Uptime (row 4)
     if (resp.data.uptimeSec.has_value()) {

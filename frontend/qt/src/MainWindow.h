@@ -181,6 +181,12 @@ private:
     QTimer mHealthPollTimer;
     ApiClient* mApiClient = nullptr;
 
+    // Last health payload delivered on the wire. The chip and bottom bar render
+    // from this, so they reflect the exact response received (and are testable
+    // without a live network round-trip).
+    HealthResponse mLastHealth;
+    bool mHasHealth = false;
+
     // Settings
     QSettings mSettings;
 
