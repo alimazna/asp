@@ -30,6 +30,7 @@ import json
 import sys
 import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
@@ -191,6 +192,21 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
         pass
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """Capture the traceback for any handler-level failure.
+
+        socketserver's default prints only "Exception occurred during processing
+        of request ..." with no cause, which made field failures undiagnosable.
+        A client that hung up (pure connection reset/abort) is not a bridge
+        fault, so it is silenced; any other failure is logged with its
+        traceback.
+        """
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionResetError, BrokenPipeError,
+                            ConnectionAbortedError)):
+            return
+        traceback.print_exc()
+
     # -- helpers ------------------------------------------------------------
 
     def _state(self) -> BridgeState:
@@ -198,11 +214,18 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, body: Dict[str, Any], http_status: int = 200) -> None:
         payload = json.dumps(body).encode("utf-8")
-        self.send_response(http_status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.send_response(http_status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # The client hung up mid-response (it may only have wanted the
+            # headers, or the socket was closed underneath us). There is nobody
+            # left to answer, and letting this propagate would surface to
+            # socketserver as a per-request "Exception occurred" with no trace.
+            pass
 
     def _check_versions(self) -> Optional[Dict[str, Any]]:
         """Reject protocol/schema mismatches. Returns an error envelope if bad."""
@@ -255,9 +278,22 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         try:
             self._route()
-        except Exception as exc:  # never leak a stack trace to the client
-            self._error(ErrorInfo(code=ERR_INTERNAL, message=str(exc),
-                                  recovery="retry or restart the bridge"), 500)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # The peer closed the connection mid-response; nothing left to send.
+            pass
+        except Exception:  # never leak a stack trace to the client
+            # Log the real traceback to stderr. Previously this printed nothing,
+            # so a per-request failure was invisible ("Exception occurred ..."
+            # from socketserver with no cause), which made this bridge
+            # undiagnosable in the field.
+            traceback.print_exc()
+            try:
+                self._error(ErrorInfo(code=ERR_INTERNAL, message="internal error",
+                                      recovery="retry or restart the bridge"), 500)
+            except Exception:
+                # Writing the error response itself failed (dead socket); the
+                # traceback above is the diagnostic of record.
+                pass
 
     def _route(self) -> None:
         parsed = urlparse(self.path)
