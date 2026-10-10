@@ -95,6 +95,12 @@ class BridgeState:
         # threaded. Only successful, non-stale reads are cached.
         self._candle_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any]]] = {}
         self._candle_cache_lock = threading.Lock()
+        # Serializes MT5 reads. The server is threaded and the MetaTrader5
+        # Python API is not thread-safe, so concurrent data requests must not
+        # call into the terminal at the same time. Held across the read *and*
+        # the cache check, so an identical concurrent burst coalesces onto a
+        # single terminal read instead of thundering the terminal.
+        self._read_lock = threading.Lock()
 
     def bootstrap(self) -> None:
         """Attempt MT5 init + symbol resolution. Failure is recorded, not fatal."""
@@ -450,60 +456,65 @@ class BridgeHandler(BaseHTTPRequestHandler):
                                   message=f"limit out of range (1..{_CHART_MAX_LIMIT})"), 400)
             return
 
-        cached = state.cache_get(symbol, timeframe, limit)
-        if cached is not None:
-            self._send_json(ok_envelope(cached, generated_at_utc=int(time.time()),
-                                        source=SOURCE_NAME, broker=state.client.broker,
-                                        symbol=symbol, timeframe=timeframe,
-                                        quality=QUALITY_VALID))
-            return
+        # Hold the read lock across the cache check, the terminal read and the
+        # cache store: an identical concurrent burst then coalesces onto one
+        # terminal read (MT5 is not thread-safe), and the second request is
+        # served from the cache the first one just populated.
+        with state._read_lock:
+            cached = state.cache_get(symbol, timeframe, limit)
+            if cached is not None:
+                self._send_json(ok_envelope(cached, generated_at_utc=int(time.time()),
+                                            source=SOURCE_NAME, broker=state.client.broker,
+                                            symbol=symbol, timeframe=timeframe,
+                                            quality=QUALITY_VALID))
+                return
 
-        result = state.client.read_candles(symbol, timeframe, limit, closed_only=True)
-        if not result.ok:
-            state.mark_error(result.message)
-            code = result.error_code
-            message = result.message
-            if not state.mt5_ready and state.bootstrap_error_code:
-                code = state.bootstrap_error_code
-                message = state.bootstrap_error_message
-            # Terminal/symbol unavailability is a dependency outage, not a
-            # client error: report 503 so the frontend can distinguish it.
-            # (The canonical candle route does the same; the chart alias must
-            # not report a terminal outage as a successful 200.)
-            http_status = 503 if code in (ERR_MT5_TERMINAL_UNAVAILABLE,
-                                          ERR_MT5_SYMBOL_UNRESOLVED) else 200
-            self._error(ErrorInfo(code=code, message=message,
-                                  context={"symbol": symbol, "timeframe": timeframe},
-                                  recovery="verify MT5 terminal, symbol, and data availability"),
-                        http_status)
-            return
+            result = state.client.read_candles(symbol, timeframe, limit, closed_only=True)
+            if not result.ok:
+                state.mark_error(result.message)
+                code = result.error_code
+                message = result.message
+                if not state.mt5_ready and state.bootstrap_error_code:
+                    code = state.bootstrap_error_code
+                    message = state.bootstrap_error_message
+                # Terminal/symbol unavailability is a dependency outage, not a
+                # client error: report 503 so the frontend can distinguish it.
+                # (The canonical candle route does the same; the chart alias must
+                # not report a terminal outage as a successful 200.)
+                http_status = 503 if code in (ERR_MT5_TERMINAL_UNAVAILABLE,
+                                              ERR_MT5_SYMBOL_UNRESOLVED) else 200
+                self._error(ErrorInfo(code=code, message=message,
+                                      context={"symbol": symbol, "timeframe": timeframe},
+                                      recovery="verify MT5 terminal, symbol, and data availability"),
+                            http_status)
+                return
 
-        # Staleness is surfaced as an explicit error, never a silent VALID.
-        freshness = result.data.get("freshness", "UNKNOWN")
-        if freshness == "STALE":
-            state.mark_error("stale market data")
-            self._error(ErrorInfo(
-                code=ERR_MARKET_DATA_STALE,
-                state=QUALITY_UNKNOWN,
-                message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
-                context={"symbol": symbol, "timeframe": timeframe,
-                         "newest_closed_time": result.data.get("newest_closed_time"),
-                         "age_seconds": result.data.get("age_seconds")},
-                recovery="verify the MT5 terminal feed is live and the market is open"))
-            return
+            # Staleness is surfaced as an explicit error, never a silent VALID.
+            freshness = result.data.get("freshness", "UNKNOWN")
+            if freshness == "STALE":
+                state.mark_error("stale market data")
+                self._error(ErrorInfo(
+                    code=ERR_MARKET_DATA_STALE,
+                    state=QUALITY_UNKNOWN,
+                    message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
+                    context={"symbol": symbol, "timeframe": timeframe,
+                             "newest_closed_time": result.data.get("newest_closed_time"),
+                             "age_seconds": result.data.get("age_seconds")},
+                    recovery="verify the MT5 terminal feed is live and the market is open"))
+                return
 
-        bars = result.data.get("candles", [])
-        payload = {
-            "bars": bars,
-            "timeframe": timeframe,
-            "symbol": symbol,
-            "count": len(bars),
-            "closed_only": True,
-            "newest_closed_time": result.data.get("newest_closed_time"),
-            "freshness": freshness,
-        }
-        state.cache_put(symbol, timeframe, limit, payload)
-        state.mark_success()
+            bars = result.data.get("candles", [])
+            payload = {
+                "bars": bars,
+                "timeframe": timeframe,
+                "symbol": symbol,
+                "count": len(bars),
+                "closed_only": True,
+                "newest_closed_time": result.data.get("newest_closed_time"),
+                "freshness": freshness,
+            }
+            state.cache_put(symbol, timeframe, limit, payload)
+            state.mark_success()
         self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
                                     source=SOURCE_NAME, broker=state.client.broker,
                                     symbol=symbol, timeframe=timeframe,

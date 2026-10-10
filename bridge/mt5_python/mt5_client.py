@@ -10,6 +10,7 @@ Causality: candle retrieval always skips the currently forming bar using
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -99,6 +100,11 @@ class Mt5Client:
         self._broker = ""
         self._server = ""
         self._terminal_version: Optional[tuple] = None
+        # The MetaTrader5 Python API is not thread-safe. The bridge server is
+        # threaded, so every terminal call is serialized through one lock to
+        # prevent concurrent requests (chart, canonical candles, tick, symbol)
+        # from corrupting the terminal session.
+        self._mt5_lock = threading.Lock()
 
     # -- availability -------------------------------------------------------
 
@@ -238,7 +244,8 @@ class Mt5Client:
 
         start_pos = 1 if closed_only else 0
         try:
-            rates = _mt5.copy_rates_from_pos(symbol, tf_const, start_pos, count)
+            with self._mt5_lock:
+                rates = _mt5.copy_rates_from_pos(symbol, tf_const, start_pos, count)
         except Exception as exc:
             return ClientResult(ok=False, error_code="MARKET_DATA_MISSING", message=str(exc))
         if rates is None or len(rates) == 0:
@@ -289,7 +296,8 @@ class Mt5Client:
             return ClientResult(ok=False, error_code="MT5_TERMINAL_UNAVAILABLE",
                                 message="MetaTrader5 package unavailable")
         try:
-            tick = _mt5.symbol_info_tick(symbol)
+            with self._mt5_lock:
+                tick = _mt5.symbol_info_tick(symbol)
         except Exception as exc:
             return ClientResult(ok=False, error_code="MARKET_DATA_MISSING", message=str(exc))
         if tick is None:
@@ -310,7 +318,8 @@ class Mt5Client:
             return ClientResult(ok=False, error_code="MT5_TERMINAL_UNAVAILABLE",
                                 message="MetaTrader5 package unavailable")
         try:
-            info = _mt5.symbol_info(symbol)
+            with self._mt5_lock:
+                info = _mt5.symbol_info(symbol)
         except Exception as exc:
             return ClientResult(ok=False, error_code="MT5_SYMBOL_UNRESOLVED", message=str(exc))
         if info is None:

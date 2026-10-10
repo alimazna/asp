@@ -366,12 +366,53 @@ def scenario_dependency_outage_status() -> None:
         s.stop()
 
 
+def scenario_concurrent_coalescing() -> None:
+    # The bridge server is threaded and MT5 is not thread-safe. A burst of
+    # identical concurrent candles requests must be serialized (one lock) and
+    # coalesce onto a single terminal read, not thundering the terminal.
+    print("Scenario: concurrent identical requests coalesce")
+    s = Server(_make_fake_mt5())
+    try:
+        calls = {"n": 0}
+        original = s.state.client.read_candles
+        gate = threading.Lock()
+
+        def slow_counting(*a, **k):
+            with gate:
+                calls["n"] += 1
+            time.sleep(0.05)  # widen the race window
+            return original(*a, **k)
+
+        s.state.client.read_candles = slow_counting
+
+        results = []
+
+        def worker():
+            results.append(s.get("/v1/candles?tf=M15&limit=10"))
+
+        threads = [threading.Thread(target=worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        codes = [code for code, _ in results]
+        check("all concurrent requests 200", codes == [200] * 5, str(codes))
+        # With the read lock held across the cache check, only the first request
+        # reaches MT5; the rest are served from the cache it populated.
+        check("concurrent burst makes one terminal read", calls["n"] == 1,
+              f"reads={calls['n']}")
+    finally:
+        s.stop()
+
+
 def main() -> int:
     print(f"Repo bridge dir: {BRIDGE_DIR}")
     scenario_happy_and_cache()
     scenario_validation()
     scenario_mt5_unavailable()
     scenario_dependency_outage_status()
+    scenario_concurrent_coalescing()
     passed = sum(1 for _, ok, _ in _results if ok)
     total = len(_results)
     print(f"{passed}/{total} checks passed")
