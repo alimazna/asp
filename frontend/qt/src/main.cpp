@@ -11,40 +11,68 @@
 #include <QFileInfo>
 
 #if defined(Q_OS_WIN)
+#include <QDateTime>
+#include <QFile>
+#include <QHostAddress>
 #include <QProcess>
-#include <windows.h>
+#include <QTcpSocket>
+#include <QTextStream>
 
 namespace {
 
-// Start the backend host next to the frontend so a double-clicked ASTRA.exe
-// brings up the whole chain (frontend -> backend :8790 -> bridge :8791).
-// The backend supervises the frozen bridge itself. If a backend is already
-// listening (another instance, or a dev run) the bind fails harmlessly and the
-// existing one serves. Set AURA_NO_BACKEND=1 to suppress (dev/snapshot).
-bool backendAlreadyRunning() {
-    HANDLE mutex = OpenMutexA(SYNCHRONIZE, FALSE, "Global\\AURA_BACKEND_HOST_SINGLETON");
-    if (mutex != nullptr) {
-        CloseHandle(mutex);
-        return true;
-    }
-    return false;
+constexpr quint16 kBackendPort = 8790;
+
+// Append a line to <appDir>/logs/frontend-autostart.log. The desktop app is
+// built WIN32 (no console), so qWarning() output goes nowhere a user can see;
+// a file is the only place a failed auto-start can be diagnosed from.
+void appendAutostartLog(const QString& line) {
+    const QString dir = QDir(QCoreApplication::applicationDirPath()).filePath("logs");
+    QDir().mkpath(dir);
+    QFile f(QDir(dir).filePath("frontend-autostart.log"));
+    if (!f.open(QIODevice::Append | QIODevice::Text))
+        return;
+    QTextStream out(&f);
+    out << "[" << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "] "
+        << line << "\n";
+}
+
+// True when something already answers on the backend's loopback port. This is
+// the real "already running" signal: the previous code opened a mutex that no
+// component ever creates, so the guard never fired and a second backend was
+// always spawned (its bind then fails and the frontend is left with an API
+// server it cannot reach).
+bool backendListening() {
+    QTcpSocket probe;
+    probe.connectToHost(QHostAddress::LocalHost, kBackendPort);
+    return probe.waitForConnected(300);
 }
 
 void startBackendHost() {
-    if (qEnvironmentVariableIsSet("AURA_NO_BACKEND"))
+    if (qEnvironmentVariableIsSet("AURA_NO_BACKEND")) {
+        appendAutostartLog("auto-start suppressed by AURA_NO_BACKEND");
         return;
-    if (backendAlreadyRunning())
+    }
+    if (backendListening()) {
+        appendAutostartLog("backend already listening on 127.0.0.1:8790; not spawning another");
         return;
+    }
     const QString exe = QDir(QCoreApplication::applicationDirPath())
                             .filePath("aura_backend_host.exe");
     if (!QFileInfo::exists(exe)) {
-        qWarning() << "backend host not found next to frontend:" << exe;
+        appendAutostartLog("FAILED: backend host not found next to frontend: " + exe);
         return;
     }
-    // Detached: the backend outlives no frontend state and owns its own
-    // supervised bridge child.
-    if (!QProcess::startDetached(exe, {"--api-port", "8790"}))
-        qWarning() << "failed to start backend host:" << exe;
+    // Detached: the backend owns its own supervised bridge child and must
+    // outlive the frontend window.
+    if (!QProcess::startDetached(exe, {"--api-port", QString::number(kBackendPort)})) {
+        appendAutostartLog("FAILED: QProcess::startDetached returned false for " + exe);
+        return;
+    }
+    // Do not block the GUI thread waiting for the port: the backend starts its
+    // loopback API only after the bridge handshake (up to 15s when the bridge is
+    // unavailable), so a short wait would log a false failure. The spawn result
+    // is recorded here; the health poll surfaces a backend that dies afterwards.
+    appendAutostartLog("spawned backend: " + exe);
 }
 
 }  // namespace

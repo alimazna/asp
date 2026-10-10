@@ -16,6 +16,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -25,6 +26,19 @@ namespace {
 volatile std::sig_atomic_t g_stopRequested = 0;
 
 void handleSignal(int) { g_stopRequested = 1; }
+
+// Durable host log. The backend is normally spawned detached by the frontend,
+// so its stdout is not visible anywhere; without this a startup or bridge-launch
+// failure on an installed machine is unexplainable. Opened once paths resolve.
+std::ofstream g_hostLog;
+
+void logLine(const std::string& text, bool isError = false) {
+    (isError ? std::cerr : std::cout) << text << "\n";
+    if (g_hostLog.is_open()) {
+        g_hostLog << text << "\n";
+        g_hostLog.flush();
+    }
+}
 
 int parseApiPort(int argc, char** argv) {
     for (int i = 1; i + 1 < argc; ++i) {
@@ -84,7 +98,7 @@ int main(int argc, char** argv) {
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
 
-    std::cout << "AURA backend host starting\n";
+    logLine("AURA backend host starting");
 
     aura::AppPaths paths;
     std::string pathError;
@@ -93,7 +107,10 @@ int main(int argc, char** argv) {
         std::cerr << "FATAL: " << pathError << "\n";
         return 2;
     }
-    std::cout << "  app root: " << paths.appRootDir << "\n";
+    // Now that the app root is known, mirror the log to <appRoot>/logs so a
+    // detached launch (no console) is still diagnosable after the fact.
+    g_hostLog.open(paths.logDir + "/backend-host.log", std::ios::app);
+    logLine("  app root: " + paths.appRootDir);
 
     aura::StartupOptions options;
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);
@@ -102,12 +119,12 @@ int main(int argc, char** argv) {
     std::string startupError;
     const bool started = runtime.start(startupError);
     const aura::StartupReport& startup = runtime.startupReport();
-    std::cout << "  startup stage: " << aura::toString(startup.stage) << "\n";
+    logLine(std::string("  startup stage: ") + aura::toString(startup.stage));
     if (!started) {
-        std::cerr << "  startup not ready: " << startupError << "\n";
+        logLine("  startup not ready: " + startupError, true);
         // Continue in DEGRADED mode: the backend stays diagnosable.
     } else {
-        std::cout << "  resolved symbol: " << startup.resolvedSymbol << "\n";
+        logLine("  resolved symbol: " + startup.resolvedSymbol);
     }
 
     const int intervalMillis = parseIntervalMillis(argc, argv);
@@ -128,12 +145,12 @@ int main(int argc, char** argv) {
     aura::ProbabilityApi probability;
     const aura::ProbabilityApi::Audit audit = probability.applyCalibrationAudit(
         parseCalibrationAuditPath(argc, argv, paths.appRootDir));
-    std::cout << "  calibration audit: "
-              << (audit.present ? "present" : "absent")
-              << ", passed=" << (audit.passed ? "yes" : "no")
-              << ", publication_authorised="
-              << (audit.publicationAuthorised ? "yes" : "no") << " ("
-              << audit.reason << ")\n";
+    logLine(std::string("  calibration audit: ")
+            + (audit.present ? "present" : "absent")
+            + ", passed=" + (audit.passed ? "yes" : "no")
+            + ", publication_authorised="
+            + (audit.publicationAuthorised ? "yes" : "no") + " ("
+            + audit.reason + ")");
 
     aura::AnalysisApi analysis;
     aura::BackendFacade facade(aura::FacadeDependencies{
@@ -150,15 +167,15 @@ int main(int argc, char** argv) {
     aura::LoopbackApiServer apiServer(&facade, apiConfig);
     std::string apiError;
     if (apiServer.start(apiError)) {
-        std::cout << "  frontend api: http://" << apiServer.bindAddress() << ":"
-                  << apiServer.port() << "/api/v1\n";
+        logLine("  frontend api: http://" + apiServer.bindAddress() + ":"
+                + std::to_string(apiServer.port()) + "/api/v1");
     } else {
-        std::cerr << "  frontend api unavailable: " << apiError << "\n";
+        logLine("  frontend api unavailable: " + apiError, true);
     }
 
     // Development/ops surface: expose the current state summary once at start.
     const aura::ApiResponse systemState = facade.handle("GET", "/api/v1/system/state");
-    std::cout << "  api system/state: " << systemState.body << "\n";
+    logLine("  api system/state: " + systemState.body);
 
     do {
         aura::RuntimeCycleReport cycle = runtime.tick(aura::Timestamp::now());

@@ -163,8 +163,29 @@ jobs:
             Write-Error "ASTRA exited early with code $($proc.ExitCode)"
             exit 1
           }
+          # Auto-start chain (Bug 3): the frontend must spawn the backend, which
+          # must spawn the bridge, without any manual step.
+          $backendUp = $false
+          $bridgeUp = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/system/state" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2 | Out-Null; $bridgeUp = $true } catch { }
+            if ($backendUp -and $bridgeUp) { break }
+            Start-Sleep -Milliseconds 500
+          }
+          $logPath = "$installDir\logs\frontend-autostart.log"
+          if (Test-Path $logPath) { Get-Content $logPath }
           Stop-Process -Id $proc.Id -Force
-          Write-Host "ASTRA launched and stayed up for 5s"
+          if (-Not $backendUp) {
+            Get-ChildItem "$installDir\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name) ---"; Get-Content $_.FullName }
+            Write-Error "backend did not come up automatically after launching ASTRA"
+            exit 1
+          }
+          if (-Not $bridgeUp) {
+            Write-Error "bridge did not come up automatically behind the backend"
+            exit 1
+          }
+          Write-Host "ASTRA auto-started backend (8790) and bridge (8791)"
           $un = "$installDir\unins000.exe"
           if (Test-Path $un) {
             Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
