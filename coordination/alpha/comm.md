@@ -1384,3 +1384,156 @@ final counts: desktop=1 backend=1 bridge=2
 smoke elapsed: 10.6s
 ```
 
+
+
+## Autostart — Second Attempt (UI false-OFFLINE)
+
+Field symptom: on a real Windows 10 install, `tasklist` shows
+`astra_desktop.exe` running, the backend answers every endpoint
+(`curl 127.0.0.1:8790/api/v1/health` -> `aggregate=DEGRADED`), yet the
+Dashboard shows `SYSTEM HEALTH: OFFLINE` / `DATA STREAMS: OFFLINE` and the
+chart says "Connect to backend". Branch: `fix/ui-recovery`.
+
+### Root cause (from Step 1)
+
+- Q1 — Where the Qt app launches `aura_backend_host.exe`:
+  `frontend/qt/src/main.cpp:85` (`startBackendHost()`), called once from
+  `frontend/qt/src/main.cpp:177`. It spawns with
+  `QProcess::startDetached` at `frontend/qt/src/main.cpp:112` using
+  `QDir(QCoreApplication::applicationDirPath()).filePath("aura_backend_host.exe")`
+  (`frontend/qt/src/main.cpp:99`) — absolute, CWD/PATH-independent.
+- Q2 — Gate on the launch: `g_spawnAttempted` (`main.cpp:83`, checked
+  `main.cpp:86`, set `main.cpp:90`), then `AURA_NO_BACKEND`
+  (`main.cpp:91`), then `backendListening()` (`main.cpp:95` =
+  `QTcpSocket` probe of 8790 with a 300 ms blocking `waitForConnected`,
+  `main.cpp:72`). So it launches only once per process and only when 8790
+  is silent.
+- Q3 — Backend exe path: `applicationDirPath()/aura_backend_host.exe`
+  (`main.cpp:99`). Valid after install: the installer puts both exes in
+  `C:\Program Files\ASTRA` (confirmed by the CI smoke test, which asserts
+  `$installDir\aura_backend_host.exe` exists).
+- Q4 — Bridge exe path: not resolved by the Qt app at all. The frontend
+  never spawns `bridge.exe`; `aura_backend_host.exe` starts it as a
+  supervised child via `ProcessSupervisor::start()`
+  (`src/platform/windows/ProcessSupervisor.cpp:84` `CreateProcessA`) driven
+  by `aura::Runtime::start()` (`src/runtime/AuraRuntime.cpp:185`). The bridge
+  path is resolved by `BundleLocator` (`src/platform/windows/BundleLocator.cpp:37`,
+  `bridgeDir/bridge.exe`). The frontend only observes it as
+  `process_state` over `127.0.0.1:8791` (proxy) — matching the report that
+  the frontend cannot see the bridge.
+- Q5 — The "backend unreachable" / "bridge unreachable" strings are set in
+  `frontend/qt/src/pages/DashboardPage.cpp:636` and `:638` inside
+  `DashboardPage::setOnline(bool)` (`DashboardPage.cpp:632`; online branch
+  `:70`). `setOnline(false)` is driven by `MainWindow::onOffline()`
+  (`frontend/qt/src/MainWindow.cpp:777`), which is connected to
+  `ApiClient::offline()`. The key finding: **the app reached OFFLINE without
+  any real backend outage.** `ApiClient::offline()` was emitted from TWO
+  places, not one: `fetchHealth()`'s error path (`ApiClient.cpp:123-128`,
+  correct) and `fetchAnalysisLatest()`'s error path (`ApiClient.cpp:70-72`
+  before the fix, which set `mIsOnline=false`, emitted `offline()` and called
+  `scheduleRetry()`). A closed market makes `/api/v1/analysis/latest` 503
+  (`dependency_unavailable`) while `/api/v1/health` keeps returning
+  `DEGRADED`, so the analysis failure painted the entire UI OFFLINE —
+  exactly "OFFLINE as if it had tried to reach a backend and failed". This
+  directly contradicted the contract documented at `ApiClient.h:80-83`
+  ("only /health … flips the client offline").
+  No spawn is attempted on the already-running case, which is correct; the
+  false OFFLINE was purely the analysis latch, not a missing spawn.
+- Q6 — Log location: user-writable, correct. `autostartLogDir()`
+  (`main.cpp:44`) uses `QStandardPaths::writableLocation(
+  QStandardPaths::GenericDataLocation)` + `ASTRA/logs` =>
+  `%LOCALAPPDATA%\ASTRA\logs`; `appendBackendReachableLog()`
+  (`MainWindow.cpp:48`) uses the same root. No log is written to Program
+  Files. The reason a user can still see zero files is environmental (a
+  build predating this logging, or a failed non-elevated launch) — not a
+  code path, which is why the Step 3 CI test now asserts the file exists.
+- Q7 — CI smoke test: it DOES reproduce the real flow — silent-installs
+  into `$env:ProgramFiles\ASTRA`, launches the installed
+  `$installDir\astra_desktop.exe` (`.github/workflows/build-windows.yml:197`),
+  asserts exactly one `aura_backend_host.exe` (`:222`) and >=1 `bridge.exe`
+  (`:240`), and curls both health ports (`:228-233`). It is NOT fake. Its
+  blind spot was that it only inspected processes/ports; it could not see the
+  Qt window's own OFFLINE text — which is where the reported bug lived. That
+  is the gap closed below.
+
+### Fix
+
+- `frontend/qt`: `fetchAnalysisLatest()`'s error handler no longer sets
+  `mIsOnline=false` or emits `offline()` (`ApiClient.cpp:69-78`), so
+  `fetchHealth()` is the only liveness trigger, as its comment always
+  promised. `main.cpp` records the spawn wall-clock time
+  (`g_backendSpawnEpochMs`, `main.cpp:109`) and passes it to MainWindow
+  (`main.cpp:194`); the bake-in window and "backend reachable after Ns" are
+  measured from it (`MainWindow.cpp:196-198`, `:734-740`).
+  `onAutostartHealthMiss()` re-arms the 1s poll while inside the window
+  (`MainWindow.cpp:200-206`) instead of relying on a one-shot timer.
+  `onHealthUpdated()` now logs a UI-liveness line on first success/recovery
+  (`MainWindow.cpp:725`) and `onOffline()` logs on a real transition
+  (`MainWindow.cpp:781`) — so CI can see the UI's own judgement.
+- backend host: unchanged (`aura_backend_host.exe` -> `ProcessSupervisor` ->
+  `CreateProcessA` already uses an absolute path). No API-contract change.
+- log location: unchanged (already `%LOCALAPPDATA%\ASTRA\logs`); the fix adds
+  the `ui health ok` / `ui health offline` lines to the same file.
+- Commit: `829976b` (`fix/ui-recovery`).
+
+### CI smoke test
+
+- Old test tested: silent install -> launch installed `astra_desktop.exe` ->
+  count processes and curl ports. It exercised the real flow but never
+  observed the Qt window's liveness, so it stayed green while the window
+  painted OFFLINE.
+- New test tests: the same real flow, PLUS it fails if the auto-start log has
+  no `ui health ok` line, or if the last `ui health (ok|offline)` line is
+  offline while `/health` is reachable — i.e. it now catches the exact
+  false-OFFLINE bug. It also re-installs and re-launches once more, asserting
+  exactly one `aura_backend_host.exe` and >=1 `bridge.exe` (no orphans, no
+  duplicates) and exactly one `spawn ok` line.
+- Commit: `278787d` (`fix/ui-recovery`).
+
+### CI run
+
+- Run id: `38086603369` (workflow_dispatch on `fix/ui-recovery`), job
+  `114314304768` (`build`).
+- Status: **success** (7m47s). 7/7 offscreen tests passed
+  (`astra_health_retry_tests` 12.72s).
+- Attached log excerpt:
+  ```text
+  7/7 Test #7: astra_health_retry_tests .........   Passed   12.72 sec
+  100% tests passed out of 7
+  ASTRA-Setup.exe 39783505
+  t+2s counts: backend=1
+  [2026-10-10T21:17:21Z] ui health ok: aggregate=DEGRADED status=
+  [2026-10-10T21:17:21Z] backend reachable after 4s
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 12.4s
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+  The `ui health ok: aggregate=DEGRADED` line is the UI itself confirming it
+  went live — the marker whose absence would have failed this step.
+
+### New installer
+
+- `ASTRA-Setup.exe` = 39,783,505 bytes (~37.9 MiB); artifact
+  `ASTRA-windows-installer` = 39,283,920 bytes. Portable `ASTRA-windows`
+  artifact = 23,577,953 bytes. Built from commit `278787d`.
+
+### Honesty notes
+
+- The previous CI smoke test was NOT fake: it really launched the installed
+  `astra_desktop.exe` and checked real processes/ports. Its failure mode was
+  narrower — it could not see the Qt window's OFFLINE text, which is where
+  the current field bug actually is.
+- CI still cannot *directly* reproduce the human's screen (a GUI window). It
+  now reproduces the equivalent observable: the frontend-autostart.log
+  records the UI's liveness judgement. If the UI were to paint OFFLINE while
+  `/health` answered, the smoke step now fails on the missing/trailing
+  `ui health` line.
+- The offscreen `astra_health_retry_tests` pins the fix at the code level: with
+  the ApiClient change reverted, 3 assertions fail ("a failing
+  /analysis/latest must not say backend unreachable", "... must not show
+  OFFLINE anywhere", "no failure banner once the backend answers"); with the
+  fix, all pass. In CI the human's real DEGRADED envelope is observed
+  (`aggregate=DEGRADED`, `status=` empty), which is the same
+  health-yes/analysis-no shape.
