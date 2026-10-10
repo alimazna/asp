@@ -1090,3 +1090,139 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - Offscreen health tests: `astra_health_aggregate_tests` all passed (aggregate ONLINE→ONLINE, DEGRADED→DEGRADED not OFFLINE, STARTING/RECOVERING distinct, unknown→UNKNOWN, no-server→OFFLINE; bridge ONLINE→OK, DEGRADED→DEGRADED) plus `astra_health_tests`; full frontend suite 6/6 and backend suite 21/21 green. Live probe against the running backend chain rendered `STARTING`/`OFFLINE` from `/health` (no false offline).
 - Windows CI: run `38073557633` — success (frontend, windeployqt, backend, frozen bridge, installer, installer smoke test all green). Smoke test: baseline backend=0 bridge=0; final spawned backend=1 bridge=2; peak backend=1 bridge=2 — no duplicates.
 - New installer: `ASTRA-Setup.exe` 39,777,100 bytes (~37.9 MiB); portable `ASTRA-windows.zip` artifact uploaded.
+
+## Autostart — Second Attempt — 2026-10-10
+
+### Root cause (from Step 1)
+The previous CI green was real but measured the wrong thing: the Windows
+runner is elevated (`runneradmin` is an admin), so writing under
+`C:\Program Files` happened to succeed there. A normal Start-Menu launch is
+**not** elevated, and that is exactly what the human hit.
+
+- **Q1. Where is `aura_backend_host.exe` supposed to be launched?**
+  `frontend/qt/src/main.cpp:73` `startBackendHost()` → `:92`
+  `QProcess::startDetached(exe, {"--api-port", "8790"})`, called once from
+  `main()` at `main.cpp:156`.
+- **Q2. What condition gates that launch?**
+  `main.cpp:78` `if (backendListening())` — it skips the spawn only when
+  something already answers on 127.0.0.1:8790 (`main.cpp:67`). On a fresh
+  machine nothing answers, so the spawn *is* attempted.
+- **Q3. Exact path for `aura_backend_host.exe`?**
+  `main.cpp:75-76`: `QDir(QCoreApplication::applicationDirPath()).filePath(
+  "aura_backend_host.exe")` → `C:/Program Files/ASTRA/aura_backend_host.exe`
+  after install. The path is valid (CI log confirms the same string), and
+  `QProcess::startDetached` does start the process.
+- **Q4. Exact path for `bridge.exe`?**
+  Not resolved by the frontend. The backend's `BundleLocator::locate()`
+  (`src/platform/windows/BundleLocator.cpp:36-55`) resolves
+  `<appRoot>/resources/bridge/mt5_python/bridge.exe` (the frozen bridge) and
+  `StartupCoordinator` spawns it at `StartupCoordinator.cpp:40-56`. That path
+  is also valid — bridge.exe is what is missing because the backend dies
+  first.
+- **Q5. Where is "backend unreachable" / "bridge unreachable" set?**
+  `frontend/qt/src/pages/DashboardPage.cpp:635-638` (`setOnline(false)`
+  → `"OFFLINE"`, `"backend unreachable"`, `"bridge unreachable"`), driven by
+  `MainWindow::onOffline()` (`MainWindow.cpp`) which fires when the health
+  poll to 8790 fails. Yes — this is shown **without the backend ever having
+  been reached**: the frontend spawns the host detached and immediately polls;
+  it has no idea the host exited.
+- **Q6. Why is no log file written?**
+  The frontend wrote to `QDir(QCoreApplication::applicationDirPath())/logs`
+  (`main.cpp:29`, pre-fix) and the backend to
+  `<appRoot>/logs` (`AuraBackendHost.cpp:137`, pre-fix; `AppPaths.logDir =
+  appRootDir/logs`, `PathResolver.cpp:88`, pre-fix). Both are under
+  `C:\Program Files\ASTRA\logs`, which a **non-elevated** process cannot
+  write. `AuraBackendHost` then failed the single-instance lock at
+  `AuraBackendHost.cpp:163` (`CreateFileA` → `ERROR_ACCESS_DENIED`,
+  `SingleInstance.cpp:34`), logged "another backend host instance is already
+  running" and `return 0` at `:173` — **before** reaching
+  `apiServer.start()` and before spawning the bridge. That is the whole bug:
+  the app never binds 8790, never spawns bridge.exe, and no log survives.
+  (The `ApplicationDirPath/logs` write and the backend's `logs` write both
+  fail; the empty `C:\Program Files\ASTRA\logs` is the installer-created dir.)
+- **Q7. What did the old CI smoke test actually do?**
+  It *did* install silently and launch `C:\Program Files\ASTRA\astra_desktop.exe`
+  (`.github/workflows/build-windows.yml:154,170`), but it never asserted
+  user-visible outcomes beyond process counts/ports, and it ran **elevated**,
+  so the Program-Files write succeeded and the chain came up (CI run
+  `38073557633`: `spawned backend: C:/Program Files/ASTRA/aura_backend_host.exe`).
+  It therefore exercised the flow but under a privilege level the human does
+  not have — the CI was green **and irrelevant** to the non-elevated failure.
+  It is not a fake test; it is an unrepresentative one. Step 3 makes the test
+  assert the real outcomes and adds a regression that breaks the writable root
+  so the non-elevated failure is reproduced and caught.
+
+### Fix
+- `frontend/qt`: the auto-start log now goes to the user-writable
+  `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log`
+  (`QStandardPaths::GenericDataLocation` + `ASTRA/logs`); it writes
+  `attempting to spawn <path> ...` before and `spawn ok` / `FAILED ...`
+  after. A missing/refused spawn is recorded and shown in a new top banner
+  (`MainWindow::setBackendStartFailure`) with the exact path + reason and a
+  pointer to the log; a 12 s guard surfaces the failure if nothing binds.
+- `backend host`: `AuraBackendHost` probes the runtime dir for writability and
+  stages a precise reason at `<appRoot>/backend-startup.failed` when the
+  single-instance lock cannot be created (which the frontend then shows);
+  it clears the marker on a successful start. The host no longer depends on
+  being able to write the install dir.
+- log location: `PathResolver` gained
+  `userRootDir()` (= `%LOCALAPPDATA%\ASTRA` on Windows,
+  `$XDG_DATA_HOME/astra` or `~/.local/share/astra` on POSIX) and resolves
+  `dataDir`/`logDir` (and therefore the backend log + both `.lock` files)
+  under it instead of under `appRootDir`.
+- Installer: no longer creates `{app}\data` / `{app}\logs`; removes
+  `{app}\backend-startup.failed` on uninstall.
+- Commit: `5deca7e`
+
+### CI smoke test
+- Old test was: install + launch the installed `astra_desktop.exe`, then
+  count backend/bridge processes and hit the ports — but on an **elevated**
+  runner, so the Program-Files write assumption held and it could not detect
+  the non-elevated failure.
+- New test does: (6/6) install → launch installed `astra_desktop.exe` →
+  assert exactly 1 `aura_backend_host.exe`, ≥1 `bridge.exe`, 2xx
+  `/api/v1/health` on 8790, `OK`/`ONLINE` `/v1/health` on 8791, and that
+  `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log` exists with a successful
+  spawn line, printing all three logs and failing loudly otherwise; plus a new
+  regression step that replaces `%LOCALAPPDATA%\ASTRA` with a file so the
+  writable root cannot be created, asserts the backend does **not** come up and
+  the failure is staged, then restores it and asserts the chain comes up.
+- Commit: `518ff02`
+
+### CI run
+- Run id: `38077279358` (workflow_dispatch on `fix/autostart-writable-state`)
+- Status: **success** (all steps green, including the two new ones)
+- Attached log excerpt (smoke):
+  ```
+  ---- process state ----
+  astra_desktop.exe             7012 Console  2  90,856 K
+  aura_backend_host.exe         8932 Console  2   6,168 K
+  bridge.exe                    9952 Console  2   8,264 K
+  bridge.exe                    1880 Console  2  40,284 K
+  ---- frontend-autostart.log (C:\Users\runneradmin\AppData\Local\ASTRA\logs\frontend-autostart.log) ----
+  [2026-10-10T18:53:04Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [2026-10-10T18:53:04Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  ---- %LOCALAPPDATA%\ASTRA\logs\backend-host.log ----
+    single-instance lock acquired: C:\Users\runneradmin\AppData\Local\ASTRA\logs/backend-host.lock
+  counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow)
+  ```
+- Attached log excerpt (non-elevated regression):
+  ```
+  backend staged failure marker:
+  cannot write runtime state under C:\Users\runneradmin\AppData\Local\ASTRA\logs (the install directory is read-only for a non-elevated launch): CreateFile failed with code 3
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+- Note on honesty: the runner is elevated, so the non-elevated failure cannot
+  be reproduced by *removing* privileges. The regression step instead forces
+  the exact failed precondition (an unwritable state root) and proves both
+  halves: the app refuses to silently half-start (marker staged) and recovers
+  when the root is writable. On the human's machine the new directory
+  `%LOCALAPPDATA%\ASTRA\logs` is always writable by the interactive user, so
+  the backend's lock now succeeds and the chain comes up.
+
+### New installer
+- `ASTRA-Setup.exe` = 39,775,977 bytes (~37.9 MiB); artifact
+  `ASTRA-windows-installer` = 39,276,504 bytes. Portable
+  `ASTRA-windows` artifact = 23,576,213 bytes.
+- Build from commit `518ff02` (includes the fix and the CI change).
