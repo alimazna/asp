@@ -200,14 +200,16 @@ jobs:
             Write-Error "astra_desktop.exe exited immediately (code $($proc.ExitCode))"; exit 1
           }
 
-          # Fail if the red failure banner / OFFLINE marker was written to the
-          # auto-start log. The retry bug wrote no such line; this guards a
-          # regression that would declare OFFLINE before the retry window expired.
+          # Fail if the frontend declared the backend unreachable *without ever
+          # spawning it*. That is the missing-executable/refused-spawn case where
+          # no backend can ever appear. A backend that IS spawned may legitimately
+          # show the failure banner mid-way through a long cold start (see the 90s
+          # recovery poll below), so that banner alone is not asserted against here.
           function Assert-NoPrematureOffline([string]$label) {
             if (Test-Path $autostartLog) {
               $lines = @(Get-Content $autostartLog)
-              if ($lines -match "no response on 127.0.0.1:8790") {
-                Write-Error "[$label] auto-start log recorded an OFFLINE marker:"
+              if ($lines -match "FAILED: backend host not found") {
+                Write-Error "[$label] auto-start log recorded the backend was never spawned:"
                 $lines | Write-Host; exit 1
               }
             }
@@ -222,27 +224,31 @@ jobs:
           Write-Host "t+2s counts: backend=$b"
           if ($b -ne 1) { Write-Error "t+2s: expected exactly 1 aura_backend_host.exe, found $b"; exit 1 }
 
-          # ---- t+5s: the API must be reachable, bridge ONLINE.
-          $backendUp = $false; $bridgeUp = $false
-          for ($i = 0; $i -lt 40; $i++) {
-            Start-Sleep -Milliseconds 500
+          # ---- Poll every 5s for up to 90s. A cold start (bridge handshake →
+          # MT5) can take 25-40s, so the window is generous. The Qt window may
+          # legitimately show its failure banner mid-way, but it MUST recover and
+          # log "ui health ok: aggregate=DEGRADED". The old test gave up at ~10s
+          # and could not see a window that recovered late.
+          $backendUp = $false; $bridgeUp = $false; $uiUp = $false
+          for ($i = 0; $i -lt 18; $i++) {
+            Start-Sleep -Seconds 5
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
             try {
               $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
               if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp = $true }
             } catch { }
-            if ($backendUp -and $bridgeUp) { break }
+            if (Test-Path $autostartLog) {
+              if (@(Get-Content $autostartLog) -match "ui health ok: aggregate=DEGRADED") { $uiUp = $true }
+            }
+            Write-Host "poll $($i+1): backend=$backendUp bridge=$bridgeUp ui=$uiUp"
+            if ($backendUp -and $bridgeUp -and $uiUp) { break }
           }
-          Assert-NoPrematureOffline "t+5s"
-          if (-Not $backendUp) { Write-Error "t+5s: backend did not answer 2xx on 127.0.0.1:8790"; exit 1 }
-          if (-Not $bridgeUp) { Write-Error "t+5s: bridge did not answer OK/ONLINE on 127.0.0.1:8791"; exit 1 }
+          if (-Not $backendUp) { Write-Error "backend did not answer on 127.0.0.1:8790 within 90s"; exit 1 }
+          if (-Not $bridgeUp) { Write-Error "bridge did not answer OK/ONLINE on 127.0.0.1:8791 within 90s"; exit 1 }
+          if (-Not $uiUp) { Write-Error "the Qt window never logged 'ui health ok: aggregate=DEGRADED' within 90s (stuck OFFLINE)"; exit 1 }
           $g = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
           Write-Host "post-health counts: bridge=$g"
           if ($g -lt 1) { Write-Error "expected at least 1 bridge.exe after the health wait, found $g"; exit 1 }
-
-          # ---- t+10s: the retry must have succeeded and logged it
-          Start-Sleep -Seconds 5
-          Assert-NoPrematureOffline "t+10s"
 
           Write-Host "---- process state ----"
           tasklist | findstr /I "astra_desktop aura_backend_host bridge"
@@ -269,10 +275,19 @@ jobs:
           if (-Not ($logLines -match "spawn ok")) {
             Write-Error "auto-start log has no successful spawn line:"; $logLines | Write-Host; exit 1
           }
-          # Retry-fix evidence: the frontend logged that it reached the backend
-          # after the bake-in rather than declaring OFFLINE.
-          if (-Not ($logLines -match "backend reachable")) {
-            Write-Error "auto-start log has no 'backend reachable' line (retry fix not exercised):"
+          # Retry/recovery evidence: the frontend logged that it reached the
+          # backend rather than declaring OFFLINE. Either the ordinary
+          # "backend reachable after Ns" or the long-cold-start
+          # "ui recovered: backend reachable after Ns (long-start)" satisfies it.
+          if (-Not ($logLines -match "backend reachable after")) {
+            Write-Error "auto-start log has no 'backend reachable after' line (retry/recovery not exercised):"
+            $logLines | Write-Host; exit 1
+          }
+          # If the failure banner was ever shown, a later recovery line MUST follow:
+          # a banner that never clears is the stuck-OFFLINE bug.
+          if (($logLines -match "ui banner: backend not reachable") -and
+              -Not ($logLines -match "ui recovered: backend reachable")) {
+            Write-Error "the failure banner was shown but no late recovery was logged (banner stuck):"
             $logLines | Write-Host; exit 1
           }
           # UI-liveness evidence. The field bug was the Qt window painting
@@ -322,18 +337,21 @@ jobs:
             Write-Error "reinstall did not place astra_desktop.exe"; exit 1
           }
           Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru | Out-Null
-          $backendUp2 = $false; $bridgeUp2 = $false
-          for ($i = 0; $i -lt 40; $i++) {
-            Start-Sleep -Milliseconds 500
+          $backendUp2 = $false; $bridgeUp2 = $false; $uiUp2 = $false
+          for ($i = 0; $i -lt 18; $i++) {
+            Start-Sleep -Seconds 5
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp2 = $true } catch { }
             try {
               $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
               if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp2 = $true }
             } catch { }
-            if ($backendUp2 -and $bridgeUp2) { break }
+            if (Test-Path $autostartLog2) {
+              if (@(Get-Content $autostartLog2) -match "ui health ok: aggregate=DEGRADED") { $uiUp2 = $true }
+            }
+            if ($backendUp2 -and $bridgeUp2 -and $uiUp2) { break }
           }
-          if (-Not $backendUp2 -or -Not $bridgeUp2) {
-            Write-Error "relaunch after reinstall: chain did not come up (backend=$backendUp2 bridge=$bridgeUp2)"; exit 1
+          if (-Not $backendUp2 -or -Not $bridgeUp2 -or -Not $uiUp2) {
+            Write-Error "relaunch after reinstall: chain did not come up cleanly (backend=$backendUp2 bridge=$bridgeUp2 ui=$uiUp2)"; exit 1
           }
           $d2 = @(Get-Process -Name "astra_desktop" -ErrorAction SilentlyContinue).Count
           $b2 = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count

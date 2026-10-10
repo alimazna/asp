@@ -23,9 +23,12 @@ class QSequentialAnimationGroup;
 
 // Total time the frontend waits for a backend it spawned to bind 8790 before
 // declaring the auto-start failed. The backend binds only after the bridge
-// handshake (2-5s), so the window must be generous. Declared before the class
-// because the MainWindow member's default references it.
-static constexpr int kAutostartWindowMs = 20000;
+// handshake, which cold-starts MT5 on first launch and genuinely needs 25-40s on
+// slower hardware; 20s expired before the backend answered and the poll then gave
+// up for good. 60s covers the cold start, and the poll never stops permanently
+// even after this expiry (see onHealthUpdated's recovery path). Declared before
+// the class because the MainWindow member's default references it.
+static constexpr int kAutostartWindowMs = 60000;
 
 class DashboardPage;
 class ChartPage;
@@ -66,7 +69,10 @@ public:
     // True when the auto-start should retry: the frontend spawned a backend this
     // session and is polling for it to come up. Gates the red failure banner so
     // it only appears when the full window expired without any response.
-    void setBackendAutostartInProgress(bool inProgress) { mAutostartInProgress = inProgress; }
+    void setBackendAutostartInProgress(bool inProgress) {
+        mAutostartInProgress = inProgress;
+        if (inProgress) mAutostartSession = true;
+    }
     // Wall-clock time (QDateTime::currentMSecsSinceEpoch) at which the frontend
     // actually spawned the backend. Set by main() immediately after the spawn so
     // the bake-in window and the "reachable after Ns" log measure from the spawn,
@@ -76,10 +82,10 @@ public:
     void setBackendAutostartSpawnedAt(qint64 msecsSinceEpoch) {
         if (msecsSinceEpoch > 0) mAutostartSpawnEpochMs = msecsSinceEpoch;
     }
-    // Test-only: shrink the 20s auto-start window so the failure path can be
-    // exercised without a 20s wall-clock wait.
+    // Test-only: shrink the auto-start window so the failure/recovery path can be
+    // exercised without a 60s wall-clock wait.
     void setAutostartWindowMsForTest(int ms) { mAutostartWindowMs = ms; }
-    // Test-only: drive one health poll without waiting for the 1s/10s timer, so
+    // Test-only: drive one health poll without waiting for the 1s/5s/10s timer, so
     // recovery from a mid-run outage can be asserted deterministically.
     void triggerHealthPollForTest() { if (mApiClient) mApiClient->fetchHealth(); }
     // True when the red auto-start failure banner is currently shown. Exposed for
@@ -225,6 +231,11 @@ private:
     // must not declare the backend dead on the first miss.
     bool mAutostartInProgress = false;
     bool mBackendReachable = false;
+    // True once an auto-start has ever been declared this session (spawn attempt).
+    // Keeps the "reachable after Ns" / long-start recovery logging scoped to the
+    // auto-start path: a plain session (backend started elsewhere) must not log
+    // recovery for every healthy poll.
+    bool mAutostartSession = false;
     int mBackendAttempts = 0;
     int mAutostartWindowMs = kAutostartWindowMs;
     QElapsedTimer mAutostartClock;

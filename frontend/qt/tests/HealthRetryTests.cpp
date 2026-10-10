@@ -226,6 +226,39 @@ int main(int argc, char** argv) {
               "no failure banner once the backend answers");
     }
 
+    // ── Long cold start: the window expires and the banner shows, but the ────
+    // backend binds 8790 later (bridge handshake cold-starts MT5, 25-40s on the
+    // user's hardware). The health poll must keep running after the window and
+    // the banner must clear once the backend finally answers — it must NOT stay
+    // stuck OFFLINE for the rest of the session. The real window is 60s; shrink
+    // it so the post-expiry recovery path is exercised deterministically.
+    {
+        MainWindow win;
+        ApiClient client;
+        win.setAutostartWindowMsForTest(3000);  // window expires at ~3s
+        win.setBackendAutostartInProgress(true);
+        win.setApiClient(&client);  // nothing listening yet
+
+        MockBackend backend;
+        // Bind only at ~6s: after the window already expired and showed the
+        // banner. The 5s post-expiry poll must pick it up.
+        QTimer::singleShot(6000, [&backend]() { backend.startListening(); });
+
+        waitMs(4000);
+        check(win.startupBannerShown(),
+              "long cold start: banner appears once the window expires");
+
+        // Past the 6s bind and comfortably past the next 5s post-expiry poll
+        // (~8s), with margin so a slow CI runner cannot miss the tick.
+        waitMs(7000);
+        check(!win.startupBannerShown(),
+              "long cold start: banner clears once the backend answers late");
+        check(anyLabelContains(&win, "DEGRADED"),
+              "long cold start: UI recovers to DEGRADED (not stuck OFFLINE)");
+        check(!anyLabelContains(&win, "backend unreachable"),
+              "long cold start: dashboard no longer says backend unreachable");
+    }
+
     if (g_failures == 0) {
         std::printf("Health retry tests: all passed\n");
     } else {

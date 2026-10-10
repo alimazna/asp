@@ -138,11 +138,14 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 // Retry the health probe every second while the backend is still coming up.
-// The backend binds 8790 only after the bridge handshake (2-5s), so a single
-// probe right after the spawn always fails; the old code declared OFFLINE on
-// that one miss and never retried. The periodic 10s poll stays running
-// regardless, so this only shortens the initial bake-in.
+// The backend binds 8790 only after the bridge handshake (2-5s, longer when the
+// cold start drags MT5 up), so a single probe right after the spawn always
+// fails; the old code declared OFFLINE on that one miss and never retried.
 static constexpr int kFastHealthPollMs = 1000;
+// After the auto-start window expires the probe keeps running, just slower.
+// It must NEVER stop permanently: a backend that binds after the window (a long
+// cold start) is still picked up, and the banner is cleared by onHealthUpdated.
+static constexpr int kPostExpiryHealthPollMs = 5000;
 
 void MainWindow::setApiClient(ApiClient* client) {
     mApiClient = client;
@@ -172,8 +175,9 @@ void MainWindow::setApiClient(ApiClient* client) {
     client->fetchTimeframes();
     mAnalysisPollTimer.start();
 
-    // While the backend bakes in, probe every second for up to 20s. Only if the
-    // whole window expires with no response does the red banner appear.
+    // While the backend bakes in, probe every second. Only if the whole window
+    // expires with no response does the red banner appear — and even then the
+    // poll keeps running (see onAutostartHealthMiss).
     if (mAutostartInProgress) {
         mBackendReachable = false;
         mBackendAttempts = 0;
@@ -184,13 +188,13 @@ void MainWindow::setApiClient(ApiClient* client) {
 }
 
 // Called for every failed health poll while the auto-start bake-in is active.
-// Stops the fast poll and reports failure only once the full 20s window has
-// elapsed; before that the backend may simply not have bound 8790 yet.
+// Reports failure only once the full window has elapsed; before that the backend
+// may simply not have bound 8790 yet.
 void MainWindow::onAutostartHealthMiss() {
-    // Only the first-contact bake-in is governed here. After the first success
-    // the bake-in ends and the ordinary 10s health poll keeps probing forever, so
-    // a later transient miss re-arms nothing special: onOffline() already reports
-    // it honestly and the next successful poll recovers the UI.
+    // Only the first-contact bake-in is governed here. Once the window expires
+    // mAutostartInProgress clears, but the health poll below is left running, so a
+    // later transient miss re-arms nothing special: onOffline() reports it
+    // honestly and the next successful poll recovers the UI.
     if (!mAutostartInProgress) return;
 
     ++mBackendAttempts;
@@ -210,9 +214,12 @@ void MainWindow::onAutostartHealthMiss() {
         return;
     }
 
-    // Window expired: stop retrying fast and show the failure with the reason
-    // the backend staged (if any) rather than a bare OFFLINE.
-    mHealthPollTimer.setInterval(10000);
+    // Window expired: slow the probe to 5s and show the failure with the reason
+    // the backend staged (if any) rather than a bare OFFLINE. The probe keeps
+    // running forever — a long cold start that binds 8790 after the window is
+    // still recovered by onHealthUpdated, which clears this banner.
+    mHealthPollTimer.setInterval(kPostExpiryHealthPollMs);
+    mHealthPollTimer.start();
     mAutostartInProgress = false;
     if (mStartupBanner && !mStartupBanner->isVisible())
         setBackendStartFailure(QStringLiteral("no response on 127.0.0.1:8790 after %1s")
@@ -236,6 +243,10 @@ void MainWindow::setBackendStartFailure(const QString& reason) {
         QStringLiteral("\u25CF Backend could not be started: ") + detail
         + QStringLiteral("  \u2014  reinstall ASTRA or check the auto-start log at "
                          "%LOCALAPPDATA%\\ASTRA\\logs\\frontend-autostart.log."));
+    // Log the banner so CI (and the user) can tell a stuck banner from a
+    // recovered one: the smoke test fails if this line appears but no later
+    // "ui health ok" / "ui recovered" line follows within its wait.
+    appendFrontendLog(QStringLiteral("ui banner: backend not reachable: ") + detail);
     mStartupBanner->show();
 }
 
@@ -726,23 +737,38 @@ void MainWindow::onHealthUpdated(const HealthResponse& resp) {
         appendFrontendLog(QStringLiteral("ui health ok: aggregate=%1 status=%2")
                               .arg(resp.data.aggregate, resp.data.status));
 
-    // First successful health response after the auto-start: record how long the
-    // backend took and clear the failure banner. This is what distinguishes a
-    // slow bake-in from a real failure.
-    if (mAutostartInProgress) {
+    // First health success of the session clears the auto-start state. This is
+    // deliberately NOT gated on mAutostartInProgress: the window expiry clears
+    // that flag and shows the red banner, but a long cold start can still bind
+    // 8790 afterwards. The poll runs forever, so this is the recovery path that
+    // thereupon hides the banner and flips the UI to DEGRADED/ONLINE. Without it
+    // the banner stayed stuck for the rest of the session even though the backend
+    // was answering.
+    if (!mBackendReachable) {
         mAutostartInProgress = false;
         mBackendReachable = true;
-        mHealthPollTimer.setInterval(10000);
-        if (mStartupBanner) mStartupBanner->hide();
-        // Measure from the actual spawn, not from when the poll started: a
-        // synchronous startup step can delay the poll by tens of seconds, and
-        // "reachable after Ns" must agree with the log's own timestamps.
-        qint64 secs = 0;
-        if (mAutostartSpawnEpochMs > 0)
-            secs = (QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs) / 1000;
-        else if (mAutostartClock.isValid())
-            secs = mAutostartClock.elapsed() / 1000;
-        appendBackendReachableLog(secs);
+        // The probe never stops here: the next miss flips the UI OFFLINE and the
+        // following success recovers it. Only the auto-start path logs recovery.
+        if (mAutostartSession) {
+            mHealthPollTimer.setInterval(10000);  // back to the steady poll
+            if (mStartupBanner) mStartupBanner->hide();
+            // Measure from the actual spawn, not from when the poll started: a
+            // synchronous startup step can delay the poll by tens of seconds, and
+            // "reachable after Ns" must agree with the log's own timestamps.
+            qint64 secs = 0;
+            if (mAutostartSpawnEpochMs > 0)
+                secs = (QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs) / 1000;
+            else if (mAutostartClock.isValid())
+                secs = mAutostartClock.elapsed() / 1000;
+            // A cold start landing after the window expiry is the reported failure;
+            // label it so the log shows recovery, not an initial success.
+            if (secs > mAutostartWindowMs / 1000) {
+                appendFrontendLog(QStringLiteral(
+                    "ui recovered: backend reachable after %1s (long-start)").arg(secs));
+            } else {
+                appendBackendReachableLog(secs);
+            }
+        }
     }
 
     updateLivenessIndicator();
