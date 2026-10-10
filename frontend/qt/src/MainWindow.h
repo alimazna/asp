@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QSettings>
+#include <QElapsedTimer>
 #include <QVector>
 
 class QPushButton;
@@ -19,6 +20,12 @@ class QGraphicsOpacityEffect;
 class QPropertyAnimation;
 class QVariantAnimation;
 class QSequentialAnimationGroup;
+
+// Total time the frontend waits for a backend it spawned to bind 8790 before
+// declaring the auto-start failed. The backend binds only after the bridge
+// handshake (2-5s), so the window must be generous. Declared before the class
+// because the MainWindow member's default references it.
+static constexpr int kAutostartWindowMs = 20000;
 
 class DashboardPage;
 class ChartPage;
@@ -56,6 +63,16 @@ public:
     // refused spawn) as a visible banner with the exact path + reason, instead
     // of the undiagnosable bare "OFFLINE". Windows-only in practice.
     void setBackendStartFailure(const QString& reason);
+    // True when the auto-start should retry: the frontend spawned a backend this
+    // session and is polling for it to come up. Gates the red failure banner so
+    // it only appears when the full window expired without any response.
+    void setBackendAutostartInProgress(bool inProgress) { mAutostartInProgress = inProgress; }
+    // Test-only: shrink the 20s auto-start window so the failure path can be
+    // exercised without a 20s wall-clock wait.
+    void setAutostartWindowMsForTest(int ms) { mAutostartWindowMs = ms; }
+    // True when the red auto-start failure banner is currently shown. Exposed for
+    // the offscreen retry test (the banner is otherwise a private child widget).
+    bool startupBannerShown() const { return mStartupBanner && !mStartupBanner->isHidden(); }
     void showExitConfirmation();
     // Applies the shell's inline styles from the current palette. Call once the
     // window is shown (after setStyleSheet propagation has settled).
@@ -81,6 +98,8 @@ private slots:
     void onExitClicked();
     void onAnalysisUpdated(const AnalysisResponse& resp);
     void onHealthUpdated(const HealthResponse& resp);
+    // Called on each failed health poll during the auto-start bake-in.
+    void onAutostartHealthMiss();
     void onHistoryUpdated(const QVector<AnalysisData>& items);
     void onTimeframesUpdated(const QVector<TimeframeData>& items);
     void onOffline();
@@ -188,6 +207,15 @@ private:
     QTimer mAnalysisPollTimer;
     QTimer mHealthPollTimer;
     ApiClient* mApiClient = nullptr;
+
+    // Auto-start bake-in: while the backend is still coming up (binds 8790 only
+    // after the bridge handshake, 2-5s), the health poll retries every 1s and
+    // must not declare the backend dead on the first miss.
+    bool mAutostartInProgress = false;
+    bool mBackendReachable = false;
+    int mBackendAttempts = 0;
+    int mAutostartWindowMs = kAutostartWindowMs;
+    QElapsedTimer mAutostartClock;
 
     // Last health payload delivered on the wire. The chip and bottom bar render
     // from this, so they reflect the exact response received (and are testable

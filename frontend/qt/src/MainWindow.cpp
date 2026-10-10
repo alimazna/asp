@@ -36,8 +36,28 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QStandardPaths>
+#include <QTextStream>
 
 namespace astra {
+
+// Records the first successful backend contact after auto-start to the SAME
+// user-writable log main.cpp writes the spawn attempt to. Off Windows there is
+// no auto-start, so this is a no-op. Kept here (not in main.cpp) because the
+// reachability is observed by the window's health handler.
+static void appendBackendReachableLog(qint64 elapsedSecs) {
+#if defined(Q_OS_WIN)
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    if (dir.isEmpty()) dir = QDir::homePath() + "/.astra";
+    dir = QDir(dir).filePath("ASTRA/logs");
+    if (!QDir().mkpath(dir)) return;
+    QFile f(QDir(dir).filePath("frontend-autostart.log"));
+    if (!f.open(QIODevice::Append | QIODevice::Text)) return;
+    QTextStream out(&f);
+    out << "[" << QDateTime::currentDateTimeUtc().toString("yyyy-MM-ddTHH:mm:ssZ")
+        << "] backend reachable after " << elapsedSecs << "s\n";
+#endif
+}
 
 // Collapsible-sidebar durations (ms). All <= 250ms, per the animation rule.
 static constexpr int SIDEBAR_ANIM_MS = 220;   // width transition
@@ -113,6 +133,13 @@ MainWindow::MainWindow(QWidget* parent)
     mHealthPollTimer.start();
 }
 
+// Retry the health probe every second while the backend is still coming up.
+// The backend binds 8790 only after the bridge handshake (2-5s), so a single
+// probe right after the spawn always fails; the old code declared OFFLINE on
+// that one miss and never retried. The periodic 10s poll stays running
+// regardless, so this only shortens the initial bake-in.
+static constexpr int kFastHealthPollMs = 1000;
+
 void MainWindow::setApiClient(ApiClient* client) {
     mApiClient = client;
     connect(client, &ApiClient::analysisReceived, this, &MainWindow::onAnalysisUpdated);
@@ -141,14 +168,32 @@ void MainWindow::setApiClient(ApiClient* client) {
     client->fetchTimeframes();
     mAnalysisPollTimer.start();
 
-    // If nothing answers after the auto-start chain has had time to bind, surface
-    // the failure (including any reason the backend staged next to itself) instead
-    // of leaving the user with a bare "OFFLINE".
-    QTimer::singleShot(12000, this, [this]() {
-        if (!mHasHealth && mStartupBanner && !mStartupBanner->isVisible())
-            setBackendStartFailure(
-                QStringLiteral("no response on 127.0.0.1:8790"));
-    });
+    // While the backend bakes in, probe every second for up to 20s. Only if the
+    // whole window expires with no response does the red banner appear.
+    if (mAutostartInProgress) {
+        mBackendReachable = false;
+        mBackendAttempts = 0;
+        mAutostartClock.start();
+        mHealthPollTimer.setInterval(kFastHealthPollMs);
+        mHealthPollTimer.start();
+    }
+}
+
+// Called for every failed health poll while the auto-start bake-in is active.
+// Stops the fast poll and reports failure only once the full 20s window has
+// elapsed; before that the backend may simply not have bound 8790 yet.
+void MainWindow::onAutostartHealthMiss() {
+    if (!mAutostartInProgress || mBackendReachable) return;
+    ++mBackendAttempts;
+    if (mAutostartClock.elapsed() < mAutostartWindowMs) return;
+
+    // Window expired: stop retrying fast and show the failure with the reason
+    // the backend staged (if any) rather than a bare OFFLINE.
+    mHealthPollTimer.setInterval(10000);
+    mAutostartInProgress = false;
+    if (mStartupBanner && !mStartupBanner->isVisible())
+        setBackendStartFailure(QStringLiteral("no response on 127.0.0.1:8790 after %1s")
+                                   .arg(mAutostartWindowMs / 1000));
 }
 
 void MainWindow::setBackendStartFailure(const QString& reason) {
@@ -647,6 +692,19 @@ void MainWindow::onAnalysisUpdated(const AnalysisResponse& /*resp*/) {
 void MainWindow::onHealthUpdated(const HealthResponse& resp) {
     mLastHealth = resp;
     mHasHealth = true;
+
+    // First successful health response after the auto-start: record how long the
+    // backend took and clear the failure banner. This is what distinguishes a
+    // slow bake-in from a real failure.
+    if (mAutostartInProgress) {
+        mAutostartInProgress = false;
+        mBackendReachable = true;
+        mHealthPollTimer.setInterval(10000);
+        if (mStartupBanner) mStartupBanner->hide();
+        const qint64 secs = (mAutostartClock.isValid() ? mAutostartClock.elapsed() : 0) / 1000;
+        appendBackendReachableLog(secs);
+    }
+
     updateLivenessIndicator();
     updateBottomBarStatus();
 
@@ -686,6 +744,10 @@ void MainWindow::onOffline() {
     if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
         dash->setOnline(false);
     }
+
+    // During the auto-start bake-in this miss may be transient (the backend has
+    // not bound 8790 yet), so it must not end the retry loop or show the banner.
+    onAutostartHealthMiss();
 }
 
 void MainWindow::onOnline() {
