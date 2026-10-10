@@ -24,6 +24,7 @@ public:
 
     void setApiClient(ApiClient* client);
     void updateFromHealth(const HealthResponse& resp);
+    void updateFromTimeframes(const QVector<TimeframeData>& items);
 
 protected:
     void changeEvent(QEvent* event) override;
@@ -47,10 +48,16 @@ private:
     // System status labels (pair: icon+dot + value)
     QVector<QLabel*> mStatusLabels;
     QVector<QLabel*> mStatusDots;
+
+    // Timeframe tiles, canonical order M1..MN1: the status row is a single label
+    // (colored dot glyph + status text) flipped per tile by updateFromTimeframes.
     QVector<QLabel*> mTfStatusLabels;
 
     HealthResponse mLastResp;
     bool mHasResp = false;
+
+    QVector<TimeframeData> mLastTfs;
+    bool mHasTf = false;
 
     ApiClient* mApiClient = nullptr;
 };

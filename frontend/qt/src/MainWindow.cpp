@@ -115,6 +115,7 @@ void MainWindow::setApiClient(ApiClient* client) {
     connect(client, &ApiClient::analysisReceived, this, &MainWindow::onAnalysisUpdated);
     connect(client, &ApiClient::healthReceived, this, &MainWindow::onHealthUpdated);
     connect(client, &ApiClient::historyReceived, this, &MainWindow::onHistoryUpdated);
+    connect(client, &ApiClient::timeframesReceived, this, &MainWindow::onTimeframesUpdated);
     connect(client, &ApiClient::offline, this, &MainWindow::onOffline);
     connect(client, &ApiClient::online, this, &MainWindow::onOnline);
 
@@ -134,6 +135,7 @@ void MainWindow::setApiClient(ApiClient* client) {
     client->fetchAnalysisLatest();
     client->fetchHealth();
     client->fetchAnalysisHistory(20);
+    client->fetchTimeframes();
     mAnalysisPollTimer.start();
 }
 
@@ -515,6 +517,7 @@ void MainWindow::onNavClicked(int navIndex) {
         if (mApiClient) {
             mApiClient->fetchAnalysisLatest();
             mApiClient->fetchAnalysisHistory(20);
+            mApiClient->fetchTimeframes();
         }
         mAnalysisPollTimer.start();
     } else {
@@ -524,12 +527,19 @@ void MainWindow::onNavClicked(int navIndex) {
     if (mCurrentPage == History && mApiClient) {
         mApiClient->fetchAnalysisHistory(50);
     }
+
+    // The Health page's TIMEFRAMES grid is fed from /timeframes, independent of
+    // the dashboard poll, so refresh it whenever the page becomes visible.
+    if (mCurrentPage == Health && mApiClient) {
+        mApiClient->fetchTimeframes();
+    }
 }
 
 void MainWindow::onRefreshClicked() {
     if (mApiClient) {
         mApiClient->fetchAnalysisLatest();
         mApiClient->fetchHealth();
+        mApiClient->fetchTimeframes();
         if (mCurrentPage == History) {
             mApiClient->fetchAnalysisHistory(50);
         } else {
@@ -606,6 +616,15 @@ void MainWindow::onHistoryUpdated(const QVector<AnalysisData>& items) {
     }
     if (auto* hist = qobject_cast<HistoryPage*>(mPages[History])) {
         hist->updateFromHistory(items);
+    }
+}
+
+void MainWindow::onTimeframesUpdated(const QVector<TimeframeData>& items) {
+    if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
+        dash->updateFromTimeframes(items);
+    }
+    if (auto* hp = qobject_cast<HealthPage*>(mPages[Health])) {
+        hp->updateFromTimeframes(items);
     }
 }
 

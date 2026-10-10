@@ -1,7 +1,10 @@
 #include "HealthPage.h"
+#include <QHash>
 #include <QFrame>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QSizePolicy>
 #include <QFont>
 #include <QColor>
 #include <QPalette>
@@ -73,6 +76,12 @@ void HealthPage::restyle() {
         for (QLabel* d : mStatusDots) {
             if (d) d->setStyleSheet(QString("QLabel { background: %1; border-radius: 4px; }").arg(textTertiary));
         }
+    }
+    // Timeframe tiles are driven by /api/v1/timeframes; re-run the last update so
+    // a theme switch repaints them against the new palette.
+    if (mHasTf) {
+        updateFromTimeframes(mLastTfs);
+    } else {
         for (QLabel* l : mTfStatusLabels) {
             if (l) l->setStyleSheet(QString("QLabel { color: %1; font-size: 12px; }").arg(textTertiary));
         }
@@ -162,21 +171,27 @@ void HealthPage::setupLayout() {
     const char* tfs[] = {"M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"};
     for (int i = 0; i < 9; ++i) {
         QFrame* item = new QFrame(mTimeframesCard);
-        item->setFixedSize(100, 56);
+        // The tile style adds 16px padding on each side, so the frame must be
+        // large enough to leave room for the labels — a fixed 100x56 frame
+        // collapsed the content rect and the tiles rendered empty.
+        item->setMinimumSize(140, 72);
+        item->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         item->setProperty("astraCard", true);
 
-        QVBoxLayout* itemLayout = new QVBoxLayout(item);
+        // Name on the left, status dot + text on the right.
+        QHBoxLayout* itemLayout = new QHBoxLayout(item);
         itemLayout->setContentsMargins(0, 0, 0, 0);
-        itemLayout->setSpacing(4);
+        itemLayout->setSpacing(8);
 
         QLabel* tfLabel = new QLabel(item);
         tfLabel->setText(tfs[i]);
-        tfLabel->setAlignment(Qt::AlignLeft);
+        tfLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         itemLayout->addWidget(tfLabel);
+        itemLayout->addStretch();
 
         QLabel* statusLabel = new QLabel(item);
         statusLabel->setText("\u25CF \u2014");
-        statusLabel->setAlignment(Qt::AlignRight);
+        statusLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         itemLayout->addWidget(statusLabel);
 
         mTimeframeGrid->addWidget(item, i / 3, i % 3);
@@ -194,16 +209,61 @@ void HealthPage::updateFromHealth(const HealthResponse& resp) {
     mLastResp = resp;
     mHasResp = true;
     updateSystemStatus(resp);
+    // The TIMEFRAMES grid is fed by /api/v1/timeframes (see updateFromTimeframes),
+    // never by /health/v1 — so this method leaves the tiles untouched.
+}
 
-    // /health/v1 exposes no per-timeframe state, so the grid must render
-    // unavailable rather than a fabricated green "OK" — never show "safe" for
-    // data we do not have. Reuse the page's tertiary (unavailable) colour.
+void HealthPage::updateFromTimeframes(const QVector<TimeframeData>& items) {
+    mLastTfs = items;
+    mHasTf = true;
+
+    QHash<QString, TimeframeData> byTf;
+    for (const TimeframeData& d : items) byTf.insert(d.timeframe, d);
+
+    const QString green = "#4CAF7A";
+    const QString amber = "#D9A14A";
+    const QString red = "#D95A5A";
     const QString tertiary = palette().color(QPalette::PlaceholderText).name();
-    const QString style =
-        QString("QLabel { color: %1; font-size: 12px; }").arg(tertiary);
-    for (QLabel* statusLabel : mTfStatusLabels) {
-        statusLabel->setText("\u25CF \u2014");
-        statusLabel->setStyleSheet(style);
+
+    auto styleFor = [](const QString& color) {
+        return QString("QLabel { color: %1; font-size: 12px; "
+                       "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+            .arg(color);
+    };
+
+    // mTfStatusLabels is built in canonical M1..MN1 order.
+    for (int i = 0; i < mTfStatusLabels.size(); ++i) {
+        QLabel* status = mTfStatusLabels[i];
+        if (!status) continue;
+        const QString tf = mTfItemLabels[i]->text();
+        const auto it = byTf.constFind(tf);
+        QString text;
+        QString color = tertiary;
+        if (it == byTf.constEnd()) {
+            text = "\u25CF MISSING";
+            color = red;
+        } else {
+            const TimeframeData& d = it.value();
+            const bool observed = d.observed.value_or(false);
+            const bool isFresh = d.freshness.has_value() && d.freshness->isFresh;
+            const QString freshState = d.freshness.has_value() ? d.freshness->state
+                                                               : QString();
+            if (!observed) {
+                text = "\u25CF MISSING";
+                color = red;
+            } else if (freshState == "STALE") {
+                text = "\u25CF STALE";
+                color = amber;
+            } else if (d.qualityState == "VALID" && isFresh) {
+                text = "\u25CF OK";
+                color = green;
+            } else {
+                text = "\u25CF \u2014";
+                color = tertiary;
+            }
+        }
+        status->setText(text);
+        status->setStyleSheet(styleFor(color));
     }
 }
 

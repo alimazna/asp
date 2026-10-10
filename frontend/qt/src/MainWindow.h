@@ -78,6 +78,7 @@ private slots:
     void onAnalysisUpdated(const AnalysisResponse& resp);
     void onHealthUpdated(const HealthResponse& resp);
     void onHistoryUpdated(const QVector<AnalysisData>& items);
+    void onTimeframesUpdated(const QVector<TimeframeData>& items);
     void onOffline();
     void onOnline();
 
