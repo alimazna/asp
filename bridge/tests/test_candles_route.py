@@ -338,11 +338,40 @@ def scenario_mt5_unavailable() -> None:
         s.stop()
 
 
+def scenario_dependency_outage_status() -> None:
+    # Terminal/symbol unavailability is a dependency outage. Every route that
+    # reads the terminal must report it as HTTP 503, not a successful 200, so a
+    # caller can tell an outage apart from real data. Regression guard for the
+    # tick and symbol routes (candles already reported 503).
+    print("Scenario: dependency outage uses HTTP 503 across routes")
+    s = Server(_make_fake_mt5(available=True))
+    try:
+        from mt5_client import ClientResult  # local import: injected module
+
+        s.state.client.read_tick = lambda sym: ClientResult(
+            ok=False, error_code="MT5_TERMINAL_UNAVAILABLE",
+            message="MetaTrader5 package unavailable")
+        code, body = s.get("/v1/tick?symbol=XAUUSD")
+        check("tick outage -> 503", code == 503, f"http={code}")
+        check("tick outage code MT5_TERMINAL_UNAVAILABLE",
+              body.get("error", {}).get("code") == "MT5_TERMINAL_UNAVAILABLE")
+
+        s.state.client.symbol_specification = lambda sym: ClientResult(
+            ok=False, error_code="MT5_SYMBOL_UNRESOLVED", message="no symbol")
+        code, body = s.get("/v1/symbol")
+        check("symbol outage -> 503", code == 503, f"http={code}")
+        check("symbol outage code MT5_SYMBOL_UNRESOLVED",
+              body.get("error", {}).get("code") == "MT5_SYMBOL_UNRESOLVED")
+    finally:
+        s.stop()
+
+
 def main() -> int:
     print(f"Repo bridge dir: {BRIDGE_DIR}")
     scenario_happy_and_cache()
     scenario_validation()
     scenario_mt5_unavailable()
+    scenario_dependency_outage_status()
     passed = sum(1 for _, ok, _ in _results if ok)
     total = len(_results)
     print(f"{passed}/{total} checks passed")

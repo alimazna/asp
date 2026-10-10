@@ -303,12 +303,18 @@ class BridgeHandler(BaseHTTPRequestHandler):
         if not state.client.available:
             self._error(ErrorInfo(code=ERR_MT5_TERMINAL_UNAVAILABLE,
                                   message="MetaTrader5 package unavailable",
-                                  recovery="install the bundled Python runtime"))
+                                  recovery="install the bundled Python runtime"), 503)
             return
         result = state.client.symbol_specification(state.resolved_symbol or state.preferred_symbol)
         if not result.ok:
             state.mark_error(result.message)
-            self._error(ErrorInfo(code=result.error_code, message=result.message))
+            # Terminal/symbol unavailability is a dependency outage, not a
+            # client error; report 503 so it matches the candle routes instead
+            # of presenting an outage as a successful 200.
+            http_status = 503 if result.error_code in (ERR_MT5_TERMINAL_UNAVAILABLE,
+                                                       ERR_MT5_SYMBOL_UNRESOLVED) else 200
+            self._error(ErrorInfo(code=result.error_code, message=result.message),
+                        http_status)
             return
         state.mark_success()
         self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
@@ -508,9 +514,20 @@ class BridgeHandler(BaseHTTPRequestHandler):
         result = state.client.read_tick(symbol)
         if not result.ok:
             state.mark_error(result.message)
-            self._error(ErrorInfo(code=result.error_code, message=result.message,
+            code = result.error_code
+            message = result.message
+            if not state.mt5_ready and state.bootstrap_error_code:
+                code = state.bootstrap_error_code
+                message = state.bootstrap_error_message
+            # Terminal/symbol unavailability is a dependency outage, not a
+            # client error; report 503 to match the candle routes rather than
+            # presenting an outage as a successful 200.
+            http_status = 503 if code in (ERR_MT5_TERMINAL_UNAVAILABLE,
+                                          ERR_MT5_SYMBOL_UNRESOLVED) else 200
+            self._error(ErrorInfo(code=code, message=message,
                                   context={"symbol": symbol},
-                                  recovery="verify MT5 terminal connectivity"))
+                                  recovery="verify MT5 terminal connectivity"),
+                        http_status)
             return
         state.mark_success()
         self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
