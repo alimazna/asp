@@ -30,6 +30,11 @@ constexpr quint16 kBackendPort = 8790;
 // passes this to MainWindow so a failed spawn shows the real path + reason.
 QString g_backendStartFailure;
 
+// Wall-clock time the backend was actually spawned (QDateTime::currentMSecsSinceEpoch).
+// Passed to MainWindow so the bake-in window and the "reachable after Ns" log
+// measure from the spawn rather than from whenever the health poll first runs.
+qint64 g_backendSpawnEpochMs = 0;
+
 // User-writable log directory. MUST NOT be under the install dir: the installer
 // places ASTRA in Program Files, so a non-elevated launch cannot create or write
 // <appDir>\logs. QStandardPaths::GenericDataLocation resolves to
@@ -99,9 +104,13 @@ void startBackendHost() {
         return;
     }
     appendAutostartLog("attempting to spawn " + exe + " ...");
+    // Record the spawn instant so the bake-in window and the "reachable after Ns"
+    // log measure from here even if a later startup step delays the health poll.
+    g_backendSpawnEpochMs = QDateTime::currentMSecsSinceEpoch();
     // Detached: the backend owns its own supervised bridge child and must
     // outlive the frontend window.
     if (!QProcess::startDetached(exe, {"--api-port", QString::number(kBackendPort)})) {
+        g_backendSpawnEpochMs = 0;
         g_backendStartFailure = QStringLiteral("QProcess::startDetached failed for ") + exe;
         appendAutostartLog("FAILED: QProcess::startDetached returned false for " + exe);
         return;
@@ -181,8 +190,10 @@ int main(int argc, char* argv[]) {
     // declaring failure. Left false when the executable was missing, where the
     // banner is already showing the reason. MUST be set before setApiClient(),
     // which starts the fast retry poll when this is true.
-    if (g_spawnAttempted && g_backendStartFailure.isEmpty())
+    if (g_spawnAttempted && g_backendStartFailure.isEmpty()) {
+        mainWindow.setBackendAutostartSpawnedAt(g_backendSpawnEpochMs);
         mainWindow.setBackendAutostartInProgress(true);
+    }
 #endif
     mainWindow.setApiClient(&apiClient);
 

@@ -45,7 +45,7 @@ namespace astra {
 // user-writable log main.cpp writes the spawn attempt to. Off Windows there is
 // no auto-start, so this is a no-op. Kept here (not in main.cpp) because the
 // reachability is observed by the window's health handler.
-static void appendBackendReachableLog(qint64 elapsedSecs) {
+static void appendFrontendLog(const QString& line) {
 #if defined(Q_OS_WIN)
     QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (dir.isEmpty()) dir = QDir::homePath() + "/.astra";
@@ -55,8 +55,12 @@ static void appendBackendReachableLog(qint64 elapsedSecs) {
     if (!f.open(QIODevice::Append | QIODevice::Text)) return;
     QTextStream out(&f);
     out << "[" << QDateTime::currentDateTimeUtc().toString("yyyy-MM-ddTHH:mm:ssZ")
-        << "] backend reachable after " << elapsedSecs << "s\n";
+        << "] " << line << "\n";
 #endif
+}
+
+static void appendBackendReachableLog(qint64 elapsedSecs) {
+    appendFrontendLog(QStringLiteral("backend reachable after %1s").arg(elapsedSecs));
 }
 
 // Collapsible-sidebar durations (ms). All <= 250ms, per the animation rule.
@@ -183,9 +187,28 @@ void MainWindow::setApiClient(ApiClient* client) {
 // Stops the fast poll and reports failure only once the full 20s window has
 // elapsed; before that the backend may simply not have bound 8790 yet.
 void MainWindow::onAutostartHealthMiss() {
-    if (!mAutostartInProgress || mBackendReachable) return;
+    // Only the first-contact bake-in is governed here. After the first success
+    // the bake-in ends and the ordinary 10s health poll keeps probing forever, so
+    // a later transient miss re-arms nothing special: onOffline() already reports
+    // it honestly and the next successful poll recovers the UI.
+    if (!mAutostartInProgress) return;
+
     ++mBackendAttempts;
-    if (mAutostartClock.elapsed() < mAutostartWindowMs) return;
+
+    // Measure the bake-in from the actual spawn when known (a synchronous startup
+    // step can delay the first poll); otherwise fall back to the poll clock.
+    qint64 elapsedMs = mAutostartClock.isValid() ? mAutostartClock.elapsed() : 0;
+    if (mAutostartSpawnEpochMs > 0)
+        elapsedMs = QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs;
+
+    if (elapsedMs < mAutostartWindowMs) {
+        // Still within the bake-in: keep probing every second so a backend that
+        // binds 8790 late is still picked up (the bug was giving up on the first
+        // miss and latching OFFLINE forever).
+        mHealthPollTimer.setInterval(kFastHealthPollMs);
+        mHealthPollTimer.start();
+        return;
+    }
 
     // Window expired: stop retrying fast and show the failure with the reason
     // the backend staged (if any) rather than a bare OFFLINE.
@@ -690,8 +713,18 @@ void MainWindow::onAnalysisUpdated(const AnalysisResponse& /*resp*/) {
 }
 
 void MainWindow::onHealthUpdated(const HealthResponse& resp) {
+    const bool wasLive = mHasHealth;
     mLastHealth = resp;
     mHasHealth = true;
+
+    // Log only on the first success or a recovery after an outage (onOffline()
+    // clears mHasHealth). Writing on every 1s/10s poll would grow the file
+    // without bound. CI reads this line to fail the smoke test if the window ever
+    // paints OFFLINE while /health is up — a UI judgement the port/process checks
+    // cannot see.
+    if (!wasLive)
+        appendFrontendLog(QStringLiteral("ui health ok: aggregate=%1 status=%2")
+                              .arg(resp.data.aggregate, resp.data.status));
 
     // First successful health response after the auto-start: record how long the
     // backend took and clear the failure banner. This is what distinguishes a
@@ -701,7 +734,14 @@ void MainWindow::onHealthUpdated(const HealthResponse& resp) {
         mBackendReachable = true;
         mHealthPollTimer.setInterval(10000);
         if (mStartupBanner) mStartupBanner->hide();
-        const qint64 secs = (mAutostartClock.isValid() ? mAutostartClock.elapsed() : 0) / 1000;
+        // Measure from the actual spawn, not from when the poll started: a
+        // synchronous startup step can delay the poll by tens of seconds, and
+        // "reachable after Ns" must agree with the log's own timestamps.
+        qint64 secs = 0;
+        if (mAutostartSpawnEpochMs > 0)
+            secs = (QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs) / 1000;
+        else if (mAutostartClock.isValid())
+            secs = mAutostartClock.elapsed() / 1000;
         appendBackendReachableLog(secs);
     }
 

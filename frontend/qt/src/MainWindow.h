@@ -67,9 +67,21 @@ public:
     // session and is polling for it to come up. Gates the red failure banner so
     // it only appears when the full window expired without any response.
     void setBackendAutostartInProgress(bool inProgress) { mAutostartInProgress = inProgress; }
+    // Wall-clock time (QDateTime::currentMSecsSinceEpoch) at which the frontend
+    // actually spawned the backend. Set by main() immediately after the spawn so
+    // the bake-in window and the "reachable after Ns" log measure from the spawn,
+    // not from the (possibly much later) point where the health poll starts. A
+    // synchronous startup step used to delay that start by tens of seconds, which
+    // both stalled the first probe and made "after Ns" contradict the log clock.
+    void setBackendAutostartSpawnedAt(qint64 msecsSinceEpoch) {
+        if (msecsSinceEpoch > 0) mAutostartSpawnEpochMs = msecsSinceEpoch;
+    }
     // Test-only: shrink the 20s auto-start window so the failure path can be
     // exercised without a 20s wall-clock wait.
     void setAutostartWindowMsForTest(int ms) { mAutostartWindowMs = ms; }
+    // Test-only: drive one health poll without waiting for the 1s/10s timer, so
+    // recovery from a mid-run outage can be asserted deterministically.
+    void triggerHealthPollForTest() { if (mApiClient) mApiClient->fetchHealth(); }
     // True when the red auto-start failure banner is currently shown. Exposed for
     // the offscreen retry test (the banner is otherwise a private child widget).
     bool startupBannerShown() const { return mStartupBanner && !mStartupBanner->isHidden(); }
@@ -216,6 +228,10 @@ private:
     int mBackendAttempts = 0;
     int mAutostartWindowMs = kAutostartWindowMs;
     QElapsedTimer mAutostartClock;
+    // Wall-clock spawn time set by main(); used for the window budget and the
+    // "reachable after Ns" log so they measure from the spawn, not from whenever
+    // the retry poll happened to start.
+    qint64 mAutostartSpawnEpochMs = 0;
 
     // Last health payload delivered on the wire. The chip and bottom bar render
     // from this, so they reflect the exact response received (and are testable

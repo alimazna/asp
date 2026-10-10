@@ -67,10 +67,14 @@ void ApiClient::fetchAnalysisLatest() {
             }
         },
         [this](const QString& msg, const QString& code) {
-            mIsOnline = false;
-            emit offline();
+            // A failed /analysis/latest is NOT a backend outage. The analysis
+            // surface 404s/503s while /health still answers honestly (e.g. a
+            // closed market: the backend is DEGRADED and the analysis route is
+            // unavailable, but the API server is up). Emitting offline() here
+            // painted the whole UI OFFLINE even though /api/v1/health kept
+            // returning DEGRADED — the "UI stuck on OFFLINE while every backend
+            // endpoint answers" bug. fetchHealth() is the ONLY offline trigger.
             emit error(msg, code);
-            scheduleRetry();
         });
 }
 
