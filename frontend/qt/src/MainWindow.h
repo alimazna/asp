@@ -173,6 +173,7 @@ private:
     bool mIsFullscreen = false;
     QTimer mFullscreenHintTimer;
     bool mFullscreenHintVisible = false;
+    QLabel* mFullscreenHintLabel = nullptr;
 
     // Polling
     QTimer mAnalysisPollTimer;

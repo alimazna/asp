@@ -1000,7 +1000,8 @@ void MainWindow::showFullscreenHint() {
     if (mFullscreenHintVisible) return;
     mFullscreenHintVisible = true;
 
-    QLabel* hint = new QLabel(this);
+    mFullscreenHintLabel = new QLabel(this);
+    QLabel* hint = mFullscreenHintLabel;
     hint->setText("Press F11 to exit fullscreen");
     const QPalette pal = qApp->palette();
     hint->setStyleSheet(
@@ -1014,15 +1015,16 @@ void MainWindow::showFullscreenHint() {
     hint->setVisible(true);
 
     mFullscreenHintTimer.start(3000);
-    connect(&mFullscreenHintTimer, &QTimer::timeout, hint, [hint]() {
-        hint->setVisible(false);
-        hint->deleteLater();
-    });
 }
 
 void MainWindow::hideFullscreenHint() {
     mFullscreenHintTimer.stop();
     mFullscreenHintVisible = false;
+    if (mFullscreenHintLabel) {
+        mFullscreenHintLabel->hide();
+        mFullscreenHintLabel->deleteLater();
+        mFullscreenHintLabel = nullptr;
+    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
