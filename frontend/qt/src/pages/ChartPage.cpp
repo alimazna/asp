@@ -287,8 +287,12 @@ void ChartPage::requestCandles() {
 }
 
 void ChartPage::onCandlesReceived(const CandlesResponse& resp) {
-    mAwaitingCandles = false;
+    // A reply for a timeframe the user has already switched away from must not
+    // clear the in-flight flag: that flag belongs to the *current* request, and
+    // clearing it here would make the real reply (or its error) be treated as
+    // not awaited, stranding the Loading overlay until the next poll.
     if (resp.data.timeframe != mCurrentTf) return;  // stale reply for an old tf
+    mAwaitingCandles = false;
 
     if (!resp.data.available || resp.data.bars.isEmpty()) {
         // Honest empty state. Never fabricate a bar.

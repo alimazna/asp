@@ -269,4 +269,27 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_signal_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # ChartPage stale-reply race: a reply for a timeframe the user switched away
+    # from must not clear the current request's in-flight flag (which stranded
+    # the Loading overlay when the current request then failed).
+    add_executable(astra_chart_stale_tests
+        tests/ChartStaleReplyTests.cpp
+        src/pages/ChartPage.cpp
+        src/widgets/CandleChart.cpp
+        src/widgets/TimeframeSwitcher.cpp
+        src/api/ApiClient.cpp
+    )
+    target_include_directories(astra_chart_stale_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_chart_stale_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_chart_stale_tests COMMAND astra_chart_stale_tests)
+    set_tests_properties(astra_chart_stale_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()
