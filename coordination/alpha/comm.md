@@ -926,3 +926,47 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - Install: yes (`ASTRA-Setup.exe`)
 - Chart with live data: yes
 - All pages built: no "Coming soon"
+
+---
+
+## Bug Hunt — 2026-10-10
+
+### Baseline (before fixes)
+- Frontend build: pass (cmake Release)
+- Frontend offscreen tests: 3/3 pass
+- Backend tests (ctest): 20/20 pass
+- Bridge tests (pytest): 4/4 pass
+
+### Bugs found and fixed
+| Category | Bug | File | Fix commit |
+|---|---|---|---|
+| Frontend | ChartPage cleared its in-flight flag for a stale timeframe reply, so the current request's genuine error was dropped and the "Loading candles" overlay was stranded until the next 10s poll | frontend/qt/src/pages/ChartPage.cpp | 43300a1 |
+| Frontend | HistoryPage filter combo (All / Last 50 / Last 20 / Last 10) was connected to nothing — selecting an option did nothing | frontend/qt/src/pages/HistoryPage.cpp/.h | 3916314 |
+| Bridge | MT5 Python API is not thread-safe; concurrent candle reads ran unsynchronised and every burst hit the terminal | bridge/mt5_python/mt5_client.py, bridge_service.py | 8ddcc0e |
+| Frontend | LevelsCard row labels accumulated on every update (re-created without removing old widgets) | frontend/qt/src/widgets/LevelsCard.cpp | 4fc19a2 |
+
+### Bugs found but NOT fixed
+| Bug | Why deferred | Needs |
+|---|---|---|
+| Dead widgets SignalCard and MtfMeter are compiled but never instantiated; they use hardcoded hex colours that would bypass dark/light theming if wired in | No live defect — unreachable from any page; changing them touches the visual surface | Product decision on whether the SCORE/MTF card is meant to appear |
+| ApiClient.cpp includes QJsonArray twice | Cosmetic only; no behavioural effect | Style pass, not a bug hunt |
+
+### Test coverage added
+- frontend/qt/tests/ChartStaleReplyTests.cpp: new target astra_chart_stale_tests — stale M15 reply then genuine M1 error must show the error overlay, not a stranded Loading overlay
+- frontend/qt/tests/HistorySummaryTests.cpp: adds All=25 / Last 20=20 / Last 10=10 checks proving the filter is not inert
+- bridge/tests/test_candles_route.py: concurrent identical bursts coalesce onto a single terminal read
+
+### Final verification
+- Frontend build: pass (all targets linked)
+- Frontend offscreen tests: 5/5 pass (was 3/3)
+- Backend tests (ctest): 20/20 pass
+- Bridge tests (pytest): 4/4 pass
+- E2E: not verified in this environment (no MT5/Windows); covered by the CI installer smoke test
+
+### Constraints honoured
+- No features added
+- No visual changes (filter caps rows already fetched; overlay-state fix only)
+- No live-trading path (allow-list unchanged: notify, request_approval only)
+- SHADOW only
+- Frontend still talks only to 127.0.0.1:8790 (ApiClient base URL unchanged)
+- Honesty rule intact: absent fields still render em-dash / unavailable
