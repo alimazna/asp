@@ -112,7 +112,10 @@ jobs:
               if ($resp.payload.package_available -eq $true) { $ok = $true; break }
             } catch { }
           }
-          if (-Not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          # Kill the whole tree: a PyInstaller one-file exe is a bootloader
+          # parent plus a real child, so Stop-Process on the parent alone leaves
+          # an orphaned bridge.exe that would later look like a duplicate.
+          taskkill /PID $proc.Id /T /F 2>$null | Out-Null
           if (-Not $ok) {
             Write-Error "frozen bridge did not report package_available=true (MetaTrader5 missing from bundle)"
             exit 1
@@ -157,6 +160,13 @@ jobs:
             Write-Error "Install did not place the frozen bridge"
             exit 1
           }
+          # Baseline process counts before the launch, so the duplicate guard
+          # below measures what *this* launch spawned (robust against any stray
+          # process from earlier steps).
+          $baseBackend = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+          $baseBridge  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "baseline: backend=$baseBackend bridge=$baseBridge"
+
           $proc = Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru
           Start-Sleep -Seconds 5
           if ($proc.HasExited) {
@@ -167,28 +177,44 @@ jobs:
           # must spawn the bridge, without any manual step.
           $backendUp = $false
           $bridgeUp = $false
+          # Sample peak process counts while the auto-start chain comes up, so a
+          # transient duplicate that spawns then exits is still caught.
+          $peakBackend = $baseBackend
+          $peakBridge  = $baseBridge
           for ($i = 0; $i -lt 40; $i++) {
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/system/state" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2 | Out-Null; $bridgeUp = $true } catch { }
+            $peakBackend = [Math]::Max($peakBackend, @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count)
+            $peakBridge  = [Math]::Max($peakBridge,  @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count)
             if ($backendUp -and $bridgeUp) { break }
             Start-Sleep -Milliseconds 500
           }
           $logPath = "$installDir\logs\frontend-autostart.log"
           if (Test-Path $logPath) { Get-Content $logPath }
 
-          # Bug 2 regression guard: one launch must spawn exactly one backend
+          # Bug 2 regression guard: this launch must spawn exactly one backend
           # and at most one bridge (PyInstaller one-file = parent + child, so up
-          # to 2 bridge.exe processes).
+          # to 2 bridge.exe processes). Measured as a delta from the baseline.
           $backendCount = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
           $bridgeCount  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
-          Write-Host "backend processes: $backendCount; bridge processes: $bridgeCount"
+          $spawnedBackend = $backendCount - $baseBackend
+          $spawnedBridge  = $bridgeCount - $baseBridge
+          Write-Host "final: backend=$backendCount bridge=$bridgeCount; spawned: backend=$spawnedBackend bridge=$spawnedBridge; peak: backend=$peakBackend bridge=$peakBridge"
           tasklist | findstr /I "aura_backend_host bridge"
-          if ($backendCount -ne 1) {
-            Write-Error "expected exactly 1 aura_backend_host.exe, found $backendCount"
+          if ($spawnedBackend -ne 1) {
+            Write-Error "expected the launch to spawn exactly 1 aura_backend_host.exe, spawned $spawnedBackend"
             exit 1
           }
-          if ($bridgeCount -gt 2) {
-            Write-Error "expected at most 2 bridge.exe (PyInstaller parent+child), found $bridgeCount"
+          if ($spawnedBridge -lt 1 -or $spawnedBridge -gt 2) {
+            Write-Error "expected the launch to spawn 1-2 bridge.exe (PyInstaller parent+child), spawned $spawnedBridge"
+            exit 1
+          }
+          if ($peakBackend -gt ($baseBackend + 1)) {
+            Write-Error "observed duplicate backend processes during startup: peak $peakBackend"
+            exit 1
+          }
+          if ($peakBridge -gt ($baseBridge + 2)) {
+            Write-Error "observed duplicate bridge processes during startup: peak $peakBridge"
             exit 1
           }
 
