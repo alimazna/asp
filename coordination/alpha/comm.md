@@ -1073,3 +1073,20 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - Local offscreen test: `astra_snapshot` against `scripts/mock_api.py` — dashboard chart renders candles, matrix shows all 9 rows (HEALTH=OK / QUALITY=VALID / FRESHNESS=FRESH), signals table shows 6 rows (score 0.512), health page shows the 3×3 tile grid with ● OK. All 5 offscreen ctest suites pass.
 - Windows CI: run `38069208201` — success (frontend, windeployqt, backend, frozen bridge, installer, installer smoke test all green).
 - New installer: `ASTRA-Setup.exe` artifact 39,272,943 bytes (~37.5 MiB); portable artifact 23,571,031 bytes; both uploaded.
+
+## Health Mapping + Autostart Fix — 2026-10-10
+
+### Bug 1: DEGRADED mapped to OFFLINE
+- Root cause: the health poll hit `/api/v1/health/v1` (a self-reported `status`/`bridge` surface that can 503/404) and every renderer collapsed anything that was not `ok`/`ONLINE` to `OFFLINE`. A closed-market backend in the correct `DEGRADED` state, and a bridge reporting `process_state="ONLINE"` with stale data, were both painted "OFFLINE / backend unreachable". The authoritative `/api/v1/health` `data.aggregate` was never read, and the bridge process state was never fetched.
+- Fix: `fetchHealth()` now polls `/api/v1/health` and uses `data.aggregate` as the sole offline trigger; `/health/v1` (version/uptime) and `/bridge/status` (`process_state`) are layered on success and can never flip the client offline. Added pure `backendHealthDisplay`/`bridgeHealthDisplay` mappers (ONLINE→green, DEGRADED/STARTING/RECOVERING→yellow and distinct, OFFLINE/ERROR→red, unknown→gray UNKNOWN; bridge ONLINE→OK) used by the Dashboard cards, liveness chip, bottom bar and HealthPage rows. Capped the QNetworkAccessManager transfer timeout at 3 s so a dead backend flips to OFFLINE promptly instead of hanging. The chart's "Connect to backend" text now only shows when the backend is truly unreachable, not when DEGRADED. The frontend never contacts 8791 directly — the backend proxies.
+- Commit: `4508582`
+
+### Bug 2: duplicate backend/bridge spawn
+- Root cause: the only backend guard was a named mutex no component ever created, so it never fired. The frontend's loopback port probe (8790) cannot close the window before the backend binds its API — the backend binds only after the bridge handshake, up to 15 s — so two quick launches both saw the port closed and each spawned a host; each host then spawned a bridge. A stale/orphaned bridge on 8791 also made the runtime skip its own spawn and leave the surface without data.
+- Fix: added `InstanceLock` (Windows exclusive open / POSIX `flock`, auto-released on process exit). `AuraBackendHost` holds `<appRoot>/logs/backend-host.lock` for its lifetime and exits cleanly if another host is running. `StartupCoordinator` will not spawn a bridge when 8791 already answers and holds `<logs>/bridge.lock` across the bridge lifetime so two backends racing a closed port cannot both spawn. Added `loopbackPortListening()` and `SingleInstanceTests`.
+- Commit: `72ee5e8` (CI guard hardening: `699d028`)
+
+### Verification
+- Offscreen health tests: `astra_health_aggregate_tests` all passed (aggregate ONLINE→ONLINE, DEGRADED→DEGRADED not OFFLINE, STARTING/RECOVERING distinct, unknown→UNKNOWN, no-server→OFFLINE; bridge ONLINE→OK, DEGRADED→DEGRADED) plus `astra_health_tests`; full frontend suite 6/6 and backend suite 21/21 green. Live probe against the running backend chain rendered `STARTING`/`OFFLINE` from `/health` (no false offline).
+- Windows CI: run `38073557633` — success (frontend, windeployqt, backend, frozen bridge, installer, installer smoke test all green). Smoke test: baseline backend=0 bridge=0; final spawned backend=1 bridge=2; peak backend=1 bridge=2 — no duplicates.
+- New installer: `ASTRA-Setup.exe` 39,777,100 bytes (~37.9 MiB); portable `ASTRA-windows.zip` artifact uploaded.
