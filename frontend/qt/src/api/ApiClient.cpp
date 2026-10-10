@@ -537,26 +537,36 @@ void ApiClient::handleReply(QNetworkReply* reply,
         int idx = mPendingReplies.indexOf(reply);
         if (idx >= 0) mPendingReplies.removeAt(idx);
 
-        if (reply->error() != QNetworkReply::NetworkError::NoError) {
-            onError(reply->errorString(), "network_error");
-            reply->deleteLater();
-            return;
-        }
-
-        QByteArray raw = reply->readAll();
+        // Read the body first: a non-2xx reply still carries the structured
+        // {error:true, code, message} envelope, and that code is meaningful
+        // (e.g. dependency_unavailable vs unknown_timeframe). Parse it before
+        // falling back to a generic network_error.
+        const QByteArray raw = reply->readAll();
+        const QNetworkReply::NetworkError netErr = reply->error();
+        const QString netErrString = reply->errorString();
         reply->deleteLater();
 
-        // Check for error body (flat {error:true, code, message})
         QJsonParseError err;
         QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
-        if (err.error == QJsonParseError::NoError) {
+        const bool haveJson = (err.error == QJsonParseError::NoError);
+        if (haveJson) {
             QJsonObject obj = doc.object();
-            if (obj.contains("error") && obj.value("error").toString() == "true") {
+            const QJsonValue errVal = obj.value("error");
+            // Contract requires the string "true"; accept a JSON boolean too so
+            // the structured code survives regardless of the emitter's form.
+            const bool isError = (errVal.toString() == "true") ||
+                                 (errVal.isBool() && errVal.toBool());
+            if (isError) {
                 QString code = obj.value("code").toString("unknown");
                 QString message = obj.value("message").toString("Unknown error");
                 onError(message, code);
                 return;
             }
+        }
+
+        if (netErr != QNetworkReply::NetworkError::NoError) {
+            onError(netErrString, "network_error");
+            return;
         }
 
         onSuccess(raw);
