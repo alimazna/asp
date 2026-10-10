@@ -1360,3 +1360,27 @@ liveness, which is why it missed this.)
   `ASTRA-windows-installer` = 39,283,123 bytes. Portable `ASTRA-windows`
   artifact uploaded. Built from commit `d158037`.
 
+
+## PR #1 Merged to Main — 2026-10-10
+
+- Merge commit: `f62195f4566d563879b7b30e6f2b4ae794abcc0b` (main now at `f62195f`)
+- Merge type: fast-forward (linear history; `origin/main` was an ancestor of the branch)
+- Branch deleted: yes (remote and local `fix/autostart-writable-state` removed)
+- PR #1 state: MERGED (mergedAt 2026-10-10T20:22:08Z)
+- CI run on main: `38083472932` (push, `f62195f`)
+- Status: success (build 7m13s, all steps green)
+- New installer: ASTRA-Setup.exe 39,777,671 bytes (~37.9 MiB; artifact
+  `ASTRA-windows-installer` = 39,277,921 bytes)
+- Portable: ASTRA-windows 23,609,967 bytes (artifact = 23,577,520 bytes)
+- Run URL: https://github.com/alimazna/asp/actions/runs/38083472932
+
+### Key CI log excerpt (main build)
+```
+7/7 Test #7: astra_health_retry_tests .........   Passed    8.19 sec
+ASTRA-Setup.exe 39777671
+t+2s counts: backend=1
+[2026-10-10T20:28:44Z] backend reachable after 0s
+final counts: desktop=1 backend=1 bridge=2
+smoke elapsed: 10.6s
+```
+
