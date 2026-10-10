@@ -1,11 +1,14 @@
 #include "DashboardPage.h"
 #include "api/ApiClient.h"
+#include "widgets/CandleChart.h"
 #include <QApplication>
 #include <QScrollArea>
 #include <QHeaderView>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QEvent>
+#include <QDateTime>
+#include <QHash>
 #include <QButtonGroup>
 #include <QFrame>
 #include <QSpacerItem>
@@ -25,65 +28,6 @@ static const char* kRed      = "#D95A5A";
 static const char* kAmber    = "#D9A14A";
 static const char* kEm       = "\u2014";  // em dash for unknown values
 
-// ──────────────────────────────────────────────────────────────────────────────
-// ChartPlaceholderWidget — subtle line-art background + honest "Coming soon".
-// /api/v1/candles does not exist in the frozen contract, so no price line,
-// no candles, no fabricated data — grid only.
-// No QGraphicsView, no OpenGL: plain QPainter.
-// ──────────────────────────────────────────────────────────────────────────────
-class ChartPlaceholderWidget : public QWidget {
-public:
-    explicit ChartPlaceholderWidget(QWidget* parent = nullptr)
-        : QWidget(parent)
-    {
-        setMinimumHeight(150);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    }
-
-protected:
-    void paintEvent(QPaintEvent*) override {
-        QPainter p(this);
-        const QPalette pal = palette();
-        const QColor cardBg = pal.color(QPalette::Base);
-        const QColor borderColor = pal.color(QPalette::Mid);
-        const QColor textPrimary = pal.color(QPalette::Text);
-        const QColor textMuted = pal.color(QPalette::WindowText);
-
-        p.fillRect(rect(), cardBg);
-
-        // Subtle line-art grid
-        QColor gridColor = borderColor;
-        gridColor.setAlpha(160);
-        QPen grid(gridColor);
-        grid.setWidthF(1.0);
-        p.setPen(grid);
-        for (int x = 0; x < width(); x += 48) p.drawLine(x, 0, x, height());
-        for (int y = 0; y < height(); y += 40) p.drawLine(0, y, width(), y);
-
-        // Card inner border
-        p.setPen(QPen(borderColor, 1));
-        p.setBrush(Qt::NoBrush);
-        p.drawRect(rect().adjusted(0, 0, -1, -1));
-
-        // Centered messages
-        QFont f = font();
-        f.setPixelSize(16);
-        f.setWeight(QFont::DemiBold);
-        p.setFont(f);
-        p.setPen(textPrimary);
-        p.drawText(rect().adjusted(0, 0, 0, -16), Qt::AlignCenter,
-                   QStringLiteral("Coming soon"));
-
-        QFont sf = font();
-        sf.setPixelSize(11);
-        p.setFont(sf);
-        p.setPen(textMuted);
-        p.drawText(rect().adjusted(12, 16, -12, 0), Qt::AlignCenter,
-                   QStringLiteral("Chart data pending \u2014 /api/v1/candles is not "
-                                  "part of the frozen API contract"));
-    }
-};
-
 DashboardPage::DashboardPage(QWidget* parent)
     : QWidget(parent)
 {
@@ -100,10 +44,40 @@ void DashboardPage::changeEvent(QEvent* e) {
 
 void DashboardPage::setApiClient(ApiClient* client) {
     mApiClient = client;
+    if (mApiClient) {
+        // The dashboard chart card reads the same /api/v1/candles series the
+        // Chart page uses; it must not answer with its own placeholder.
+        connect(mApiClient, &ApiClient::candlesReceived, this,
+                [this](const CandlesResponse& resp) {
+                    if (!mChart || resp.data.timeframe != mChartTf) return;
+                    QVector<CandleData> chartData;
+                    chartData.reserve(resp.data.bars.size());
+                    for (const Candle& c : resp.data.bars) {
+                        CandleData cd;
+                        cd.open = c.open;
+                        cd.high = c.high;
+                        cd.low = c.low;
+                        cd.close = c.close;
+                        cd.volume = static_cast<double>(c.tickVolume);
+                        cd.timeLabel = QDateTime::fromSecsSinceEpoch(c.time)
+                                           .toString("MM-dd HH:mm");
+                        chartData.append(cd);
+                    }
+                    mChart->setCandles(chartData);
+                });
+    }
     if (mApiClient && mApiClient->isOnline()) {
         setOnline(true);
         updateFromHealth(mApiClient->currentHealth());
     }
+    // Fetch the current timeframe immediately on attach (mock/API already up).
+    requestChartCandles(mChartTf);
+}
+
+void DashboardPage::requestChartCandles(const QString& tf) {
+    mChartTf = tf;
+    if (mChart) mChart->setCandles({});
+    if (mApiClient) mApiClient->fetchCandles(tf, 500);
 }
 
 // ── small builders ───────────────────────────────────────────────────────────
@@ -399,7 +373,7 @@ void DashboardPage::setupLayout() {
     chartTitle->setProperty("astraStyle", "primaryTitle");
     chartHeader->addWidget(chartTitle);
 
-    // Timeframe tabs (visual only while /api/v1/candles is missing)
+    // Timeframe tabs re-fetch /api/v1/candles with the selected timeframe.
     QButtonGroup* tfGroup = new QButtonGroup(chartCard);
     tfGroup->setExclusive(true);
     const char* tfs[] = {"M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"};
@@ -409,18 +383,22 @@ void DashboardPage::setupLayout() {
         tab->setFixedHeight(24);
         tab->setCursor(Qt::PointingHandCursor);
         tab->setProperty("astraStyle", "tfTab");
-        tab->setToolTip("Chart data pending — /api/v1/candles is not in the frozen API contract.");
         tfGroup->addButton(tab, i);
         chartHeader->addWidget(tab);
+        mChartTfButtons.append(tab);
         if (i == 2) tab->setChecked(true);  // M15 default (matches ChartPage)
-        connect(tab, &QPushButton::toggled, this, [this, tab](bool) {
+        connect(tab, &QPushButton::toggled, this, [this, tab](bool checked) {
             applyTabStyle(tab);
+            if (checked) requestChartCandles(tab->text());
         });
     }
     chartHeader->addStretch();
     chartLay->addLayout(chartHeader);
 
-    chartLay->addWidget(new ChartPlaceholderWidget(chartCard));
+    mChart = new CandleChart(chartCard);
+    mChart->setMinimumHeight(180);
+    mChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    chartLay->addWidget(mChart);
     row2->addWidget(chartCard, 6);
 
     // Signals card — /analysis/history
@@ -492,6 +470,7 @@ void DashboardPage::setupLayout() {
     mMatrix->setRowCount(9);
     const char* rowTfs[] = {"M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"};
     for (int r = 0; r < 9; ++r) {
+        mMatrixRowTfs.append(QString::fromLatin1(rowTfs[r]));
         QTableWidgetItem* tfItem = new QTableWidgetItem(QString::fromLatin1(rowTfs[r]));
         tfItem->setForeground(primaryText());
         QFont mono("JetBrains Mono", 12); mono.setWeight(QFont::DemiBold);
@@ -767,6 +746,105 @@ void DashboardPage::updateFromHistory(const QVector<AnalysisData>& items) {
         mSignalsTable->setItem(i, 3, tierItem);
     }
     mSignalsStack->setCurrentIndex(1);  // table
+}
+
+void DashboardPage::updateFromTimeframes(const QVector<TimeframeData>& items) {
+    if (!mMatrix) return;
+
+    // Index whatever the endpoint returned, then walk the canonical row order so
+    // the 9 rows are always present and in order even if the feed is partial.
+    QHash<QString, TimeframeData> byTf;
+    for (const TimeframeData& d : items) byTf.insert(d.timeframe, d);
+
+    auto cell = [&](int r, int c, const QString& text, const QColor& color) {
+        QTableWidgetItem* item = mMatrix->item(r, c);
+        if (!item) {
+            item = new QTableWidgetItem();
+            QFont mono("JetBrains Mono", 12);
+            item->setFont(mono);
+            mMatrix->setItem(r, c, item);
+        }
+        item->setText(text);
+        item->setForeground(color);
+    };
+
+    for (int r = 0; r < mMatrixRowTfs.size(); ++r) {
+        const QString tf = mMatrixRowTfs[r];
+        const auto it = byTf.constFind(tf);
+        if (it == byTf.constEnd()) {
+            // Not reported at all: every field is unavailable.
+            for (int c = 1; c < 7; ++c) cell(r, c, kEm, mutedText());
+            continue;
+        }
+        const TimeframeData& d = it.value();
+        const bool observed = d.observed.value_or(false);
+        const QString freshState = d.freshness.has_value() ? d.freshness->state
+                                                           : QString();
+        const bool isFresh = d.freshness.has_value() && d.freshness->isFresh;
+
+        // Health — derived overall status; unobserved is never "OK".
+        if (!observed) {
+            cell(r, 1, "MISSING", QColor(kRed));
+        } else if (freshState == "STALE") {
+            cell(r, 1, "STALE", QColor(kAmber));
+        } else if (d.qualityState == "VALID" && isFresh) {
+            cell(r, 1, "OK", QColor(kGreen));
+        } else {
+            cell(r, 1, kEm, mutedText());
+        }
+
+        // Quality — the reported data-quality state.
+        if (d.qualityState.isEmpty()) {
+            cell(r, 2, kEm, mutedText());
+        } else {
+            const QString q = d.qualityState;
+            cell(r, 2, q, (q == "VALID") ? QColor(kGreen)
+                          : (q == "UNKNOWN") ? mutedText()
+                                             : QColor(kAmber));
+        }
+
+        // Sequence — "—" when the backend omits it.
+        cell(r, 3, d.sequence.has_value()
+                       ? QString::number(d.sequence.value())
+                       : QString(kEm),
+             d.sequence.has_value() ? primaryText() : mutedText());
+
+        // Freshness — state + age, "—" when the freshness block is null.
+        QString freshText = kEm;
+        QColor freshColor = mutedText();
+        if (d.freshness.has_value()) {
+            const TimeframeFreshness& f = d.freshness.value();
+            freshText = f.state.isEmpty() ? "UNKNOWN" : f.state;
+            freshColor = f.isFresh ? QColor(kGreen)
+                       : (f.state == "STALE") ? QColor(kAmber)
+                                              : mutedText();
+        }
+        cell(r, 4, freshText, freshColor);
+
+        // Last closed bar — epoch seconds to local time, "—" when absent.
+        if (d.lastClosedBarOpen.has_value()) {
+            cell(r, 5,
+                 QDateTime::fromSecsSinceEpoch(d.lastClosedBarOpen.value())
+                     .toString("MM-dd HH:mm"),
+                 secondaryText());
+        } else {
+            cell(r, 5, kEm, mutedText());
+        }
+
+        // Signal/Setup — first capability impact, "—" when none reported.
+        if (!d.capabilityImpact.isEmpty()) {
+            const TimeframeCapabilityImpact& ci = d.capabilityImpact.first();
+            const QString text = ci.impact.isEmpty() ? QString(kEm) : ci.impact;
+            if (ci.reason.isEmpty()) {
+                cell(r, 6, text, secondaryText());
+            } else {
+                cell(r, 6, text, secondaryText());
+                mMatrix->item(r, 6)->setToolTip(ci.reason);
+            }
+        } else {
+            cell(r, 6, kEm, mutedText());
+        }
+    }
 }
 
 }  // namespace astra

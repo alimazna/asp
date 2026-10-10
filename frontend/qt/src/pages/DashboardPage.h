@@ -18,13 +18,14 @@ class QScrollArea;
 namespace astra {
 
 class ApiClient;
+class CandleChart;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Dashboard — reference layout (4 rows + bottom action bar)
 //   Row 1: SYSTEM HEALTH | DATA STREAMS | SIGNALS | RISK | EXECUTION
-//   Row 2: CHART (60%, /api/v1/candles missing -> "Coming soon")
+//   Row 2: CHART (60%, live /api/v1/candles)
 //          + SIGNALS table (40%, /analysis/history?limit=20)
-//   Row 3: TIMEFRAME MATRIX (60%) + RISK PANEL (40%)
+//   Row 3: TIMEFRAME MATRIX (60%, /api/v1/timeframes) + RISK PANEL (40%)
 //   Row 4: Research | Knowledge | Candidates | Validation |
 //          Approval Center | Schedule
 //   Bar:   [Refresh] enabled, others disabled until the backend ships.
@@ -41,6 +42,7 @@ public:
     void updateFromAnalysis(const AnalysisResponse& resp);
     void updateFromHealth(const HealthResponse& resp);
     void updateFromHistory(const QVector<AnalysisData>& items);
+    void updateFromTimeframes(const QVector<TimeframeData>& items);
     void setOnline(bool online);
 
 protected:
@@ -48,6 +50,7 @@ protected:
 
 private:
     void setupLayout();
+    void requestChartCandles(const QString& tf);
     QFrame* makeCard(QWidget* parent, const QString& title);
     QLabel* makeCardValue(QWidget* parent);
     QLabel* makeCardSub(QWidget* parent);
@@ -85,13 +88,17 @@ private:
     QLabel* mExecutionValue = nullptr;
     QLabel* mExecutionSub = nullptr;
 
-    // Row 2 — chart placeholder + signals table
+    // Row 2 — live chart + signals table
+    CandleChart* mChart = nullptr;
+    QVector<QPushButton*> mChartTfButtons;
+    QString mChartTf = "M15";
     QTableWidget* mSignalsTable = nullptr;
     QStackedWidget* mSignalsStack = nullptr;
     QLabel* mSignalsEmpty = nullptr;
 
     // Row 3 — timeframe matrix + risk panel
     QTableWidget* mMatrix = nullptr;
+    QVector<QString> mMatrixRowTfs;  // canonical row order, keeps "—" placeholders
 
     // Row 4 — quick cards
     QVector<QLabel*> mQuickValues;
