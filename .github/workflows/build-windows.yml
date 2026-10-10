@@ -212,18 +212,18 @@ jobs:
             }
           }
 
-          # ---- t+2s: the auto-start chain must have spawned exactly one backend
+          # ---- t+2s: the frontend must have spawned exactly one backend.
+          # The bridge is spawned by the backend after the MT5 handshake, which
+          # can take longer than 2s, so it is asserted after the health wait.
           Start-Sleep -Seconds 2
           Assert-NoPrematureOffline "t+2s"
           $b = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
-          $g = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
-          Write-Host "t+2s counts: backend=$b bridge=$g"
+          Write-Host "t+2s counts: backend=$b"
           if ($b -ne 1) { Write-Error "t+2s: expected exactly 1 aura_backend_host.exe, found $b"; exit 1 }
-          if ($g -lt 1) { Write-Error "t+2s: expected at least 1 bridge.exe, found $g"; exit 1 }
 
-          # ---- t+5s: the API must be reachable, bridge ONLINE
+          # ---- t+5s: the API must be reachable, bridge ONLINE.
           $backendUp = $false; $bridgeUp = $false
-          for ($i = 0; $i -lt 12; $i++) {
+          for ($i = 0; $i -lt 40; $i++) {
             Start-Sleep -Milliseconds 500
             try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
             try {
@@ -235,6 +235,9 @@ jobs:
           Assert-NoPrematureOffline "t+5s"
           if (-Not $backendUp) { Write-Error "t+5s: backend did not answer 2xx on 127.0.0.1:8790"; exit 1 }
           if (-Not $bridgeUp) { Write-Error "t+5s: bridge did not answer OK/ONLINE on 127.0.0.1:8791"; exit 1 }
+          $g = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "post-health counts: bridge=$g"
+          if ($g -lt 1) { Write-Error "expected at least 1 bridge.exe after the health wait, found $g"; exit 1 }
 
           # ---- t+10s: the retry must have succeeded and logged it
           Start-Sleep -Seconds 5
