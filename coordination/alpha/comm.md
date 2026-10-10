@@ -1046,3 +1046,30 @@ The workflow file and all fix commits are ready. The build logic is sound (Qt 6.
 - SHADOW only; frontend still talks only to 127.0.0.1:8790
 - Fixed the real causes (several differed from the initial hypothesis — see Bug 1 and Bug 3)
 
+
+## Frontend Wiring — 2026-10-10
+
+### Chart page
+- Root cause: the Dashboard chart card was a `ChartPlaceholderWidget` that hard-coded "Coming soon / Chart data pending — /api/v1/candles is not part of the frozen API contract". The real `CandleChart` was never embedded on the Dashboard, and its timeframe tabs were visual-only.
+- Fix: deleted the placeholder widget, embedded `CandleChart` in the chart card, and wired the tabs + page open to `GET /api/v1/candles?tf=<sel>&limit=500` via `ApiClient::fetchCandles`. Stale/closed-market (weekend) bars render normally.
+- Commit: `58ea737`
+
+### Timeframe matrix (Dashboard)
+- Root cause: the 9 canonical rows existed as "—" placeholders but nothing ever called `GET /api/v1/timeframes`; `MainWindow` only polled analysis + health, so every cell stayed at its initial em-dash.
+- Fix: added `ApiClient::fetchTimeframes()` (+ `ApiTypes`), routed `timeframesReceived` through `MainWindow::onTimeframesUpdated`, and added `DashboardPage::updateFromTimeframes()` mapping observed/quality/freshness/sequence/last-closed-bar/capability_impact into the columns for the fixed M1..MN1 order. Absent/null fields render "—", never 0.
+- Commit: `58ea737`
+
+### Signals panel (Dashboard)
+- Root cause: the panel was already pointed at the correct `/api/v1/analysis/history?limit=20`; it only ever showed the empty state when the array was empty, and rows were not observed to populate.
+- Fix: verified the URL (no change needed); confirmed the success path populates the Time / Direction / Score / Tier table (score a number, never a "probability") and keeps the honest empty state.
+- Commit: `58ea737`
+
+### Health page Timeframes section
+- Root cause: the tiles had a fixed 100×56 frame while their stylesheet added `padding: 16px` on every side — the content rect collapsed, so the labels never painted and only empty rectangles were visible.
+- Fix: sized the tiles for their padding (`setMinimumSize(140, 72)` + expanding policy), switched each tile to name-left / status-right, and added `HealthPage::updateFromTimeframes()` deriving ● OK (quality VALID + fresh) / ● STALE (freshness STALE) / ● MISSING (unobserved) / ● "—" otherwise. `MainWindow` refreshes `/timeframes` on the Health page too; theme switch re-runs it against `palette()`.
+- Commit: `d1ed3a3`
+
+### Verification
+- Local offscreen test: `astra_snapshot` against `scripts/mock_api.py` — dashboard chart renders candles, matrix shows all 9 rows (HEALTH=OK / QUALITY=VALID / FRESHNESS=FRESH), signals table shows 6 rows (score 0.512), health page shows the 3×3 tile grid with ● OK. All 5 offscreen ctest suites pass.
+- Windows CI: run `38069208201` — success (frontend, windeployqt, backend, frozen bridge, installer, installer smoke test all green).
+- New installer: `ASTRA-Setup.exe` artifact 39,272,943 bytes (~37.5 MiB); portable artifact 23,571,031 bytes; both uploaded.
