@@ -298,11 +298,15 @@ void CandleChart::drawTimeAxis(QPainter& p) {
     double x = mChartLeft + mGap;
     double stepX = (mChartWidth - 2 * mGap) / qMax(1, numLabels - 1);
 
+    // A single label leaves no inter-label span (numLabels - 1 == 0); guard the
+    // divisor exactly as stepX does above, or short series (< 10 bars) divide by
+    // zero and trap.
+    const int labelDenom = qMax(1, numLabels - 1);
     for (int i = 0; i < numLabels; ++i) {
         int candleIdx = startIdx + (visibleCandles * i / numLabels);
         if (candleIdx >= endIdx) break;
 
-        double px = mChartLeft + mGap + (mChartWidth - 2 * mGap) * i / (numLabels - 1);
+        double px = mChartLeft + mGap + (mChartWidth - 2 * mGap) * i / labelDenom;
         QString timeLabel = mCandles[candleIdx].timeLabel;
         p.drawText(QRectF(px - 30, mChartTop + mChartHeight + mGap / 2,
                           60, mTimeAxisHeight),
