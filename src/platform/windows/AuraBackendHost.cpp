@@ -34,6 +34,29 @@ void handleSignal(int) { g_stopRequested = 1; }
 // failure on an installed machine is unexplainable. Opened once paths resolve.
 std::ofstream g_hostLog;
 
+// A startup failure (e.g. the single-instance lock cannot be created because the
+// install directory is not writable) kills the host before it can bind 8790 for
+// the frontend to query. Stage the reason next to the executable, which the
+// installer (running elevated) can write; the frontend reads and surfaces it.
+// Cleared on a successful start so it never reports a stale failure.
+std::string failureMarkerPath(const std::string& appRootDir) {
+    return appRootDir.empty() ? std::string() : appRootDir + "/backend-startup.failed";
+}
+
+void stageStartupFailure(const std::string& appRootDir, const std::string& reason) {
+    const std::string marker = failureMarkerPath(appRootDir);
+    if (marker.empty()) return;
+    std::ofstream f(marker, std::ios::trunc);
+    if (f.is_open()) f << reason << "\n";
+}
+
+void clearStartupFailure(const std::string& appRootDir) {
+    const std::string marker = failureMarkerPath(appRootDir);
+    if (marker.empty()) return;
+    std::error_code ec;
+    std::filesystem::remove(marker, ec);
+}
+
 void logLine(const std::string& text, bool isError = false) {
     (isError ? std::cerr : std::cout) << text << "\n";
     if (g_hostLog.is_open()) {
@@ -119,15 +142,40 @@ int main(int argc, char** argv) {
     // launches in that window each spawn a host. The lock closes that race.
     std::error_code fsError;
     std::filesystem::create_directories(paths.logDir, fsError);
+    // Probe writability of the runtime dir. The installer targets Program Files,
+    // which a non-elevated launch cannot write; without this the only symptom is a
+    // backend that silently never binds 8790. Record a precise reason next to the
+    // executable (installer-writable) for the frontend to surface.
+    bool runtimeWritable = false;
+    if (!fsError) {
+        const std::string probePath = paths.logDir + "/.write-probe";
+        std::ofstream probe(probePath, std::ios::app);
+        runtimeWritable = probe.is_open();
+        probe.close();
+        if (runtimeWritable) {
+            std::error_code rmError;
+            std::filesystem::remove(probePath, rmError);
+        }
+    }
     aura::InstanceLock backendLock;
     std::string lockError;
     const std::string lockPath = paths.logDir + "/backend-host.lock";
     if (!backendLock.acquire(lockPath, lockError)) {
+        if (!runtimeWritable || fsError) {
+            stageStartupFailure(
+                paths.appRootDir,
+                "cannot write runtime state under " + paths.logDir
+                    + " (the install directory is read-only for a non-elevated "
+                      "launch): " + lockError);
+        }
         logLine("another backend host instance is already running: " + lockError);
         std::cout << "AURA backend host already running; exiting\n";
         return 0;
     }
     logLine("  single-instance lock acquired: " + lockPath);
+    // The lock succeeded: this is the live host. Remove any failure staged by a
+    // previous (failed) launch so the frontend does not report a stale error.
+    clearStartupFailure(paths.appRootDir);
 
     aura::StartupOptions options;
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);

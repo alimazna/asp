@@ -17,8 +17,14 @@ struct AppPaths {
     std::string bridgeScript;     // bridgeDir/bridge_service.py
     std::string pythonRuntimeDir; // resourceDir/python (bundled runtime)
     std::string configDir;        // appRoot/config
-    std::string dataDir;          // appRoot/data
-    std::string logDir;           // appRoot/logs
+    // Per-user writable root. On Windows %LOCALAPPDATA%\ASTRA, on POSIX
+    // $XDG_DATA_HOME/astra (or ~/.local/share/astra). The installer puts the app
+    // under Program Files, which a non-elevated launch cannot write, so every
+    // runtime artifact that must be created (logs, locks, durable state) lives
+    // here instead of under appRootDir.
+    std::string userRootDir;
+    std::string dataDir;          // userRootDir/data
+    std::string logDir;           // userRootDir/logs
 };
 
 class PathResolver {
@@ -31,6 +37,13 @@ public:
 
     // Absolute path of the currently running executable.
     static std::string executablePath();
+
+    // Absolute per-user writable root for runtime artifacts (logs, locks,
+    // durable state). Never under the install dir: the installer targets
+    // Program Files, which a non-elevated launch cannot write.
+    // Windows: %LOCALAPPDATA%\ASTRA. POSIX: $XDG_DATA_HOME/astra or
+    // ~/.local/share/astra.
+    static std::string userRootDir();
 
     // Normalize to an absolute path without touching the CWD.
     static std::string join(const std::string& base, const std::string& relative);

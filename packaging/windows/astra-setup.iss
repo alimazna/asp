@@ -60,8 +60,6 @@ Source: "..\..\packaging\bundle_manifest.json"; DestDir: "{app}"; Flags: ignorev
 
 [Dirs]
 Name: "{app}\config"
-Name: "{app}\data"
-Name: "{app}\logs"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
@@ -72,4 +70,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{app}\logs"
+; Runtime state (logs, locks, durable data) lives per-user under
+; %LOCALAPPDATA%\ASTRA and is not touched by the installer. The startup-failure
+; marker is staged next to the executable, so remove it on uninstall.
+Type: files; Name: "{app}\backend-startup.failed"

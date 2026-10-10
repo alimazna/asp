@@ -2,6 +2,7 @@
 
 #include "platform/windows/PathResolver.h"
 
+#include <cstdlib>
 #include <vector>
 
 #ifdef _WIN32
@@ -71,6 +72,26 @@ std::string PathResolver::executablePath() {
 #endif
 }
 
+std::string PathResolver::userRootDir() {
+    // Program Files is read-only to a normally-launched process, so the writable
+    // runtime root must be a per-user location. The "ASTRA" component matches the
+    // frontend's %LOCALAPPDATA%\ASTRA\logs (see autostartLogDir in main.cpp).
+#ifdef _WIN32
+    const char* local = std::getenv("LOCALAPPDATA");
+    const std::string base =
+        (local != nullptr && *local != '\0') ? std::string(local)
+                                             : std::string(".");
+    return join(base, "ASTRA");
+#else
+    const char* xdg = std::getenv("XDG_DATA_HOME");
+    if (xdg != nullptr && *xdg != '\0') return join(xdg, "astra");
+    const char* home = std::getenv("HOME");
+    const std::string h = (home != nullptr && *home != '\0') ? std::string(home)
+                                                             : std::string(".");
+    return join(join(h, ".local/share"), "astra");
+#endif
+}
+
 bool PathResolver::resolve(AppPaths& out, std::string& error) const {
     const std::string exe = executablePath();
     if (exe.empty()) {
@@ -84,8 +105,9 @@ bool PathResolver::resolve(AppPaths& out, std::string& error) const {
     out.bridgeScript = join(out.bridgeDir, "bridge_service.py");
     out.pythonRuntimeDir = join(out.resourceDir, "python");
     out.configDir = join(out.appRootDir, "config");
-    out.dataDir = join(out.appRootDir, "data");
-    out.logDir = join(out.appRootDir, "logs");
+    out.userRootDir = userRootDir();
+    out.dataDir = join(out.userRootDir, "data");
+    out.logDir = join(out.userRootDir, "logs");
     error.clear();
     return true;
 }

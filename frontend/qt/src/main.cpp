@@ -12,9 +12,11 @@
 
 #if defined(Q_OS_WIN)
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QHostAddress>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QTcpSocket>
 #include <QTextStream>
 
@@ -22,12 +24,33 @@ namespace {
 
 constexpr quint16 kBackendPort = 8790;
 
-// Append a line to <appDir>/logs/frontend-autostart.log. The desktop app is
+// Outcome of the auto-start attempt, surfaced to the UI. An installed ASTRA
+// lives in C:\Program Files\ASTRA, which a normally-launched (non-elevated)
+// process cannot write to; a bare "OFFLINE" there is undiagnosable. main()
+// passes this to MainWindow so a failed spawn shows the real path + reason.
+QString g_backendStartFailure;
+
+// User-writable log directory. MUST NOT be under the install dir: the installer
+// places ASTRA in Program Files, so a non-elevated launch cannot create or write
+// <appDir>\logs. QStandardPaths::GenericDataLocation resolves to
+// %LOCALAPPDATA% on Windows, so appending ASTRA/logs yields exactly
+// %LOCALAPPDATA%\ASTRA\logs, which every interactive user can write. This
+// mirrors AppPaths.logDir (= userRootDir/logs) on the backend side.
+QString autostartLogDir() {
+    QString base = QStandardPaths::writableLocation(
+        QStandardPaths::GenericDataLocation);
+    if (base.isEmpty())
+        base = QDir::homePath() + "/.astra";
+    return QDir(base).filePath("ASTRA/logs");
+}
+
+// Append a line to <userData>/logs/frontend-autostart.log. The desktop app is
 // built WIN32 (no console), so qWarning() output goes nowhere a user can see;
 // a file is the only place a failed auto-start can be diagnosed from.
 void appendAutostartLog(const QString& line) {
-    const QString dir = QDir(QCoreApplication::applicationDirPath()).filePath("logs");
-    QDir().mkpath(dir);
+    const QString dir = autostartLogDir();
+    if (!QDir().mkpath(dir))
+        return;
     QFile f(QDir(dir).filePath("frontend-autostart.log"));
     if (!f.open(QIODevice::Append | QIODevice::Text))
         return;
@@ -59,12 +82,15 @@ void startBackendHost() {
     const QString exe = QDir(QCoreApplication::applicationDirPath())
                             .filePath("aura_backend_host.exe");
     if (!QFileInfo::exists(exe)) {
+        g_backendStartFailure = QStringLiteral("aura_backend_host.exe not found at ") + exe;
         appendAutostartLog("FAILED: backend host not found next to frontend: " + exe);
         return;
     }
+    appendAutostartLog("attempting to spawn " + exe + " ...");
     // Detached: the backend owns its own supervised bridge child and must
     // outlive the frontend window.
     if (!QProcess::startDetached(exe, {"--api-port", QString::number(kBackendPort)})) {
+        g_backendStartFailure = QStringLiteral("QProcess::startDetached failed for ") + exe;
         appendAutostartLog("FAILED: QProcess::startDetached returned false for " + exe);
         return;
     }
@@ -72,7 +98,7 @@ void startBackendHost() {
     // loopback API only after the bridge handshake (up to 15s when the bridge is
     // unavailable), so a short wait would log a false failure. The spawn result
     // is recorded here; the health poll surfaces a backend that dies afterwards.
-    appendAutostartLog("spawned backend: " + exe);
+    appendAutostartLog("spawn ok: " + exe);
 }
 
 }  // namespace
@@ -88,6 +114,13 @@ int main(int argc, char* argv[]) {
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QApplication app(argc, argv);
+
+    // Application identity. The auto-start log uses QStandardPaths::
+    // GenericDataLocation (= %LOCALAPPDATA% on Windows) plus an explicit "ASTRA"
+    // component, so the log lands in %LOCALAPPDATA%\ASTRA\logs even when ASTRA is
+    // installed to Program Files (which a non-elevated process cannot write).
+    QCoreApplication::setOrganizationName("ASTRA");
+    QCoreApplication::setApplicationName("ASTRA");
 
     // Window icon (also the taskbar/alt-tab icon). The .exe icon itself is set
     // from resources/app.rc on Windows; this covers the running window. Prefer
@@ -129,6 +162,10 @@ int main(int argc, char* argv[]) {
     // Create main window
     astra::MainWindow mainWindow;
     mainWindow.setApiClient(&apiClient);
+#if defined(Q_OS_WIN)
+    if (!g_backendStartFailure.isEmpty())
+        mainWindow.setBackendStartFailure(g_backendStartFailure);
+#endif
 
     // Show
     mainWindow.show();

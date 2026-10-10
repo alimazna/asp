@@ -52,6 +52,10 @@ public:
     ~MainWindow() override = default;
 
     void setApiClient(ApiClient* client);
+    // Surfaces a failed auto-start of the backend (missing executable or a
+    // refused spawn) as a visible banner with the exact path + reason, instead
+    // of the undiagnosable bare "OFFLINE". Windows-only in practice.
+    void setBackendStartFailure(const QString& reason);
     void showExitConfirmation();
     // Applies the shell's inline styles from the current palette. Call once the
     // window is shown (after setStyleSheet propagation has settled).
@@ -164,6 +168,10 @@ private:
     QLabel* mBridgeStatus = nullptr;    // ● Streams
     QLabel* mFreshnessStatus = nullptr; // ● Persistence
     QLabel* mDisclaimer = nullptr;      // System Health (right)
+
+    // Startup binder banner: shown when the frontend could not spawn the backend
+    // (missing exe / refused spawn). Hidden until setBackendStartFailure() sets it.
+    QLabel* mStartupBanner = nullptr;
 
     // Theme
     ThemeManager* mThemeManager = nullptr;

@@ -33,6 +33,9 @@
 #include <QAbstractAnimation>
 #include <QButtonGroup>
 #include <QPixmap>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 
 namespace astra {
 
@@ -137,6 +140,35 @@ void MainWindow::setApiClient(ApiClient* client) {
     client->fetchAnalysisHistory(20);
     client->fetchTimeframes();
     mAnalysisPollTimer.start();
+
+    // If nothing answers after the auto-start chain has had time to bind, surface
+    // the failure (including any reason the backend staged next to itself) instead
+    // of leaving the user with a bare "OFFLINE".
+    QTimer::singleShot(12000, this, [this]() {
+        if (!mHasHealth && mStartupBanner && !mStartupBanner->isVisible())
+            setBackendStartFailure(
+                QStringLiteral("no response on 127.0.0.1:8790"));
+    });
+}
+
+void MainWindow::setBackendStartFailure(const QString& reason) {
+    if (!mStartupBanner) return;
+    // Also surface a reason the backend staged next to itself, in case it started
+    // and then died before binding its API (the frontend only knows the spawn
+    // succeeded, not why the host exited).
+    QString detail = reason;
+    const QString marker = QDir(QCoreApplication::applicationDirPath())
+                               .filePath("backend-startup.failed");
+    QFile mf(marker);
+    if (mf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString backendReason = QString::fromUtf8(mf.readAll()).trimmed();
+        if (!backendReason.isEmpty()) detail += QStringLiteral(" [") + backendReason + "]";
+    }
+    mStartupBanner->setText(
+        QStringLiteral("\u25CF Backend could not be started: ") + detail
+        + QStringLiteral("  \u2014  reinstall ASTRA or check the auto-start log at "
+                         "%LOCALAPPDATA%\\ASTRA\\logs\\frontend-autostart.log."));
+    mStartupBanner->show();
 }
 
 void MainWindow::setupSidebar() {
@@ -475,9 +507,23 @@ void MainWindow::setupContentArea() {
     rightColumn->setContentsMargins(0, 0, 0, 0);
     rightColumn->setSpacing(0);
     rightColumn->addWidget(mTopBar);
+
+    // Banner sits between the top bar and the content. Hidden by default; only
+    // shown when the frontend could not spawn the backend, so a real startup
+    // failure is legible instead of a bare "OFFLINE" with no explanation.
+    mStartupBanner = new QLabel(this);
+    mStartupBanner->setObjectName("astraStartupBanner");
+    mStartupBanner->setWordWrap(true);
+    mStartupBanner->setContentsMargins(16, 8, 16, 8);
+    mStartupBanner->setStyleSheet(
+        QStringLiteral("QLabel#astraStartupBanner { background: #4A1F1F; color: #F0C0C0;"
+                       " font-size: 12px; border-bottom: 1px solid #D95A5A; }"));
+    mStartupBanner->hide();
+    rightColumn->addWidget(mStartupBanner);
+
     rightColumn->addWidget(mContentStack);
     rightColumn->addWidget(mBottomBar);
-    rightColumn->setStretch(1, 1);  // content expands
+    rightColumn->setStretchFactor(mContentStack, 1);  // content expands
     rowLayout->addLayout(rightColumn);
     centralLayout->addLayout(rowLayout);
 }
