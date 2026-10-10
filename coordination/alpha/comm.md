@@ -1566,3 +1566,74 @@ The `ui health ok: aggregate=DEGRADED` line is emitted by the Qt window itself
 absent or if the last liveness line is offline while `/health` answers. Its
 presence on the main build confirms the field bug — UI painting OFFLINE while
 every backend endpoint answers — is fixed in the shipped installer.
+
+
+## UI Recovery — Long Cold Start
+
+### Root cause
+- The auto-start window was 20 s, but the first cold start (bridge handshake
+  + MT5 start) genuinely needs 25-40 s on the user's hardware. The window
+  expired before the backend bound 8790.
+- Two coupled defects made that fatal:
+  - On expiry `mAutostartInProgress` was cleared, and the banner-clearing
+    recovery path lived *inside* `if (mAutostartInProgress)`. A backend that
+    answered *after* the window could therefore NEVER clear the red banner or
+    flip health: it stayed OFFLINE for the rest of the session.
+  - The post-expiry probe ran on the 10 s steady interval and the code was
+    structured as if retrying stopped.
+- The Timeframe Matrix kept working because it is a separate poll
+  (`/api/v1/timeframes`), which is exactly why the matrix was full while
+  SYSTEM HEALTH / DATA STREAMS were stuck OFFLINE.
+
+### Fix
+- `frontend/qt/src/MainWindow.h`: `kAutostartWindowMs` 20000 -> 60000.
+- `frontend/qt/src/MainWindow.cpp`:
+  - Window expiry now slows the probe to 5 s (`kPostExpiryHealthPollMs`) and
+    LEAVES IT RUNNING FOREVER; it never stops permanently.
+  - `onHealthUpdated` clears the banner on the first health success of the
+    session, gated on `!mBackendReachable` (not `mAutostartInProgress`), so
+    recovery works whether the backend lands inside or after the window. A late
+    recovery logs `ui recovered: backend reachable after Ns (long-start)`.
+  - The failure banner now logs `ui banner: backend not reachable: <reason>`
+    so a stuck banner is distinguishable from a recovered one.
+  - After recovery the steady 10 s poll resumes; a later miss still flips
+    OFFLINE and the next success recovers it (only /health flips liveness).
+- New offscreen test in `frontend/qt/tests/HealthRetryTests.cpp`: the window
+  expires and the banner shows, the mock backend binds at ~6 s, and the UI must
+  clear the banner and land on DEGRADED. Reverting the recovery gate makes it
+  fail (`long cold start: banner clears once the backend answers late`).
+- Commit: `192ac80` (branch `fix/ui-long-cold-start`, merged to `main`).
+- No backend API change, no visual change, weekend BLOCKED/DEGRADED matrix
+  values untouched.
+
+### CI
+- Branch run: id `38089219756`, status **success** (job 5m30s).
+- Main run: id `38089624777`, status **success** (job 8m10s).
+- New smoke test: after install, launch `astra_desktop.exe` and poll every 5 s
+  for up to 90 s; assert the log eventually contains
+  `ui health ok: aggregate=DEGRADED`, and fail if the failure banner appears
+  but no later `ui recovered: backend reachable` line follows. The offscreen
+  job's `astra_health_retry_tests` (which exercises the 6 s-late recovery) also
+  passed in CI: `7/7 ... Passed 23.99 sec`.
+- Smoke log excerpt (main run 38089624777):
+  ```
+  poll 1: backend=True bridge=True ui=True
+  [2026-10-10T22:05:16Z] ui health ok: aggregate=DEGRADED status=
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 7.5s
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+- New installer (`ASTRA-Setup.exe`): **39,779,375 bytes** (~37.9 MiB);
+  artifact `ASTRA-windows-installer` = 39,279,765 bytes.
+
+### Note on coverage limits
+- On the CI runner the backend binds within ~3 s, so the smoke test's own
+  poll succeeds on the first tick and does not by itself reproduce the 25-40 s
+  cold start. The post-window recovery path is covered deterministically by the
+  offscreen `astra_health_retry_tests` case (backend binds at ~6 s, after the
+  window expires), which CI runs and which fails if the recovery gate is
+  reverted. The cold-start timing on the user's real hardware is the one thing
+  CI cannot replicate; the fix is to the recovery logic, which is hardware
+  independent.
