@@ -22,7 +22,9 @@ def _package_dir() -> str:
         # the bridge modules at mt5_python/ inside that tree.
         base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
         return os.path.join(base, "mt5_python")
-    return os.path.dirname(os.path.abspath(__file__))
+    # Source checkout: the modules live in the sibling mt5_python/ package dir,
+    # not next to this boot script.
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt5_python")
 
 
 def main(argv=None) -> int:
