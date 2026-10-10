@@ -83,6 +83,31 @@ int main(int argc, char** argv) {
         check(anyContains(labelTexts(card), "42%"), "present score renders 42%");
     }
 
+    // A degraded signal mutes the value; a later healthy signal must clear it
+    // (the amber style used to stick until the next palette change).
+    {
+        SignalCard card;
+        Signal signal;
+        signal.direction = "UP";
+        signal.score = 0.7;
+
+        Meta degraded;
+        degraded.degraded = true;
+        card.updateFromSignal(signal, degraded);
+
+        Meta healthy;
+        healthy.degraded = false;
+        card.updateFromSignal(signal, healthy);
+
+        bool amberStuck = false;
+        for (QLabel* l : card.findChildren<QLabel*>()) {
+            if (l->text().contains("70%") && l->styleSheet().contains("#D9A14A")) {
+                amberStuck = true;
+            }
+        }
+        check(!amberStuck, "degraded value style is cleared on a healthy update");
+    }
+
     if (g_failures == 0) {
         std::printf("SignalCard score-honesty tests: all passed\n");
     } else {

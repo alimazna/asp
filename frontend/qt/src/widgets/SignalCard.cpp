@@ -194,7 +194,8 @@ void SignalCard::updateScoreOrProbability(const Signal& signal, const Meta& meta
         mBar->setVisible(false);
     }
 
-    // Mute styling if degraded
+    // Mute styling if degraded; restore the normal style otherwise so a stale
+    // amber label never persists after the signal is no longer degraded.
     if (meta.degraded) {
         mValueLabel->setStyleSheet(
             "QLabel { "
@@ -204,6 +205,11 @@ void SignalCard::updateScoreOrProbability(const Signal& signal, const Meta& meta
             "font-family: 'JetBrains Mono', 'Consolas', monospace; "
             "}"
         );
+    } else {
+        mValueLabel->setStyleSheet(
+            QString("QLabel { color: %1; font-size: 32px; font-weight: 600; "
+                    "font-family: 'JetBrains Mono', 'Consolas', monospace; }")
+                .arg(palette().color(QPalette::Text).name()));
     }
 }
 
