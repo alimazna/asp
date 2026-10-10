@@ -60,9 +60,20 @@ void CandleChart::setCandles(const QVector<CandleData>& candles) {
             maxP = std::max(maxP, c.high);
         }
         // Add 2% padding
-        double padding = (maxP - minP) * 0.02;
-        mPriceMin = minP - padding;
-        mPriceMax = maxP + padding;
+        const double span = maxP - minP;
+        if (span > 0.0) {
+            const double padding = span * 0.02;
+            mPriceMin = minP - padding;
+            mPriceMax = maxP + padding;
+        } else {
+            // Degenerate (flat) window: every high == low, so the padded range
+            // collapses to zero. Give it a nominal range so the y-mapping below
+            // and in paint does not divide by zero (NaN coordinates draw
+            // nothing, blanking the chart for real flat/illiquid data).
+            const double pad = (maxP == 0.0) ? 1.0 : qAbs(maxP) * 0.0005;
+            mPriceMin = minP - pad;
+            mPriceMax = maxP + pad;
+        }
         mPriceRange = mPriceMax - mPriceMin;
         mLastClose = mCandles.last().close;
     }
