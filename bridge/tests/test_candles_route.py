@@ -255,6 +255,13 @@ def scenario_happy_and_cache() -> None:
               f"reads={calls['n']}")
         check("different limit 200", code3 == 200)
 
+        # Cache key must include the symbol: same (tf, limit) under another
+        # symbol must not collide with the XAUUSD entry.
+        s.state.cache_put("EURUSD", "M15", 10, {"marker": "eurusd"})
+        check("cache key includes symbol",
+              s.state.cache_get("XAUUSD", "M15", 10) is not None
+              and s.state.cache_get("EURUSD", "M15", 10) == {"marker": "eurusd"})
+
         # Canonical params must still work (no regression).
         code4, body4 = s.get("/v1/candles?symbol=XAUUSD&timeframe=M15&count=5&closed_only=true")
         check("canonical route still 200", code4 == 200, f"http={code4}")
@@ -281,8 +288,22 @@ def scenario_validation() -> None:
         code, body = s.get("/v1/candles?tf=M15&limit=1001")
         check("limit 1001 -> 400", code == 400, f"http={code}")
 
+        code, body = s.get("/v1/candles?tf=M15&limit=-1")
+        check("limit -1 -> 400", code == 400, f"http={code}")
+
         code, body = s.get("/v1/candles?tf=M15&limit=abc")
         check("non-integer limit -> 400", code == 400, f"http={code}")
+
+        # Upper boundary is inclusive: 1000 must be accepted.
+        code, body = s.get("/v1/candles?tf=M15&limit=1000")
+        check("limit 1000 -> 200", code == 200, f"http={code}")
+
+        # Lower boundary is inclusive: limit=1 returns exactly one bar.
+        code, body = s.get("/v1/candles?tf=M15&limit=1")
+        check("limit 1 -> 200", code == 200, f"http={code}")
+        check("limit 1 returns one bar",
+              len((body.get("payload") or {}).get("bars") or []) == 1,
+              str(len((body.get("payload") or {}).get("bars") or [])))
 
         # default limit when omitted
         code, body = s.get("/v1/candles?tf=M15")
@@ -314,6 +335,24 @@ def main() -> int:
     total = len(_results)
     print(f"{passed}/{total} checks passed")
     return 0 if passed == total else 1
+
+
+# --------------------------------------------------------------------------
+# pytest entrypoint. Without this, `pytest bridge/tests/` collects zero tests
+# and exits 0, so a broken bridge would "pass" silently.
+# --------------------------------------------------------------------------
+
+def test_candle_route_checks() -> None:
+    assert main() == 0, "candle route checks failed"
+
+
+def test_pytest_actually_collects_this_suite() -> None:
+    # Teeth against the empty-collection trap: assert the module exposes pytest-
+    # discoverable test functions, so `pytest bridge/tests/` can never silently
+    # report "no tests ran".
+    discovered = [n for n in globals() if n.startswith("test_")]
+    assert "test_candle_route_checks" in discovered
+    assert len(discovered) >= 2
 
 
 if __name__ == "__main__":
