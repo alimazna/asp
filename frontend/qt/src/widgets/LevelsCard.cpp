@@ -22,6 +22,11 @@ void LevelsCard::setupLayout() {
 }
 
 void LevelsCard::updateFromLevels(const Levels& levels) {
+    // Rebuild the body from scratch so repeated refreshes never stack stale
+    // rows. Rows are nested QHBoxLayouts, so taking only top-level widgets is
+    // not enough — the whole body must be torn down and recreated.
+    clearBody();
+
     // Check if ALL are null
     bool allNull = !levels.entry.has_value()
         && !levels.stopLoss.has_value()
@@ -36,14 +41,33 @@ void LevelsCard::updateFromLevels(const Levels& levels) {
     }
 }
 
-void LevelsCard::showAllUnavailable() {
-    // Clear existing
-    QLayoutItem* item;
-    while ((item = mBodyLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) item->widget()->deleteLater();
+void LevelsCard::clearBody() {
+    if (!mBodyLayout) return;
+    while (QLayoutItem* item = mBodyLayout->takeAt(0)) {
+        if (QWidget* w = item->widget()) {
+            w->deleteLater();
+        } else if (QLayout* sub = item->layout()) {
+            // Row labels live in nested QHBoxLayouts; take the widgets out of
+            // them too, otherwise they stay parented to this card and are
+            // re-shown on top of the next render.
+            clearLayout(sub);
+        }
         delete item;
     }
+}
 
+void LevelsCard::clearLayout(QLayout* layout) {
+    while (QLayoutItem* item = layout->takeAt(0)) {
+        if (QWidget* w = item->widget()) {
+            w->deleteLater();
+        } else if (QLayout* sub = item->layout()) {
+            clearLayout(sub);
+        }
+        delete item;
+    }
+}
+
+void LevelsCard::showAllUnavailable() {
     QLabel* msg = new QLabel(this);
     msg->setText("Levels unavailable \u2014 calibration pending");
     msg->setStyleSheet(
@@ -56,13 +80,6 @@ void LevelsCard::showAllUnavailable() {
 }
 
 void LevelsCard::showLevels(const Levels& levels) {
-    // Clear existing
-    QLayoutItem* item;
-    while ((item = mBodyLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) item->widget()->deleteLater();
-        delete item;
-    }
-
     const QPalette pal = palette();
     const QString textPrimary = pal.color(QPalette::Text).name();
     const QString textSecondary = pal.color(QPalette::WindowText).name();

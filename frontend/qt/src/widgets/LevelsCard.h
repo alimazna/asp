@@ -23,6 +23,8 @@ public:
 
 private:
     void setupLayout();
+    void clearBody();
+    void clearLayout(QLayout* layout);
     void showAllUnavailable();
     void showLevels(const Levels& levels);
 

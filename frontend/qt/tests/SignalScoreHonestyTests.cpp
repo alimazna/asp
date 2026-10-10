@@ -5,6 +5,7 @@
 // Now the score is optional and an absent score must render "\u2014" with no bar.
 
 #include "widgets/SignalCard.h"
+#include "widgets/LevelsCard.h"
 
 #include <QApplication>
 #include <QLabel>
@@ -106,6 +107,28 @@ int main(int argc, char** argv) {
             }
         }
         check(!amberStuck, "degraded value style is cleared on a healthy update");
+    }
+
+    // LevelsCard rebuilds its body on every update; row labels live in nested
+    // layouts, so a naive clear leaves them parented and re-shown. Repeated
+    // updates must not accumulate stale labels.
+    {
+        LevelsCard card;
+        Levels levels;
+        levels.entry = 2000.0;
+        levels.stopLoss = 1990.0;
+        levels.takeProfit = 2010.0;
+        for (int i = 0; i < 4; ++i) {
+            card.updateFromLevels(levels);
+            // Flush deleteLater() so removed rows actually drop out of the
+            // widget tree (a plain event loop is not running in the test).
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        }
+        int entryLabels = 0;
+        for (QLabel* l : card.findChildren<QLabel*>()) {
+            if (l->text() == "Entry") ++entryLabels;
+        }
+        check(entryLabels == 1, "levels rows do not accumulate across refreshes");
     }
 
     if (g_failures == 0) {

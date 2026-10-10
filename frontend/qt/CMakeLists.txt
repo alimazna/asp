@@ -256,6 +256,7 @@ if(BUILD_ASTRA_TESTS)
     add_executable(astra_signal_tests
         tests/SignalScoreHonestyTests.cpp
         src/widgets/SignalCard.cpp
+        src/widgets/LevelsCard.cpp
     )
     target_include_directories(astra_signal_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
