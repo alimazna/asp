@@ -202,6 +202,8 @@ int main(int argc, char** argv) {
               "a failing /analysis/latest must not say backend unreachable");
         check(!anyLabelContains(&win, "OFFLINE"),
               "a failing /analysis/latest must not show OFFLINE anywhere");
+        check(client.isOnline(),
+              "client stays online: only /health may flip liveness");
     }
 
     // ── "reachable after Ns" is measured from the spawn, not the poll ────────

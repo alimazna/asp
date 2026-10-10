@@ -775,6 +775,12 @@ void MainWindow::onTimeframesUpdated(const QVector<TimeframeData>& items) {
 }
 
 void MainWindow::onOffline() {
+    // Only log a real transition. If the UI is already OFFLINE this is just
+    // another failed poll (e.g. every-second retries during the bake-in) and
+    // must not flood the log.
+    if (mHasHealth)
+        appendFrontendLog(QStringLiteral(
+            "ui health offline: /api/v1/health unreachable"));
     // Backend unreachable: no health observed. The chip and bottom bar must
     // report OFFLINE, not a state carried over from the last good poll.
     mHasHealth = false;

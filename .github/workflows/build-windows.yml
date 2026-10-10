@@ -173,7 +173,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $setup = "packaging\windows\Output\ASTRA-Setup.exe"
           $installDir = "$env:ProgramFiles\ASTRA"
-          $autostartLog = "$env:LOCALAPPDATA\ASTRA\logs\frontend-autostart.log"
+          $userRoot = "$env:LOCALAPPDATA\ASTRA"
+          $autostartLog = "$userRoot\logs\frontend-autostart.log"
 
           # Start from a clean slate so a leftover process cannot mask a failure.
           foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
@@ -274,6 +275,21 @@ jobs:
             Write-Error "auto-start log has no 'backend reachable' line (retry fix not exercised):"
             $logLines | Write-Host; exit 1
           }
+          # UI-liveness evidence. The field bug was the Qt window painting
+          # OFFLINE while /health answered; the port/process checks above cannot
+          # see that. onHealthUpdated() writes "ui health ok: aggregate=..." when
+          # the window considers itself live. Its absence means the window never
+          # went live, and a trailing "ui health offline" means the window ended
+          # OFFLINE despite the API being up — both are the reported failure.
+          if (-Not ($logLines -match "ui health ok")) {
+            Write-Error "auto-start log has no 'ui health ok' line: the Qt window never considered the backend live while /health answered"
+            $logLines | Write-Host; exit 1
+          }
+          $liveness = @($logLines | Where-Object { $_ -match "ui health (ok|offline)" })
+          if ($liveness.Count -gt 0 -and $liveness[-1] -match "ui health offline") {
+            Write-Error "the Qt window ended on 'ui health offline' although /health is reachable — UI false-OFFLINE regression"
+            $liveness | Write-Host; exit 1
+          }
           # Duplicate-spawn guard evidence: exactly one spawn attempt.
           $spawnOkCount = @($logLines | Where-Object { $_ -match "spawn ok" }).Count
           if ($spawnOkCount -ne 1) { Write-Error "expected exactly 1 'spawn ok' line, found $spawnOkCount"; exit 1 }
@@ -289,7 +305,55 @@ jobs:
             Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
             Write-Host "Uninstalled cleanly"
           }
-          Write-Host "ASTRA auto-start smoke test PASSED (installed flow)"
+
+          # ---- Reinstall once more and relaunch: no orphans, no duplicates. A
+          # fresh install must not leave the previous run's host/bridge alive, and
+          # a second launch must spawn exactly one of each (the duplicate-host
+          # regression the single-instance lock guards).
+          Start-Sleep -Seconds 3
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          $autostartLog2 = "$userRoot\logs\frontend-autostart.log"
+          Remove-Item $autostartLog2 -Force -ErrorAction SilentlyContinue
+
+          Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+          if (-Not (Test-Path "$installDir\astra_desktop.exe")) {
+            Write-Error "reinstall did not place astra_desktop.exe"; exit 1
+          }
+          Start-Process -FilePath "$installDir\astra_desktop.exe" -PassThru | Out-Null
+          $backendUp2 = $false; $bridgeUp2 = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp2 = $true } catch { }
+            try {
+              $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
+              if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp2 = $true }
+            } catch { }
+            if ($backendUp2 -and $bridgeUp2) { break }
+          }
+          if (-Not $backendUp2 -or -Not $bridgeUp2) {
+            Write-Error "relaunch after reinstall: chain did not come up (backend=$backendUp2 bridge=$bridgeUp2)"; exit 1
+          }
+          $d2 = @(Get-Process -Name "astra_desktop" -ErrorAction SilentlyContinue).Count
+          $b2 = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+          $g2 = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "reinstall counts: desktop=$d2 backend=$b2 bridge=$g2"
+          if ($d2 -ne 1) { Write-Error "reinstall: expected exactly 1 astra_desktop.exe, found $d2"; exit 1 }
+          if ($b2 -ne 1) { Write-Error "reinstall: expected exactly 1 aura_backend_host.exe (orphan/duplicate), found $b2"; exit 1 }
+          if ($g2 -lt 1) { Write-Error "reinstall: expected at least 1 bridge.exe, found $g2"; exit 1 }
+          if (Test-Path $autostartLog2) {
+            $spawn2 = @((Get-Content $autostartLog2) | Where-Object { $_ -match "spawn ok" }).Count
+            if ($spawn2 -ne 1) { Write-Error "reinstall: expected exactly 1 'spawn ok' line, found $spawn2"; exit 1 }
+          }
+          foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
+            Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 2
+          if (Test-Path $un) {
+            Start-Process -FilePath $un -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+          }
+          Write-Host "ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)"
         working-directory: .
 
       # ---------------------------------------------------------------- 6/6
