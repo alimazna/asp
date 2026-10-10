@@ -18,8 +18,10 @@ ApiClient::ApiClient(QObject* parent)
 
     connect(&mRetryTimer, &QTimer::timeout, this, [this]() {
         mRetryTimer.stop();
-        mRetryCount++;
-        // Exponential backoff: 1s, 2s, 4s, max 8s
+        // Delay is 1s, 2s, 4s, then pinned at 8s. Clamp the exponent at 3 so a
+        // long outage cannot shift int by >= 31 (undefined behaviour); the
+        // qMin cap already makes any larger count redundant.
+        if (mRetryCount < 3) mRetryCount++;
         int delay = qMin(1000 * (1 << mRetryCount), 8000);
         mRetryTimer.start(delay);
     });
