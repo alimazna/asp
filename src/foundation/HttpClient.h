@@ -31,6 +31,11 @@ struct HttpResponse {
 
 bool isLoopbackHost(const std::string& host) noexcept;
 
+// True when a TCP listener accepts a connection on 127.0.0.1:port within
+// `timeoutMillis`. Used to make process auto-start idempotent: a component is
+// spawned only when its loopback port is not already answering.
+bool loopbackPortListening(std::uint16_t port, int timeoutMillis = 300) noexcept;
+
 // Send a request. `request.method` selects GET or POST; POST carries the body
 // with an application/json content type. Refuses non-loopback hosts.
 HttpResponse httpRequest(const HttpRequest& request);

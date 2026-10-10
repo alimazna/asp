@@ -175,6 +175,23 @@ jobs:
           }
           $logPath = "$installDir\logs\frontend-autostart.log"
           if (Test-Path $logPath) { Get-Content $logPath }
+
+          # Bug 2 regression guard: one launch must spawn exactly one backend
+          # and at most one bridge (PyInstaller one-file = parent + child, so up
+          # to 2 bridge.exe processes).
+          $backendCount = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+          $bridgeCount  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
+          Write-Host "backend processes: $backendCount; bridge processes: $bridgeCount"
+          tasklist | findstr /I "aura_backend_host bridge"
+          if ($backendCount -ne 1) {
+            Write-Error "expected exactly 1 aura_backend_host.exe, found $backendCount"
+            exit 1
+          }
+          if ($bridgeCount -gt 2) {
+            Write-Error "expected at most 2 bridge.exe (PyInstaller parent+child), found $bridgeCount"
+            exit 1
+          }
+
           Stop-Process -Id $proc.Id -Force
           if (-Not $backendUp) {
             Get-ChildItem "$installDir\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name) ---"; Get-Content $_.FullName }

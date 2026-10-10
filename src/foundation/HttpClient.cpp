@@ -71,6 +71,24 @@ void applyTimeouts(SocketHandle s, int connectMs, int readMs) {
 
 }  // namespace
 
+bool loopbackPortListening(std::uint16_t port, int timeoutMillis) noexcept {
+#ifdef _WIN32
+    static WinsockInit winsock;
+#endif
+    SocketHandle sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == kInvalidSocket) return false;
+    applyTimeouts(sock, timeoutMillis, timeoutMillis);
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const bool listening =
+        ::connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+    closeSocket(sock);
+    return listening;
+}
+
 HttpResponse httpGet(const HttpRequest& request) {
     HttpRequest get = request;
     get.method = "GET";

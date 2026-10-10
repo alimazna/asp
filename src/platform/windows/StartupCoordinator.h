@@ -11,6 +11,7 @@
 #include "platform/windows/BundleLocator.h"
 #include "platform/windows/PathResolver.h"
 #include "platform/windows/ProcessSupervisor.h"
+#include "platform/windows/SingleInstance.h"
 
 #include <memory>
 #include <string>
@@ -83,6 +84,7 @@ public:
     ProcessSupervisor* supervisor() noexcept { return supervisor_.get(); }
 
 private:
+    bool bridgeSpawnAllowed(StartupReport& report);
     bool waitForHandshake(StartupReport& report);
 
     StartupOptions options_;
@@ -90,6 +92,9 @@ private:
     PathResolver resolver_;
     std::unique_ptr<ProcessSupervisor> supervisor_;
     std::shared_ptr<IPythonBridgeClient> bridgeClient_;
+    // Prevents two backend hosts from both spawning a bridge. Held for the
+    // whole backend lifetime and released in shutdown().
+    InstanceLock bridgeLock_;
 };
 
 }  // namespace aura

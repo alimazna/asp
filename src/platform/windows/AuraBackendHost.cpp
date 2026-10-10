@@ -10,12 +10,14 @@
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "platform/windows/PathResolver.h"
+#include "platform/windows/SingleInstance.h"
 #include "runtime/AuraRuntime.h"
 #include "telegram/TelegramGateway.h"
 
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -111,6 +113,21 @@ int main(int argc, char** argv) {
     // detached launch (no console) is still diagnosable after the fact.
     g_hostLog.open(paths.logDir + "/backend-host.log", std::ios::app);
     logLine("  app root: " + paths.appRootDir);
+
+    // Single-instance guard (Bug 2): the frontend port probe alone is not
+    // enough because the API only binds after the bridge handshake, so two
+    // launches in that window each spawn a host. The lock closes that race.
+    std::error_code fsError;
+    std::filesystem::create_directories(paths.logDir, fsError);
+    aura::InstanceLock backendLock;
+    std::string lockError;
+    const std::string lockPath = paths.logDir + "/backend-host.lock";
+    if (!backendLock.acquire(lockPath, lockError)) {
+        logLine("another backend host instance is already running: " + lockError);
+        std::cout << "AURA backend host already running; exiting\n";
+        return 0;
+    }
+    logLine("  single-instance lock acquired: " + lockPath);
 
     aura::StartupOptions options;
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);

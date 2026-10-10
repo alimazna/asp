@@ -2,7 +2,10 @@
 
 #include "platform/windows/StartupCoordinator.h"
 
+#include "foundation/HttpClient.h"
+
 #include <chrono>
+#include <filesystem>
 #include <thread>
 
 namespace aura {
@@ -34,7 +37,7 @@ bool StartupCoordinator::run(StartupReport& report) {
     }
 
     report.stage = StartupStage::LAUNCHING_BRIDGE;
-    if (options_.launchBridgeProcess) {
+    if (options_.launchBridgeProcess && bridgeSpawnAllowed(report)) {
         ProcessLaunchSpec spec;
         spec.executable = report.bundle.pythonExecutable;
         if (report.bundle.bridgeIsFrozen) {
@@ -81,6 +84,30 @@ bool StartupCoordinator::run(StartupReport& report) {
     report.stage = StartupStage::READY;
     report.ready = true;
     report_ = report;
+    return true;
+}
+
+bool StartupCoordinator::bridgeSpawnAllowed(StartupReport& report) {
+    // Idempotent spawn: a bridge already answering on 8791 belongs to an
+    // earlier backend (or a manual/dev launch). Never start a second one.
+    if (loopbackPortListening(8791)) {
+        report.detail = "bridge already listening on 127.0.0.1:8791; not spawning another";
+        return false;
+    }
+    // Cross-process guard: hold a lock for the whole bridge lifetime so two
+    // backends racing on a closed port cannot both spawn. Losing the race means
+    // another backend is already bringing the bridge up; wait for it via the
+    // handshake rather than spawning a duplicate.
+    // The lock lives beside the host log; the directory may not exist yet on a
+    // fresh install.
+    std::error_code ec;
+    std::filesystem::create_directories(report.paths.logDir, ec);
+    std::string lockError;
+    if (!bridgeLock_.acquire(
+            PathResolver::join(report.paths.logDir, "bridge.lock"), lockError)) {
+        report.detail = lockError + "; waiting for the existing bridge";
+        return false;
+    }
     return true;
 }
 
