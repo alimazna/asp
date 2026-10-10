@@ -18,6 +18,10 @@ namespace {
 constexpr const char* kBridgeHost = "127.0.0.1";
 constexpr std::uint16_t kDefaultBridgePort = 8791;
 
+// Upper bound on retained command-log entries. The log is diagnostic only; a
+// long-running process must not accumulate it without limit.
+constexpr std::size_t kMaxCommandLog = 1024;
+
 // The bridge port is fixed at 8791 in production; an environment override lets
 // the test harness point the route at an isolated bridge instance.
 std::uint16_t bridgePort() {
@@ -872,6 +876,13 @@ ApiResponse BackendFacade::handle(const std::string& method,
     return errorResponse(404, "not_found", "unknown route: " + path);
 }
 
+void BackendFacade::recordCommand(const std::string& entry) {
+    commandLog_.push_back(entry);
+    if (commandLog_.size() > kMaxCommandLog) {
+        commandLog_.erase(commandLog_.begin());
+    }
+}
+
 ApiResponse BackendFacade::command(const CommandRequest& request) {
     // Allow-list only. There is deliberately no command that can enable live
     // execution or bypass policy.
@@ -898,7 +909,7 @@ ApiResponse BackendFacade::command(const CommandRequest& request) {
             return errorResponse(429, "queue_full",
                                  "notification queue is full");
         }
-        commandLog_.push_back(request.command + ":" + id.value());
+        recordCommand(request.command + ":" + id.value());
         std::vector<ApiField> fields;
         fields.push_back({"accepted", jsonBool(true), true});
         fields.push_back({"message_id", id.value()});
@@ -911,7 +922,7 @@ ApiResponse BackendFacade::command(const CommandRequest& request) {
     const EntityId id = deps_.approvals->request(
         ApprovalRequestKind::POLICY_CHANGE, EntityId(), request.actor,
         request.payload, Timestamp::now());
-    commandLog_.push_back(request.command + ":" + id.value());
+    recordCommand(request.command + ":" + id.value());
     std::vector<ApiField> fields;
     fields.push_back({"accepted", jsonBool(true), true});
     fields.push_back({"request_id", id.value()});

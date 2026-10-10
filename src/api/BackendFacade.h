@@ -96,8 +96,12 @@ public:
     const FacadeDependencies& dependencies() const noexcept { return deps_; }
 
 private:
+    // Append to the command log, dropping the oldest entry once the cap is
+    // reached so a long-running process cannot grow it without bound.
+    void recordCommand(const std::string& entry);
+
     FacadeDependencies deps_;
-    std::vector<std::string> commandLog_;
+    std::vector<std::string> commandLog_;  // write-only; bounded ring
     std::int64_t startedAtSec_ = -1;  // process-relative uptime origin
 };
 
