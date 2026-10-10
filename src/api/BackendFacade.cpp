@@ -168,8 +168,10 @@ ApiResponse BackendFacade::timeframes() const {
         } else {
             fields.push_back({"last_successful_update", "null", true});
         }
-        fields.push_back({"last_closed_bar_open",
-                          jsonInteger(state.lastClosedBar.openTimeSec), true});
+        if (state.hasClosedBar) {
+            fields.push_back({"last_closed_bar_open",
+                              jsonInteger(state.lastClosedBar.openTimeSec), true});
+        }
         fields.push_back({"sequence",
                           jsonInteger(static_cast<std::int64_t>(state.sequence)), true});
         fields.push_back({"capability_impact",
@@ -235,12 +237,19 @@ ApiResponse BackendFacade::timeframeSnapshot(const std::string& timeframe) const
     }
     fields.push_back({"sequence",
                       jsonInteger(static_cast<std::int64_t>(state.sequence)), true});
-    fields.push_back({"open", jsonNumber(state.lastClosedBar.open), true});
-    fields.push_back({"high", jsonNumber(state.lastClosedBar.high), true});
-    fields.push_back({"low", jsonNumber(state.lastClosedBar.low), true});
-    fields.push_back({"close", jsonNumber(state.lastClosedBar.close), true});
-    fields.push_back({"open_time",
-                      jsonInteger(state.lastClosedBar.openTimeSec), true});
+    // Bar-level fields describe the last CLOSED bar. The store default-constructs
+    // lastClosedBar to zeros, so emitting it without a closed bar would fabricate
+    // an OHLC of 0 alongside "has_closed_bar": false — a contradiction, and a
+    // price a consumer could mistake for real. Emit them only when a closed bar
+    // actually exists.
+    if (state.hasClosedBar) {
+        fields.push_back({"open", jsonNumber(state.lastClosedBar.open), true});
+        fields.push_back({"high", jsonNumber(state.lastClosedBar.high), true});
+        fields.push_back({"low", jsonNumber(state.lastClosedBar.low), true});
+        fields.push_back({"close", jsonNumber(state.lastClosedBar.close), true});
+        fields.push_back({"open_time",
+                          jsonInteger(state.lastClosedBar.openTimeSec), true});
+    }
     fields.push_back({"capability_impact",
                       capabilityImpactJson(parsed, state.quality), true});
     return ApiResponse{200, "application/json",

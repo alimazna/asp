@@ -88,6 +88,37 @@ TEST_CASE(unobserved_timeframe_snapshot_is_explicit) {
     CHECK(contains(response.body, "\"quality\":{\"state\":\"UNKNOWN\""));
 }
 
+TEST_CASE(unobserved_snapshot_does_not_fabricate_a_bar) {
+    // Honesty rule: a stream can be observed (freshness tracked) before it has
+    // a closed bar. The store then holds a state whose lastClosedBar is still
+    // default-constructed to zeros. Emitting it would publish an OHLC of 0 next
+    // to "has_closed_bar": false — a fabricated price a consumer could mistake
+    // for real. The bar-level fields must be absent entirely.
+    Fixture fixture;
+    fixture.runtime.timeframeStore().refreshFreshness(
+        Timeframe::H4, Timestamp::fromEpochMillis(1000000));
+    const ApiResponse response = fixture.facade.handle(
+        "GET", "/api/v1/timeframes/H4/snapshot");
+    CHECK_EQ(response.status, 200);
+    CHECK(contains(response.body, "\"observed\":true"));
+    CHECK(contains(response.body, "\"has_closed_bar\":false"));
+    CHECK(!contains(response.body, "\"open\":"));
+    CHECK(!contains(response.body, "\"open_time\":"));
+}
+
+TEST_CASE(timeframes_list_omits_bar_open_without_closed_bar) {
+    // Same honesty rule on the list route: last_closed_bar_open must not be
+    // published as 0 for a stream that has been observed but never produced a
+    // closed bar.
+    Fixture fixture;
+    fixture.runtime.timeframeStore().refreshFreshness(
+        Timeframe::H4, Timestamp::fromEpochMillis(1000000));
+    const ApiResponse response = fixture.facade.timeframes();
+    CHECK_EQ(response.status, 200);
+    CHECK(contains(response.body, "\"observed\":true"));
+    CHECK(!contains(response.body, "\"last_closed_bar_open\":0"));
+}
+
 TEST_CASE(latest_signal_keeps_probability_uncalibrated) {
     Fixture fixture;
     PredictionRecord record;
