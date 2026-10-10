@@ -117,6 +117,11 @@ void HistoryPage::setupLayout() {
     connect(mRefreshBtn, &QPushButton::clicked, this, &HistoryPage::refresh);
     topRow->addWidget(mRefreshBtn);
 
+    // The filter is applied client-side over the rows already fetched; it never
+    // triggers a second request (the page fetches a fixed 50).
+    connect(mFilterCombo, &QComboBox::currentIndexChanged,
+            this, &HistoryPage::applyFilter);
+
     topRow->addStretch();
     mainLayout->addLayout(topRow);
 
@@ -188,8 +193,20 @@ void HistoryPage::updateFromHistory(const QVector<AnalysisData>& items) {
         e.rMultiple = 0.0;
         entries.append(e);
     }
-    populateTable(entries);
-    updateSummary(entries);
+    mAllEntries = entries;
+    applyFilter();
+}
+
+void HistoryPage::applyFilter() {
+    QVector<HistoryEntry> shown = mAllEntries;
+    switch (mFilterCombo ? mFilterCombo->currentIndex() : 0) {
+        case 1: if (shown.size() > 50) shown.resize(50); break;  // "Last 50"
+        case 2: if (shown.size() > 20) shown.resize(20); break;  // "Last 20"
+        case 3: if (shown.size() > 10) shown.resize(10); break;  // "Last 10"
+        default: break;                                          // "All"
+    }
+    populateTable(shown);
+    updateSummary(shown);
 }
 
 void HistoryPage::refresh() {

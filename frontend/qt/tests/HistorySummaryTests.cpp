@@ -93,6 +93,25 @@ int main(int argc, char** argv) {
     check(summaryValue(page, "PF") == "2.50",
           "negative PF magnitude is 2.50", summaryValue(page, "PF"));
 
+    // Filter combo: it must actually limit the rows shown, not be inert.
+    // 25 rows -> "Last 20" shows 20, "Last 10" shows 10, "All" shows 25.
+    QVector<AnalysisData> many;
+    for (int i = 0; i < 25; ++i) many.append(AnalysisData{});
+    page.updateFromHistory(many);
+    QTableWidget* table = page.findChild<QTableWidget*>();
+    check(table != nullptr, "history table found");
+    if (table) {
+        page.setFilterIndexForTest(0);
+        check(table->rowCount() == 25, "filter All shows all 25 rows",
+              QString::number(table->rowCount()));
+        page.setFilterIndexForTest(2);
+        check(table->rowCount() == 20, "filter Last 20 shows 20 rows",
+              QString::number(table->rowCount()));
+        page.setFilterIndexForTest(3);
+        check(table->rowCount() == 10, "filter Last 10 shows 10 rows",
+              QString::number(table->rowCount()));
+    }
+
     if (g_failures == 0) {
         std::printf("HistoryPage summary tests: all passed\n");
     } else {

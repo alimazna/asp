@@ -47,6 +47,11 @@ public:
         updateSummary(entries);
     }
 
+    // Test seam: select the filter by index (0=All,1=50,2=20,3=10) and reapply.
+    void setFilterIndexForTest(int index) {
+        if (mFilterCombo) mFilterCombo->setCurrentIndex(index);
+    }
+
 protected:
     void changeEvent(QEvent* event) override;
 
@@ -55,6 +60,7 @@ private:
     void restyle();
     void populateTable(const QVector<HistoryEntry>& entries);
     void updateSummary(const QVector<HistoryEntry>& entries);
+    void applyFilter();  // honors mFilterCombo selection over mAllEntries
 
     QTableWidget* mTable = nullptr;
     QComboBox* mFilterCombo = nullptr;
@@ -72,7 +78,8 @@ private:
     QLabel* mSummaryValue2 = nullptr;
     QLabel* mSummaryValue3 = nullptr;
 
-    QVector<HistoryEntry> mEntries;
+    QVector<HistoryEntry> mEntries;      // full set from the backend
+    QVector<HistoryEntry> mAllEntries;   // unfiltered snapshot (filter applied over this)
 
     ApiClient* mApiClient = nullptr;
 };
