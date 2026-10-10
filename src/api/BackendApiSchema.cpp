@@ -97,7 +97,7 @@ ApiResponse errorResponse(int status, const std::string& code,
     response.ok = false;
     response.contentType = "application/json";
     response.body = jsonObject({
-        {"error", "true", true},
+        {"error", "true", false},  // contract: JSON string "true", not a boolean
         {"code", code},
         {"message", message},
     });

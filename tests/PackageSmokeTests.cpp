@@ -133,6 +133,7 @@ TEST_CASE(error_envelope_is_structured) {
     const ApiResponse response = errorResponse(404, "not_found", "no such route");
     CHECK(!response.ok);
     CHECK_EQ(response.status, 404);
-    CHECK(response.body.find("\"error\":true") != std::string::npos);
+    // Frozen schema: `error` is the JSON *string* "true", not a bare boolean.
+    CHECK(response.body.find("\"error\":\"true\"") != std::string::npos);
     CHECK(response.body.find("not_found") != std::string::npos);
 }
