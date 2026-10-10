@@ -186,3 +186,29 @@ if(BUILD_ASTRA_SNAPSHOT)
         target_compile_definitions(astra_snapshot PRIVATE ASTRA_HAVE_QTSVG)
     endif()
 endif()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Offscreen widget tests (OFF by default; enabled with BUILD_ASTRA_TESTS=ON).
+# Constructs the custom-painted widgets under the offscreen QPA platform and
+# grabs them, so paint-path defects (e.g. divide-by-zero in a layout
+# expression) fail the build instead of only trapping on a live chart.
+# ──────────────────────────────────────────────────────────────────────────────
+option(BUILD_ASTRA_TESTS "Build offscreen Qt widget tests" OFF)
+if(BUILD_ASTRA_TESTS)
+    enable_testing()
+    add_executable(astra_chart_tests
+        tests/CandleChartTests.cpp
+        src/widgets/CandleChart.cpp
+    )
+    target_include_directories(astra_chart_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_chart_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+    )
+    add_test(NAME astra_chart_tests COMMAND astra_chart_tests)
+    set_tests_properties(astra_chart_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+endif()
