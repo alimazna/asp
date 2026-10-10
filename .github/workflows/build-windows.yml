@@ -82,12 +82,42 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyinstaller
+          # MetaTrader5 must be present on the BUILD host so the spec's
+          # collect_all('MetaTrader5') can gather its native extension and DLLs
+          # into the frozen bridge. Without it the frozen exe boots but reports
+          # "No module named 'MetaTrader5'" on the end user's machine.
+          python -m pip install -r packaging/requirements-runtime.txt
           pyinstaller --clean --noconfirm --workpath build-pyinstaller packaging/windows/astra-bridge.spec
           if (-Not (Test-Path "dist/bridge.exe")) {
             Write-Error "bridge.exe not produced"
             exit 1
           }
           Get-Item dist/bridge.exe | Select-Object Name, Length
+        working-directory: .
+
+      - name: Verify frozen bridge bundles MetaTrader5
+        # Start the frozen bridge and ask its health endpoint whether the
+        # MetaTrader5 package is importable *inside the frozen bundle*. No MT5
+        # terminal is required: package_available must be true even when
+        # initialized is false. This is the regression guard for the frozen
+        # "No module named 'MetaTrader5'" defect.
+        run: |
+          $bridge = "dist\bridge.exe"
+          $proc = Start-Process -FilePath $bridge -ArgumentList "--port","18791" -PassThru -WindowStyle Hidden
+          $ok = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            try {
+              $resp = Invoke-RestMethod -Uri "http://127.0.0.1:18791/v1/health" -TimeoutSec 3
+              if ($resp.payload.package_available -eq $true) { $ok = $true; break }
+            } catch { }
+          }
+          if (-Not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          if (-Not $ok) {
+            Write-Error "frozen bridge did not report package_available=true (MetaTrader5 missing from bundle)"
+            exit 1
+          }
+          Write-Host "Frozen bridge reports package_available=true"
         working-directory: .
 
       # ---------------------------------------------------------------- 4/5
