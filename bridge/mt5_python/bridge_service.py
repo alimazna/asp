@@ -456,6 +456,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 message = state.bootstrap_error_message
             # Terminal/symbol unavailability is a dependency outage, not a
             # client error: report 503 so the frontend can distinguish it.
+            # (The canonical candle route does the same; the chart alias must
+            # not report a terminal outage as a successful 200.)
             http_status = 503 if code in (ERR_MT5_TERMINAL_UNAVAILABLE,
                                           ERR_MT5_SYMBOL_UNRESOLVED) else 200
             self._error(ErrorInfo(code=code, message=message,

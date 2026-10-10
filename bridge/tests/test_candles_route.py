@@ -319,6 +319,7 @@ def scenario_mt5_unavailable() -> None:
         code, body = s.get("/v1/candles?tf=M15&limit=10")
         check("unavailable -> structured error", body.get("status") == "ERROR",
               str(body.get("error", {}).get("code")))
+        check("unavailable http 503", code == 503, f"http={code}")
         check("unavailable code MT5_TERMINAL_UNAVAILABLE",
               body.get("error", {}).get("code") == "MT5_TERMINAL_UNAVAILABLE")
         check("no fabricated bars", body.get("payload") in ({}, None))
