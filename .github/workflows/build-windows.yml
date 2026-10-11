@@ -190,12 +190,14 @@ jobs:
           $installDir = "$env:ProgramFiles\ASTRA"
           $userRoot = "$env:LOCALAPPDATA\ASTRA"
           $autostartLog = "$userRoot\logs\frontend-autostart.log"
+          $backendHostLog = "$userRoot\logs\backend-host.log"
 
           # Start from a clean slate so a leftover process cannot mask a failure.
           foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
             Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           }
           Remove-Item $autostartLog -Force -ErrorAction SilentlyContinue
+          Remove-Item $backendHostLog -Force -ErrorAction SilentlyContinue
 
           Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
           if (-Not (Test-Path "$installDir\astra_desktop.exe")) {
@@ -272,6 +274,31 @@ jobs:
           # A fully-warm fast start may legitimately skip STARTING, so this is
           # informational, not fatal.
           if ($sawStarting) { Write-Host "early-bind confirmed: /health answered aggregate=STARTING before the handshake completed" }
+
+          # ---- Early-bind ORDERING proof from the installed binary's own timeline
+          # log. The acceptance gate above cannot see the difference between "the
+          # API bound early" and "the bridge happened to start fast": on a warm
+          # runner both look identical. The reported field failure was port 8790
+          # silent for ~173s while the bridge was spawned, i.e. the bind ran after
+          # the spawn. The host now logs a millisecond timeline; assert the bind
+          # line precedes the spawn line. This is the deterministic regression
+          # guard for the real defect, independent of how fast the bridge is here.
+          if (-Not (Test-Path $backendHostLog)) {
+            Write-Error "no backend host log at $backendHostLog (cannot verify the bind-before-spawn ordering)"; exit 1
+          }
+          $hostLines = @(Get-Content $backendHostLog)
+          $bindLine = $hostLines | Where-Object { $_ -match "frontend api bound" } | Select-Object -First 1
+          $spawnLine = $hostLines | Where-Object { $_ -match "startAsync \(bridge spawn\)" } | Select-Object -First 1
+          if (-Not $bindLine) { Write-Error "backend host log has no 'frontend api bound' line"; $hostLines | Write-Host; exit 1 }
+          if (-Not $spawnLine) { Write-Error "backend host log has no 'startAsync (bridge spawn)' line"; $hostLines | Write-Host; exit 1 }
+          $bindMs = [int]([regex]::Match($bindLine, "t\+(\d+)ms").Groups[1].Value)
+          $spawnMs = [int]([regex]::Match($spawnLine, "t\+(\d+)ms").Groups[1].Value)
+          Write-Host "backend timeline: bind=$bindMs ms, spawn=$spawnMs ms"
+          if ($bindMs -gt $spawnMs) {
+            Write-Error "the API bound ($bindMs ms) AFTER the bridge spawn ($spawnMs ms): the frontend would be left OFFLINE for the whole spawn. Early-bind regression."
+            $hostLines | Write-Host; exit 1
+          }
+          Write-Host "early-bind ordering confirmed: API bound at $bindMs ms, before the bridge spawn at $spawnMs ms"
 
           # ---- Recovery window: a cold start (bridge handshake → MT5) can take
           # longer than 10s, so the Qt window may legitimately show its banner
