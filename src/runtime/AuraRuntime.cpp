@@ -12,11 +12,52 @@ AuraRuntime::AuraRuntime(StartupOptions startupOptions, int candlesPerTimeframe)
       candlesPerTimeframe_(candlesPerTimeframe),
       guardian_(makeGuardian()) {}
 
-bool AuraRuntime::start(std::string& error) {
-    ready_ = false;
-    mode_ = SystemMode::STARTING;
+void AuraRuntime::publishStartupReport(int slot) {
+    StartupReport& snapshot = publishedStartupSnapshot_[slot & 1];
+    snapshot = startupReport_;
+    publishedStartupReport_.store(&snapshot, std::memory_order_release);
+}
 
-    const bool started = startup_.run(startupReport_);
+bool AuraRuntime::startAsync(std::string& error) {
+    ready_.store(false, std::memory_order_relaxed);
+    mode_.store(SystemMode::STARTING, std::memory_order_relaxed);
+
+    // Phase 1: spawn the bridge and publish STARTING. This returns without
+    // waiting for the handshake so the host can bind 8790 right away.
+    const bool begun = startup_.begin(startupReport_);
+    publishStartupReport(0);
+
+    // Build every object the API reads (ingestor, persistence, pipeline) BEFORE
+    // the caller binds the loopback API. Once 8790 is up, API handler threads
+    // read this state concurrently; constructing it here keeps them from ever
+    // observing a half-built runtime. The pipeline symbol is refined by
+    // finishStartup() once the handshake resolves it.
+    buildRuntimeComponents();
+    if (!begun) {
+        finalizeState(error);
+        return false;
+    }
+    error.clear();
+    return true;
+}
+
+bool AuraRuntime::finishStartup(std::string& error) {
+    // Phase 2: block for the handshake, then publish the final report and flip
+    // the atomics the API reads. No shared object is (re)constructed here, so an
+    // API request served during this wait is safe.
+    if (startup_.bridgeClient()) {
+        startup_.completeHandshake(startupReport_);
+    }
+    publishStartupReport(1);
+    return finalizeState(error);
+}
+
+bool AuraRuntime::start(std::string& error) {
+    if (!startAsync(error)) return false;
+    return finishStartup(error);
+}
+
+void AuraRuntime::buildRuntimeComponents() {
     auto client = startup_.bridgeClient();
     if (client) {
         ingestor_ = std::make_unique<MarketDataIngestor>(client);
@@ -42,19 +83,30 @@ bool AuraRuntime::start(std::string& error) {
     pipeline_->setSymbol(startupReport_.resolvedSymbol.empty()
                              ? startupOptions_.preferredSymbol
                              : startupReport_.resolvedSymbol);
+}
+
+bool AuraRuntime::finalizeState(std::string& error) {
+    const bool started = startupReport_.ready;
+    // The handshake may have resolved a symbol the phase-1 wiring could not
+    // know yet; refine it (idempotent when unchanged).
+    if (pipeline_ && !startupReport_.resolvedSymbol.empty()) {
+        pipeline_->setSymbol(startupReport_.resolvedSymbol);
+    }
 
     if (!started) {
         // The runtime is allowed to exist in DEGRADED mode without the bridge;
         // it simply cannot ingest. This is explicit, not silent.
-        ready_ = false;
-        mode_ = startupReport_.stage == StartupStage::FAILED ? SystemMode::EMERGENCY
-                                                             : SystemMode::DEGRADED;
+        ready_.store(false, std::memory_order_release);
+        mode_.store(startupReport_.stage == StartupStage::FAILED
+                        ? SystemMode::EMERGENCY
+                        : SystemMode::DEGRADED,
+                    std::memory_order_release);
         error = startupReport_.error;
         return false;
     }
 
-    ready_ = true;
-    mode_ = SystemMode::SHADOW;   // shadow-first product mode
+    ready_.store(true, std::memory_order_release);
+    mode_.store(SystemMode::SHADOW, std::memory_order_release);  // shadow-first mode
     error.clear();
     return true;
 }
@@ -240,11 +292,12 @@ std::map<std::string, std::string> AuraRuntime::healthSummary() const {
     std::map<std::string, std::string> summary;
     summary["mode"] = toString(mode_);
     summary["ready"] = ready_ ? "true" : "false";
-    summary["startup_stage"] = toString(startupReport_.stage);
+    const StartupReport& report = startupReport();
+    summary["startup_stage"] = toString(report.stage);
     summary["bridge_process"] = toString(bridgeState());
-    summary["bridge_handshake"] = startupReport_.handshakeOk ? "OK" : "NOT_OK";
-    summary["mt5_ready"] = startupReport_.mt5Ready ? "true" : "false";
-    summary["resolved_symbol"] = startupReport_.resolvedSymbol;
+    summary["bridge_handshake"] = report.handshakeOk ? "OK" : "NOT_OK";
+    summary["mt5_ready"] = report.mt5Ready ? "true" : "false";
+    summary["resolved_symbol"] = report.resolvedSymbol;
     for (Timeframe timeframe : allTimeframes()) {
         summary[std::string("quality_") + toString(timeframe)] =
             toString(timeframeStore_.qualityOf(timeframe));

@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -57,8 +58,14 @@ void clearStartupFailure(const std::string& appRootDir) {
     std::filesystem::remove(marker, ec);
 }
 
+// Serializes writes to the host log. The startup thread logs the handshake
+// outcome while the main thread logs the first cycle, so an unsynchronized
+// ofstream would interleave/corrupt lines.
+std::mutex g_logMutex;
+
 void logLine(const std::string& text, bool isError = false) {
     (isError ? std::cerr : std::cout) << text << "\n";
+    std::lock_guard<std::mutex> lock(g_logMutex);
     if (g_hostLog.is_open()) {
         g_hostLog << text << "\n";
         g_hostLog.flush();
@@ -132,20 +139,23 @@ int main(int argc, char** argv) {
         std::cerr << "FATAL: " << pathError << "\n";
         return 2;
     }
-    // Now that the app root is known, mirror the log to <appRoot>/logs so a
-    // detached launch (no console) is still diagnosable after the fact.
+    // Create the runtime log dir BEFORE opening the log: on a fresh install
+    // <appRoot>/logs does not exist, and ofstream::open does not create parents,
+    // so the host would run with no log file at all — exactly the "logs folder
+    // is empty" symptom. Then mirror the log there so a detached launch (no
+    // console) is still diagnosable after the fact.
+    std::error_code fsError;
+    std::filesystem::create_directories(paths.logDir, fsError);
     g_hostLog.open(paths.logDir + "/backend-host.log", std::ios::app);
     logLine("  app root: " + paths.appRootDir);
 
     // Single-instance guard (Bug 2): the frontend port probe alone is not
     // enough because the API only binds after the bridge handshake, so two
     // launches in that window each spawn a host. The lock closes that race.
-    std::error_code fsError;
-    std::filesystem::create_directories(paths.logDir, fsError);
-    // Probe writability of the runtime dir. The installer targets Program Files,
-    // which a non-elevated launch cannot write; without this the only symptom is a
-    // backend that silently never binds 8790. Record a precise reason next to the
-    // executable (installer-writable) for the frontend to surface.
+    // Probe writability of the runtime dir first. The installer targets Program
+    // Files, which a non-elevated launch cannot write; without this the only
+    // symptom is a backend that silently never binds 8790. Record a precise
+    // reason next to the executable (installer-writable) for the frontend.
     bool runtimeWritable = false;
     if (!fsError) {
         const std::string probePath = paths.logDir + "/.write-probe";
@@ -181,15 +191,19 @@ int main(int argc, char** argv) {
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);
     aura::AuraRuntime runtime(options);
 
+    // Phase 1 of startup: resolve paths, locate the bundle, spawn the bridge.
+    // This returns in well under a second (it never waits for the handshake), so
+    // the loopback API below binds immediately and answers the frontend with
+    // aggregate=STARTING while MT5 cold-starts. Previously runtime.start() ran
+    // the full handshake here and 8790 stayed silent for up to ~76s, which the
+    // frontend rendered as "backend unreachable".
     std::string startupError;
-    const bool started = runtime.start(startupError);
-    const aura::StartupReport& startup = runtime.startupReport();
-    logLine(std::string("  startup stage: ") + aura::toString(startup.stage));
-    if (!started) {
+    const bool startupBegun = runtime.startAsync(startupError);
+    logLine(std::string("  startup stage: ")
+            + aura::toString(runtime.startupReport().stage));
+    if (!startupBegun) {
         logLine("  startup not ready: " + startupError, true);
         // Continue in DEGRADED mode: the backend stays diagnosable.
-    } else {
-        logLine("  resolved symbol: " + startup.resolvedSymbol);
     }
 
     const int intervalMillis = parseIntervalMillis(argc, argv);
@@ -238,9 +252,26 @@ int main(int argc, char** argv) {
         logLine("  frontend api unavailable: " + apiError, true);
     }
 
-    // Development/ops surface: expose the current state summary once at start.
-    const aura::ApiResponse systemState = facade.handle("GET", "/api/v1/system/state");
-    logLine("  api system/state: " + systemState.body);
+    // Development/ops surface: expose the state summary now that 8790 is bound.
+    // This runs while the bridge is still handshaking, so it reports STARTING —
+    // proof the API answers before the handshake completes.
+    {
+        const aura::ApiResponse systemState =
+            facade.handle("GET", "/api/v1/system/state");
+        logLine("  api system/state (pre-handshake): " + systemState.body);
+    }
+
+    // Phase 2: wait for the bridge handshake. The API server serves on its own
+    // per-connection threads, so the frontend gets STARTING responses throughout
+    // this wait; only the runtime's own data wiring blocks here.
+    if (startupBegun) {
+        std::string finishError;
+        const bool ready = runtime.finishStartup(finishError);
+        logLine(std::string("  handshake ") + (ready ? "ok" : "failed")
+                + ", startup stage: "
+                + aura::toString(runtime.startupReport().stage));
+        if (!ready) logLine("  startup not ready: " + finishError, true);
+    }
 
     do {
         aura::RuntimeCycleReport cycle = runtime.tick(aura::Timestamp::now());
@@ -258,5 +289,5 @@ int main(int argc, char** argv) {
     std::cout << "AURA backend host shutting down\n";
     apiServer.stop();
     runtime.stop();
-    return started ? 0 : 1;
+    return runtime.isReady() ? 0 : 1;
 }

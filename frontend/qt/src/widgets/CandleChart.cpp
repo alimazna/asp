@@ -49,6 +49,12 @@ CandleChart::CandleChart(QWidget* parent)
     mPriceRange = mPriceMax - mPriceMin;
 }
 
+void CandleChart::setStatusText(const QString& text) {
+    if (mStatusText == text) return;
+    mStatusText = text;
+    update();
+}
+
 void CandleChart::setCandles(const QVector<CandleData>& candles) {
     mCandles = candles;
     if (!mCandles.isEmpty()) {
@@ -155,9 +161,11 @@ void CandleChart::paintEvent(QPaintEvent* /*event*/) {
     if (mCandles.isEmpty()) {
         p.setPen(QPen(textSecondary(this), 1));
         p.setFont(QFont("Inter", 14));
-        p.drawText(rect().adjusted(20, 0, -20, 0),
-                   Qt::AlignCenter,
-                   "No candle data available\nConnect to backend to see chart");
+        const QString text = mStatusText.isEmpty()
+                                 ? QStringLiteral("No candle data available\n"
+                                                  "Connect to backend to see chart")
+                                 : mStatusText;
+        p.drawText(rect().adjusted(20, 0, -20, 0), Qt::AlignCenter, text);
         return;
     }
 

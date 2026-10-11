@@ -69,8 +69,23 @@ class StartupCoordinator {
 public:
     StartupCoordinator(StartupOptions options = {}) : options_(std::move(options)) {}
 
-    // Runs the full startup sequence. Returns true when READY.
+    // Runs the full startup sequence synchronously (begin + handshake). Returns
+    // true when READY. Kept for callers that want the whole sequence at once
+    // (tests, recovery); the backend host uses the split form below so it can
+    // bind its loopback API before the possibly-slow bridge handshake.
     bool run(StartupReport& report);
+
+    // Phase 1: resolve paths, locate the bundle, spawn the bridge. Returns
+    // quickly (never waits for the handshake), so the caller can start serving
+    // the frontend API immediately. `report.stage` is WAITING_FOR_HANDSHAKE when
+    // the bridge process was launched, or DEGRADED/FAILED with a specific reason.
+    // Returns true when the bridge is on its way up.
+    bool begin(StartupReport& report);
+
+    // Phase 2: block until the bridge answers (or the handshake budget expires)
+    // and update `report` to READY/DEGRADED. Safe to call on its own thread while
+    // the API serves STARTING from the phase-1 report.
+    bool completeHandshake(StartupReport& report);
 
     // Attempt bridge recovery after a failure; bounded by the supervisor.
     bool recover(StartupReport& report);

@@ -58,9 +58,14 @@ void DashboardPage::setApiClient(ApiClient* client) {
                         // separately and stays retryable.
                         mChartFetchSettled = true;
                         mChart->setCandles({});
+                        mChart->setStatusText(
+                            QStringLiteral("No candle data for %1\n"
+                                           "The backend is reachable but returned no bars")
+                                .arg(mChartTf));
                         return;
                     }
                     mChartFetchSettled = true;
+                    mChart->setStatusText(QString());
                     QVector<CandleData> chartData;
                     chartData.reserve(resp.data.bars.size());
                     for (const Candle& c : resp.data.bars) {
@@ -77,16 +82,29 @@ void DashboardPage::setApiClient(ApiClient* client) {
                     mChart->setCandles(chartData);
                 });
         connect(mApiClient, &ApiClient::candlesFailed, this,
-                [this](const QString&, const QString& code) {
+                [this](const QString& message, const QString& code) {
                     if (!mChart) return;
                     mChartFetchInFlight = false;
-                    // A dependency/parse failure is a real answer from a reachable
-                    // backend; retrying it will not change anything. A transport
-                    // failure (the cold-start race, the socket still binding) will
-                    // clear on the next online transition, so leave it unsettled.
-                    if (code != "network_error" && code != "timeout") {
+                    // A transport failure (the socket still binding) or a backend
+                    // dependency that is still coming up ("python bridge not
+                    // reachable" while the bridge handshakes) is not terminal:
+                    // retry it when the next health response signals progress, and
+                    // paint an honest "starting" state meanwhile.
+                    const bool readiness =
+                        code == "network_error" || code == "timeout" ||
+                        code == "dependency_unavailable";
+                    if (!readiness) {
+                        // A parse/schema failure is a real answer from a reachable
+                        // backend; retrying it will not change anything.
                         mChartFetchSettled = true;
+                        mChart->setStatusText(
+                            QStringLiteral("Chart unavailable\n%1").arg(message));
+                        return;
                     }
+                    mChart->setStatusText(
+                        QStringLiteral("Waiting for the backend to become ready\u2026\n"
+                                       "Loading %1 candles")
+                            .arg(mChartTf));
                 });
     }
     if (mApiClient && mApiClient->isOnline()) {
@@ -103,7 +121,10 @@ int DashboardPage::chartCandleCountForTest() const {
 
 void DashboardPage::requestChartCandles(const QString& tf) {
     mChartTf = tf;
-    if (mChart) mChart->setCandles({});
+    if (mChart) {
+        mChart->setCandles({});
+        mChart->setStatusText(QStringLiteral("Loading %1 candles\u2026").arg(tf));
+    }
     mChartFetchSettled = false;
     if (mApiClient) {
         mChartFetchInFlight = true;
@@ -683,6 +704,23 @@ void DashboardPage::updateFromHealth(const HealthResponse& resp) {
     mLastHealth = resp;
     mHasHealth = true;
     mOnline = true;
+
+    // The backend is reachable the moment it binds 8790, but /candles proxies to
+    // the bridge, which may still be handshaking (aggregate=STARTING). Each
+    // health response that reports new progress — the bridge process came up, or
+    // the aggregate advanced past STARTING — is the signal to retry the chart
+    // fetch that failed while the backend was still warming up. Without this the
+    // cold-start chart stayed on its error state until the next launch.
+    const QString backendState = resp.data.aggregate.toUpper();
+    const QString bridgeState = resp.data.processState.toUpper();
+    const bool progressed =
+        (backendState != mLastChartRetryBackendState) ||
+        (bridgeState != mLastChartRetryBridgeState);
+    mLastChartRetryBackendState = backendState;
+    mLastChartRetryBridgeState = bridgeState;
+    if (progressed && !mChartFetchInFlight && !mChartFetchSettled) {
+        requestChartCandles(mChartTf);
+    }
 
     auto levelColor = [](HealthLevel level) -> QString {
         switch (level) {

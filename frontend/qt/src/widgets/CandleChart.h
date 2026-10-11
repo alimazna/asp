@@ -52,6 +52,12 @@ public:
     void setCandles(const QVector<CandleData>& candles);
     void setAnalysisLevels(double sl, double tp);
 
+    // Text painted while there are no candles. The dashboard drives this so the
+    // cold-start states ("waiting for backend", "loading", a real failure) are
+    // legible instead of the generic "Connect to backend" placeholder.
+    void setStatusText(const QString& text);
+    [[nodiscard]] QString statusText() const { return mStatusText; }
+
     // Interactions
     void zoomIn();
     void zoomOut();
@@ -90,6 +96,7 @@ private:
 
     // State
     QVector<CandleData> mCandles;
+    QString mStatusText;
     double mSL = 0;
     double mTP = 0;
     bool mShowSLTP = false;

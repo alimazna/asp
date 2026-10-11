@@ -24,6 +24,7 @@
 #include "runtime/DecisionPipeline.h"
 #include "shadow/PositionSimulator.h"
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <string>
@@ -45,19 +46,42 @@ public:
     AuraRuntime(StartupOptions startupOptions = {},
                 int candlesPerTimeframe = 500);
 
-    // Run startup. Returns true when the runtime reached READY.
+    // Run startup synchronously. Returns true when the runtime reached READY.
     bool start(std::string& error);
+
+    // Phase-1 startup that returns as soon as the bridge process is launched,
+    // WITHOUT waiting for the handshake. Lets the host bind its loopback API and
+    // answer the frontend immediately (aggregate=STARTING) instead of staying
+    // silent while MT5 cold-starts for up to a minute. Returns true when the
+    // bridge is on its way up; false when startup failed or degraded (the reason
+    // is in startupReport().error). Call finishStartup() afterwards.
+    bool startAsync(std::string& error);
+
+    // Phase 2 of startAsync(): block for the handshake and finalize the runtime
+    // (ingestor, persistence, pipeline, ready/mode). Returns true when READY.
+    // Safe to call on a background thread; the API reads the phase-1 report
+    // concurrently, which is why the host publishes the report through an
+    // atomic pointer rather than in place.
+    bool finishStartup(std::string& error);
 
     // Ingest one cycle across all canonical timeframes. Never throws; reports.
     RuntimeCycleReport tick(Timestamp now);
 
     void stop();
 
-    bool isReady() const noexcept { return ready_; }
-    SystemMode mode() const noexcept { return mode_; }
+    // Atomic so the API thread can read them while the startup thread finalizes.
+    bool isReady() const noexcept { return ready_.load(std::memory_order_acquire); }
+    SystemMode mode() const noexcept { return mode_.load(std::memory_order_acquire); }
     ServiceState bridgeState() const noexcept;
 
-    const StartupReport& startupReport() const noexcept { return startupReport_; }
+    // The startup report published by the startup thread. Read through an atomic
+    // pointer so the API thread can safely observe the phase-1 report (STARTING)
+    // while the handshake is still in progress on another thread; without this
+    // the API read a report being written concurrently (a data race).
+    const StartupReport& startupReport() const noexcept {
+        const StartupReport* r = publishedStartupReport_.load(std::memory_order_acquire);
+        return r != nullptr ? *r : startupReport_;
+    }
     TimeframeStateStore& timeframeStore() noexcept { return timeframeStore_; }
     const TimeframeStateStore& timeframeStore() const noexcept { return timeframeStore_; }
     DataBus& dataBus() noexcept { return dataBus_; }
@@ -90,10 +114,10 @@ public:
         return pipeline_ != nullptr ? pipeline_->lastDecisionContext()
                                     : DecisionContext{};
     }
-    std::string resolvedSymbol() const { return startupReport_.resolvedSymbol; }
-    bool mt5Ready() const noexcept { return startupReport_.mt5Ready; }
-    bool bridgeHandshakeOk() const noexcept { return startupReport_.handshakeOk; }
-    StartupStage startupStage() const noexcept { return startupReport_.stage; }
+    std::string resolvedSymbol() const { return startupReport().resolvedSymbol; }
+    bool mt5Ready() const noexcept { return startupReport().mt5Ready; }
+    bool bridgeHandshakeOk() const noexcept { return startupReport().handshakeOk; }
+    StartupStage startupStage() const noexcept { return startupReport().stage; }
 
     // Bridge identity/health, queried live from the loopback bridge client.
     // Returns false (with `out` left default) when the bridge is unavailable;
@@ -120,9 +144,25 @@ private:
     void appendAudit(AuditAction action, const std::string& subject,
                      const std::string& details, Timestamp now);
 
+    // Snapshot the phase-1 (or final) report into an unused buffer, then publish
+    // its address. The startup thread and the API thread never touch the same
+    // buffer, so the API can read STARTING while the handshake is still running.
+    void publishStartupReport(int slot);
+
+    // Construct the ingestor/persistence/pipeline from the current report. Called
+    // before the API binds so handler threads never see a half-built runtime.
+    void buildRuntimeComponents();
+
+    // Set ready_/mode_ from the current report. Shared by the synchronous and
+    // split startup paths.
+    bool finalizeState(std::string& error);
+
     StartupOptions startupOptions_;
     StartupCoordinator startup_;
     StartupReport startupReport_;
+    StartupReport publishedStartupSnapshot_[2];
+    // Address of the currently published snapshot, or nullptr before startup.
+    std::atomic<const StartupReport*> publishedStartupReport_{nullptr};
     int candlesPerTimeframe_;
     DataBus dataBus_;
     TimeframeStateStore timeframeStore_;
@@ -150,8 +190,8 @@ private:
     // re-evaluate an already-processed bar.
     std::map<std::string, std::int64_t> lastDecisionBarOpenSec_;
 
-    bool ready_ = false;
-    SystemMode mode_ = SystemMode::STARTING;
+    std::atomic<bool> ready_{false};
+    std::atomic<SystemMode> mode_{SystemMode::STARTING};
 };
 
 }  // namespace aura

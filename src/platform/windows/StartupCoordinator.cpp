@@ -10,7 +10,7 @@
 
 namespace aura {
 
-bool StartupCoordinator::run(StartupReport& report) {
+bool StartupCoordinator::begin(StartupReport& report) {
     report = StartupReport{};
     report.stage = StartupStage::RESOLVING_PATHS;
 
@@ -71,20 +71,33 @@ bool StartupCoordinator::run(StartupReport& report) {
     config.readTimeoutMillis = 2000;
     bridgeClient_ = makePythonBridgeClient(config);
 
+    // The bridge is launched but not yet answering. Return immediately so the
+    // caller can bind its loopback API and serve STARTING while MT5 cold-starts.
     report.stage = StartupStage::WAITING_FOR_HANDSHAKE;
+    report_ = report;
+    return true;
+}
+
+bool StartupCoordinator::completeHandshake(StartupReport& report) {
+    if (!bridgeClient_) return false;
     const bool handshakeOk = waitForHandshake(report);
     report.handshakeOk = handshakeOk;
     report.completedAt = Timestamp::now();
     report_ = report;
-
     if (!handshakeOk) {
         report.stage = StartupStage::DEGRADED;
+        report_ = report;
         return false;
     }
     report.stage = StartupStage::READY;
     report.ready = true;
     report_ = report;
     return true;
+}
+
+bool StartupCoordinator::run(StartupReport& report) {
+    if (!begin(report)) return false;
+    return completeHandshake(report);
 }
 
 bool StartupCoordinator::bridgeSpawnAllowed(StartupReport& report) {
