@@ -279,7 +279,13 @@ ApiResponse BackendFacade::candles(const std::string& timeframe, int limit) cons
     request.port = bridgePort();
     request.path = "/v1/candles?tf=" + timeframe +
                    "&limit=" + std::to_string(limit);
-    request.readTimeoutMillis = 5000;
+    // The bridge's own read timeout is 5s (PythonBridgeClient config); a cold
+    // candle window on a live terminal can approach that. Give the proxy a
+    // budget strictly above it so a slow-but-successful read is never truncated
+    // into a "bridge not reachable" envelope. The frontend's candle budget is
+    // larger again (ApiClient kCandleTransferTimeoutMs), so the chain is
+    // frontend > backend proxy > bridge client.
+    request.readTimeoutMillis = 8000;
 
     const HttpResponse response = httpGet(request);
     if (!response.ok) {

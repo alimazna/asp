@@ -8,16 +8,27 @@
 
 namespace astra {
 
+// Every request must be bounded, or a hung backend leaves a reply pending
+// forever and the UI never flips to OFFLINE. 5s (not the old 3s) because the
+// backend occasionally answers /api/v1/health in >1s during the bridge
+// handshake. This is the ceiling for health/poll traffic, which the backend
+// answers from memory.
+static constexpr int kApiTransferTimeoutMs = 5000;
+// Candles is the one route that cannot be answered from memory: the backend
+// proxies it to the Python bridge, which itself allows 5s. With the frontend
+// budget equal to the backend's, a slow-but-successful candle read (cold MT5,
+// first bar window) is aborted by the frontend as a transport error
+// ("Connection closed") a fraction of a second before the backend's honest
+// envelope arrives — the chart then shows its error/empty overlay while the
+// backend is healthy. Give the chart a budget strictly larger than the
+// backend's 8s proxy budget so the structured reply always wins.
+static constexpr int kCandleTransferTimeoutMs = 15000;
+
 ApiClient::ApiClient(QObject* parent)
     : QObject(parent)
     , mBaseUrl("http://127.0.0.1:8790/api/v1/")
 {
-    // Bound every request: without a transfer timeout a hung backend leaves
-    // replies pending forever, so the UI never flips to OFFLINE. 5s (not the
-    // old 3s) because the backend shares a thread with the bridge handshake and
-    // occasionally answers /api/v1/health in >1s; a sub-second budget was
-    // reporting a healthy backend as unreachable.
-    mNetworkManager.setTransferTimeout(5000);
+    mNetworkManager.setTransferTimeout(kApiTransferTimeoutMs);
 
     connect(&mRetryTimer, &QTimer::timeout, this, [this]() {
         mRetryTimer.stop();
@@ -299,6 +310,9 @@ void ApiClient::fetchCandles(const QString& tf, int limit) {
     QNetworkRequest request(QUrl(mBaseUrl + "candles?tf=" + tf +
                                  "&limit=" + QString::number(qBound(1, limit, 1000))));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    // Override the manager-wide budget: this route proxies to the bridge and
+    // must outlast the backend's own 5s bridge read timeout (see the constant).
+    request.setTransferTimeout(kCandleTransferTimeoutMs);
     auto* reply = mNetworkManager.get(request);
     mPendingReplies.append(reply);
     handleReply(reply,

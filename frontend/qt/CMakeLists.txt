@@ -281,6 +281,23 @@ if(BUILD_ASTRA_TESTS)
     # ChartPage stale-reply race: a reply for a timeframe the user switched away
     # from must not clear the current request's in-flight flag (which stranded
     # the Loading overlay when the current request then failed).
+    add_executable(astra_candle_timeout_tests
+        tests/ApiCandleTimeoutTests.cpp
+        src/api/ApiClient.cpp
+        src/api/ApiTypes.cpp
+    )
+    target_include_directories(astra_candle_timeout_tests PRIVATE src ${ASTRA_ROOT_SRC})
+    target_link_libraries(astra_candle_timeout_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_candle_timeout_tests COMMAND astra_candle_timeout_tests)
+    set_tests_properties(astra_candle_timeout_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     add_executable(astra_chart_stale_tests
         tests/ChartStaleReplyTests.cpp
         src/pages/ChartPage.cpp
