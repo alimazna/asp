@@ -1779,3 +1779,105 @@ Connect to backend / never renders".
   writable-state-deletion regression did CI surface it. Stated plainly: the
   prior CI green did not exercise the fresh-install lock path, and the chart
   assertion it used could not tell a rendered fetch from a failed one.
+
+## Autostart — Third Attempt (chart render, health flip-flop, timing)
+
+### Correction to the previous passes
+The previous agent claimed autostart worked because CI was green. **The CI was
+lying about the real flow**: the workflow built only `--target aura_backend_host`
+and ran no backend tests, so the candle-staleness and concurrency defects never
+ran in CI, and the installer smoke test read only the *first* `ui candles:` line
+— a transient transport failure during the backend's bake-in — as the terminal
+state. Both are fixed here; CI now builds and runs the whole backend suite on
+Windows and asserts the terminal chart state from the installed app.
+
+### Root cause (Step 1)
+- **Q1** – `frontend/qt/src/main.cpp:117-130` `deps.backendExePath` resolves
+  `QCoreApplication::applicationDirPath()/"aura_backend_host.exe"`; `main.cpp:137`
+  spawns it detached via `QProcess::startDetached(exe, {"--api-port","8790"})`.
+  This part was already correct after the previous passes.
+- **Q2** – The launch is gated in `frontend/qt/src/autostart/AutoStart.cpp:9`
+  (`backendListening()` → AlreadyListening), `:22` (once-per-process `attempted`),
+  `:32` (`AURA_NO_BACKEND`), `:38` (cross-process lock), `:45` (`exeExists`).
+- **Q3** – Resolved path is `<applicationDirPath>/aura_backend_host.exe`; valid
+  in `C:\Program Files\ASTRA` (the installer smoke test lists both exes).
+- **Q4** – The bridge is not spawned by the frontend at all: the backend owns it.
+  `src/platform/windows/BundleLocator.cpp:37` resolves
+  `join(paths_.bridgeDir,"bridge.exe")` = `…/resources/bridge/mt5_python/bridge.exe`
+  (`src/platform/windows/PathResolver.cpp:103-104`); valid after install.
+- **Q5** – "backend unreachable"/"bridge unreachable" are set independently of
+  any spawn attempt: `frontend/qt/src/pages/DashboardPage.cpp:636` and `:638` on
+  `setOnline(false)`. `CandleChart.cpp:160` is the "No candle data available /
+  Connect to backend" placeholder. The UI could therefore show OFFLINE without
+  ever attempting a spawn — the reported case.
+- **Q6** – The log path was install-dir based in earlier passes; it is now
+  user-writable: `frontend/qt/src/main.cpp:57-63` (`QStandardPaths::
+  GenericDataLocation` → `%LOCALAPPDATA%\ASTRA\logs`) and the same in
+  `MainWindow.cpp:44-56`.
+- **Q7** – **The CI smoke test was not reproducing the user flow.** The Windows
+  workflow built only `--target aura_backend_host` and ran no backend tests, so
+  the real bridge/candle behaviour was never exercised; the installer smoke test
+  did launch the installed `astra_desktop.exe`, but its candle assertion read the
+  first `ui candles:` line (a cold-start `network_error`) as final. Plainly: the
+  previous CI green did not test the candle path or the concurrency fix.
+
+### Fix
+- **frontend/qt** – `MainWindow.cpp/.h`: reachability label measured from the
+  actual spawn (`autostartReachabilityLabel`; `main.cpp` passes the spawn epoch);
+  the candle outcome is logged on every change, not just the first line.
+- **backend host** – `src/api/LoopbackApiServer.cpp`: accept loop dispatches each
+  connection to a detached worker (joined in `stop()`), so `/candles` can no
+  longer block `/health` (the flip-flop). `src/platform/windows/ProcessSupervisor.cpp`:
+  `CreateProcessA` now honours `spec.environment` (it passed `nullptr`, dropping
+  every override).
+- **bridge** – `bridge/mt5_python/bridge_service.py`: `allow_stale=true` returns
+  the newest real bars (flagged `stale`) instead of `MARKET_DATA_STALE`, so the
+  chart renders when the market is closed.
+- **log location** – user-writable `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log`
+  (already correct; now records the outcome of every candle fetch).
+- Commit: `61bda4f`, `e116623`, `4ca2c81`, `be91ab1`, `9e9b288`
+
+### CI smoke test
+- **Old test was testing**: only the backend host binary was built; no backend
+  tests ran; the candle assertion read the first `ui candles:` line.
+- **New test tests**: builds the whole backend suite and runs CTest on Windows
+  (incl. `CandlesApiTests::real_bridge_allow_stale_*`, driving the real bridge
+  with a stale fake-MT5 feed, and `LoopbackConcurrencyTests`, driving the real
+  server over a slow bridge proxy); the installer smoke test asserts the
+  *terminal* candle line is not a transport failure and that backend+bridge came
+  up from the installed app.
+- Commit: `be91ab1`, `9e9b288`
+
+### CI run
+- Run id: **38152826793** (workflow_dispatch, `fix/autostart-third-pass`)
+- Status: **success** (all steps, incl. the installer smoke test)
+- Smoke-test excerpt:
+  ```
+  t+2s counts: backend=1
+  poll 4: backend=True bridge=True ui=True
+  post-health counts: bridge=2
+  frontend-autostart.log (C:\Users\runneradmin\AppData\Local\ASTRA\logs\...)
+    [15:57:15Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+    [15:57:15Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+    [15:57:22Z] ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed ... not found
+    [15:57:35Z] backend reachable after 20s
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 52.7s
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  ```
+- Earlier failing run `38151972178` is what exposed the `CreateProcessA`
+  environment-block bug and the fake CI assertion; both are fixed.
+
+### New installer
+- Size: **39,295,079 bytes** (~37.5 MiB) — artifact `ASTRA-windows-installer`.
+
+### Not reproduced in CI (must be tested manually on the Windows box)
+- The CI runner has **no live MetaTrader 5 terminal**, so the chart's candle
+  fetch returns `MT5_TERMINAL_UNAVAILABLE` (honest data-absence, not a UI bug).
+  The closed-market `allow_stale` → rendered-bars path therefore cannot be
+  asserted end to end in CI; it is covered deterministically by
+  `CandlesApiTests::real_bridge_allow_stale_returns_bars_when_market_closed`
+  (backend, real bridge + stale fake-MT5) and `ChartStaleBarsTests` (frontend).
+  On the human's machine, with MT5 running, the chart must render bars (fresh,
+  or last-available with the "Market closed" notice).
