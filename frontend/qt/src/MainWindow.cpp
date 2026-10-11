@@ -159,6 +159,9 @@ void MainWindow::setApiClient(ApiClient* client) {
     connect(client, &ApiClient::online, this, &MainWindow::onOnline);
     connect(client, &ApiClient::candlesReceived, this, &MainWindow::onCandlesUpdated);
     connect(client, &ApiClient::candlesFailed, this, &MainWindow::onCandlesFailed);
+    // The bake-in window advances on every real probe failure, not on the
+    // debounced offline() edge (which now needs two misses).
+    connect(client, &ApiClient::healthProbeFailed, this, &MainWindow::onAutostartHealthMiss);
 
     // Pages own their data sources
     if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) dash->setApiClient(client);
@@ -843,10 +846,9 @@ void MainWindow::onOffline() {
     if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) {
         dash->setOnline(false);
     }
-
-    // During the auto-start bake-in this miss may be transient (the backend has
-    // not bound 8790 yet), so it must not end the retry loop or show the banner.
-    onAutostartHealthMiss();
+    // The bake-in window is driven by ApiClient::healthProbeFailed(), which fires
+    // on every real miss. offline() is debounced (two misses) and must not be the
+    // clock for the auto-start window, or a slow probe delays the banner.
 }
 
 void MainWindow::onOnline() {

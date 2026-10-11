@@ -150,6 +150,10 @@ void ApiClient::fetchHealth() {
             mHealthInFlight = false;
             mHealthReply = nullptr;
             ++mConsecutiveHealthFailures;
+            // Report every real probe failure to the bake-in logic before the
+            // debounce below suppresses it from the UI. The auto-start window
+            // advances on actual misses, not on the (debounced) offline() edge.
+            emit healthProbeFailed();
             // Require two consecutive failures before flipping OFFLINE. A single
             // slow or timed-out probe on a healthy backend must not blank the
             // UI: that 10s flip-flop left the chart no stable window to render.

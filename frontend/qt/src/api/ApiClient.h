@@ -84,6 +84,11 @@ signals:
     // be able to react to its own request failing without other pages (which
     // also listen on error()) repainting their overlays.
     void candlesFailed(const QString& message, const QString& code);
+    // Emitted on EVERY failed /health probe, before the two-strike latching
+    // rule decides whether to emit offline(). MainWindow uses it to drive the
+    // auto-start bake-in window, which must advance on real probe failures
+    // rather than on the (deliberately debounced) offline() transition.
+    void healthProbeFailed();
     void offline();
     void online();
 
