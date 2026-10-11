@@ -250,6 +250,27 @@ jobs:
           Write-Host "post-health counts: bridge=$g"
           if ($g -lt 1) { Write-Error "expected at least 1 bridge.exe after the health wait, found $g"; exit 1 }
 
+          # ---- UI stability: once the window first goes live, it must NOT flip
+          # back to OFFLINE within 30s. The field bug was the UI alternating
+          # "ui health ok"/"ui health offline" every ~10s on a healthy backend,
+          # so the chart never had a stable window to fetch candles. Poll the log
+          # every 5s for 30s and fail if an "ui health offline" follows the first
+          # "ui health ok".
+          for ($i = 0; $i -lt 6; $i++) {
+            Start-Sleep -Seconds 5
+            $cur = @(Get-Content $autostartLog)
+            $firstOk = -1
+            for ($j = 0; $j -lt $cur.Count; $j++) { if ($cur[$j] -match "ui health ok") { $firstOk = $j; break } }
+            if ($firstOk -ge 0 -and $firstOk -lt ($cur.Count - 1)) {
+              $after = @($cur[($firstOk + 1)..($cur.Count - 1)] | Where-Object { $_ -match "ui health offline" })
+              if ($after.Count -gt 0) {
+                Write-Error "UI flip-flop: 'ui health offline' appeared after 'ui health ok' on a healthy backend"
+                $cur | Write-Host; exit 1
+              }
+            }
+          }
+          Write-Host "UI stability: no offline flip after the first health ok (30s)"
+
           Write-Host "---- process state ----"
           tasklist | findstr /I "astra_desktop aura_backend_host bridge"
           Write-Host "---- frontend-autostart.log ($autostartLog) ----"
@@ -305,9 +326,26 @@ jobs:
             Write-Error "the Qt window ended on 'ui health offline' although /health is reachable — UI false-OFFLINE regression"
             $liveness | Write-Host; exit 1
           }
-          # Duplicate-spawn guard evidence: exactly one spawn attempt.
+          # Duplicate-spawn guard evidence: exactly one spawn ATTEMPT and one
+          # success. The field log showed two "attempting to spawn" lines 33s
+          # apart; both counts must be exactly 1.
+          $spawnAttemptCount = @($logLines | Where-Object { $_ -match "attempting to spawn" }).Count
+          if ($spawnAttemptCount -ne 1) {
+            Write-Error "expected exactly 1 'attempting to spawn' line, found $spawnAttemptCount (duplicate-spawn regression)"
+            $logLines | Write-Host; exit 1
+          }
           $spawnOkCount = @($logLines | Where-Object { $_ -match "spawn ok" }).Count
           if ($spawnOkCount -ne 1) { Write-Error "expected exactly 1 'spawn ok' line, found $spawnOkCount"; exit 1 }
+
+          # Chart-data evidence: the chart must actually have fetched candles
+          # from the backend (the frontend records this, since the backend keeps
+          # no request log). Its absence is the reported "chart never renders".
+          if (-Not ($logLines -match "ui candles:")) {
+            Write-Error "auto-start log has no 'ui candles:' line: the chart never fetched /api/v1/candles"
+            $logLines | Write-Host; exit 1
+          }
+          $candleLine = @($logLines | Where-Object { $_ -match "ui candles:" })[0]
+          Write-Host "chart fetch evidence: $candleLine"
           Write-Host "smoke elapsed: $($launchClock.Elapsed.TotalSeconds.ToString('0.0'))s"
 
           # Clean shutdown, then uninstall, so no process is left holding the ports.
