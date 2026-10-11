@@ -155,6 +155,21 @@ class BridgeState:
         with self._candle_cache_lock:
             self._candle_cache[key] = (time.monotonic() + _CACHE_TTL_SECONDS, payload)
 
+    def cache_get_any(self, symbol: str, timeframe: str) -> Optional[Dict[str, Any]]:
+        """Return the newest cached chart payload for (symbol, timeframe)
+        regardless of TTL or requested limit. Used only for allow_stale: when
+        the market is closed we would rather replay the last real bars we saw
+        than hide the chart. Never fabricates bars — returns None if nothing was
+        ever cached."""
+        with self._candle_cache_lock:
+            best_payload = None
+            best_limit = -1
+            for (sym, tf, lim), (_expiry, payload) in self._candle_cache.items():
+                if sym == symbol and tf == timeframe and lim > best_limit:
+                    best_limit = lim
+                    best_payload = payload
+            return best_payload
+
 
 def _handshake_payload(state: BridgeState) -> Dict[str, Any]:
     return {
@@ -475,6 +490,11 @@ class BridgeHandler(BaseHTTPRequestHandler):
         symbol = (query.get("symbol") or [state.resolved_symbol or state.preferred_symbol])[0]
         timeframe = (query.get("tf") or [PRIMARY_OPERATIONAL_TIMEFRAME])[0]
         limit_raw = (query.get("limit") or [str(_CHART_DEFAULT_LIMIT)])[0]
+        # allow_stale=true: return the newest real bars even when the market is
+        # closed and they exceed the freshness threshold. This is the chart's
+        # request; live/analysis surfaces keep the strict behavior.
+        allow_stale_raw = (query.get("allow_stale") or ["false"])[0]
+        allow_stale = str(allow_stale_raw).strip().lower() in ("true", "1")
 
         if timeframe not in TIMEFRAMES:
             self._error(ErrorInfo(code=ERR_BAD_REQUEST,
@@ -526,17 +546,62 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 return
 
             # Staleness is surfaced as an explicit error, never a silent VALID.
+            # Exception: the chart asks with allow_stale=true, where a closed
+            # market is normal and we return the newest real bars with an
+            # explicit stale flag instead of hiding the chart.
             freshness = result.data.get("freshness", "UNKNOWN")
             if freshness == "STALE":
-                state.mark_error("stale market data")
-                self._error(ErrorInfo(
-                    code=ERR_MARKET_DATA_STALE,
-                    state=QUALITY_UNKNOWN,
-                    message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
-                    context={"symbol": symbol, "timeframe": timeframe,
-                             "newest_closed_time": result.data.get("newest_closed_time"),
-                             "age_seconds": result.data.get("age_seconds")},
-                    recovery="verify the MT5 terminal feed is live and the market is open"))
+                if not allow_stale:
+                    state.mark_error("stale market data")
+                    self._error(ErrorInfo(
+                        code=ERR_MARKET_DATA_STALE,
+                        state=QUALITY_UNKNOWN,
+                        message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
+                        context={"symbol": symbol, "timeframe": timeframe,
+                                 "newest_closed_time": result.data.get("newest_closed_time"),
+                                 "age_seconds": result.data.get("age_seconds")},
+                        recovery="verify the MT5 terminal feed is live and the market is open"))
+                    return
+                bars = result.data.get("candles", [])
+                if not bars:
+                    # The terminal itself returned no bars: fall back to the last
+                    # real bars we cached (never fabricated). If we never cached
+                    # any, report the stale condition honestly as before.
+                    fallback = state.cache_get_any(symbol, timeframe)
+                    if fallback is None:
+                        state.mark_error("stale market data")
+                        self._error(ErrorInfo(
+                            code=ERR_MARKET_DATA_STALE,
+                            state=QUALITY_UNKNOWN,
+                            message=(f"newest closed {timeframe} bar is {result.data.get('age_seconds')}s old"),
+                            context={"symbol": symbol, "timeframe": timeframe,
+                                     "newest_closed_time": result.data.get("newest_closed_time"),
+                                     "age_seconds": result.data.get("age_seconds")},
+                            recovery="verify the MT5 terminal feed is live and the market is open"))
+                        return
+                    payload = dict(fallback)
+                    payload["stale"] = True
+                    payload["age_seconds"] = result.data.get("age_seconds")
+                    self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
+                                                source=SOURCE_NAME, broker=state.client.broker,
+                                                symbol=symbol, timeframe=timeframe,
+                                                quality=QUALITY_UNKNOWN))
+                    return
+                payload = {
+                    "bars": bars,
+                    "timeframe": timeframe,
+                    "symbol": symbol,
+                    "count": len(bars),
+                    "closed_only": True,
+                    "newest_closed_time": result.data.get("newest_closed_time"),
+                    "freshness": freshness,
+                    "stale": True,
+                    "age_seconds": result.data.get("age_seconds"),
+                }
+                self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
+                                            source=SOURCE_NAME, broker=state.client.broker,
+                                            symbol=symbol, timeframe=timeframe,
+                                            quality=QUALITY_UNKNOWN))
                 return
 
             bars = result.data.get("candles", [])
@@ -548,6 +613,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "closed_only": True,
                 "newest_closed_time": result.data.get("newest_closed_time"),
                 "freshness": freshness,
+                "stale": False,
+                "age_seconds": result.data.get("age_seconds"),
             }
             state.cache_put(symbol, timeframe, limit, payload)
             state.mark_success()

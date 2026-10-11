@@ -63,7 +63,13 @@ public:
     // Candle series for the ASTRA chart. Proxies the Python bridge (8791) and
     // wraps its series in the standard envelope. Validates tf/limit here too
     // (defense in depth) and never caches (the bridge already does).
-    ApiResponse candles(const std::string& timeframe, int limit) const;
+    //
+    // allowStale forwards `allow_stale=true` to the bridge, which then returns
+    // the newest real bars even when the market is closed and they are older
+    // than the freshness threshold (with stale=true / age_seconds). It never
+    // fabricates bars; live/analysis surfaces keep the strict behavior.
+    ApiResponse candles(const std::string& timeframe, int limit,
+                        bool allowStale = false) const;
     ApiResponse latestSignal() const;
     ApiResponse latestProbability() const;
     ApiResponse latestRisk() const;

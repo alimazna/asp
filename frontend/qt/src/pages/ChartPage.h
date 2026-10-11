@@ -41,6 +41,9 @@ public:
     [[nodiscard]] int candleCountForTest() const;
     [[nodiscard]] bool overlayShownForTest() const;
     [[nodiscard]] QString overlayTitleForTest() const;
+    // Text of the "Market closed — showing last available data" notice, empty
+    // when the notice is hidden.
+    [[nodiscard]] QString staleNoticeTextForTest() const;
 
 protected:
     void changeEvent(QEvent* event) override;
@@ -71,6 +74,10 @@ private:
 
     QWidget* mChartContainer = nullptr;
     CandleChart* mChart = nullptr;
+    // Non-blocking notice shown above the chart when the backend returned the
+    // last real bars for a closed market (allow_stale). It must never hide the
+    // chart; it replaces the old "Connect to backend" dead-end.
+    QLabel* mStaleNotice = nullptr;
     QFrame* mOverlay = nullptr;
     QVBoxLayout* mOverlayLayout = nullptr;
     QLabel* mOverlayTitle = nullptr;

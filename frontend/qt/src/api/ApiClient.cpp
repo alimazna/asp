@@ -307,8 +307,12 @@ void ApiClient::fetchAnalysisHistory(int limit) {
 void ApiClient::fetchCandles(const QString& tf, int limit) {
     // The frontend never talks to MT5 or the bridge directly: this is the only
     // candle source, and it goes through the C++ loopback API.
+    // allow_stale=true: the chart must render the last real bars when the market
+    // is closed, not hide itself behind "Connect to backend". The backend returns
+    // them with an explicit stale flag; live/analysis surfaces stay strict.
     QNetworkRequest request(QUrl(mBaseUrl + "candles?tf=" + tf +
-                                 "&limit=" + QString::number(qBound(1, limit, 1000))));
+                                 "&limit=" + QString::number(qBound(1, limit, 1000)) +
+                                 "&allow_stale=true"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     // Override the manager-wide budget: this route proxies to the bridge and
     // must outlast the backend's own 5s bridge read timeout (see the constant).
@@ -618,6 +622,10 @@ CandlesData ApiClient::parseCandlesData(const QJsonObject& obj) {
     d.timeframe = obj.value("timeframe").toString();
     d.symbol = obj.value("symbol").toString();
     d.freshness = obj.value("freshness").toString("UNKNOWN");
+    d.stale = obj.value("stale").toBool(false);
+    d.ageSeconds = obj.contains("age_seconds")
+                       ? static_cast<qint64>(obj.value("age_seconds").toDouble())
+                       : -1;
 
     const QJsonArray arr = obj.value("bars").toArray();
     d.bars.reserve(arr.size());

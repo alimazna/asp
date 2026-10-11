@@ -45,10 +45,19 @@ std::string findPython() {
     const char* pathEnv = std::getenv("PATH");
     if (pathEnv == nullptr) return "";
     std::string path(pathEnv);
+    // PATH is ';'-separated on Windows, ':' elsewhere; splitting on the wrong
+    // character made every integration case SKIP on the Windows CI runner.
+#ifdef _WIN32
+    const char kPathSep = ';';
+    const std::vector<std::string> names = {"python.exe", "python3.exe",
+                                            "python", "python3"};
+#else
+    const char kPathSep = ':';
     const std::vector<std::string> names = {"python3", "python"};
+#endif
     std::size_t start = 0;
     while (start <= path.size()) {
-        const std::size_t end = path.find(':', start);
+        const std::size_t end = path.find(kPathSep, start);
         const std::string dir =
             path.substr(start, end == std::string::npos ? std::string::npos
                                                         : end - start);
@@ -234,4 +243,94 @@ TEST_CASE(real_bridge_serves_enveloped_candle_series) {
     CHECK(contains(response.body, "\"tick_volume\":"));
     // The bridge's own envelope is not leaked into the v1 contract.
     CHECK(!contains(response.body, "\"protocol_version\""));
+}
+
+// Bug 1: with the market closed the bridge's newest closed bar is far older than
+// its staleness threshold, so a strict fetch is refused with MARKET_DATA_STALE
+// and the chart never renders. The frontend asks with allow_stale=true, which
+// must return the newest real bars (marked stale) instead of an error.
+TEST_CASE(real_bridge_allow_stale_returns_bars_when_market_closed) {
+    const std::string python = findPython();
+    if (python.empty()) {
+        std::cout << "  [SKIP] no python interpreter on PATH; "
+                     "allow_stale integration not exercised\n";
+        return;
+    }
+
+    const std::string bridgeDir = std::string(AURA_SOURCE_DIR) + "/bridge/mt5_python";
+    const std::string fakeMt5 = std::string(AURA_SOURCE_DIR) + "/tests/integration/fake_mt5";
+    const std::uint16_t port = freePort();
+
+    ProcessLaunchSpec spec;
+    spec.executable = python;
+    spec.args = {bridgeDir + "/bridge_service.py", "--host", "127.0.0.1",
+                 "--port", std::to_string(port), "--symbol", "XAUUSD"};
+    spec.workingDir = bridgeDir;
+    spec.environment["PYTHONUNBUFFERED"] = "1";
+    spec.environment["FAKE_MT5_AVAILABLE"] = "1";
+    spec.environment["FAKE_MT5_TOTAL_BARS"] = "300";
+    // Newest forming bar is >2 days old, so the newest CLOSED bar is far past
+    // the bridge's staleness threshold: the closed-market scenario.
+    const std::string staleLast =
+        std::to_string(static_cast<long long>(std::time(nullptr)) - 200000);
+    spec.environment["FAKE_MT5_LAST_TIME"] = staleLast;
+#ifdef _WIN32
+    spec.environment["PYTHONPATH"] = fakeMt5;
+#else
+    const char* existing = std::getenv("PYTHONPATH");
+    spec.environment["PYTHONPATH"] =
+        fakeMt5 + (existing != nullptr ? std::string(":") + existing : "");
+#endif
+
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 40 && !ready; ++i) {
+        HttpRequest ping;
+        ping.host = "127.0.0.1";
+        ping.port = port;
+        ping.path = "/v1/handshake";
+        ping.connectTimeoutMillis = 300;
+        ping.readTimeoutMillis = 500;
+        if (httpGet(ping).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    const char* previous = std::getenv("ASTRA_BRIDGE_PORT");
+    const std::string saved = previous != nullptr ? previous : "";
+    setEnv("ASTRA_BRIDGE_PORT", std::to_string(port));
+    BackendFacade facade(FacadeDependencies{});
+
+    // Strict: the stale feed is refused, exactly the field error.
+    const ApiResponse strict =
+        facade.handle("GET", "/api/v1/candles", "tf=M15&limit=10");
+    // allow_stale: the newest real bars come back instead of the error.
+    const ApiResponse tolerant =
+        facade.handle("GET", "/api/v1/candles", "tf=M15&limit=10&allow_stale=true");
+
+    if (saved.empty()) {
+#ifdef _WIN32
+        _putenv_s("ASTRA_BRIDGE_PORT", "");
+#else
+        ::unsetenv("ASTRA_BRIDGE_PORT");
+#endif
+    } else {
+        setEnv("ASTRA_BRIDGE_PORT", saved);
+    }
+    std::string stopError;
+    supervisor.stop(3000, stopError);
+
+    CHECK_EQ(strict.status, 502);
+    CHECK(contains(strict.body, "MARKET_DATA_STALE"));
+    CHECK(!contains(strict.body, "\"bars\""));
+
+    CHECK_EQ(tolerant.status, 200);
+    CHECK(contains(tolerant.body, "\"bars\":["));
+    CHECK(contains(tolerant.body, "\"count\":10"));
+    CHECK(contains(tolerant.body, "\"stale\":true"));
+    CHECK(contains(tolerant.body, "\"age_seconds\":"));
+    CHECK(contains(tolerant.body, "\"freshness\":\"STALE\""));
 }

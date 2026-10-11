@@ -118,6 +118,15 @@ void ChartPage::restyle() {
         mOverlayBody->setStyleSheet(
             QString("QLabel { color: %1; font-size: 13px; }").arg(textSecondary));
     }
+    if (mStaleNotice) {
+        // Subtle, informational — same tertiary tone as the freshness chip, not
+        // an alarm colour: a closed market is normal, not an error.
+        mStaleNotice->setStyleSheet(
+            QString("QLabel#chartStaleNotice { color: %1; font-size: 12px; "
+                    "font-family: 'JetBrains Mono', 'Consolas', monospace; "
+                    "padding: 6px 0; }")
+                .arg(tertiary));
+    }
 }
 
 void ChartPage::setApiClient(ApiClient* client) {
@@ -173,6 +182,17 @@ void ChartPage::setupLayout() {
     topLayout->addWidget(mTfSwitcher);
 
     mainLayout->addWidget(mTopRow);
+
+    // ── Market-closed notice ──
+    // A non-blocking banner above the chart. It appears only when the backend
+    // returns real but older bars for a closed market (allow_stale); the chart
+    // keeps rendering them underneath. Hidden by default so a live market shows
+    // nothing extra.
+    mStaleNotice = new QLabel(this);
+    mStaleNotice->setObjectName("chartStaleNotice");
+    mStaleNotice->setWordWrap(true);
+    mStaleNotice->setVisible(false);
+    mainLayout->addWidget(mStaleNotice);
 
     // ── Chart + overlay ──
     mChartContainer = new QWidget(this);
@@ -308,6 +328,24 @@ void ChartPage::onCandlesReceived(const CandlesResponse& resp) {
     const QString fresh = resp.data.freshness.isEmpty() ? "UNKNOWN" : resp.data.freshness;
     mFreshnessLabel->setText(QString("\u25CF %1").arg(fresh));
 
+    // Market closed: the backend returned real but older bars (allow_stale).
+    // Show a non-blocking notice naming the newest bar; the chart still renders
+    // them. A live market (stale=false) shows nothing extra.
+    if (mStaleNotice) {
+        if (resp.data.stale && !resp.data.bars.isEmpty()) {
+            const qint64 newest = resp.data.bars.last().time;
+            const QString when = QDateTime::fromSecsSinceEpoch(newest)
+                                     .toString("ddd HH:mm");
+            mStaleNotice->setText(
+                QStringLiteral("\u25CF Market closed \u2014 showing last available "
+                               "data (%1)").arg(when));
+            mStaleNotice->setVisible(true);
+        } else {
+            mStaleNotice->clear();
+            mStaleNotice->setVisible(false);
+        }
+    }
+
     QVector<CandleData> chartData;
     chartData.reserve(resp.data.bars.size());
     for (const Candle& c : resp.data.bars) {
@@ -369,6 +407,11 @@ bool ChartPage::overlayShownForTest() const {
 
 QString ChartPage::overlayTitleForTest() const {
     return mOverlayTitle ? mOverlayTitle->text() : QString();
+}
+
+QString ChartPage::staleNoticeTextForTest() const {
+    if (!mStaleNotice || mStaleNotice->isHidden()) return QString();
+    return mStaleNotice->text();
 }
 
 void ChartPage::onTimeframeKey(int index) {

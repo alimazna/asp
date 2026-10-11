@@ -204,6 +204,10 @@ struct CandlesData {
     QString timeframe;
     QString symbol;
     QString freshness;           // FRESH | STALE | UNKNOWN
+    // Set when the backend returned real but older bars (market closed) in
+    // response to allow_stale=true. The chart renders them with a notice.
+    bool stale = false;
+    qint64 ageSeconds = -1;
     QVector<Candle> bars;
 };
 

@@ -260,7 +260,8 @@ ApiResponse BackendFacade::timeframeSnapshot(const std::string& timeframe) const
                        envelope(jsonObject(fields)), true};
 }
 
-ApiResponse BackendFacade::candles(const std::string& timeframe, int limit) const {
+ApiResponse BackendFacade::candles(const std::string& timeframe, int limit,
+                                   bool allowStale) const {
     // Validate at this layer too: the bridge validates, but a malformed request
     // should be rejected before it is proxied (defense in depth).
     Timeframe parsed;
@@ -279,6 +280,7 @@ ApiResponse BackendFacade::candles(const std::string& timeframe, int limit) cons
     request.port = bridgePort();
     request.path = "/v1/candles?tf=" + timeframe +
                    "&limit=" + std::to_string(limit);
+    if (allowStale) request.path += "&allow_stale=true";
     // The bridge's own read timeout is 5s (PythonBridgeClient config); a cold
     // candle window on a live terminal can approach that. Give the proxy a
     // budget strictly above it so a slow-but-successful read is never truncated
@@ -864,7 +866,11 @@ ApiResponse BackendFacade::handle(const std::string& method,
                                      "limit is not an integer: " + limitRaw);
             }
         }
-        return candles(tf, limit);
+        // allow_stale=true asks the bridge to return the newest real bars even
+        // when the market is closed and they exceed the freshness threshold.
+        const std::string allowStaleRaw = queryParam(query, "allow_stale");
+        const bool allowStale = (allowStaleRaw == "true" || allowStaleRaw == "1");
+        return candles(tf, limit, allowStale);
     }
 
     const std::string prefix = "/api/v1/timeframes/";
