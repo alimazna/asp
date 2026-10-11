@@ -12,6 +12,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <cstdio>
@@ -180,6 +181,28 @@ int main(int argc, char** argv) {
                   == AutoStartOutcome::LockedByAnotherInstance,
               "second frontend is refused by the held cross-process lock");
         check(h2.spawnCount == 0, "second frontend spawns nothing");
+    }
+
+    // ── The lock directory does not exist yet (fresh install / cleared state). ─
+    // The real failure: the frontend's lock lives under %LOCALAPPDATA%\ASTRA\logs,
+    // which is absent on a clean machine. If acquire() cannot create that dir it
+    // returns false and the frontend wrongly treats a missing directory as
+    // "another instance is running", so it never spawns the backend and the UI
+    // shows OFFLINE. The first launch on a clean box must still spawn.
+    {
+        const QString missing =
+            QDir(tmp.path()).filePath("not-yet-created/deeper/g.lock");
+        check(!QFileInfo::exists(QFileInfo(missing).absolutePath()),
+              "precondition: the lock directory does not exist");
+
+        Harness h;
+        h.useRealLock = true;
+        h.lockPath = missing;
+        bool attempted = false;
+        AutoStartDeps d = h.deps();
+        check(attemptAutoStart(false, 8790, attempted, d) == AutoStartOutcome::Spawned,
+              "a missing lock directory must not be mistaken for another instance");
+        check(h.spawnCount == 1, "the first launch on a clean box still spawns");
     }
 
     if (g_failures == 0)

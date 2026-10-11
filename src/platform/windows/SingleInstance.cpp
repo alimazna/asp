@@ -2,6 +2,8 @@
 
 #include "platform/windows/SingleInstance.h"
 
+#include <filesystem>
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -22,6 +24,18 @@ bool InstanceLock::acquire(const std::string& lockFilePath, std::string& error) 
     if (held_) {
         error = "lock already held by this object";
         return false;
+    }
+    // Create the containing directory first. The lock lives under the
+    // user-writable state root (%LOCALAPPDATA%\ASTRA\logs or an equivalent),
+    // which does not exist on a fresh install or after the user clears it.
+    // CreateFileA with OPEN_ALWAYS does not create parent directories, so
+    // without this the very first launch of a clean install would fail to
+    // acquire the lock and (wrongly) conclude another instance is running.
+    {
+        std::error_code ec;
+        std::filesystem::path p(lockFilePath);
+        if (p.has_parent_path())
+            std::filesystem::create_directories(p.parent_path(), ec);
     }
     // Share mode 0 (exclusive): a second open by any process fails with
     // ERROR_SHARING_VIOLATION. The handle is released automatically when the
@@ -60,6 +74,14 @@ bool InstanceLock::acquire(const std::string& lockFilePath, std::string& error) 
     if (held_) {
         error = "lock already held by this object";
         return false;
+    }
+    // See the Windows branch: the lock lives under a state root that may not
+    // exist yet on a fresh install, and open() does not create parents.
+    {
+        std::error_code ec;
+        std::filesystem::path p(lockFilePath);
+        if (p.has_parent_path())
+            std::filesystem::create_directories(p.parent_path(), ec);
     }
     const int fd = ::open(lockFilePath.c_str(), O_CREAT | O_RDWR, 0644);
     if (fd < 0) {
