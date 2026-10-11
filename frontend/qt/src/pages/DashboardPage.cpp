@@ -50,6 +50,17 @@ void DashboardPage::setApiClient(ApiClient* client) {
         connect(mApiClient, &ApiClient::candlesReceived, this,
                 [this](const CandlesResponse& resp) {
                     if (!mChart || resp.data.timeframe != mChartTf) return;
+                    mChartFetchInFlight = false;
+                    if (!resp.data.available || resp.data.bars.isEmpty()) {
+                        // An answer with no bars is terminal for the chart: there
+                        // is genuinely no data (e.g. no MT5 terminal), so keep it
+                        // empty and stop retrying. A transport failure is handled
+                        // separately and stays retryable.
+                        mChartFetchSettled = true;
+                        mChart->setCandles({});
+                        return;
+                    }
+                    mChartFetchSettled = true;
                     QVector<CandleData> chartData;
                     chartData.reserve(resp.data.bars.size());
                     for (const Candle& c : resp.data.bars) {
@@ -65,6 +76,18 @@ void DashboardPage::setApiClient(ApiClient* client) {
                     }
                     mChart->setCandles(chartData);
                 });
+        connect(mApiClient, &ApiClient::candlesFailed, this,
+                [this](const QString&, const QString& code) {
+                    if (!mChart) return;
+                    mChartFetchInFlight = false;
+                    // A dependency/parse failure is a real answer from a reachable
+                    // backend; retrying it will not change anything. A transport
+                    // failure (the cold-start race, the socket still binding) will
+                    // clear on the next online transition, so leave it unsettled.
+                    if (code != "network_error" && code != "timeout") {
+                        mChartFetchSettled = true;
+                    }
+                });
     }
     if (mApiClient && mApiClient->isOnline()) {
         setOnline(true);
@@ -74,10 +97,18 @@ void DashboardPage::setApiClient(ApiClient* client) {
     requestChartCandles(mChartTf);
 }
 
+int DashboardPage::chartCandleCountForTest() const {
+    return mChart ? mChart->candleCount() : 0;
+}
+
 void DashboardPage::requestChartCandles(const QString& tf) {
     mChartTf = tf;
     if (mChart) mChart->setCandles({});
-    if (mApiClient) mApiClient->fetchCandles(tf, 500);
+    mChartFetchSettled = false;
+    if (mApiClient) {
+        mChartFetchInFlight = true;
+        mApiClient->fetchCandles(tf, 500);
+    }
 }
 
 // ── small builders ───────────────────────────────────────────────────────────
@@ -636,8 +667,15 @@ void DashboardPage::setOnline(bool online) {
         mHealthSub->setText("backend unreachable");
         setCardValue(mStreamsValue, "OFFLINE", kRed);
         mStreamsSub->setText("bridge unreachable");
-    } else if (mHasHealth) {
-        updateFromHealth(mLastHealth);
+        return;
+    }
+    if (mHasHealth) updateFromHealth(mLastHealth);
+    // The chart card is the default page's first fetch and loses the race with
+    // the backend's bind: the request goes out before the port answers and the
+    // card stays empty forever. Now that the backend is up, retry it — unless a
+    // request is already in flight, or a real answer already settled the chart.
+    if (!mChartFetchInFlight && !mChartFetchSettled) {
+        requestChartCandles(mChartTf);
     }
 }
 

@@ -340,6 +340,30 @@ if(BUILD_ASTRA_TESTS)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    # Dashboard chart cold-start race: the default page's first candle fetch
+    # fires before the detached backend has bound its port, fails at the
+    # transport layer, and used to never retry — so the chart never rendered on
+    # a real launch. The card must retry once the backend answers, and must not
+    # retry a structured "no data" answer.
+    add_executable(astra_dashboard_retry_tests
+        tests/DashboardColdStartRetryTests.cpp
+        src/pages/DashboardPage.cpp
+        src/widgets/CandleChart.cpp
+        src/api/ApiClient.cpp
+    )
+    target_include_directories(astra_dashboard_retry_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_dashboard_retry_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_dashboard_retry_tests COMMAND astra_dashboard_retry_tests)
+    set_tests_properties(astra_dashboard_retry_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Health mapping: DEGRADED/STARTING must render distinctly from OFFLINE at
     # every layer (card, liveness chip, bottom bar), and an unreachable backend
     # (no aggregate) must render OFFLINE. Covers the bug where the frontend

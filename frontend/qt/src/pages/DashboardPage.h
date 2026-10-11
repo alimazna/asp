@@ -45,6 +45,10 @@ public:
     void updateFromTimeframes(const QVector<TimeframeData>& items);
     void setOnline(bool online);
 
+    // Offscreen-test seam: the number of candles currently on the dashboard
+    // chart card, so a test can assert the cold-start retry rendered bars.
+    [[nodiscard]] int chartCandleCountForTest() const;
+
 protected:
     void changeEvent(QEvent* e) override;
 
@@ -92,6 +96,13 @@ private:
     CandleChart* mChart = nullptr;
     QVector<QPushButton*> mChartTfButtons;
     QString mChartTf = "M15";
+    // The dashboard is the default page, so its chart fetch fires before the
+    // backend has bound and can lose the race. Track the in-flight request and
+    // whether the fetch has settled (an answer arrived, or a structured failure
+    // made another attempt pointless) so a retry can be issued when the backend
+    // comes online instead of leaving the card empty until the next launch.
+    bool mChartFetchInFlight = false;
+    bool mChartFetchSettled = false;
     QTableWidget* mSignalsTable = nullptr;
     QStackedWidget* mSignalsStack = nullptr;
     QLabel* mSignalsEmpty = nullptr;
