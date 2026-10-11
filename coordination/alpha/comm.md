@@ -1881,3 +1881,154 @@ Windows and asserts the terminal chart state from the installed app.
   (backend, real bridge + stale fake-MT5) and `ChartStaleBarsTests` (frontend).
   On the human's machine, with MT5 running, the chart must render bars (fresh,
   or last-available with the "Market closed" notice).
+
+---
+
+## Autostart — Second Attempt
+
+Re-attached to a fresh clone; HEAD was `02e7f9a` (the third pass), which
+included `699d028`. Fast-forwarded `main` to `02e7f9a` and let CI build the
+installer **from main**. That run (`38153757854`) FAILED in the installer smoke
+test — the same test that had passed on the branch. That failure is the real
+bug, and it is a genuine cold-start race, not test flakiness.
+
+### Root cause (from Step 1)
+
+- **Q1 — Where the frontend launches `aura_backend_host.exe`:** in `main()`
+  via `startBackendHost()` -> `AutoStartDeps::spawn` ->
+  `QProcess::startDetached(exe, {"--api-port", ...})`
+  (`frontend/qt/src/main.cpp:107`, `:130`; logic in
+  `frontend/qt/src/autostart/AutoStart.cpp:47-52`).
+
+- **Q2 — Condition that gates the launch:** `attemptAutoStart` first probes the
+  port (`backendListening()` -> `QTcpSocket::connectToHost(LocalHost, 8790)`,
+  `main.cpp:83-87`) and skips if it already answers; then a per-process
+  `attempted` flag, the `AURA_NO_BACKEND` suppression, and a cross-process
+  exclusive lock (`frontend-autostart.lock`) must all allow the spawn
+  (`AutoStart.cpp:8-38`).
+
+- **Q3 — Path resolved for `aura_backend_host.exe`:** absolute, from
+  `QCoreApplication::applicationDirPath()` ->
+  `QDir(applicationDirPath()).filePath("aura_backend_host.exe")`
+  (`main.cpp:118-119`). After install that is
+  `C:\Program Files\ASTRA\aura_backend_host.exe` — valid; the smoke log confirms
+  `spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe`. **Not** CWD/PATH
+  dependent.
+
+- **Q4 — Path resolved for `bridge.exe`:** the backend resolves it through
+  `BundleLocator` -> `PathResolver::join(paths_.bridgeDir, "bridge.exe")`
+  (`src/platform/windows/BundleLocator.cpp:37`), i.e.
+  `C:\Program Files\ASTRA\resources\bridge\mt5_python\bridge.exe`; launched by
+  `ProcessSupervisor` from `spec.executable` + `spec.workingDir`
+  (`src/platform/windows/StartupCoordinator.cpp:41-57`). Valid after install
+  (the smoke test asserts that file exists).
+
+- **Q5 — Where "backend unreachable" / "bridge unreachable" is set:**
+  `DashboardPage::setOnline(false)`, `frontend/qt/src/pages/DashboardPage.cpp:666-669`.
+  `setOnline(false)` is driven by `MainWindow::onOffline` <- `ApiClient::offline()`,
+  which only fires after **two** consecutive real probe misses
+  (`ApiClient.cpp:170-182`) — it is not set without an attempt. The honest
+  remaining defect was the **chart**: the Dashboard is the default page, so its
+  card fired `/api/v1/candles` once on `setApiClient` (`DashboardPage.cpp:74`)
+  *before the backend had bound 8790*, and had **no retry**, so it stayed empty
+  ("chart never renders").
+
+- **Q6 — Why no log was written (and where the log path is):** the log dir is
+  `QStandardPaths::GenericDataLocation` (= `%LOCALAPPDATA%`) +
+  `ASTRA/logs` -> `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log`
+  (`main.cpp:58-72`). It is **user-writable**, not the install dir. It is written
+  from `appendAutostartLog`, called by `AutoStart.cpp` before/after the spawn.
+  In the human's empty-`C:\Program Files\ASTRA\logs` observation the log was in
+  the right (writable) place all along; the third pass fixed the write path.
+
+- **Q7 — What the CI smoke test exercised:** it installs silently and launches
+  the **installed** `astra_desktop.exe` from `$env:ProgramFiles\ASTRA`
+  (`.github/workflows/build-windows.yml:213`), then polls ports 8790/8791 and the
+  autostart log. So it *does* exercise the real flow — **but** its candle
+  assertion was order-dependent: it required the log's last candle line to be a
+  real outcome (`available=true` or a structured error) and to be free of
+  `fetch failed (network_error`. On the branch run the single dashboard fetch
+  happened to land after the backend bound (structured error -> pass); on `main`
+  it lost the race and the last line was `fetch failed (network_error):
+  Connection closed` -> fail. The test was not "lying" so much as racing: it
+  exposed the missing retry.
+
+### Fix
+
+- **`frontend/qt`** — `DashboardPage` now retries its chart fetch once the
+  backend answers. `setOnline(true)` re-issues `requestChartCandles` when no
+  fetch is in flight and none has settled
+  (`frontend/qt/src/pages/DashboardPage.cpp:659-676`); `candlesReceived` /
+  `candlesFailed` track in-flight/settled so a request is never duplicated and a
+  structured dependency/parse failure (a reachable backend honestly saying
+  "no data") is terminal — only transport failures stay retryable
+  (`DashboardPage.cpp:50-90`, `:100-108`).
+- **Backend host** — no change required: it already launches the bridge by
+  absolute path via `BundleLocator` + `ProcessSupervisor`
+  (`StartupCoordinator.cpp:41-57`), and the environment-block defect was fixed in
+  `be91ab1`.
+- **Log location** — no change required: `%LOCALAPPDATA%\ASTRA\logs`
+  (`main.cpp:58-72`); spawn logs written before/after the attempt
+  (`AutoStart.cpp:47-52`); a missing/failed backend still raises the UI banner
+  `main.cpp:156-160` -> `MainWindow.cpp:244-252` ("reinstall ASTRA").
+- Commit: `12caac3` (fix) with `ae14c81`, `2381704`, `e656b8e` (test).
+  Branch `fix/dashboard-chart-retry`, PR #4; merged to `main` at `12caac3`.
+
+### CI smoke test
+
+- Old test was testing: the installed flow, but its candle assertion accepted a
+  single early `network_error` and never required an eventual real outcome — so
+  a cold-start that never retried could slip through on a lucky ordering.
+- New test tests: the same installed flow, and now the chart must reach a real
+  outcome. The deterministic coverage for the retry is the new
+  `frontend/qt/tests/DashboardColdStartRetryTests.cpp`: a real `ApiClient`
+  pointed at a free port with **no listener** (connection-refused), then a server
+  bound to that port, asserting the retry renders bars — and that a structured
+  503 is **not** retried. Verified to fail with the retry disabled.
+- Commit: `12caac3`.
+
+### CI run
+
+- Run id: `38156831377` (main, `12caac3`) — **success** (7m16s).
+  Also green: `38156163059` (branch, 9m20s) which produced the installer.
+- Attached log excerpt (main smoke test):
+
+  ```
+  poll 1: backend=True bridge=True ui=True
+  ---- process state ----
+  astra_desktop.exe             8728 Console  2  106,340 K
+  aura_backend_host.exe         6520 Console  2    6,180 K
+  bridge.exe                    6452 Console  2    8,228 K
+  ---- frontend-autostart.log ----
+  [2026-10-11T16:44:21Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [2026-10-11T16:44:21Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  [2026-10-11T16:44:25Z] ui candles: fetch failed (network_error): Connection closed
+  [2026-10-11T16:44:25Z] ui health ok: aggregate=DEGRADED status=
+  [2026-10-11T16:44:41Z] ui candles: fetch failed (network_error): Operation canceled
+  [2026-10-11T16:44:46Z] ui candles: fetch failed (network_error): Connection closed
+  [2026-10-11T16:44:56Z] ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed: (-10003, 'IPC initialize failed, MetaTrader 5 x64 not found')
+  final counts: desktop=1 backend=1 bridge=2
+  chart candle lines: 4; last: [2026-10-11T16:44:56Z] ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE) ...
+  UI stability: no offline flip after the first health ok (30s)
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  ```
+
+  The chart now makes **4** attempts (was **1**): the early `Connection closed`
+  is retried and the chain reaches the bridge, which honestly reports no MT5
+  terminal on the runner. On the human's machine (MT5 running) that final
+  outcome is real bars, not an error.
+
+### New installer
+
+- Size: **39,291,680 bytes** (~37.5 MiB) — artifact `ASTRA-windows-installer`
+  (portable `ASTRA-windows`: 23,590,056 bytes), built from `main` at `12caac3`.
+
+### Plainly: was the previous CI test fake?
+
+No — the current smoke test genuinely installs, launches the installed
+`astra_desktop.exe`, and checks processes/ports/log. It was **order-dependent**
+on the candle assertion and passed on the branch by luck of timing; on `main` it
+correctly caught the real cold-start race that the branch run had masked. The
+prior "green" was not a proof the chart rendered — that proof only now exists
+(4 attempts, reaching the bridge), and even now CI cannot show real bars because
+the runner has no MT5.
