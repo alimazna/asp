@@ -48,6 +48,11 @@ TEST_CASE(path_resolution_is_cwd_independent) {
     CHECK_EQ(first.bridgeScript, second.bridgeScript);
 }
 
+// POSIX path semantics: on Windows PathResolver uses '\\' separators and
+// drive-letter absolute paths, so these slash-based expectations only hold on
+// POSIX hosts. The Windows separator behaviour is covered on the Windows runner
+// by path_resolution_is_cwd_independent above.
+#ifndef _WIN32
 TEST_CASE(join_normalizes_without_touching_cwd) {
     const std::string joined =
         PathResolver::join("/opt/astra/resources", "bridge/mt5_python");
@@ -57,6 +62,7 @@ TEST_CASE(join_normalizes_without_touching_cwd) {
     CHECK_EQ(PathResolver::join("/opt/astra", "/etc/aura"),
              std::string("/etc/aura"));
 }
+#endif
 
 TEST_CASE(bundle_locator_reports_missing_bridge_explicitly) {
     AppPaths paths;

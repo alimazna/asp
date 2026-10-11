@@ -4,8 +4,10 @@
 
 #include "foundation/Timestamp.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
 #include <vector>
 
@@ -77,13 +79,48 @@ bool ProcessSupervisor::spawn(std::string& error) {
     std::vector<char> mutableCmd(commandLine.begin(), commandLine.end());
     mutableCmd.push_back('\0');
 
+    // Build the child environment: the parent block with spec_.environment
+    // applied on top. Passing nullptr here silently dropped every override
+    // (PYTHONUNBUFFERED in production; the FAKE_MT5/PYTHONPATH scenarios in
+    // tests), so the child always inherited the parent block untouched.
+    std::vector<std::string> envEntries;
+    if (LPCH parentEnv = ::GetEnvironmentStringsA()) {
+        for (LPCH p = parentEnv; *p != '\0'; p += std::strlen(p) + 1) {
+            envEntries.emplace_back(p);
+        }
+        ::FreeEnvironmentStringsA(parentEnv);
+    }
+    auto keyOf = [](const std::string& entry) {
+        const std::size_t eq = entry.find('=');
+        std::string key = eq == std::string::npos ? entry : entry.substr(0, eq);
+        // Skip the "=C:=..." style drive-cwd pseudo-variables.
+        return key.empty() || key[0] == '=' ? std::string() : key;
+    };
+    for (const auto& kv : spec_.environment) {
+        const std::string want = kv.first + "=";
+        envEntries.erase(
+            std::remove_if(envEntries.begin(), envEntries.end(),
+                           [&](const std::string& e) {
+                               return keyOf(e) == kv.first;
+                           }),
+            envEntries.end());
+        envEntries.push_back(kv.first + "=" + kv.second);
+    }
+    std::string envBlock;
+    for (const auto& e : envEntries) {
+        envBlock += e;
+        envBlock.push_back('\0');
+    }
+    envBlock.push_back('\0');
+
     STARTUPINFOA si{};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
     const DWORD flags = CREATE_NO_WINDOW;
     const BOOL ok = CreateProcessA(
         nullptr, mutableCmd.data(), nullptr, nullptr, FALSE, flags,
-        nullptr, spec_.workingDir.empty() ? nullptr : spec_.workingDir.c_str(),
+        envBlock.data(),
+        spec_.workingDir.empty() ? nullptr : spec_.workingDir.c_str(),
         &si, &pi);
     if (!ok) {
         error = "CreateProcess failed with code " + std::to_string(GetLastError());

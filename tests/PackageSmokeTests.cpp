@@ -121,9 +121,14 @@ TEST_CASE(runtime_manifest_is_valid_and_declares_no_manual_cmd) {
 }
 
 TEST_CASE(json_schema_never_emits_invalid_numbers) {
-    // NaN/Infinity are not valid JSON and must be emitted as null.
+    // NaN/Infinity are not valid JSON and must be emitted as null. Build the
+    // infinity through volatile operands: MSVC treats a literal 1.0/0.0 as a
+    // compile-time constant and rejects the division (C2124) before the runtime
+    // check can run.
+    volatile double one = 1.0;
+    volatile double zero = 0.0;
     CHECK_EQ(jsonNumber(std::nan("")), std::string("null"));
-    CHECK_EQ(jsonNumber(1.0 / 0.0), std::string("null"));
+    CHECK_EQ(jsonNumber(one / zero), std::string("null"));
 
     // Strings are escaped.
     CHECK_EQ(jsonString("a\"b"), std::string("\"a\\\"b\""));
