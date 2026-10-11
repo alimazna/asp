@@ -18,24 +18,51 @@ void AuraRuntime::publishStartupReport(int slot) {
     publishedStartupReport_.store(&snapshot, std::memory_order_release);
 }
 
-bool AuraRuntime::startAsync(std::string& error) {
+bool AuraRuntime::resolveAsync(std::string& error) {
     ready_.store(false, std::memory_order_relaxed);
     mode_.store(SystemMode::STARTING, std::memory_order_relaxed);
 
-    // Phase 1: spawn the bridge and publish STARTING. This returns without
-    // waiting for the handshake so the host can bind 8790 right away.
-    const bool begun = startup_.begin(startupReport_);
+    // Phase 0: resolve paths and locate the bridge bundle, then construct every
+    // object the API reads (ingestor, persistence, pipeline). No process spawn
+    // and no network, so this returns in milliseconds. The host binds its
+    // loopback API immediately after this call and before the bridge spawn, so
+    // /health answers within the 10s budget even when spawning the bridge blocks
+    // for a long time (AV scanning a fresh bridge.exe).
+    const bool resolved = startup_.resolve(startupReport_);
     publishStartupReport(0);
-
-    // Build every object the API reads (ingestor, persistence, pipeline) BEFORE
-    // the caller binds the loopback API. Once 8790 is up, API handler threads
-    // read this state concurrently; constructing it here keeps them from ever
-    // observing a half-built runtime. The pipeline symbol is refined by
-    // finishStartup() once the handshake resolves it.
+    // Build everything the API reads (store, persistence, pipeline) now, before
+    // the caller binds the API. The ingestor is deliberately NOT built here: it
+    // needs the bridge client, which only exists after the spawn, and creating it
+    // is a pointer assignment the API never reads.
     buildRuntimeComponents();
+    if (!resolved) {
+        finalizeState(error);
+        return false;
+    }
+    error.clear();
+    return true;
+}
+
+bool AuraRuntime::startAsync(std::string& error) {
+    // Phase 1: spawn the bridge. This returns without waiting for the handshake
+    // so the host can answer STARTING while MT5 cold-starts. Requires
+    // resolveAsync(); if the caller skipped it, resolve now (still before the
+    // spawn) so the report is populated.
+    if (startupReport_.stage == StartupStage::NOT_STARTED) {
+        if (!resolveAsync(error)) return false;
+    }
+    const bool begun = startup_.launch(startupReport_);
+    publishStartupReport(1);
     if (!begun) {
         finalizeState(error);
         return false;
+    }
+    // The bridge client now exists. Attach the ingestor (idempotent; only the
+    // runtime thread touches it, so this cannot race an API read).
+    if (!ingestor_) {
+        if (auto client = startup_.bridgeClient()) {
+            ingestor_ = std::make_unique<MarketDataIngestor>(client);
+        }
     }
     error.clear();
     return true;
@@ -48,21 +75,17 @@ bool AuraRuntime::finishStartup(std::string& error) {
     if (startup_.bridgeClient()) {
         startup_.completeHandshake(startupReport_);
     }
-    publishStartupReport(1);
+    publishStartupReport(2);
     return finalizeState(error);
 }
 
 bool AuraRuntime::start(std::string& error) {
+    if (!resolveAsync(error)) return false;
     if (!startAsync(error)) return false;
     return finishStartup(error);
 }
 
 void AuraRuntime::buildRuntimeComponents() {
-    auto client = startup_.bridgeClient();
-    if (client) {
-        ingestor_ = std::make_unique<MarketDataIngestor>(client);
-    }
-
     // Durable state lives under the resolved data directory. When paths are
     // unavailable (unresolved executable) the pipeline still runs, but nothing
     // is persisted and that is reported rather than faked.
@@ -199,6 +222,7 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
     if (auto client = bridge()) {
         health_.observeBridge(*client, now);
         const auto bridgeHealth = client->health();
+        std::lock_guard<std::mutex> lock(bridgeHealthMutex_);
         if (bridgeHealth.ok) {
             lastBridgeHealth_ = bridgeHealth.value;
             lastBridgeHealthValid_ = true;

@@ -72,6 +72,20 @@ void logLine(const std::string& text, bool isError = false) {
     }
 }
 
+// Wall-clock millisecond timeline. The reported failure was "port 8790 silent
+// for 173s"; without per-step timings the slow step is invisible. Every startup
+// step logs the milliseconds elapsed since process start so the exact blocking
+// step is provable from the log alone.
+std::chrono::steady_clock::time_point g_startClock;
+std::int64_t timelineMillis() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now() - g_startClock)
+        .count();
+}
+void logTimeline(const std::string& step) {
+    logLine("[t+" + std::to_string(timelineMillis()) + "ms] " + step);
+}
+
 int parseApiPort(int argc, char** argv) {
     for (int i = 1; i + 1 < argc; ++i) {
         if (std::string(argv[i]) == "--api-port") {
@@ -127,6 +141,7 @@ std::string parseCalibrationAuditPath(int argc, char** argv,
 }  // namespace
 
 int main(int argc, char** argv) {
+    g_startClock = std::chrono::steady_clock::now();
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
 
@@ -191,17 +206,16 @@ int main(int argc, char** argv) {
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);
     aura::AuraRuntime runtime(options);
 
-    // Phase 1 of startup: resolve paths, locate the bundle, spawn the bridge.
-    // This returns in well under a second (it never waits for the handshake), so
-    // the loopback API below binds immediately and answers the frontend with
-    // aggregate=STARTING while MT5 cold-starts. Previously runtime.start() ran
-    // the full handshake here and 8790 stayed silent for up to ~76s, which the
-    // frontend rendered as "backend unreachable".
+    // Phase 0: resolve paths/bundle and build the runtime components. No spawn
+    // and no network, so this is milliseconds. The loopback API binds right
+    // after this and BEFORE the bridge spawn (see below), which is the whole
+    // point: the API must answer the frontend within 10s even when spawning the
+    // bridge blocks for a long time.
     std::string startupError;
-    const bool startupBegun = runtime.startAsync(startupError);
-    logLine(std::string("  startup stage: ")
-            + aura::toString(runtime.startupReport().stage));
-    if (!startupBegun) {
+    const bool startupResolved = runtime.resolveAsync(startupError);
+    logTimeline(std::string("resolveAsync done: stage=")
+                + aura::toString(runtime.startupReport().stage));
+    if (!startupResolved) {
         logLine("  startup not ready: " + startupError, true);
         // Continue in DEGRADED mode: the backend stays diagnosable.
     }
@@ -246,19 +260,31 @@ int main(int argc, char** argv) {
     aura::LoopbackApiServer apiServer(&facade, apiConfig);
     std::string apiError;
     if (apiServer.start(apiError)) {
-        logLine("  frontend api: http://" + apiServer.bindAddress() + ":"
-                + std::to_string(apiServer.port()) + "/api/v1");
+        logTimeline("frontend api bound: http://" + apiServer.bindAddress() + ":"
+                    + std::to_string(apiServer.port()) + "/api/v1");
     } else {
         logLine("  frontend api unavailable: " + apiError, true);
     }
 
     // Development/ops surface: expose the state summary now that 8790 is bound.
-    // This runs while the bridge is still handshaking, so it reports STARTING —
-    // proof the API answers before the handshake completes.
+    // This runs before the bridge is even spawned, so it reports STARTING —
+    // proof the API answers before the bridge exists at all.
     {
         const aura::ApiResponse systemState =
             facade.handle("GET", "/api/v1/system/state");
-        logLine("  api system/state (pre-handshake): " + systemState.body);
+        logLine("  api system/state (pre-spawn): " + systemState.body);
+    }
+
+    // Phase 1: spawn the bridge. This is the step that can block for a long time
+    // on a fresh install (Windows Defender scanning bridge.exe), which is why it
+    // runs *after* the API is bound. The API threads serve STARTING from the
+    // phase-0 report throughout.
+    std::string spawnError;
+    const bool startupBegun = runtime.startAsync(spawnError);
+    logTimeline(std::string("startAsync (bridge spawn) done: stage=")
+                + aura::toString(runtime.startupReport().stage));
+    if (!startupBegun) {
+        logLine("  startup not ready: " + spawnError, true);
     }
 
     // Phase 2: wait for the bridge handshake. The API server serves on its own
@@ -267,9 +293,9 @@ int main(int argc, char** argv) {
     if (startupBegun) {
         std::string finishError;
         const bool ready = runtime.finishStartup(finishError);
-        logLine(std::string("  handshake ") + (ready ? "ok" : "failed")
-                + ", startup stage: "
-                + aura::toString(runtime.startupReport().stage));
+        logTimeline(std::string("finishStartup (handshake) ") +
+                    (ready ? "ok" : "failed") + ": stage="
+                    + aura::toString(runtime.startupReport().stage));
         if (!ready) logLine("  startup not ready: " + finishError, true);
     }
 

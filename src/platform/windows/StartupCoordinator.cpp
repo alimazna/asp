@@ -10,7 +10,7 @@
 
 namespace aura {
 
-bool StartupCoordinator::begin(StartupReport& report) {
+bool StartupCoordinator::resolve(StartupReport& report) {
     report = StartupReport{};
     report.stage = StartupStage::RESOLVING_PATHS;
 
@@ -35,7 +35,11 @@ bool StartupCoordinator::begin(StartupReport& report) {
         report_ = report;
         return false;
     }
+    report_ = report;
+    return true;
+}
 
+bool StartupCoordinator::launch(StartupReport& report) {
     report.stage = StartupStage::LAUNCHING_BRIDGE;
     if (options_.launchBridgeProcess && bridgeSpawnAllowed(report)) {
         ProcessLaunchSpec spec;
@@ -54,6 +58,7 @@ bool StartupCoordinator::begin(StartupReport& report) {
         spec.workingDir = report.paths.bridgeDir;
         spec.environment["PYTHONUNBUFFERED"] = "1";
         supervisor_ = std::make_unique<ProcessSupervisor>(spec);
+        std::string error;
         if (!supervisor_->start(error)) {
             report.stage = StartupStage::FAILED;
             report.error = error;
@@ -76,6 +81,11 @@ bool StartupCoordinator::begin(StartupReport& report) {
     report.stage = StartupStage::WAITING_FOR_HANDSHAKE;
     report_ = report;
     return true;
+}
+
+bool StartupCoordinator::begin(StartupReport& report) {
+    if (!resolve(report)) return false;
+    return launch(report);
 }
 
 bool StartupCoordinator::completeHandshake(StartupReport& report) {

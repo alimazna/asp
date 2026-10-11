@@ -27,6 +27,7 @@
 #include <atomic>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -49,12 +50,21 @@ public:
     // Run startup synchronously. Returns true when the runtime reached READY.
     bool start(std::string& error);
 
+    // Phase-0 startup: resolve paths, locate the bridge bundle, and construct the
+    // runtime components. No process spawn and no network, so it returns in
+    // milliseconds. The host binds its loopback API after this and before the
+    // (possibly slow) bridge spawn, so the frontend always reaches /health
+    // promptly even when spawning the bridge blocks for tens of seconds.
+    // Returns false when paths/bundle are unavailable (reason in the report).
+    bool resolveAsync(std::string& error);
+
     // Phase-1 startup that returns as soon as the bridge process is launched,
-    // WITHOUT waiting for the handshake. Lets the host bind its loopback API and
-    // answer the frontend immediately (aggregate=STARTING) instead of staying
-    // silent while MT5 cold-starts for up to a minute. Returns true when the
-    // bridge is on its way up; false when startup failed or degraded (the reason
-    // is in startupReport().error). Call finishStartup() afterwards.
+    // WITHOUT waiting for the handshake. Lets the host answer the frontend
+    // immediately (aggregate=STARTING) instead of staying silent while MT5
+    // cold-starts for up to a minute. Requires resolveAsync() first. Returns true
+    // when the bridge is on its way up; false when the spawn failed or the bundle
+    // was missing (the reason is in startupReport().error). Call finishStartup()
+    // afterwards.
     bool startAsync(std::string& error);
 
     // Phase 2 of startAsync(): block for the handshake and finalize the runtime
@@ -125,8 +135,11 @@ public:
     bool bridgeHealth(BridgeHealth& out) const;
 
     // Last bridge health observed during a tick. Read-only and non-blocking,
-    // for the API layer. Returns false when no observation has succeeded.
+    // for the API layer. Returns false when no observation has succeeded. The
+    // cache is guarded because /bridge/status reads it on an API worker thread
+    // while tick() writes it on the runtime thread.
     bool lastBridgeHealth(BridgeHealth& out) const {
+        std::lock_guard<std::mutex> lock(bridgeHealthMutex_);
         if (!lastBridgeHealthValid_) return false;
         out = lastBridgeHealth_;
         return true;
@@ -181,6 +194,7 @@ private:
     FailureMemory failures_;
     BridgeHealth lastBridgeHealth_;
     bool lastBridgeHealthValid_ = false;
+    mutable std::mutex bridgeHealthMutex_;
 
     // Last bar published per timeframe, so an overlapping bridge window does
     // not duplicate closed-bar history.
