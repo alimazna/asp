@@ -118,6 +118,9 @@ private slots:
     void onHealthUpdated(const HealthResponse& resp);
     // Called on each failed health poll during the auto-start bake-in.
     void onAutostartHealthMiss();
+    // Fires when the wall-clock bake-in window elapses with no successful
+    // /health, showing the failure banner.
+    void onAutostartWindowExpired();
     void onHistoryUpdated(const QVector<AnalysisData>& items);
     void onTimeframesUpdated(const QVector<TimeframeData>& items);
     void onOffline();
@@ -229,6 +232,10 @@ private:
     // Polling
     QTimer mAnalysisPollTimer;
     QTimer mHealthPollTimer;
+    // One-shot wall-clock timer for the auto-start bake-in window. Driving the
+    // window from a timer (not from probe-failure counts) keeps the banner
+    // timing independent of how long a failed probe takes to time out.
+    QTimer mAutostartWindowTimer;
     ApiClient* mApiClient = nullptr;
 
     // Auto-start bake-in: while the backend is still coming up (binds 8790 only

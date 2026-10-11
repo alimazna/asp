@@ -135,6 +135,14 @@ MainWindow::MainWindow(QWidget* parent)
         if (mApiClient) mApiClient->fetchHealth();
     });
 
+    // The auto-start bake-in window is a wall-clock budget, not a count of
+    // failed probes: a probe that times out slowly on Windows must not push the
+    // failure banner past the window. The timer starts with the first poll (see
+    // setApiClient) and is cancelled by the first successful /health.
+    mAutostartWindowTimer.setSingleShot(true);
+    connect(&mAutostartWindowTimer, &QTimer::timeout, this,
+            &MainWindow::onAutostartWindowExpired);
+
     // Start health polling immediately
     mHealthPollTimer.start();
 }
@@ -191,43 +199,34 @@ void MainWindow::setApiClient(ApiClient* client) {
         mAutostartClock.start();
         mHealthPollTimer.setInterval(kFastHealthPollMs);
         mHealthPollTimer.start();
+        // Arm the wall-clock bake-in budget. It fires exactly once, at the
+        // window, and is cancelled by the first successful /health.
+        mAutostartWindowTimer.start(mAutostartWindowMs);
     }
 }
 
 // Called for every failed health poll while the auto-start bake-in is active.
-// Reports failure only once the full window has elapsed; before that the backend
-// may simply not have bound 8790 yet.
+// Its only job now is to keep the 1s retry loop alive; the failure banner is
+// owned by the wall-clock mAutostartWindowTimer so a slow probe cannot delay it.
 void MainWindow::onAutostartHealthMiss() {
-    // Only the first-contact bake-in is governed here. Once the window expires
-    // mAutostartInProgress clears, but the health poll below is left running, so a
-    // later transient miss re-arms nothing special: onOffline() reports it
-    // honestly and the next successful poll recovers the UI.
     if (!mAutostartInProgress) return;
-
     ++mBackendAttempts;
+    // Keep probing every second so a backend that binds 8790 late is still
+    // picked up (the bug was giving up on the first miss and latching OFFLINE).
+    mHealthPollTimer.setInterval(kFastHealthPollMs);
+    mHealthPollTimer.start();
+}
 
-    // Measure the bake-in from the actual spawn when known (a synchronous startup
-    // step can delay the first poll); otherwise fall back to the poll clock.
-    qint64 elapsedMs = mAutostartClock.isValid() ? mAutostartClock.elapsed() : 0;
-    if (mAutostartSpawnEpochMs > 0)
-        elapsedMs = QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs;
-
-    if (elapsedMs < mAutostartWindowMs) {
-        // Still within the bake-in: keep probing every second so a backend that
-        // binds 8790 late is still picked up (the bug was giving up on the first
-        // miss and latching OFFLINE forever).
-        mHealthPollTimer.setInterval(kFastHealthPollMs);
-        mHealthPollTimer.start();
-        return;
-    }
-
-    // Window expired: slow the probe to 5s and show the failure with the reason
-    // the backend staged (if any) rather than a bare OFFLINE. The probe keeps
-    // running forever — a long cold start that binds 8790 after the window is
-    // still recovered by onHealthUpdated, which clears this banner.
+// The wall-clock bake-in window elapsed with no successful /health. Slow the
+// probe to 5s and show the failure with the reason the backend staged (if any)
+// rather than a bare OFFLINE. The probe keeps running forever — a long cold
+// start that binds 8790 after the window is still recovered by
+// onHealthUpdated, which clears this banner.
+void MainWindow::onAutostartWindowExpired() {
+    if (!mAutostartInProgress) return;
+    mAutostartInProgress = false;
     mHealthPollTimer.setInterval(kPostExpiryHealthPollMs);
     mHealthPollTimer.start();
-    mAutostartInProgress = false;
     if (mStartupBanner && !mStartupBanner->isVisible())
         setBackendStartFailure(QStringLiteral("no response on 127.0.0.1:8790 after %1s")
                                    .arg(mAutostartWindowMs / 1000));
@@ -754,6 +753,7 @@ void MainWindow::onHealthUpdated(const HealthResponse& resp) {
     if (!mBackendReachable) {
         mAutostartInProgress = false;
         mBackendReachable = true;
+        mAutostartWindowTimer.stop();  // backend answered: cancel the bake-in budget
         // The probe never stops here: the next miss flips the UI OFFLINE and the
         // following success recovers it. Only the auto-start path logs recovery.
         if (mAutostartSession) {
