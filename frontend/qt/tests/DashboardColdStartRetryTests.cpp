@@ -136,9 +136,14 @@ int main(int argc, char** argv) {
         client.setBaseUrl(QStringLiteral("http://127.0.0.1:%1/api/v1/").arg(port));
 
         bool firstFailed = false;
+        int receivedCount = 0;
+        QStringList failCodes;
+        QObject::connect(&client, &ApiClient::candlesReceived,
+                         [&receivedCount](const CandlesResponse&) { ++receivedCount; });
         QObject::connect(&client, &ApiClient::candlesFailed,
-                         [&firstFailed](const QString&, const QString&) {
+                         [&firstFailed, &failCodes](const QString&, const QString& code) {
                              firstFailed = true;
+                             failCodes.append(code);
                          });
 
         DashboardPage page;
@@ -156,10 +161,14 @@ int main(int argc, char** argv) {
         check(server.start(port), "case1: backend binds the port");
         page.setOnline(true);
 
-        check(waitFor([&]() { return server.requestCount() >= 1; }, 10000),
-              "case1: the chart re-fetched once the backend came online");
-        check(waitFor([&]() { return page.chartCandleCountForTest() == 1; }, 10000),
-              "case1: the retry rendered the bars");
+        const bool retried = waitFor([&]() { return server.requestCount() >= 1; }, 10000);
+        const bool rendered = waitFor([&]() { return page.chartCandleCountForTest() == 1; }, 10000);
+        std::printf("  [diag] retried=%d requests=%d received=%d chart=%d failCodes=%s\n",
+                    retried ? 1 : 0, server.requestCount(), receivedCount,
+                    page.chartCandleCountForTest(),
+                    failCodes.join(",").toUtf8().constData());
+        check(retried, "case1: the chart re-fetched once the backend came online");
+        check(rendered, "case1: the retry rendered the bars");
     }
 
     // ── Case 2: an honest structured failure is terminal, not retried. ────────
