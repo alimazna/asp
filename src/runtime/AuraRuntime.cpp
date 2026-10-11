@@ -12,16 +12,80 @@ AuraRuntime::AuraRuntime(StartupOptions startupOptions, int candlesPerTimeframe)
       candlesPerTimeframe_(candlesPerTimeframe),
       guardian_(makeGuardian()) {}
 
-bool AuraRuntime::start(std::string& error) {
-    ready_ = false;
-    mode_ = SystemMode::STARTING;
+void AuraRuntime::publishStartupReport(int slot) {
+    StartupReport& snapshot = publishedStartupSnapshot_[slot & 1];
+    snapshot = startupReport_;
+    publishedStartupReport_.store(&snapshot, std::memory_order_release);
+}
 
-    const bool started = startup_.run(startupReport_);
-    auto client = startup_.bridgeClient();
-    if (client) {
-        ingestor_ = std::make_unique<MarketDataIngestor>(client);
+bool AuraRuntime::resolveAsync(std::string& error) {
+    ready_.store(false, std::memory_order_relaxed);
+    mode_.store(SystemMode::STARTING, std::memory_order_relaxed);
+
+    // Phase 0: resolve paths and locate the bridge bundle, then construct every
+    // object the API reads (ingestor, persistence, pipeline). No process spawn
+    // and no network, so this returns in milliseconds. The host binds its
+    // loopback API immediately after this call and before the bridge spawn, so
+    // /health answers within the 10s budget even when spawning the bridge blocks
+    // for a long time (AV scanning a fresh bridge.exe).
+    const bool resolved = startup_.resolve(startupReport_);
+    publishStartupReport(0);
+    // Build everything the API reads (store, persistence, pipeline) now, before
+    // the caller binds the API. The ingestor is deliberately NOT built here: it
+    // needs the bridge client, which only exists after the spawn, and creating it
+    // is a pointer assignment the API never reads.
+    buildRuntimeComponents();
+    if (!resolved) {
+        finalizeState(error);
+        return false;
     }
+    error.clear();
+    return true;
+}
 
+bool AuraRuntime::startAsync(std::string& error) {
+    // Phase 1: spawn the bridge. This returns without waiting for the handshake
+    // so the host can answer STARTING while MT5 cold-starts. Requires
+    // resolveAsync(); if the caller skipped it, resolve now (still before the
+    // spawn) so the report is populated.
+    if (startupReport_.stage == StartupStage::NOT_STARTED) {
+        if (!resolveAsync(error)) return false;
+    }
+    const bool begun = startup_.launch(startupReport_);
+    publishStartupReport(1);
+    if (!begun) {
+        finalizeState(error);
+        return false;
+    }
+    // The bridge client now exists. Attach the ingestor (idempotent; only the
+    // runtime thread touches it, so this cannot race an API read).
+    if (!ingestor_) {
+        if (auto client = startup_.bridgeClient()) {
+            ingestor_ = std::make_unique<MarketDataIngestor>(client);
+        }
+    }
+    error.clear();
+    return true;
+}
+
+bool AuraRuntime::finishStartup(std::string& error) {
+    // Phase 2: block for the handshake, then publish the final report and flip
+    // the atomics the API reads. No shared object is (re)constructed here, so an
+    // API request served during this wait is safe.
+    if (startup_.bridgeClient()) {
+        startup_.completeHandshake(startupReport_);
+    }
+    publishStartupReport(2);
+    return finalizeState(error);
+}
+
+bool AuraRuntime::start(std::string& error) {
+    if (!resolveAsync(error)) return false;
+    if (!startAsync(error)) return false;
+    return finishStartup(error);
+}
+
+void AuraRuntime::buildRuntimeComponents() {
     // Durable state lives under the resolved data directory. When paths are
     // unavailable (unresolved executable) the pipeline still runs, but nothing
     // is persisted and that is reported rather than faked.
@@ -42,19 +106,30 @@ bool AuraRuntime::start(std::string& error) {
     pipeline_->setSymbol(startupReport_.resolvedSymbol.empty()
                              ? startupOptions_.preferredSymbol
                              : startupReport_.resolvedSymbol);
+}
+
+bool AuraRuntime::finalizeState(std::string& error) {
+    const bool started = startupReport_.ready;
+    // The handshake may have resolved a symbol the phase-1 wiring could not
+    // know yet; refine it (idempotent when unchanged).
+    if (pipeline_ && !startupReport_.resolvedSymbol.empty()) {
+        pipeline_->setSymbol(startupReport_.resolvedSymbol);
+    }
 
     if (!started) {
         // The runtime is allowed to exist in DEGRADED mode without the bridge;
         // it simply cannot ingest. This is explicit, not silent.
-        ready_ = false;
-        mode_ = startupReport_.stage == StartupStage::FAILED ? SystemMode::EMERGENCY
-                                                             : SystemMode::DEGRADED;
+        ready_.store(false, std::memory_order_release);
+        mode_.store(startupReport_.stage == StartupStage::FAILED
+                        ? SystemMode::EMERGENCY
+                        : SystemMode::DEGRADED,
+                    std::memory_order_release);
         error = startupReport_.error;
         return false;
     }
 
-    ready_ = true;
-    mode_ = SystemMode::SHADOW;   // shadow-first product mode
+    ready_.store(true, std::memory_order_release);
+    mode_.store(SystemMode::SHADOW, std::memory_order_release);  // shadow-first mode
     error.clear();
     return true;
 }
@@ -147,6 +222,7 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
     if (auto client = bridge()) {
         health_.observeBridge(*client, now);
         const auto bridgeHealth = client->health();
+        std::lock_guard<std::mutex> lock(bridgeHealthMutex_);
         if (bridgeHealth.ok) {
             lastBridgeHealth_ = bridgeHealth.value;
             lastBridgeHealthValid_ = true;
@@ -240,11 +316,12 @@ std::map<std::string, std::string> AuraRuntime::healthSummary() const {
     std::map<std::string, std::string> summary;
     summary["mode"] = toString(mode_);
     summary["ready"] = ready_ ? "true" : "false";
-    summary["startup_stage"] = toString(startupReport_.stage);
+    const StartupReport& report = startupReport();
+    summary["startup_stage"] = toString(report.stage);
     summary["bridge_process"] = toString(bridgeState());
-    summary["bridge_handshake"] = startupReport_.handshakeOk ? "OK" : "NOT_OK";
-    summary["mt5_ready"] = startupReport_.mt5Ready ? "true" : "false";
-    summary["resolved_symbol"] = startupReport_.resolvedSymbol;
+    summary["bridge_handshake"] = report.handshakeOk ? "OK" : "NOT_OK";
+    summary["mt5_ready"] = report.mt5Ready ? "true" : "false";
+    summary["resolved_symbol"] = report.resolvedSymbol;
     for (Timeframe timeframe : allTimeframes()) {
         summary[std::string("quality_") + toString(timeframe)] =
             toString(timeframeStore_.qualityOf(timeframe));

@@ -190,12 +190,14 @@ jobs:
           $installDir = "$env:ProgramFiles\ASTRA"
           $userRoot = "$env:LOCALAPPDATA\ASTRA"
           $autostartLog = "$userRoot\logs\frontend-autostart.log"
+          $backendHostLog = "$userRoot\logs\backend-host.log"
 
           # Start from a clean slate so a leftover process cannot mask a failure.
           foreach ($n in @("astra_desktop","aura_backend_host","bridge")) {
             Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           }
           Remove-Item $autostartLog -Force -ErrorAction SilentlyContinue
+          Remove-Item $backendHostLog -Force -ErrorAction SilentlyContinue
 
           Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
           if (-Not (Test-Path "$installDir\astra_desktop.exe")) {
@@ -230,37 +232,86 @@ jobs:
             }
           }
 
-          # ---- t+2s: the frontend must have spawned exactly one backend.
-          # The bridge is spawned by the backend after the MT5 handshake, which
-          # can take longer than 2s, so it is asserted after the health wait.
-          Start-Sleep -Seconds 2
-          Assert-NoPrematureOffline "t+2s"
-          $b = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
-          Write-Host "t+2s counts: backend=$b"
-          if ($b -ne 1) { Write-Error "t+2s: expected exactly 1 aura_backend_host.exe, found $b"; exit 1 }
-
-          # ---- Poll every 5s for up to 90s. A cold start (bridge handshake →
-          # MT5) can take 25-40s, so the window is generous. The Qt window may
-          # legitimately show its failure banner mid-way, but it MUST recover and
-          # log "ui health ok: aggregate=DEGRADED". The old test gave up at ~10s
-          # and could not see a window that recovered late.
-          $backendUp = $false; $bridgeUp = $false; $uiUp = $false
-          for ($i = 0; $i -lt 18; $i++) {
-            Start-Sleep -Seconds 5
-            try { Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2 | Out-Null; $backendUp = $true } catch { }
+          # ---- Acceptance gate: the EXACT five conditions a real user checks,
+          # all within a 10s window. These are what a green CI must prove, and
+          # they are asserted as one block so the failure names the unmet
+          # condition rather than a downstream symptom.
+          #   (2) exactly one aura_backend_host.exe AND >=1 bridge.exe
+          #   (3) /api/v1/health answers with a valid, non-OFFLINE envelope
+          #   (4) /v1/health answers status=OK, process_state=ONLINE
+          #   (5) the auto-start log exists with the attempt + its outcome
+          $backendProc = 0; $bridgeProc = 0; $backendHealth = $false; $bridgeHealth = $false
+          $sawStarting = $false; $sawAggregate = ""
+          $deadline = (Get-Date).AddSeconds(10)
+          while ((Get-Date) -lt $deadline) {
+            $backendProc = @(Get-Process -Name "aura_backend_host" -ErrorAction SilentlyContinue).Count
+            $bridgeProc  = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
             try {
-              $h = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
-              if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp = $true }
+              $hh = Invoke-RestMethod -Uri "http://127.0.0.1:8790/api/v1/health" -TimeoutSec 2
+              if ($hh.api -eq "v1" -and $hh.data.aggregate) {
+                $backendHealth = $true
+                $sawAggregate = $hh.data.aggregate
+                if ($hh.data.aggregate -eq "STARTING") { $sawStarting = $true }
+              }
             } catch { }
-            if (Test-Path $autostartLog) {
-              if (@(Get-Content $autostartLog) -match "ui health ok: aggregate=DEGRADED") { $uiUp = $true }
-            }
-            Write-Host "poll $($i+1): backend=$backendUp bridge=$bridgeUp ui=$uiUp"
-            if ($backendUp -and $bridgeUp -and $uiUp) { break }
+            try {
+              $bh = Invoke-RestMethod -Uri "http://127.0.0.1:8791/v1/health" -TimeoutSec 2
+              if ($bh.status -eq "OK" -and $bh.payload.process_state -eq "ONLINE") { $bridgeHealth = $true }
+            } catch { }
+            if ($backendProc -eq 1 -and $bridgeProc -ge 1 -and $backendHealth -and $bridgeHealth) { break }
+            Start-Sleep -Milliseconds 250
           }
-          if (-Not $backendUp) { Write-Error "backend did not answer on 127.0.0.1:8790 within 90s"; exit 1 }
-          if (-Not $bridgeUp) { Write-Error "bridge did not answer OK/ONLINE on 127.0.0.1:8791 within 90s"; exit 1 }
-          if (-Not $uiUp) { Write-Error "the Qt window never logged 'ui health ok: aggregate=DEGRADED' within 90s (stuck OFFLINE)"; exit 1 }
+          Write-Host "t+10s gate: backendProc=$backendProc bridgeProc=$bridgeProc backendHealth=$backendHealth($sawAggregate) bridgeHealth=$bridgeHealth"
+          Assert-NoPrematureOffline "t+10s"
+          if ($backendProc -ne 1) { Write-Error "within 10s: expected exactly 1 aura_backend_host.exe, found $backendProc"; exit 1 }
+          if ($bridgeProc -lt 1)  { Write-Error "within 10s: expected at least 1 bridge.exe, found $bridgeProc"; exit 1 }
+          if (-Not $backendHealth) { Write-Error "within 10s: /api/v1/health did not answer with a valid envelope"; exit 1 }
+          if ($sawAggregate -eq "OFFLINE") { Write-Error "within 10s: /api/v1/health reported aggregate=OFFLINE (must be DEGRADED/STARTING)"; exit 1 }
+          if (-Not $bridgeHealth) { Write-Error "within 10s: /v1/health did not report status=OK process_state=ONLINE"; exit 1 }
+          # Early-bind property (this fix): the API must answer STARTING while the
+          # bridge is still handshaking. If the backend blocked its bind on the
+          # handshake, the first observable aggregate would already be DEGRADED.
+          # A fully-warm fast start may legitimately skip STARTING, so this is
+          # informational, not fatal.
+          if ($sawStarting) { Write-Host "early-bind confirmed: /health answered aggregate=STARTING before the handshake completed" }
+
+          # ---- Early-bind ORDERING proof from the installed binary's own timeline
+          # log. The acceptance gate above cannot see the difference between "the
+          # API bound early" and "the bridge happened to start fast": on a warm
+          # runner both look identical. The reported field failure was port 8790
+          # silent for ~173s while the bridge was spawned, i.e. the bind ran after
+          # the spawn. The host now logs a millisecond timeline; assert the bind
+          # line precedes the spawn line. This is the deterministic regression
+          # guard for the real defect, independent of how fast the bridge is here.
+          if (-Not (Test-Path $backendHostLog)) {
+            Write-Error "no backend host log at $backendHostLog (cannot verify the bind-before-spawn ordering)"; exit 1
+          }
+          $hostLines = @(Get-Content $backendHostLog)
+          $bindLine = $hostLines | Where-Object { $_ -match "frontend api bound" } | Select-Object -First 1
+          $spawnLine = $hostLines | Where-Object { $_ -match "startAsync \(bridge spawn\)" } | Select-Object -First 1
+          if (-Not $bindLine) { Write-Error "backend host log has no 'frontend api bound' line"; $hostLines | Write-Host; exit 1 }
+          if (-Not $spawnLine) { Write-Error "backend host log has no 'startAsync (bridge spawn)' line"; $hostLines | Write-Host; exit 1 }
+          $bindMs = [int]([regex]::Match($bindLine, "t\+(\d+)ms").Groups[1].Value)
+          $spawnMs = [int]([regex]::Match($spawnLine, "t\+(\d+)ms").Groups[1].Value)
+          Write-Host "backend timeline: bind=$bindMs ms, spawn=$spawnMs ms"
+          if ($bindMs -gt $spawnMs) {
+            Write-Error "the API bound ($bindMs ms) AFTER the bridge spawn ($spawnMs ms): the frontend would be left OFFLINE for the whole spawn. Early-bind regression."
+            $hostLines | Write-Host; exit 1
+          }
+          Write-Host "early-bind ordering confirmed: API bound at $bindMs ms, before the bridge spawn at $spawnMs ms"
+
+          # ---- Recovery window: a cold start (bridge handshake → MT5) can take
+          # longer than 10s, so the Qt window may legitimately show its banner
+          # mid-way; it MUST recover and log "ui health ok: aggregate=...". The
+          # old test gave up at ~10s and could not see a late recovery.
+          $uiUp = $false
+          for ($i = 0; $i -lt 18; $i++) {
+            if (Test-Path $autostartLog) {
+              if (@(Get-Content $autostartLog) -match "ui health ok: aggregate=") { $uiUp = $true; break }
+            }
+            Start-Sleep -Seconds 5
+          }
+          if (-Not $uiUp) { Write-Error "the Qt window never logged 'ui health ok: aggregate=...' within 90s (stuck OFFLINE)"; exit 1 }
           $g = @(Get-Process -Name "bridge" -ErrorAction SilentlyContinue).Count
           Write-Host "post-health counts: bridge=$g"
           if ($g -lt 1) { Write-Error "expected at least 1 bridge.exe after the health wait, found $g"; exit 1 }
@@ -419,7 +470,7 @@ jobs:
               if ($h.status -eq "OK" -and $h.payload.process_state -eq "ONLINE") { $bridgeUp2 = $true }
             } catch { }
             if (Test-Path $autostartLog2) {
-              if (@(Get-Content $autostartLog2) -match "ui health ok: aggregate=DEGRADED") { $uiUp2 = $true }
+              if (@(Get-Content $autostartLog2) -match "ui health ok: aggregate=") { $uiUp2 = $true }
             }
             if ($backendUp2 -and $bridgeUp2 -and $uiUp2) { break }
           }

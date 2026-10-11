@@ -2032,3 +2032,374 @@ correctly caught the real cold-start race that the branch run had masked. The
 prior "green" was not a proof the chart rendered — that proof only now exists
 (4 attempts, reaching the bridge), and even now CI cannot show real bars because
 the runner has no MT5.
+
+---
+
+## Autostart — Second Attempt
+
+Second pass on the reported "autostart still broken on real Windows". This one
+found a **real ordering bug** the prior CI green did not catch, fixed it, and
+rewrote the smoke test to assert the exact five real-user conditions.
+
+### Root cause (from Step 1)
+
+Note first: the three commits named in the request (`4508582`, `72ee5e8`,
+`699d028`) **are** in history (35 commits behind `main`); the current tree is
+`a0f5181`. All line numbers below are against the branch
+`fix/autostart-real-launch-path` (`c1baee0`, `5e5a4e0`).
+
+- **Q1 — where the host is supposed to be launched:**
+  `frontend/qt/src/main.cpp:107` (`startBackendHost`), called from `main()` at
+  `main.cpp:221` under `#if defined(Q_OS_WIN)`. The actual spawn is
+  `main.cpp:130`: `QProcess::startDetached(exe, {"--api-port", "8790"})`.
+- **Q2 — what gates the launch:** three guards, in order, in
+  `frontend/qt/src/autostart/AutoStart.cpp`:
+  (a) `AutoStart.cpp:10` — if `backendListening()` (a 300ms TCP probe of 8790,
+  `main.cpp:86-90`) succeeds, skip; (b) `AutoStart.cpp:21` — `if (attempted)`
+  (once per process); (c) `AutoStart.cpp:35` — cross-process file lock
+  (`SingleInstance`, `main.cpp:94-96`). Suppression is `AURA_NO_BACKEND`
+  (`AutoStart.cpp:27`). None of these fired on the human's machine.
+- **Q3 — path to `aura_backend_host.exe`:** `main.cpp:117-119`,
+  `QDir(QCoreApplication::applicationDirPath()).filePath("aura_backend_host.exe")`.
+  After install to `C:\Program Files\ASTRA` this resolves to
+  `C:\Program Files\ASTRA\aura_backend_host.exe`, which the installer places at
+  `packaging/windows/astra-setup.iss:47`. **Valid.**
+- **Q4 — path to `bridge.exe`:** resolved by the **backend**, not the Qt app.
+  `PathResolver.cpp:104-105` sets `bridgeDir = <appRoot>/resources/bridge/mt5_python`
+  and `bridgeScript = <bridgeDir>/bridge_service.py`; the frozen bundle is located
+  at `BundleLocator.cpp:69-80`; `StartupCoordinator.cpp:42,49,56` spawns
+  `report.bundle.pythonExecutable` with those args. The installer places the
+  frozen bridge at `astra-setup.iss:52` (`DestDir: {app}\resources\bridge\mt5_python`).
+  **Valid.** (The frontend itself never spawns `bridge.exe`; the host does.)
+- **Q5 — where "backend unreachable"/"bridge unreachable" is set:**
+  `frontend/qt/src/pages/DashboardPage.cpp:688` (`mHealthSub->setText("backend unreachable")`)
+  and `:690` (`mStreamsSub->setText("bridge unreachable")`), inside
+  `DashboardPage::setOnline(false)` (`DashboardPage.cpp:684`). This is driven by
+  `MainWindow`'s health poll, **not** by the spawn result. So yes — the window can
+  show OFFLINE purely because `/health` did not answer, **without** the spawn ever
+  being re-examined. The spawn itself *did* succeed in the log
+  (`attempting to spawn …` / `spawn ok: …`), which is why the process list was the
+  only clue.
+- **Q6 — why no log file:** two separate defects.
+  (a) The frontend log path is `QStandardPaths::writableLocation(GenericDataLocation)`
+  (`main.cpp:60`) → `%LOCALAPPDATA%\ASTRA\logs`, which **is** user-writable, so the
+  frontend log was fine once the process reached the spawn. (b) The **backend**
+  opened `paths.logDir + "/backend-host.log"` at `AuraBackendHost.cpp:144`
+  **before** `create_directories(paths.logDir)` at `:151`. `ofstream::open` does
+  not create parents, so on a fresh install `<appRoot>\logs` did not exist and the
+  host ran with **no log file at all** — the reported "logs folder is empty".
+- **Q7 — what the CI smoke test actually tested:** it genuinely launched the
+  installed `astra_desktop.exe` from `C:\Program Files\ASTRA` and checked
+  processes/ports/log, so it was **not** fake and did **not** bypass the Qt app.
+  But its **candle assertion was order-dependent**: it accepted the first
+  `network_error` and never required a terminal outcome, and it did not assert the
+  five conditions within a fixed 10s window. That is why it stayed green while the
+  human's window showed OFFLINE: it never encoded "reachable within 10s" as a hard
+  gate.
+
+The underlying defect the prior fix missed: `aura_backend_host` ran the **full
+bridge handshake before binding 8790**. `AuraBackendHost.cpp` called
+`runtime.start()` (which blocks on the handshake) and only then built and started
+the loopback API. On a cold start the port stayed silent for up to ~76s, so the
+frontend's first `/health` failed and the window latched OFFLINE.
+
+### Fix
+
+- `frontend/qt`: none required for the spawn — the spawn path and path resolution
+  were already correct (`main.cpp:107-131`). The frontend change is on the
+  consumption side: `DashboardPage` now retries the chart fetch on a health
+  readiness transition (`DashboardPage.cpp:708-722`) and treats the bridge-warming
+  `dependency_unavailable` as transient while `MT5_TERMINAL_UNAVAILABLE` stays
+  terminal (`DashboardPage.cpp:85-107`).
+- `backend host` (`src/platform/windows/AuraBackendHost.cpp`): split startup into
+  phase 1 (`runtime.startAsync` — resolve + spawn the bridge, returns immediately)
+  and phase 2 (`runtime.finishStartup` — the handshake). The loopback API binds
+  **between** them, so `/api/v1/health` answers `aggregate=STARTING` within
+  milliseconds while MT5 cold-starts. Also moved `create_directories(logDir)`
+  **before** opening `backend-host.log`.
+- `log location`: the host log is `<userRoot>/logs/backend-host.log` with
+  `userRoot = %LOCALAPPDATA%\ASTRA` (`PathResolver.cpp:75-88,110`); the frontend
+  log is `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log` (`main.cpp:60-77`).
+  Both are user-writable; the fix makes the host actually create the dir.
+- `runtime` (`src/runtime/AuraRuntime.*`): publish the phase-1 report through an
+  atomic double-buffer so API threads read a stable snapshot; `ready_`/`mode_` are
+  atomic.
+- Commit: `c1baee0`.
+
+### CI smoke test
+
+- Old test was testing: the installed flow, but its candle assertion accepted the
+  first `network_error` and it had no fixed 10s window for processes/ports/log.
+  A cold start that never retried, or one that answered late, could still pass.
+- New test tests: launches `C:\Program Files\ASTRA\astra_desktop.exe` and, within a
+  **10s** window, asserts the five real-user conditions — (2) exactly one
+  `aura_backend_host.exe` and >=1 `bridge.exe`, (3) `/api/v1/health` answers a valid
+  non-OFFLINE envelope, (4) `/v1/health` answers `status=OK process_state=ONLINE`,
+  (5) `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log` exists with the attempt and
+  its outcome. It also records whether `/health` ever reported `STARTING` (the
+  early-bind property) and keeps the 90s recovery poll, then kills, uninstalls,
+  reinstalls and relaunches to prove no orphans/duplicates.
+- Commit: `5e5a4e0`.
+
+### CI run
+
+- Run id: `38161884268` (branch `fix/autostart-real-launch-path`) — **success**.
+  https://github.com/alimazna/asp/actions/runs/38161884268
+- Attached log excerpt (the smoke test output):
+
+  ```
+  t+10s gate: backendProc=1 bridgeProc=2 backendHealth=True(DEGRADED) bridgeHealth=True
+  post-health counts: bridge=2
+  UI stability: no offline flip after the first health ok (30s)
+  ---- process state ----
+  astra_desktop.exe             4884 ...   106,444 K
+  aura_backend_host.exe         9732 ...     6,192 K
+  bridge.exe                    5740 ...     8,232 K
+  bridge.exe                    9372 ...    40,372 K
+  ---- frontend-autostart.log (C:\Users\runneradmin\AppData\Local\ASTRA\logs\frontend-autostart.log) ----
+  [2026-10-11T18:07:59Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [2026-10-11T18:07:59Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  [2026-10-11T18:08:03Z] ui health ok: aggregate=DEGRADED status=
+  [2026-10-11T18:08:03Z] backend reachable after 4s
+  [2026-10-11T18:08:03Z] ui candles: fetch failed (network_error): Connection closed
+  [2026-10-11T18:08:13Z] ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed: (-10003, 'IPC initialize failed, MetaTrader 5 x64 not found')
+  ---- %LOCALAPPDATA%\ASTRA\logs\backend-host.log ----
+    app root: C:\Program Files\ASTRA
+    startup stage: WAITING_FOR_HANDSHAKE
+    frontend api: http://127.0.0.1:8790/api/v1
+    api system/state (pre-handshake): {"api":"v1","schema":"1.0","data":{"mode":"STARTING","shadow_only":true,"ready":false,"bridge_state":"ONLINE","startup_stage":"WAITING_FOR_HANDSHAKE","api":"v1","schema":"1.0"}}
+    handshake ok, startup stage: READY
+  final counts: desktop=1 backend=1 bridge=2
+  smoke elapsed: 40.1s
+  Uninstalled cleanly
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  ```
+
+  Note the host log line `api system/state (pre-handshake) ... "mode":"STARTING"`
+  followed by `handshake ok ... READY`: this is the **early bind proven in CI** —
+  the API answered before the handshake completed, which is exactly the property
+  the previous build lacked.
+
+### New installer
+
+- Size: **39,798,213 bytes** (`packaging/windows/Output/ASTRA-Setup.exe`,
+  ~37.95 MiB), built from `fix/autostart-real-launch-path` at `5e5a4e0`.
+  Artifact `ASTRA-windows-installer` (39,298,740 bytes zip); portable
+  `ASTRA-windows` 23,591,081 bytes.
+
+### What CI still cannot prove (and the human must check)
+
+The GitHub runner has **no MT5 terminal**, so the final candle outcome there is
+honestly `MT5_TERMINAL_UNAVAILABLE`, not real bars. CI proves conditions (2)–(5)
+and the early-bind property; it cannot prove the chart renders real candles.
+On the human's machine (MT5 running) the same chain must now reach real bars — the
+frontend retries `dependency_unavailable` until the bridge is ready
+(`DashboardPage.cpp:708-722`), and the bridge then has a terminal.
+
+### Plainly: was the previous CI test fake?
+
+No. It genuinely installed and launched the real app. But it was **too weak**: it
+had no hard 10s gate and accepted an early transport error as the candle outcome,
+so it could not catch the port staying silent for tens of seconds. The prior green
+was therefore not evidence that the real user flow worked, and the claim "autostart
+works" was not backed by a test that encoded "reachable within 10s". That is now
+fixed and the branch run above is the evidence.
+
+## Autostart — Real-Hardware Failure (silent host exit + bind-after-spawn)
+
+This supersedes the "Second Attempt" sections above: those were written from a
+CI-green state that did **not** reproduce the human's real-hardware failure. Below
+is the evidence from re-tracing the actual launch path, the real defects found,
+and the CI run that now exercises the exact flow.
+
+### Root cause (from Step 1)
+
+Q1. Where the Qt app launches `aura_backend_host.exe`
+    `frontend/qt/src/main.cpp:107` `startBackendHost()` (called at `main.cpp:221`);
+    the spawn itself is `main.cpp:130`
+    `QProcess::startDetached(exe, {"--api-port", ...})`. The decision is
+    `frontend/qt/src/autostart/AutoStart.cpp:48`
+    (`deps.log("attempting to spawn " + exe ...)`).
+
+Q2. What gates that launch
+    `AutoStart.cpp:10` (`if (deps.backendListening && deps.backendListening())`)
+    — "only if 8790 is not listening"; then `AutoStart.cpp:21` (`if (attempted)`),
+    `:27` (`if (suppressed)` = `AURA_NO_BACKEND`), `:35` (cross-process lock
+    `frontend-autostart.lock`), `:42` (exe must exist). The backend-side gate is
+    `src/platform/windows/StartupCoordinator.cpp:112` `bridgeSpawnAllowed()` —
+    "only if 8791 is not listening", plus the `bridge.lock`.
+
+Q3. Path resolved for `aura_backend_host.exe`
+    `frontend/qt/src/main.cpp:117-119`
+    `QDir(QCoreApplication::applicationDirPath()).filePath("aura_backend_host.exe")`.
+    Valid after install: the frontend and host sit side by side in
+    `C:\Program Files\ASTRA` (the installer places both there), so this is correct.
+
+Q4. Path resolved for `bridge.exe`
+    `src/platform/windows/PathResolver.cpp:104` `bridgeDir = <appRoot>/resources/bridge/mt5_python`;
+    `src/platform/windows/BundleLocator.cpp:36-37` prefers
+    `<bridgeDir>/bridge.exe` (the frozen bridge) with `bridge_service.py` as the
+    non-frozen fallback. Valid after install (the installer ships
+    `resources\bridge\mt5_python\bridge.exe`).
+
+Q5. Where "backend unreachable"/"bridge unreachable" is set, and whether it is
+    set WITHOUT a spawn attempt
+    `frontend/qt/src/pages/DashboardPage.cpp:688-690`
+    (`mHealthSub->setText("backend unreachable")`, `mStreamsSub->setText("bridge unreachable")`),
+    reached from `setOnline(false)` (`DashboardPage.cpp:682`); the OFFLINE chip is
+    `frontend/qt/src/MainWindow.cpp:945-951` (`mHasHealth == false`). The app does
+    **not** set these without attempting to spawn: `startBackendHost()` runs on
+    every launch and calls the spawn path. In the human's case the spawn was
+    attempted and `QProcess::startDetached` returned **true** (the host did start),
+    but the host exited immediately (see Q6), so 8790 never answered and the UI
+    reported OFFLINE. So the string was set after a spawn attempt that silently
+    did not survive — not before one.
+
+Q6. Why no log file is written
+    At the human's build (`699d028`) both sides resolved logs under the install
+    dir:
+      - frontend `main.cpp:29` (699d028)
+        `QDir(QCoreApplication::applicationDirPath()).filePath("logs")`
+        = `C:\Program Files\ASTRA\logs`;
+      - backend `PathResolver.cpp:88` (699d028) `logDir = <appRootDir>/logs`.
+    A normally-launched (non-elevated) process cannot create/write
+    `C:\Program Files\ASTRA\logs`, so both `QDir().mkpath()` and the host's
+    `create_directories()` fail and **no log is written anywhere** — exactly the
+    empty `logs` folder the human saw. Worse, the host's single-instance lock
+    (`AuraBackendHost.cpp:124` at 699d028, `logDir/backend-host.lock`) then fails
+    with `ERROR_ACCESS_DENIED`, which the host mis-reports as "another backend host
+    instance is already running" and `return 0`s — so the host **exits immediately
+    and silently**, spawning no bridge and binding no port. This is the primary
+    cause of the human's symptom. (The correct user-writable location —
+    `QStandardPaths::GenericDataLocation` = `%LOCALAPPDATA%\ASTRA\logs` and
+    `PathResolver::userRootDir()` = `%LOCALAPPDATA%\ASTRA` — exists on this branch
+    in `main.cpp:58-64` and `PathResolver.cpp:75-91`, but post-dates the human's
+    build; see the ordering note below.)
+
+Q7. What the CI smoke test actually launched
+    It launched the installed binary
+    `.github/workflows/build-windows.yml` step 18
+    (`Start-Process -FilePath "$installDir\astra_desktop.exe"`), after a silent
+    install into `$env:ProgramFiles\ASTRA` — i.e. the real app, not the portable
+    build and not the backend directly. It did not bypass the Qt app. The reason
+    it stayed green while the human failed is **not** that it launched the wrong
+    thing: it is that (a) the runner is **elevated**, so writing under
+    `C:\Program Files\ASTRA` happens to succeed and the Q6 failure cannot occur
+    there, and (b) the 10s acceptance gate cannot distinguish "the API bound
+    early" from "the bridge happened to start fast". Both are now addressed.
+
+### Ordering note (the human's installer is stale)
+
+The human installed from `699d028`. On `main`, `5deca7e
+("fix(autostart): keep runtime state writable outside Program Files")` is
+**35 commits ahead** of `699d028` and moves the writable state to
+`%LOCALAPPDATA%\ASTRA` (the Q6 fix). So the human's installer predates that fix;
+the empty-logs/silent-exit failure is fully explained by `699d028`. The human
+must re-install from the **current** build to test the rest.
+
+### Fix (this branch)
+
+- `frontend/qt`: no change needed for the launch path — it already spawns via
+  `applicationDirPath()` (Q3) and already logs to
+  `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log` on this branch
+  (`main.cpp:58-64`), the human-writable location. The 699d028 bug was the old
+  `applicationDirPath()/logs` (Q6); that is already corrected here.
+- backend host: **bind the loopback API before spawning the bridge**. The host
+  previously bound 8790 only after `runtime.startAsync()` (the bridge
+  `CreateProcess`) and `runtime.finishStartup()` (the handshake). On a fresh
+  install Windows Defender scanning `bridge.exe` makes that spawn slow, so 8790
+  stayed silent for the whole spawn (the human's ~173s). Now:
+    - `StartupCoordinator` gains `resolve()` (paths + bundle, no spawn/network)
+      and `begin()`; `launch()` is the spawn alone.
+    - `AuraRuntime` gains `resolveAsync()` (resolve + build components, no spawn,
+      no network); `startAsync()` now only spawns + attaches the ingestor.
+    - `AuraBackendHost.cpp` order is now: `resolveAsync()` → **bind 8790** →
+      `startAsync()` (spawn) → `finishStartup()` (handshake). The API threads
+      serve `aggregate=STARTING` from the phase-0 report while the bridge spawns.
+  - log location: the host log is `%LOCALAPPDATA%\ASTRA\logs\backend-host.log`
+    (`AuraBackendHost.cpp:164`, `paths.logDir`), and every startup step now emits a
+    `[t+NNNms]` timeline line (`logTimeline`, `AuraBackendHost.cpp:79-85`) so the
+    blocking step is provable from the log alone.
+  - also guarded the `lastBridgeHealth_` cache with a mutex (read on an API
+    worker thread, written on the runtime thread).
+- Commit: `3f96570` (fix + new test), plus `82e2d2b` (CI).
+
+### CI smoke test
+
+- Old test tested: install + launch the real `astra_desktop.exe` and assert
+  processes/ports within 10s — but on an **elevated** runner the writable-state
+  failure cannot occur, and the 10s gate cannot see bind *ordering*, so it could
+  not catch the silent-host-exit (Q6) or the bind-after-spawn (~173s) defects.
+- New test tests: the same real installed flow, **plus** a deterministic ordering
+  assertion read from the installed host's own timeline log —
+  `%LOCALAPPDATA%\ASTRA\logs\backend-host.log` must contain a `frontend api bound`
+  line *before* the `startAsync (bridge spawn)` line. This fails loudly (printing
+  the timeline) if the bind ever moves after the spawn again. A companion backend
+  test, `tests/StartupEarlyBindTests.cpp` (runs on the Linux/Windows backend job),
+  runs the real host against a slow-binding bridge and asserts the same ordering;
+  it was verified to FAIL when the order is reversed.
+- Commit: `82e2d2b`.
+
+### CI run
+
+- Run id: **38173968107** (workflow_dispatch on `fix/autostart-real-launch-path`,
+  head `82e2d2b`)
+- Status: **success**
+- Attached log excerpt (step 18 "Smoke test installer", runtime output):
+
+  ```
+  t+10s gate: backendProc=1 bridgeProc=2 backendHealth=True(STARTING) bridgeHealth=True
+  early-bind confirmed: /health answered aggregate=STARTING before the handshake completed
+  backend timeline: bind=12 ms, spawn=2049 ms
+  early-bind ordering confirmed: API bound at 12 ms, before the bridge spawn at 2049 ms
+  post-health counts: bridge=2
+  final counts: desktop=1 backend=1 bridge=2
+  chart candle lines: 1; last: ... ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed: (-10003, 'IPC initialize failed, MetaTrader 5 x64 not found')
+  smoke elapsed: 54.5s
+  Uninstalled cleanly
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  ```
+
+  The backend job (step 12) also ran the new test:
+  `18/23 Test #18: StartupEarlyBindTests ... Passed`, `100% tests passed out of 23`.
+  The non-elevated regression (step 19) passed:
+  `Regression PASSED: chain uses the user-writable root and logs there`.
+
+### New installer
+
+- Size: **39,798,443 bytes** (`packaging/windows/Output/ASTRA-Setup.exe`),
+  built from `fix/autostart-real-launch-path` at `82e2d2b` (artifact
+  `ASTRA-windows-installer`).
+
+### Plainly: was the previous CI test fake?
+
+It was not fake — it genuinely installed and launched the real
+`astra_desktop.exe`. But it was **too weak to reproduce the human's failure**: it
+ran elevated (so the `Program Files` writable-state bug could not occur) and it
+had no assertion on bind *ordering* (so a bind that runs after a slow bridge spawn
+looked identical to a fast healthy start). The claim "autostart works" was
+therefore not backed by a test that could fail on the reported condition. That is
+now fixed: the run above asserts the ordering deterministically.
+
+### What CI still cannot prove (the human must check)
+
+The runner has **no MT5 terminal**, so the candle outcome there is honestly
+`MT5_TERMINAL_UNAVAILABLE`, not real bars. CI proves processes, both ports, the
+log location, the early-bind ordering and the reinstall cleanliness; it cannot
+prove the chart renders real candles. On the human's machine (MT5 running), after
+installing the **current** build, the check is:
+
+  1. Launch ASTRA from the Start Menu.
+  2. Within 10s: `tasklist` shows exactly one `aura_backend_host.exe` and at least
+     one `bridge.exe`; `curl http://127.0.0.1:8790/api/v1/health` returns a valid
+     non-OFFLINE envelope; `curl http://127.0.0.1:8791/v1/health` returns
+     `status=OK`, `process_state=ONLINE`.
+  3. A log exists at `%LOCALAPPDATA%\ASTRA\logs\frontend-autostart.log` (and
+     `backend-host.log`) containing the auto-start attempt, its outcome, and the
+     `[t+...ms]` timeline showing the API bound before the bridge spawn.
+  4. The chart shows real candles once MT5 is connected.
+
+If any of those is false on the human's box, the log at
+`%LOCALAPPDATA%\ASTRA\logs\backend-host.log` now names the exact blocking step.

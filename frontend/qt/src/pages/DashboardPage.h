@@ -103,6 +103,11 @@ private:
     // comes online instead of leaving the card empty until the next launch.
     bool mChartFetchInFlight = false;
     bool mChartFetchSettled = false;
+    // Last backend/bridge state seen by updateFromHealth, so a cold-start chart
+    // fetch is retried when the backend reports new progress (bridge up, or the
+    // aggregate advanced past STARTING).
+    QString mLastChartRetryBackendState;
+    QString mLastChartRetryBridgeState;
     QTableWidget* mSignalsTable = nullptr;
     QStackedWidget* mSignalsStack = nullptr;
     QLabel* mSignalsEmpty = nullptr;

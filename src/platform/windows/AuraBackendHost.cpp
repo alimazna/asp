@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -57,12 +58,32 @@ void clearStartupFailure(const std::string& appRootDir) {
     std::filesystem::remove(marker, ec);
 }
 
+// Serializes writes to the host log. The startup thread logs the handshake
+// outcome while the main thread logs the first cycle, so an unsynchronized
+// ofstream would interleave/corrupt lines.
+std::mutex g_logMutex;
+
 void logLine(const std::string& text, bool isError = false) {
     (isError ? std::cerr : std::cout) << text << "\n";
+    std::lock_guard<std::mutex> lock(g_logMutex);
     if (g_hostLog.is_open()) {
         g_hostLog << text << "\n";
         g_hostLog.flush();
     }
+}
+
+// Wall-clock millisecond timeline. The reported failure was "port 8790 silent
+// for 173s"; without per-step timings the slow step is invisible. Every startup
+// step logs the milliseconds elapsed since process start so the exact blocking
+// step is provable from the log alone.
+std::chrono::steady_clock::time_point g_startClock;
+std::int64_t timelineMillis() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now() - g_startClock)
+        .count();
+}
+void logTimeline(const std::string& step) {
+    logLine("[t+" + std::to_string(timelineMillis()) + "ms] " + step);
 }
 
 int parseApiPort(int argc, char** argv) {
@@ -120,6 +141,7 @@ std::string parseCalibrationAuditPath(int argc, char** argv,
 }  // namespace
 
 int main(int argc, char** argv) {
+    g_startClock = std::chrono::steady_clock::now();
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
 
@@ -132,20 +154,23 @@ int main(int argc, char** argv) {
         std::cerr << "FATAL: " << pathError << "\n";
         return 2;
     }
-    // Now that the app root is known, mirror the log to <appRoot>/logs so a
-    // detached launch (no console) is still diagnosable after the fact.
+    // Create the runtime log dir BEFORE opening the log: on a fresh install
+    // <appRoot>/logs does not exist, and ofstream::open does not create parents,
+    // so the host would run with no log file at all — exactly the "logs folder
+    // is empty" symptom. Then mirror the log there so a detached launch (no
+    // console) is still diagnosable after the fact.
+    std::error_code fsError;
+    std::filesystem::create_directories(paths.logDir, fsError);
     g_hostLog.open(paths.logDir + "/backend-host.log", std::ios::app);
     logLine("  app root: " + paths.appRootDir);
 
     // Single-instance guard (Bug 2): the frontend port probe alone is not
     // enough because the API only binds after the bridge handshake, so two
     // launches in that window each spawn a host. The lock closes that race.
-    std::error_code fsError;
-    std::filesystem::create_directories(paths.logDir, fsError);
-    // Probe writability of the runtime dir. The installer targets Program Files,
-    // which a non-elevated launch cannot write; without this the only symptom is a
-    // backend that silently never binds 8790. Record a precise reason next to the
-    // executable (installer-writable) for the frontend to surface.
+    // Probe writability of the runtime dir first. The installer targets Program
+    // Files, which a non-elevated launch cannot write; without this the only
+    // symptom is a backend that silently never binds 8790. Record a precise
+    // reason next to the executable (installer-writable) for the frontend.
     bool runtimeWritable = false;
     if (!fsError) {
         const std::string probePath = paths.logDir + "/.write-probe";
@@ -181,15 +206,18 @@ int main(int argc, char** argv) {
     options.allowSystemPythonFallback = wantsDevFallback(argc, argv);
     aura::AuraRuntime runtime(options);
 
+    // Phase 0: resolve paths/bundle and build the runtime components. No spawn
+    // and no network, so this is milliseconds. The loopback API binds right
+    // after this and BEFORE the bridge spawn (see below), which is the whole
+    // point: the API must answer the frontend within 10s even when spawning the
+    // bridge blocks for a long time.
     std::string startupError;
-    const bool started = runtime.start(startupError);
-    const aura::StartupReport& startup = runtime.startupReport();
-    logLine(std::string("  startup stage: ") + aura::toString(startup.stage));
-    if (!started) {
+    const bool startupResolved = runtime.resolveAsync(startupError);
+    logTimeline(std::string("resolveAsync done: stage=")
+                + aura::toString(runtime.startupReport().stage));
+    if (!startupResolved) {
         logLine("  startup not ready: " + startupError, true);
         // Continue in DEGRADED mode: the backend stays diagnosable.
-    } else {
-        logLine("  resolved symbol: " + startup.resolvedSymbol);
     }
 
     const int intervalMillis = parseIntervalMillis(argc, argv);
@@ -232,15 +260,44 @@ int main(int argc, char** argv) {
     aura::LoopbackApiServer apiServer(&facade, apiConfig);
     std::string apiError;
     if (apiServer.start(apiError)) {
-        logLine("  frontend api: http://" + apiServer.bindAddress() + ":"
-                + std::to_string(apiServer.port()) + "/api/v1");
+        logTimeline("frontend api bound: http://" + apiServer.bindAddress() + ":"
+                    + std::to_string(apiServer.port()) + "/api/v1");
     } else {
         logLine("  frontend api unavailable: " + apiError, true);
     }
 
-    // Development/ops surface: expose the current state summary once at start.
-    const aura::ApiResponse systemState = facade.handle("GET", "/api/v1/system/state");
-    logLine("  api system/state: " + systemState.body);
+    // Development/ops surface: expose the state summary now that 8790 is bound.
+    // This runs before the bridge is even spawned, so it reports STARTING —
+    // proof the API answers before the bridge exists at all.
+    {
+        const aura::ApiResponse systemState =
+            facade.handle("GET", "/api/v1/system/state");
+        logLine("  api system/state (pre-spawn): " + systemState.body);
+    }
+
+    // Phase 1: spawn the bridge. This is the step that can block for a long time
+    // on a fresh install (Windows Defender scanning bridge.exe), which is why it
+    // runs *after* the API is bound. The API threads serve STARTING from the
+    // phase-0 report throughout.
+    std::string spawnError;
+    const bool startupBegun = runtime.startAsync(spawnError);
+    logTimeline(std::string("startAsync (bridge spawn) done: stage=")
+                + aura::toString(runtime.startupReport().stage));
+    if (!startupBegun) {
+        logLine("  startup not ready: " + spawnError, true);
+    }
+
+    // Phase 2: wait for the bridge handshake. The API server serves on its own
+    // per-connection threads, so the frontend gets STARTING responses throughout
+    // this wait; only the runtime's own data wiring blocks here.
+    if (startupBegun) {
+        std::string finishError;
+        const bool ready = runtime.finishStartup(finishError);
+        logTimeline(std::string("finishStartup (handshake) ") +
+                    (ready ? "ok" : "failed") + ": stage="
+                    + aura::toString(runtime.startupReport().stage));
+        if (!ready) logLine("  startup not ready: " + finishError, true);
+    }
 
     do {
         aura::RuntimeCycleReport cycle = runtime.tick(aura::Timestamp::now());
@@ -258,5 +315,5 @@ int main(int argc, char** argv) {
     std::cout << "AURA backend host shutting down\n";
     apiServer.stop();
     runtime.stop();
-    return started ? 0 : 1;
+    return runtime.isReady() ? 0 : 1;
 }
