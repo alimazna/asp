@@ -67,9 +67,11 @@ int main(int argc, char** argv) {
     emit client.candlesReceived(stale);
 
     // Now the *current* M1 request fails. The error must be honoured, replacing
-    // the loading overlay with the error overlay.
-    emit client.error(QStringLiteral("backend unreachable"),
-                      QStringLiteral("network_error"));
+    // the loading overlay with the error overlay. Candle failures arrive on the
+    // chart's own candlesFailed() channel (the global error() signal carries
+    // every other endpoint's errors and must not paint this overlay).
+    emit client.candlesFailed(QStringLiteral("backend unreachable"),
+                              QStringLiteral("network_error"));
 
     const QString title = overlayTitle(page);
     check(!title.isEmpty(), "overlay title found");

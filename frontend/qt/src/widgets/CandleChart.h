@@ -62,6 +62,9 @@ public:
     // what drives the "Go to live" affordance.
     [[nodiscard]] bool isPanned() const { return mIsPanned; }
 
+    // Test-only: number of rendered bars.
+    [[nodiscard]] int candleCount() const { return mCandles.size(); }
+
 signals:
     void pannedChanged(bool panned);
 

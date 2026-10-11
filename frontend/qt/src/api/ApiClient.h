@@ -42,6 +42,13 @@ public:
 
     // Cancel pending requests
     void cancelAll();
+    // Abort an in-flight /health probe, if any, and clear its in-flight flag.
+    // Used by the poll timer so a probe whose 5s transfer timeout has not yet
+    // fired does not overlap the next 5s tick.
+    void cancelHealthProbe();
+
+    // Test-only: number of consecutive /health failures observed (0 when live).
+    [[nodiscard]] int consecutiveHealthFailures() const { return mConsecutiveHealthFailures; }
 
     // Latest governance responses (available after the matching signal).
     [[nodiscard]] ResearchData currentResearch() const { return mCurrentResearch; }
@@ -73,6 +80,10 @@ signals:
     void auditReceived(const AuditData& data);
     void systemStateReceived(const SystemStateData& data);
     void error(const QString& message, const QString& code);
+    // Candle-surface failures are emitted here, NOT on error(): the chart must
+    // be able to react to its own request failing without other pages (which
+    // also listen on error()) repainting their overlays.
+    void candlesFailed(const QString& message, const QString& code);
     void offline();
     void online();
 
@@ -112,6 +123,16 @@ private:
     GovernanceData mCurrentGovernance;
     AuditData mCurrentAudit;
     SystemStateData mCurrentSystemState;
+
+    // Liveness is owned solely by /api/v1/health. Two consecutive failures are
+    // required before offline() is emitted, so a single slow/timed-out probe
+    // does not flip the whole UI OFFLINE (the chart lost its render window to
+    // exactly that 10s flip-flop). Reset to zero on any success.
+    int mConsecutiveHealthFailures = 0;
+    // True while a /health probe is in flight. Prevents overlapping probes and
+    // lets cancelHealthProbe() abort only that reply.
+    bool mHealthInFlight = false;
+    QNetworkReply* mHealthReply = nullptr;
 
     bool mIsOnline = false;
     bool mIsDegraded = false;

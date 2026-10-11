@@ -122,6 +122,11 @@ private slots:
     void onTimeframesUpdated(const QVector<TimeframeData>& items);
     void onOffline();
     void onOnline();
+    // One-shot candle-fetch evidence for the installed smoke test: the CI check
+    // has no backend request log, so the frontend records that GET /candles ran
+    // and whether bars came back.
+    void onCandlesUpdated(const CandlesResponse& resp);
+    void onCandlesFailed(const QString& message, const QString& code);
 
 private:
     void setupSidebar();
@@ -249,6 +254,10 @@ private:
     // without a live network round-trip).
     HealthResponse mLastHealth;
     bool mHasHealth = false;
+
+    // Set once the first candle response is logged (success or failure), so the
+    // evidence line is written exactly once per session.
+    bool mLoggedCandleFetch = false;
 
     // Settings
     QSettings mSettings;

@@ -13,9 +13,11 @@ ApiClient::ApiClient(QObject* parent)
     , mBaseUrl("http://127.0.0.1:8790/api/v1/")
 {
     // Bound every request: without a transfer timeout a hung backend leaves
-    // replies pending forever, so the UI never flips to OFFLINE. Kept <= 3s so a
-    // dead backend is reported quickly rather than after a long hang.
-    mNetworkManager.setTransferTimeout(3000);
+    // replies pending forever, so the UI never flips to OFFLINE. 5s (not the
+    // old 3s) because the backend shares a thread with the bridge handshake and
+    // occasionally answers /api/v1/health in >1s; a sub-second budget was
+    // reporting a healthy backend as unreachable.
+    mNetworkManager.setTransferTimeout(5000);
 
     connect(&mRetryTimer, &QTimer::timeout, this, [this]() {
         mRetryTimer.stop();
@@ -41,10 +43,23 @@ QString ApiClient::baseUrl() const {
 }
 
 void ApiClient::cancelAll() {
+    mHealthReply = nullptr;
+    mHealthInFlight = false;
     for (auto* reply : std::exchange(mPendingReplies, {})) {
         reply->abort();
         reply->deleteLater();
     }
+}
+
+void ApiClient::cancelHealthProbe() {
+    if (mHealthReply) {
+        // Abort, do not delete: handleReply's finished slot owns the deletion
+        // (and its removal from mPendingReplies), so deleting here would leave a
+        // dangling pointer there.
+        mHealthReply->abort();
+        mHealthReply = nullptr;
+    }
+    mHealthInFlight = false;
 }
 
 void ApiClient::fetchAnalysisLatest() {
@@ -84,12 +99,23 @@ void ApiClient::fetchHealth() {
     // surface or the bridge. Its failure is the ONLY thing that flips the client
     // offline. The version/uptime rows and the bridge process state come from
     // the secondary surfaces chained on success.
+    //
+    // Never overlap probes, and never abort a probe that may yet answer: a slow
+    // (but healthy) backend must not be counted as a failure just because the
+    // next tick arrived first. Skip this tick; the transfer timeout guarantees
+    // the in-flight probe ends, after which the following tick proceeds.
+    if (mHealthInFlight) return;
+    mHealthInFlight = true;
+
     QNetworkRequest request(QUrl(mBaseUrl + "health"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     auto* reply = mNetworkManager.get(request);
+    mHealthReply = reply;
     mPendingReplies.append(reply);
     handleReply(reply,
         [this](const QByteArray& raw) {
+            mHealthInFlight = false;
+            mHealthReply = nullptr;
             try {
                 ApiEnvelope env;
                 parseEnvelope(raw, env);
@@ -109,6 +135,7 @@ void ApiClient::fetchHealth() {
                 mIsOnline = true;
                 mIsDegraded = resp.data.aggregate == "DEGRADED";
                 if (mRetryCount > 0) mRetryCount = 0;
+                mConsecutiveHealthFailures = 0;  // any success clears the strike count
                 emit healthReceived(resp);
                 emit online();
                 // Layer the secondary liveness surfaces; their failures never
@@ -120,6 +147,18 @@ void ApiClient::fetchHealth() {
             }
         },
         [this](const QString& msg, const QString& code) {
+            mHealthInFlight = false;
+            mHealthReply = nullptr;
+            ++mConsecutiveHealthFailures;
+            // Require two consecutive failures before flipping OFFLINE. A single
+            // slow or timed-out probe on a healthy backend must not blank the
+            // UI: that 10s flip-flop left the chart no stable window to render.
+            if (mConsecutiveHealthFailures < 2) {
+                // Not an outage yet: report the error but keep the last known
+                // state. The next probe decides.
+                emit error(msg, code);
+                return;
+            }
             mIsOnline = false;
             mIsDegraded = false;
             // Backend unreachable: nothing has been observed, so clear the stale
@@ -270,11 +309,13 @@ void ApiClient::fetchCandles(const QString& tf, int limit) {
                 mIsOnline = true;
                 emit candlesReceived(resp);
             } catch (const std::exception& ex) {
-                emit error(QString::fromUtf8(ex.what()), "parse_error");
+                emit candlesFailed(QString::fromUtf8(ex.what()), "parse_error");
             }
         },
         [this](const QString& msg, const QString& code) {
-            emit error(msg, code);
+            // The chart's own failure channel: a candle error must not reach
+            // other pages' error() handlers (they would paint their overlays).
+            emit candlesFailed(msg, code);
         });
 }
 

@@ -37,6 +37,11 @@ public:
     void zoomOut();
     void resetZoom();
 
+    // Test-only accessors.
+    [[nodiscard]] int candleCountForTest() const;
+    [[nodiscard]] bool overlayShownForTest() const;
+    [[nodiscard]] QString overlayTitleForTest() const;
+
 protected:
     void changeEvent(QEvent* event) override;
     void showEvent(QShowEvent* event) override;

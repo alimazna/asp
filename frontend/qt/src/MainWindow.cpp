@@ -130,6 +130,8 @@ MainWindow::MainWindow(QWidget* parent)
         if (mApiClient) mApiClient->fetchAnalysisLatest();
     });
     connect(&mHealthPollTimer, &QTimer::timeout, this, [this]() {
+        // fetchHealth() skips a tick while a probe is still in flight, so the
+        // 1s bake-in poll cannot overlap or race the 5s transfer timeout.
         if (mApiClient) mApiClient->fetchHealth();
     });
 
@@ -155,6 +157,8 @@ void MainWindow::setApiClient(ApiClient* client) {
     connect(client, &ApiClient::timeframesReceived, this, &MainWindow::onTimeframesUpdated);
     connect(client, &ApiClient::offline, this, &MainWindow::onOffline);
     connect(client, &ApiClient::online, this, &MainWindow::onOnline);
+    connect(client, &ApiClient::candlesReceived, this, &MainWindow::onCandlesUpdated);
+    connect(client, &ApiClient::candlesFailed, this, &MainWindow::onCandlesFailed);
 
     // Pages own their data sources
     if (auto* dash = qobject_cast<DashboardPage*>(mPages[Dashboard])) dash->setApiClient(client);
@@ -798,6 +802,29 @@ void MainWindow::onTimeframesUpdated(const QVector<TimeframeData>& items) {
     if (auto* hp = qobject_cast<HealthPage*>(mPages[Health])) {
         hp->updateFromTimeframes(items);
     }
+}
+
+void MainWindow::onCandlesUpdated(const CandlesResponse& resp) {
+    // One-shot evidence that the chart actually asked the backend for candles,
+    // and what came back. The installed smoke test has no backend request log,
+    // so without this it cannot tell "the chart fetched and rendered" from "the
+    // chart never ran its fetch".
+    if (mLoggedCandleFetch) return;
+    mLoggedCandleFetch = true;
+    appendFrontendLog(QStringLiteral("ui candles: tf=%1 bars=%2 available=%3")
+                          .arg(resp.data.timeframe.isEmpty()
+                                   ? QStringLiteral("?")
+                                   : resp.data.timeframe)
+                          .arg(resp.data.bars.size())
+                          .arg(resp.data.available ? QStringLiteral("true")
+                                                   : QStringLiteral("false")));
+}
+
+void MainWindow::onCandlesFailed(const QString& message, const QString& code) {
+    if (mLoggedCandleFetch) return;
+    mLoggedCandleFetch = true;
+    appendFrontendLog(QStringLiteral("ui candles: fetch failed (%1): %2")
+                          .arg(code, message));
 }
 
 void MainWindow::onOffline() {

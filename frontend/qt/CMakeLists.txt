@@ -389,4 +389,28 @@ if(BUILD_ASTRA_TESTS)
     set_tests_properties(astra_health_retry_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # UI stability + chart data: a single failed /health probe must not flip the
+    # UI OFFLINE (two consecutive failures do), and the chart must keep its
+    # rendered candles across a transient flip.
+    add_executable(astra_ui_stability_tests
+        tests/UiStabilityTests.cpp
+        src/pages/ChartPage.cpp
+        src/widgets/CandleChart.cpp
+        src/widgets/TimeframeSwitcher.cpp
+        src/api/ApiClient.cpp
+        src/api/ApiTypes.cpp
+    )
+    target_include_directories(astra_ui_stability_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_ui_stability_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_ui_stability_tests COMMAND astra_ui_stability_tests)
+    set_tests_properties(astra_ui_stability_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()

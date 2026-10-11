@@ -125,7 +125,9 @@ void ChartPage::setApiClient(ApiClient* client) {
     if (mApiClient) {
         connect(mApiClient, &ApiClient::candlesReceived,
                 this, &ChartPage::onCandlesReceived);
-        connect(mApiClient, &ApiClient::error,
+        // Only the candle surface's own failures — the global error() channel
+        // carries every other endpoint's errors and must not paint this overlay.
+        connect(mApiClient, &ApiClient::candlesFailed,
                 this, &ChartPage::onApiError);
     }
 }
@@ -349,10 +351,24 @@ void ChartPage::onPannedChanged(bool panned) {
 
 void ChartPage::updateChartForTimeframe(const QString& tf) {
     mCurrentTf = tf;
-    mChart->setCandles({});
+    // Keep the already-rendered candles on screen while the new timeframe loads;
+    // the overlay covers the chart, and blanking it here would show the empty
+    // "Connect to backend" state for the whole request on a slow backend.
     mChart->resetZoom();
     setOverlay(Overlay::Loading);
     requestCandles();
+}
+
+int ChartPage::candleCountForTest() const {
+    return mChart ? mChart->candleCount() : 0;
+}
+
+bool ChartPage::overlayShownForTest() const {
+    return mOverlay && !mOverlay->isHidden();
+}
+
+QString ChartPage::overlayTitleForTest() const {
+    return mOverlayTitle ? mOverlayTitle->text() : QString();
 }
 
 void ChartPage::onTimeframeKey(int index) {
