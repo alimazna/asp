@@ -283,9 +283,16 @@ private:
     HealthResponse mLastHealth;
     bool mHasHealth = false;
 
-    // Set once the first candle response is logged (success or failure), so the
-    // evidence line is written exactly once per session.
-    bool mLoggedCandleFetch = false;
+    // Chart-data evidence. The chart's first fetch fires during the backend's
+    // bake-in and can legitimately fail at the transport layer before the
+    // backend binds; logging only the first outcome hid the eventual success.
+    // Log every failure (so transient ones are visible) but log the *result*
+    // only on change, so the recount converges on the terminal state without
+    // flooding while the backend is still coming up.
+    bool mLoggedCandleFailure = false;
+    bool mLoggedCandleResult = false;
+    bool mLastCandleHadData = false;
+    QString mLastCandleFailureLine;
     // Set once the "market closed — showing last data" notice is logged, so the
     // evidence line is written exactly once per session.
     bool mLoggedStaleNotice = false;

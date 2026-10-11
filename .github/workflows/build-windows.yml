@@ -354,32 +354,33 @@ jobs:
 
           # Chart-data evidence: the chart must actually have fetched candles
           # from the backend (the frontend records this, since the backend keeps
-          # no request log). It is not enough to have *tried*: the earlier
-          # version of this check passed on a "fetch failed" line too, which is
-          # exactly the "chart never renders" bug. Require a rendered fetch and
-          # reject any candle transport failure.
+          # no request log). The chart's FIRST fetch fires during the backend's
+          # bake-in and can legitimately fail at the transport layer before the
+          # backend binds, so a transient early network error is allowed — but
+          # the fetch must eventually succeed, and the LAST recorded candle line
+          # must not be a transport failure (that would mean the chart never
+          # rendered: exactly the reported bug).
           if (-Not ($logLines -match "ui candles:")) {
             Write-Error "auto-start log has no 'ui candles:' line: the chart never fetched /api/v1/candles"
             $logLines | Write-Host; exit 1
           }
-          $candleLine = @($logLines | Where-Object { $_ -match "ui candles:" })[0]
-          # A transport failure is a frontend/backend bug (a race between the
-          # frontend's budget and the backend's bridge-proxy budget closed the
-          # socket before the honest envelope arrived). It must never pass.
-          if ($candleLine -match "fetch failed \(network_error") {
-            Write-Error "chart candle fetch failed at the transport layer (the chart cannot render): $candleLine"
+          $candleLines = @($logLines | Where-Object { $_ -match "ui candles:" })
+          $lastCandleLine = $candleLines[-1]
+          Write-Host "chart candle lines: $($candleLines.Count); last: $lastCandleLine"
+          if ($lastCandleLine -match "fetch failed \(network_error") {
+            Write-Error "chart candle fetch ended in a transport failure (the chart cannot render): $lastCandleLine"
             $logLines | Write-Host; exit 1
           }
           # A structured 'dependency_unavailable' is honest: on this runner there
           # is no live MT5 terminal, so the bridge answers 503 rather than
           # fabricating bars. That is a data-absence, not a UI bug. When the
           # backend does return bars, require them to be usable.
-          if (($candleLine -notmatch "fetch failed") -and
-              (-Not ($candleLine -match "ui candles: tf=.* available=true"))) {
-            Write-Error "chart candle fetch returned no usable data: $candleLine"
+          if (($lastCandleLine -notmatch "fetch failed") -and
+              (-Not ($lastCandleLine -match "ui candles: tf=.* available=true"))) {
+            Write-Error "chart candle fetch returned no usable data: $lastCandleLine"
             $logLines | Write-Host; exit 1
           }
-          Write-Host "chart fetch evidence: $candleLine"
+          Write-Host "chart fetch evidence: $lastCandleLine"
           Write-Host "smoke elapsed: $($launchClock.Elapsed.TotalSeconds.ToString('0.0'))s"
 
           # Clean shutdown, then uninstall, so no process is left holding the ports.

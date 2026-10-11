@@ -805,19 +805,25 @@ void MainWindow::onTimeframesUpdated(const QVector<TimeframeData>& items) {
 }
 
 void MainWindow::onCandlesUpdated(const CandlesResponse& resp) {
-    // One-shot evidence that the chart actually asked the backend for candles,
-    // and what came back. The installed smoke test has no backend request log,
-    // so without this it cannot tell "the chart fetched and rendered" from "the
-    // chart never ran its fetch".
-    if (mLoggedCandleFetch) return;
-    mLoggedCandleFetch = true;
-    appendFrontendLog(QStringLiteral("ui candles: tf=%1 bars=%2 available=%3")
-                          .arg(resp.data.timeframe.isEmpty()
-                                   ? QStringLiteral("?")
-                                   : resp.data.timeframe)
-                          .arg(resp.data.bars.size())
-                          .arg(resp.data.available ? QStringLiteral("true")
-                                                   : QStringLiteral("false")));
+    // Evidence that the chart actually asked the backend for candles and what
+    // came back. The installed smoke test has no backend request log, so without
+    // this it cannot tell "the chart fetched and rendered" from "the chart never
+    // ran its fetch". Logged on each result change so the recount settles on the
+    // terminal state (a first fetch that raced the backend's bind is not the
+    // last word); the "empty" recount is a subset of the with-data recount, so
+    // the final line is always the one that reflects the current chart state.
+    const bool hasData = resp.data.available && !resp.data.bars.isEmpty();
+    if (!mLoggedCandleResult || hasData != mLastCandleHadData) {
+        mLoggedCandleResult = true;
+        mLastCandleHadData = hasData;
+        appendFrontendLog(QStringLiteral("ui candles: tf=%1 bars=%2 available=%3")
+                              .arg(resp.data.timeframe.isEmpty()
+                                       ? QStringLiteral("?")
+                                       : resp.data.timeframe)
+                              .arg(resp.data.bars.size())
+                              .arg(resp.data.available ? QStringLiteral("true")
+                                                       : QStringLiteral("false")));
+    }
     // Evidence that the closed-market path rendered instead of hiding the chart:
     // the backend returned real-but-older bars and the UI showed its notice.
     if (resp.data.stale && !resp.data.bars.isEmpty() && !mLoggedStaleNotice) {
@@ -830,10 +836,16 @@ void MainWindow::onCandlesUpdated(const CandlesResponse& resp) {
 }
 
 void MainWindow::onCandlesFailed(const QString& message, const QString& code) {
-    if (mLoggedCandleFetch) return;
-    mLoggedCandleFetch = true;
-    appendFrontendLog(QStringLiteral("ui candles: fetch failed (%1): %2")
-                          .arg(code, message));
+    // Every failure is logged: a transient one during the backend's bake-in is
+    // still worth seeing, and it can no longer overwrite the eventual result
+    // (a later success appends its own line). Only repeated identical failures
+    // are collapsed.
+    const QString line = QStringLiteral("ui candles: fetch failed (%1): %2")
+                             .arg(code, message);
+    if (mLoggedCandleFailure && line == mLastCandleFailureLine) return;
+    mLoggedCandleFailure = true;
+    mLastCandleFailureLine = line;
+    appendFrontendLog(line);
 }
 
 void MainWindow::onOffline() {
