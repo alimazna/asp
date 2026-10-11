@@ -17,7 +17,9 @@
 #include "foundation/HttpClient.h"   // isLoopbackHost
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -53,6 +55,12 @@ public:
 
 private:
     void acceptLoop();
+    // Serves one accepted connection to completion on its own thread. Requests
+    // are handled concurrently so a slow proxy (e.g. /candles, which reads MT5
+    // through the Python bridge) can never block a fast route such as /health
+    // behind it. The facade reads shared state and serializes bridge access
+    // internally, so concurrent handling is safe.
+    void handleConnection(std::intptr_t conn);
     ApiResponse handleRequest(const std::string& method, const std::string& path,
                               const std::string& body);
 
@@ -62,6 +70,11 @@ private:
     std::thread acceptThread_;
     int listenFd_ = -1;
     std::uint16_t boundPort_ = 0;
+    // Tracks in-flight connection threads so stop() can join them before the
+    // server is destroyed (the threads call into `facade_`).
+    std::mutex workersMutex_;
+    std::condition_variable workersCv_;
+    int activeWorkers_ = 0;
 };
 
 }  // namespace aura

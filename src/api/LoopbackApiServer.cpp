@@ -200,6 +200,12 @@ void LoopbackApiServer::stop() {
         listenFd_ = -1;
     }
     if (acceptThread_.joinable()) acceptThread_.join();
+    // Wait for in-flight connection threads before the owner may destroy the
+    // facade/server: they dereference `facade_` for the whole request.
+    {
+        std::unique_lock<std::mutex> lock(workersMutex_);
+        workersCv_.wait(lock, [this] { return activeWorkers_ == 0; });
+    }
 }
 
 void LoopbackApiServer::acceptLoop() {
@@ -229,6 +235,29 @@ void LoopbackApiServer::acceptLoop() {
                        reinterpret_cast<const char*>(&tv), sizeof(tv));
         }
 
+        // Serve the connection on its own thread. A single-threaded loop let a
+        // slow /candles proxy (MT5 through the Python bridge, up to the read
+        // budget) block a fast /health behind it for the whole proxy duration,
+        // which the frontend then saw as a backend outage ("flip-flop"). The
+        // worker is joined by stop() via activeWorkers_.
+        {
+            std::lock_guard<std::mutex> lock(workersMutex_);
+            ++activeWorkers_;
+        }
+        std::thread([this, conn]() {
+            handleConnection(static_cast<std::intptr_t>(conn));
+            {
+                std::lock_guard<std::mutex> lock(workersMutex_);
+                --activeWorkers_;
+            }
+            workersCv_.notify_all();
+        }).detach();
+    }
+}
+
+void LoopbackApiServer::handleConnection(std::intptr_t connHandle) {
+    const SocketHandle conn = static_cast<SocketHandle>(connHandle);
+    {
         // Read until the header terminator, then honor Content-Length.
         std::string raw;
         char buffer[4096];
