@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 #include "api/ApiClient.h"
+#include "autostart/AutoStart.h"
+#include "platform/windows/SingleInstance.h"
 #include "theme/ThemeManager.h"
 #include <QApplication>
 #include <QSettings>
@@ -23,6 +25,11 @@
 namespace {
 
 constexpr quint16 kBackendPort = 8790;
+
+// Held for the process lifetime. The cross-process auto-start lock is released
+// when this dies (an exclusive HANDLE), so a crashed frontend never blocks a
+// relaunch. Declared before main().
+aura::InstanceLock g_autostartLock;
 
 // Outcome of the auto-start attempt, surfaced to the UI. An installed ASTRA
 // lives in C:\Program Files\ASTRA, which a normally-launched (non-elevated)
@@ -75,51 +82,75 @@ bool backendListening() {
     return probe.waitForConnected(300);
 }
 
-// The auto-start must run at most once per process lifetime. Without this guard
-// a second call (e.g. a re-entrant startup path) probes the port before the
-// backend has bound it and spawns a duplicate; the log showed two "spawn ok"
-// lines in the same second. A duplicate host loses the single-instance lock and
-// exits, but its brief bind attempt is still noise.
+// Cross-process auto-start lock, in the user-writable state dir. An exclusive
+// HANDLE is held for the process lifetime, so a second ASTRA launched while the
+// first is still baking in (port not yet answering) cannot spawn its own
+// backend. The previous guard was a single bool in one process: it could not see
+// a second frontend process, which is why the log showed two spawns 33s apart.
+QString autostartLockPath() {
+    return QDir(autostartLogDir()).filePath("frontend-autostart.lock");
+}
+
+// The auto-start must run at most once per process lifetime.
 bool g_spawnAttempted = false;
+// True when a backend is expected to come up (we spawned it, found one already
+// listening, or another frontend is starting it). Gates the bake-in retry poll.
+bool g_backendExpected = false;
 
 void startBackendHost() {
-    if (g_spawnAttempted) {
-        appendAutostartLog("auto-start already attempted; not spawning again");
-        return;
+    astra::AutoStartDeps deps;
+    deps.backendListening = backendListening;
+    deps.tryLock = [](const QString& path) {
+        std::string err;
+        // Already held by this process (e.g. a re-entrant call): treat as locked.
+        return g_autostartLock.acquire(path.toStdString(), err);
+    };
+    deps.exeExists = [](const QString& p) { return QFileInfo::exists(p); };
+    deps.log = appendAutostartLog;
+    deps.backendExePath = []() {
+        return QDir(QCoreApplication::applicationDirPath())
+            .filePath("aura_backend_host.exe");
+    };
+    deps.lockPath = autostartLockPath;
+    deps.spawn = [](const QString& exe, int port) {
+        // Record the spawn instant so the bake-in window and the "reachable
+        // after Ns" log measure from here even if a later startup step delays
+        // the health poll.
+        g_backendSpawnEpochMs = QDateTime::currentMSecsSinceEpoch();
+        // Detached: the backend owns its own supervised bridge child and must
+        // outlive the frontend window. Do not block the GUI thread waiting for
+        // the port: the backend binds it only after the bridge handshake.
+        if (!QProcess::startDetached(exe, {"--api-port", QString::number(port)})) {
+            g_backendSpawnEpochMs = 0;
+            return false;
+        }
+        return true;
+    };
+
+    const astra::AutoStartOutcome outcome = astra::attemptAutoStart(
+        qEnvironmentVariableIsSet("AURA_NO_BACKEND"), kBackendPort,
+        g_spawnAttempted, deps);
+
+    switch (outcome) {
+        case astra::AutoStartOutcome::Spawned:
+        case astra::AutoStartOutcome::AlreadyListening:
+        // Another ASTRA frontend is starting the backend; this window still needs
+        // to poll it in, so it is "expected" too.
+        case astra::AutoStartOutcome::LockedByAnotherInstance:
+            g_backendExpected = true;
+            break;
+        case astra::AutoStartOutcome::ExeMissing:
+            g_backendStartFailure = QStringLiteral("aura_backend_host.exe not found at ")
+                                    + deps.backendExePath();
+            break;
+        case astra::AutoStartOutcome::SpawnFailed:
+            g_backendStartFailure = QStringLiteral("QProcess::startDetached failed for ")
+                                    + deps.backendExePath();
+            break;
+        case astra::AutoStartOutcome::AlreadyAttempted:
+        case astra::AutoStartOutcome::Suppressed:
+            break;
     }
-    g_spawnAttempted = true;
-    if (qEnvironmentVariableIsSet("AURA_NO_BACKEND")) {
-        appendAutostartLog("auto-start suppressed by AURA_NO_BACKEND");
-        return;
-    }
-    if (backendListening()) {
-        appendAutostartLog("backend already listening on 127.0.0.1:8790; not spawning another");
-        return;
-    }
-    const QString exe = QDir(QCoreApplication::applicationDirPath())
-                            .filePath("aura_backend_host.exe");
-    if (!QFileInfo::exists(exe)) {
-        g_backendStartFailure = QStringLiteral("aura_backend_host.exe not found at ") + exe;
-        appendAutostartLog("FAILED: backend host not found next to frontend: " + exe);
-        return;
-    }
-    appendAutostartLog("attempting to spawn " + exe + " ...");
-    // Record the spawn instant so the bake-in window and the "reachable after Ns"
-    // log measure from here even if a later startup step delays the health poll.
-    g_backendSpawnEpochMs = QDateTime::currentMSecsSinceEpoch();
-    // Detached: the backend owns its own supervised bridge child and must
-    // outlive the frontend window.
-    if (!QProcess::startDetached(exe, {"--api-port", QString::number(kBackendPort)})) {
-        g_backendSpawnEpochMs = 0;
-        g_backendStartFailure = QStringLiteral("QProcess::startDetached failed for ") + exe;
-        appendAutostartLog("FAILED: QProcess::startDetached returned false for " + exe);
-        return;
-    }
-    // Do not block the GUI thread waiting for the port: the backend starts its
-    // loopback API only after the bridge handshake (up to 15s when the bridge is
-    // unavailable), so a short wait would log a false failure. The spawn result
-    // is recorded here; the health poll surfaces a backend that dies afterwards.
-    appendAutostartLog("spawn ok: " + exe);
 }
 
 }  // namespace
@@ -190,7 +221,7 @@ int main(int argc, char* argv[]) {
     // declaring failure. Left false when the executable was missing, where the
     // banner is already showing the reason. MUST be set before setApiClient(),
     // which starts the fast retry poll when this is true.
-    if (g_spawnAttempted && g_backendStartFailure.isEmpty()) {
+    if (g_backendExpected && g_backendStartFailure.isEmpty()) {
         mainWindow.setBackendAutostartSpawnedAt(g_backendSpawnEpochMs);
         mainWindow.setBackendAutostartInProgress(true);
     }

@@ -29,6 +29,9 @@ set(ASTRA_SOURCES
     src/MainWindow.cpp
     src/api/ApiClient.cpp
     src/api/ApiTypes.cpp
+    src/autostart/AutoStart.cpp
+    # Cross-process single-instance lock, shared with the backend host.
+    ../../src/platform/windows/SingleInstance.cpp
     src/theme/ThemeManager.cpp
     src/pages/DashboardPage.cpp
     src/pages/ChartPage.cpp
@@ -61,6 +64,8 @@ set(ASTRA_HEADERS
     src/MainWindow.h
     src/api/ApiClient.h
     src/api/ApiTypes.h
+    src/autostart/AutoStart.h
+    ../../src/platform/windows/SingleInstance.h
     src/theme/ThemeManager.h
     src/pages/DashboardPage.h
     src/pages/ChartPage.h
@@ -102,6 +107,9 @@ endif()
 
 target_include_directories(astra_desktop PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    # Repo-root src/: provides platform/windows/SingleInstance.h (the shared
+    # cross-process auto-start lock).
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
 )
 
 target_link_libraries(astra_desktop PRIVATE
@@ -387,6 +395,26 @@ if(BUILD_ASTRA_TESTS)
     )
     add_test(NAME astra_health_retry_tests COMMAND astra_health_retry_tests)
     set_tests_properties(astra_health_retry_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    # Auto-start idempotency: startBackendHost() must spawn at most once per
+    # process, must not duplicate an already-listening backend, and must honour
+    # the cross-process lock. Guards the duplicate "attempting to spawn" lines.
+    add_executable(astra_autostart_tests
+        tests/AutoStartTests.cpp
+        src/autostart/AutoStart.cpp
+        ../../src/platform/windows/SingleInstance.cpp
+    )
+    target_include_directories(astra_autostart_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+    )
+    target_link_libraries(astra_autostart_tests PRIVATE
+        Qt6::Core
+    )
+    add_test(NAME astra_autostart_tests COMMAND astra_autostart_tests)
+    set_tests_properties(astra_autostart_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
