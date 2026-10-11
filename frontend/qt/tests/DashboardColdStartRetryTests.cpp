@@ -70,14 +70,22 @@ private:
     void onConnection() {
         QTcpSocket* sock = nextPendingConnection();
         ++mRequests;
-        const char* reason = mStatus == 200 ? "OK" : "Service Unavailable";
-        QByteArray out = "HTTP/1.1 " + QByteArray::number(mStatus) + " " + reason +
-                         "\r\nContent-Type: application/json\r\nContent-Length: " +
-                         QByteArray::number(mBody.size()) +
-                         "\r\nConnection: close\r\n\r\n" + mBody;
-        sock->write(out);
-        sock->flush();
-        sock->disconnectFromHost();
+        // Respond only after the request bytes arrive, then close gracefully.
+        // Replying the instant the socket is accepted — before the client has
+        // finished writing — lets Windows reset the connection and the reply is
+        // lost; the real backend always reads the request first.
+        connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
+            sock->readAll();
+            const char* reason = mStatus == 200 ? "OK" : "Service Unavailable";
+            QByteArray out = "HTTP/1.1 " + QByteArray::number(mStatus) + " " + reason +
+                             "\r\nContent-Type: application/json\r\nContent-Length: " +
+                             QByteArray::number(mBody.size()) +
+                             "\r\nConnection: close\r\n\r\n" + mBody;
+            sock->write(out);
+            sock->flush();
+            sock->disconnectFromHost();
+        });
+        connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
     }
 
     int mStatus;
