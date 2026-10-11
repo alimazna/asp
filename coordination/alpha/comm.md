@@ -2403,3 +2403,37 @@ installing the **current** build, the check is:
 
 If any of those is false on the human's box, the log at
 `%LOCALAPPDATA%\ASTRA\logs\backend-host.log` now names the exact blocking step.
+
+## PR #5 merged to main — fresh installer confirmed
+
+- Merged PR #5 (`fix/autostart-real-launch-path` → `main`) as a merge commit
+  **`9043fe99ed9e0086b4d70e13708a258cf5ef7bda`** at 2026-10-11T21:30:35Z; the
+  source branch was deleted. No conflicts, no code changed during the merge.
+- `main` now carries the early-bind fix (`3f96570`), the CI ordering assertion
+  (`82e2d2b`), and the root-cause report (`d2d8f77`).
+
+### CI run on main
+
+- Run id: **38176664471** (`https://github.com/alimazna/asp/actions/runs/38176664471`),
+  triggered by the merge push, head `9043fe9`.
+- Status: **success** (2026-10-11T21:30:37Z → 21:40:35Z).
+- Smoke test (installed flow) output on main:
+
+  ```
+  t+10s gate: backendProc=1 bridgeProc=1 backendHealth=True(STARTING) bridgeHealth=True
+  backend timeline: bind=9 ms, spawn=2050 ms
+  early-bind ordering confirmed: API bound at 9 ms, before the bridge spawn at 2050 ms
+  final counts: desktop=1 backend=1 bridge=2
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+
+  Backend job on main also ran the new test:
+  `18/23 Test #18: StartupEarlyBindTests ... Passed`, `100% tests passed out of 23`.
+
+### Fresh installer built from main
+
+- **ASTRA-Setup.exe: 39,795,624 bytes**, built by run 38176664471 from head
+  `9043fe9` (artifact `ASTRA-windows-installer`). This is the build the human
+  should install to re-test on real hardware.
