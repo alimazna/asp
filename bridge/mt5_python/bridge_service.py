@@ -461,8 +461,20 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
         # Staleness: the feed may be alive but not current. Surface it as an
         # explicit STALE quality rather than a silently VALID response.
+        # allow_stale=true: the host's tracker ingestion needs the newest real
+        # closed bars even when the market is closed, so it can record the
+        # timeframe state (as STALE, never decision-grade) instead of an empty
+        # tracker. Never fabricates bars.
+        allow_stale = str((query.get("allow_stale") or ["false"])[0]).strip().lower() in ("true", "1")
         freshness = result.data.get("freshness", "UNKNOWN")
         if freshness == "STALE":
+            if allow_stale:
+                state.mark_success()
+                self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
+                                            source=SOURCE_NAME, broker=state.client.broker,
+                                            symbol=symbol, timeframe=timeframe,
+                                            quality=QUALITY_UNKNOWN))
+                return
             state.mark_error("stale market data")
             self._error(ErrorInfo(
                 code=ERR_MARKET_DATA_STALE,

@@ -154,6 +154,12 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
         request.timeframe = timeframe;
         request.count = candlesPerTimeframe_;
         request.closedOnly = true;
+        // allow_stale: when the market is closed the newest real closed bars
+        // come back (validation flags them STALE) instead of an error, so the
+        // timeframe tracker and the decision context are fed with real data
+        // rather than staying empty. A stale bar is never decision-grade, so
+        // no decision is fabricated from it.
+        request.allowStale = true;
 
         IngestResult result = ingestor_->ingest(request, now);
         report.qualityByTimeframe[toString(timeframe)] = result.quality;
