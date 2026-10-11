@@ -2437,3 +2437,132 @@ If any of those is false on the human's box, the log at
 - **ASTRA-Setup.exe: 39,795,624 bytes**, built by run 38176664471 from head
   `9043fe9` (artifact `ASTRA-windows-installer`). This is the build the human
   should install to re-test on real hardware.
+
+## Tracker Feed + Flip-Flop — Complete
+
+Fixes on branch `fix/tracker-feed-flipflop` (two commits). NOTE: `GITHUB_TOKEN`
+in this session is invalid (HTTP 401 "Bad credentials" on every auth form), so
+nothing could be pushed and no PR could be opened. The commits and the report
+exist only in the local working tree — see "Blocker" below.
+
+### Bug 1: timeframe tracker never fed
+
+- Root cause: the runtime's per-tick ingestion called the *strict* canonical
+  bridge route. `src/data/MarketDataIngestor.cpp:18` calls
+  `client_->candles(symbol, tf, count, closedOnly)` with no `allow_stale`, and
+  `src/mt5/PythonBridgeClient.cpp:148` built the query without it, so
+  `bridge/mt5_python/bridge_service.py:478` (`_handle_candles`) refused a
+  closed-market read with `MARKET_DATA_STALE` before it ever sent candles.
+  With no candles the tracker never advanced, so
+  `src/health/HealthMonitor.cpp:65` reported every timeframe as
+  `"no closed bar"` and `src/runtime/DecisionPipeline.cpp:109` never ran
+  (`lastContext_.available` stayed false) — the all-UNKNOWN context and empty
+  `/analysis/history` in the human's evidence. The chart alias route already
+  passed `allow_stale=true` (`frontend/qt/src/api/ApiClient.cpp`), which is why
+  `/api/v1/candles` returned 500 bars while `/api/v1/health` still said
+  "no closed bar". The task's model ("feed the tracker from the /candles
+  route") was a symptom; the real feed is the runtime ingestion loop, so the
+  fix is there.
+- Fix:
+  - `src/runtime/AuraRuntime.cpp:162` — the per-tick `IngestRequest` now sets
+    `allowStale = true`, so the newest real closed bars are recorded when the
+    market is closed (validation flags them STALE; `isDecisionGrade(STALE)` is
+    false, so no decision is fabricated and M15 correctly stays DEGRADED).
+  - `src/mt5/PythonBridgeClient.{h,cpp}` — added `allowStale` to the client
+    `candles()` signature and forwards `allow_stale=true`.
+  - `src/data/MarketDataIngestor.{h,cpp}` — `IngestRequest.allowStale` is
+    forwarded to the client.
+  - `bridge/mt5_python/bridge_service.py:468-477` — the canonical route honours
+    `allow_stale` exactly like the chart alias: it returns the newest real bars
+    with `quality=UNKNOWN` instead of the stale error. No bar is fabricated.
+- Commit: **2dbe0c8** `fix(api): feed the timeframe tracker from stale-market candle fetches`
+
+- Verification (real host, real XAUUSD M1 corpus, `FAKE_MT5_CSV_NO_SHIFT=1` =
+  market closed, i.e. the human's scenario):
+
+  BEFORE (`/api/v1/health`):
+  ```
+  "aggregate": "DEGRADED", "decision_grade_data": false,
+  "degraded_reasons": ["timeframe-D1: no closed bar", "timeframe-H1: no closed bar",
+    "timeframe-H4: no closed bar", "timeframe-M1: no closed bar",
+    "timeframe-M15: no closed bar", "timeframe-M30: no closed bar",
+    "timeframe-M5: no closed bar"]
+  ```
+  BEFORE (`/api/v1/analysis/latest`): `regime=UNKNOWN, h4_bias=UNKNOWN,
+  m15_trigger=UNKNOWN, direction=NONE, score=null, probability=null, levels=all null`.
+  BEFORE (`/api/v1/analysis/history?limit=10`): `[]`.
+
+  AFTER (`/api/v1/health`): aggregate DEGRADED, `decision_grade_data=false`,
+  degraded reasons now `"timeframe-<tf>: closed bar present"` for all timeframes
+  (the tracker IS fed; M15 is honestly non-decision-grade because the bar is STALE).
+  AFTER (`/api/v1/timeframes`): `M15 observed=True has_closed_bar=True
+  quality=STALE freshness=STALE last_closed_bar_open=1791454500 seq=500`.
+  AFTER (`/api/v1/analysis/latest`):
+  ```
+  "timestamp": "2026-10-08T10:15:00Z",
+  "context": {"regime":"QUIET","h4_bias":"DOWN","m15_trigger":"SHORT",
+              "mtf_agreement":null,"volatility_state":"LOW"},
+  "signal": {"direction":"DOWN","score":47.42457905,"probability":null,
+             "probability_calibrated":false},
+  "levels": {"entry":4124.92,"stop_loss":4134.749286,"take_profit":4108.537857,
+             "reward_risk":1.666666667,"suggested_risk_pct":0.3319720534}
+  ```
+  AFTER (`/api/v1/analysis/history?limit=10`): 1 entry.
+  AFTER (`/api/v1/candles?tf=M15&limit=500&allow_stale=true`): 500 bars,
+  `stale=true`, `freshness=STALE` (chart path unchanged).
+
+  Live-market regression (corpus shifted to now, `FAKE_MT5_CSV` default):
+  aggregate `ONLINE`, `decision_grade_data=true`, all timeframes
+  `VALID`/`FRESH`, real context + `direction=DOWN`. So the fix does not change
+  the healthy path.
+
+  Backend suite: `100% tests passed out of 23`.
+
+### Bug 2: flip-flop
+
+- Root cause: `frontend/qt/src/api/ApiClient.cpp` set `mIsOnline = true` in
+  three non-health success handlers — `/analysis/history` (was line 296),
+  `/candles` (was line 331), `/timeframes` (was line 373). The two-strike health
+  debounce (58cec74, present on main) and the 5s health timeout were already
+  correct, but a successful chart/analysis/timeframes fetch resurrected a client
+  the health probe had just marked offline. Combined with the ~10s poll cadence
+  this produced the ONLINE ↔ OFFLINE oscillation while `curl /api/v1/health`
+  always answered DEGRADED. The spec is explicit: "Only /api/v1/health flips
+  liveness. Verify no other fetch can set mIsOnline or emit offline()."
+- Fix: removed the three non-health liveness writes. `mIsOnline` is now written
+  only in `fetchHealth()` (`ApiClient.cpp:146` online, `:177` offline, after
+  `mConsecutiveHealthFailures >= 2` at `:171`). `cancelAll()` still aborts only
+  `mPendingReplies`, so a flip never cancels an in-flight `/candles`; the health
+  poll never stops (`MainWindow` restarts `mHealthPollTimer` on every miss and on
+  window expiry).
+- Added offscreen regression in `frontend/qt/tests/UiStabilityTests.cpp`: after
+  two consecutive health strikes the client is OFFLINE, and successful
+  `/candles`, `/timeframes`, `/analysis/history` (all answered by the mock while
+  `/health` stays dead) must leave it OFFLINE.
+- Commit: **1f45879** `fix(qt): only /api/v1/health may flip liveness`
+
+### CI on main
+
+- Not run. The branch could not be pushed (invalid `GITHUB_TOKEN`), so no CI
+  run exists for these commits and no fresh installer was built. I will NOT
+  claim success without CI evidence.
+
+### Blocker — cannot push
+
+- `GITHUB_TOKEN` is invalid this session: `curl -H "Authorization: Bearer
+  $GITHUB_TOKEN" https://api.github.com/user` → `401 Bad credentials` (also 401
+  via `x-access-token` and basic auth, three attempts). `gh auth status` →
+  "The token in GITHUB_TOKEN is invalid." `git push` therefore falls back to an
+  interactive password prompt and cannot proceed.
+- Consequence: commits `2dbe0c8` and `1f45879` are local only; no PR, no CI, no
+  installer. A valid token (or an SSH key / credential) is required to push
+  `fix/tracker-feed-flipflop` and open the PR.
+
+### What the human should test manually (once pushed)
+
+1. Rebuild the installer from the branch and install on the Windows box.
+2. With MT5 live but the market closed, `curl http://127.0.0.1:8790/api/v1/health`
+   must list `"timeframe-<tf>: closed bar present"` for all 9 timeframes, and
+   `/api/v1/analysis/latest` must return a real context (not all-UNKNOWN).
+3. Watch the dashboard for 60s: it must not oscillate ONLINE ↔ OFFLINE (one
+   dropped health probe no longer flips it).
