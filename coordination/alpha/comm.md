@@ -1637,3 +1637,145 @@ every backend endpoint answers — is fixed in the shipped installer.
   reverted. The cold-start timing on the user's real hardware is the one thing
   CI cannot replicate; the fix is to the recovery logic, which is hardware
   independent.
+
+## Autostart — Second Attempt
+
+Two distinct real defects were found and fixed in this pass. The first (the
+cross-process lock) caused "no backend/bridge process and no log at all"; the
+second (the candle timeout race) caused "backend up, but the chart still shows
+Connect to backend / never renders".
+
+### Root cause (from Step 1)
+
+#### Defect A — fresh-install launch never spawns (lock directory missing)
+- Q1: `aura::InstanceLock backendLock` is acquired in
+  `src/platform/windows/AuraBackendHost.cpp:160` before the host does any work;
+  if `acquire()` returns false the host logs "already running" and exits 0.
+  The frontend, in turn, only spawns the host through `startBackendHost()` in
+  `frontend/qt/src/main.cpp` (detached `QProcess::startDetached`), gated by
+  `attemptAutoStart()` in `src/autostart/AutoStart.cpp`.
+- Q2: The gate is the port probe **and** the cross-process lock. `acquire()`
+  used `CreateFileA(..., OPEN_ALWAYS, ...)` on Windows (and `open(O_CREAT)` on
+  POSIX) in `src/platform/windows/SingleInstance.cpp`. Neither creates missing
+  parent directories, so on a clean machine (or after `%LOCALAPPDATA%\ASTRA` is
+  cleared) the lock path's directory did not exist, `acquire()` failed, and the
+  frontend read that failure as "another instance is already running". It then
+  spawned nothing and wrote no log — exactly the reported signature.
+- Q3/Q4: Paths are derived from `QCoreApplication::applicationDirPath()`
+  (`C:/Program Files/ASTRA/aura_backend_host.exe`), which is valid after
+  install. This part was correct.
+- Q5: `DashboardPage.cpp:636/638` set "backend unreachable" / "bridge
+  unreachable"; the ChartPage overlay is `CandleChart.cpp:160`. These were
+  reached without any spawn attempt because the lock gate short-circuited
+  before the spawn.
+- Q6: The log is user-writable (`%LOCALAPPDATA%\ASTRA\logs`) via
+  `QStandardPaths::AppLocalDataLocation` — correct location. It was empty only
+  because the spawn path never ran at all.
+- Q7: The old CI smoke test **did** launch the installed `astra_desktop.exe`,
+  so it was not "fake" in that sense. But the previous run passed only because
+  CI's `%LOCALAPPDATA%\ASTRA` happened to exist/be creatable; the newly added
+  writable-state regression step (which deletes `%LOCALAPPDATA%\ASTRA`) caught
+  Defect A.
+
+#### Defect B — candles fetched, but the chart never renders
+- Q1–Q4: unchanged from Defect A.
+- Q5: The chart's failure overlay is set from `ChartPage::onApiError`
+  (`frontend/qt/src/pages/ChartPage.cpp:331`) and the empty overlay from
+  `CandleChart.cpp:160`. The candle request itself is issued by
+  `ChartPage::requestCandles()` → `ApiClient::fetchCandles()`.
+- Q6 (the real bug): the frontend's `QNetworkAccessManager` used a **5 s**
+  transfer timeout for every request (`ApiClient.cpp`). The backend answers
+  `/health` from memory, but `/candles` is **proxied to the Python bridge**,
+  whose own read timeout is also **5 s** (`BackendFacade.cpp` passed
+  `readTimeoutMillis = 5000`). A slow-but-successful cold candle read therefore
+  raced the frontend's budget and the socket was closed a fraction of a second
+  before the honest envelope arrived, surfacing as:
+  `ui candles: fetch failed (network_error): Connection closed`.
+  The chart then painted its error/empty overlay while the backend was healthy.
+- Q7: The old smoke test's chart assertion only checked that a **`ui candles:`**
+  line *existed* — which a `fetch failed` line also satisfies. That is why CI
+  was green while the chart never rendered on hardware with a live MT5. That
+  assertion was the lying part; it is now fixed (below).
+
+### Fix
+- `frontend/qt/src/api/ApiClient.cpp`: split the transfer budget. Manager-wide
+  stays 5 s (`kApiTransferTimeoutMs`) for health/poll traffic; `/candles` gets a
+  per-request `setTransferTimeout(15000)` (`kCandleTransferTimeoutMs`), strictly
+  above the backend's proxy budget.
+- `src/api/BackendFacade.cpp`: the `/candles` bridge proxy read timeout is now
+  **8 s** (was 5 s), strictly above the Python bridge client's own 5 s, so a
+  slow-but-successful read is never truncated into "bridge not reachable". The
+  budgets now nest: frontend 15 s > backend proxy 8 s > bridge client 5 s.
+- `src/platform/windows/SingleInstance.cpp`: `InstanceLock::acquire()` now
+  `std::filesystem::create_directories()` the lock's parent on both platforms
+  before opening it, so a fresh/cleared state root still spawns the backend.
+- `frontend/qt/tests/AutoStartTests.cpp`: regression asserting a lock path whose
+  directory does not exist still spawns (fails without the fix).
+- `frontend/qt/tests/ApiCandleTimeoutTests.cpp` (new): drives a local HTTP
+  server that answers candles after 6.5 s and asserts the reply still renders as
+  bars, while a `/health` probe against the same slow server still times out
+  (proving the override is candles-scoped). Fails without the timeout fix.
+- Log location unchanged (user-writable `%LOCALAPPDATA%\ASTRA\logs`); the
+  empty-log symptom was a downstream effect of the never-spawning gate.
+- Commits: `40b6a6e` (lock directory), `7ada641` (candle timeout chain).
+
+### CI smoke test
+- Old test was testing: that *a* `ui candles:` line existed (which a failure
+  line satisfies), and that the lock happened to be creatable on the runner.
+- New test tests: (1) `ApiCandleTimeoutTests` fails unless a slow-but-successful
+  candle fetch renders; (2) the installed smoke test now rejects the transport
+  race signature (`fetch failed (network_error`), requires `available=true` bars
+  when the backend returns data, and tolerates the honest structured
+  `dependency_unavailable`/`MT5_TERMINAL_UNAVAILABLE` the no-MT5 runner reports
+  (no fabricated data); (3) the writable-state regression step deletes
+  `%LOCALAPPDATA%\ASTRA` and still requires the chain to come up.
+- Commits: `7ada641`.
+
+### CI run
+- Run id: `38128684641`
+- Status: **success** (all steps green: offscreen tests 10/10, installed smoke,
+  writable-state regression).
+- Attached log excerpt:
+  ```
+  poll 1: backend=True bridge=True ui=False
+  poll 2: backend=True bridge=True ui=False
+  poll 3: backend=True bridge=True ui=True
+  ---- process state ----
+  astra_desktop.exe  ...  aura_backend_host.exe  ...  bridge.exe (x2)
+  [09:39:29Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [09:39:29Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  [09:39:35Z] ui health ok: aggregate=DEGRADED
+  [09:39:35Z] ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed: (-10003, 'IPC initialize failed, MetaTrader 5 x64 not found')
+  chart fetch evidence: [... ui candles: fetch failed (MT5_TERMINAL_UNAVAILABLE) ...]
+  final counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  ```
+  Note the transport-race signature (`network_error: Connection closed`) is
+  **gone**; the only remaining candle failure is the honest, correct
+  `MT5_TERMINAL_UNAVAILABLE` because the CI runner has no live MT5.
+
+### New installer
+- `ASTRA-Setup.exe` artifact `ASTRA-windows-installer`: **39,288,433 bytes**
+  (~37.5 MiB). `ASTRA-windows` portable: 23,588,189 bytes.
+
+### Coverage limits (honest)
+- The CI runner has **no live MetaTrader 5 terminal**, so the smoke test cannot
+  assert a rendered `available=true` chart end to end; it asserts the transport
+  layer no longer races (the actual bug) and that the chain is honest about the
+  absent terminal. The chart-render path is covered deterministically by the new
+  `ApiCandleTimeoutTests` offscreen test, which the installed smoke test cannot
+  replace.
+- The "chart never renders" symptom on real hardware was caused by the 5 s-vs-5 s
+  race; it is hardware-independent and is now fixed by the nested budgets. On a
+  machine with MT5 running the candle proxy may take several seconds on a cold
+  read; the frontend now waits 15 s, so it renders instead of aborting.
+
+### Correction to the previous report
+- The previous pass claimed the autostart worked and that CI green meant it was
+  fixed. That was **not** true for a clean machine: the cross-process lock
+  introduced in that pass made a fresh install (missing
+  `%LOCALAPPDATA%\ASTRA\logs`) silently refuse to spawn. CI was green because
+  the runner's state root already existed; only after adding the
+  writable-state-deletion regression did CI surface it. Stated plainly: the
+  prior CI green did not exercise the fresh-install lock path, and the chart
+  assertion it used could not tell a rendered fetch from a failed one.
