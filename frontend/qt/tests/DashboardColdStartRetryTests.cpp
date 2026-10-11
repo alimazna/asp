@@ -95,12 +95,31 @@ quint16 reserveFreePort() {
     return port;
 }
 
-// Spin the event loop for `ms` (or until `stop`), so queued replies are handled.
-void pump(int ms, const bool* stop = nullptr) {
+// Drive a real event loop until `predicate` is true or `timeoutMs` elapses.
+// Returns true if the predicate was satisfied. Polling on the condition (rather
+// than sleeping a fixed time) keeps the test independent of platform network
+// timing: a loopback round-trip is not guaranteed to complete in a fixed window.
+template <typename Predicate>
+bool waitFor(Predicate predicate, int timeoutMs) {
     QElapsedTimer clk;
     clk.start();
-    while (clk.elapsed() < ms && (stop == nullptr || !*stop)) {
-        QApplication::processEvents(QEventLoop::AllEvents, 20);
+    while (!predicate() && clk.elapsed() < timeoutMs) {
+        QEventLoop loop;
+        QTimer::singleShot(25, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    return predicate();
+}
+
+// Let the event loop run for a fixed window so a request that is going to be
+// issued has had a chance to be (used only where there is nothing to poll on).
+void pump(int ms) {
+    QElapsedTimer clk;
+    clk.start();
+    while (clk.elapsed() < ms) {
+        QEventLoop loop;
+        QTimer::singleShot(25, &loop, &QEventLoop::quit);
+        loop.exec();
     }
 }
 
@@ -116,12 +135,19 @@ int main(int argc, char** argv) {
         ApiClient client;
         client.setBaseUrl(QStringLiteral("http://127.0.0.1:%1/api/v1/").arg(port));
 
+        bool firstFailed = false;
+        QObject::connect(&client, &ApiClient::candlesFailed,
+                         [&firstFailed](const QString&, const QString&) {
+                             firstFailed = true;
+                         });
+
         DashboardPage page;
         page.setApiClient(&client);  // fires the first fetch against no listener
 
         // The port has no listener: the fetch must fail (connection refused),
         // leaving the default page's chart empty — the reported cold start.
-        pump(1000);
+        check(waitFor([&]() { return firstFailed; }, 10000),
+              "case1: the raced first fetch failed");
         check(page.chartCandleCountForTest() == 0,
               "case1: the raced first fetch left the chart empty");
 
@@ -129,11 +155,10 @@ int main(int argc, char** argv) {
         AnswerServer server(/*status=*/200, kCandlesBody);
         check(server.start(port), "case1: backend binds the port");
         page.setOnline(true);
-        pump(1500);
 
-        check(server.requestCount() >= 1,
+        check(waitFor([&]() { return server.requestCount() >= 1; }, 10000),
               "case1: the chart re-fetched once the backend came online");
-        check(page.chartCandleCountForTest() == 1,
+        check(waitFor([&]() { return page.chartCandleCountForTest() == 1; }, 10000),
               "case1: the retry rendered the bars");
     }
 
@@ -148,9 +173,10 @@ int main(int argc, char** argv) {
 
         DashboardPage page;
         page.setApiClient(&client);
-        pump(1000);
+        check(waitFor([&]() { return server.requestCount() >= 1; }, 10000),
+              "case2: the first fetch reached the backend");
+        pump(500);  // let the structured failure land and mark the chart settled
         const int afterFirst = server.requestCount();
-        check(afterFirst == 1, "case2: the first fetch reached the backend");
 
         // A reachable backend answered "no data": re-probing it changes nothing.
         page.setOnline(true);
