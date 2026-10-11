@@ -59,10 +59,6 @@ static void appendFrontendLog(const QString& line) {
 #endif
 }
 
-static void appendBackendReachableLog(qint64 elapsedSecs) {
-    appendFrontendLog(QStringLiteral("backend reachable after %1s").arg(elapsedSecs));
-}
-
 // Collapsible-sidebar durations (ms). All <= 250ms, per the animation rule.
 static constexpr int SIDEBAR_ANIM_MS = 220;   // width transition
 static constexpr int TEXT_FADE_MS = 120;      // collapse: text fades first
@@ -763,18 +759,19 @@ void MainWindow::onHealthUpdated(const HealthResponse& resp) {
             // synchronous startup step can delay the poll by tens of seconds, and
             // "reachable after Ns" must agree with the log's own timestamps.
             qint64 secs = 0;
-            if (mAutostartSpawnEpochMs > 0)
-                secs = (QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs) / 1000;
-            else if (mAutostartClock.isValid())
-                secs = mAutostartClock.elapsed() / 1000;
-            // A cold start landing after the window expiry is the reported failure;
-            // label it so the log shows recovery, not an initial success.
-            if (secs > mAutostartWindowMs / 1000) {
-                appendFrontendLog(QStringLiteral(
-                    "ui recovered: backend reachable after %1s (long-start)").arg(secs));
+            if (mBackendPreexisting || mAutostartSpawnEpochMs <= 0) {
+                // No spawn of our own: measure from when this window started
+                // probing. Measuring from another process's spawn made a second
+                // window log "reachable after 49s" while the first logged "2s".
+                if (mAutostartClock.isValid())
+                    secs = mAutostartClock.elapsed() / 1000;
             } else {
-                appendBackendReachableLog(secs);
+                secs = (QDateTime::currentMSecsSinceEpoch() - mAutostartSpawnEpochMs) / 1000;
             }
+            // A cold start landing after the window expiry is the reported failure;
+            // the helper labels it as recovery rather than an initial success.
+            appendFrontendLog(
+                autostartReachabilityLabel(secs, mBackendPreexisting, mAutostartWindowMs));
         }
     }
 
@@ -821,6 +818,15 @@ void MainWindow::onCandlesUpdated(const CandlesResponse& resp) {
                           .arg(resp.data.bars.size())
                           .arg(resp.data.available ? QStringLiteral("true")
                                                    : QStringLiteral("false")));
+    // Evidence that the closed-market path rendered instead of hiding the chart:
+    // the backend returned real-but-older bars and the UI showed its notice.
+    if (resp.data.stale && !resp.data.bars.isEmpty() && !mLoggedStaleNotice) {
+        mLoggedStaleNotice = true;
+        appendFrontendLog(QStringLiteral(
+            "ui chart: market closed, showing last data (%1 bars, age=%2s)")
+                              .arg(resp.data.bars.size())
+                              .arg(resp.data.ageSeconds));
+    }
 }
 
 void MainWindow::onCandlesFailed(const QString& message, const QString& code) {

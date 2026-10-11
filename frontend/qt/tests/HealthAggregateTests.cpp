@@ -210,6 +210,27 @@ int main(int argc, char** argv) {
         check(anyLabelContains(&page, em), "HealthPage unknown renders em dash");
     }
 
+    // ── Auto-start reachability label (timing/duplicate-window regression) ───
+    {
+        const int windowMs = 60000;
+        const QString normal = autostartReachabilityLabel(3, false, windowMs);
+        check(normal == "backend reachable after 3s", "spawned backend: plain reachable line");
+        check(!normal.contains("long-start"), "a fast spawn is not labelled long-start");
+
+        const QString late = autostartReachabilityLabel(75, false, windowMs);
+        check(late.contains("ui recovered: backend reachable after 75s"),
+              "a spawn landing past the window is labelled recovery");
+        check(late.contains("(long-start)"), "late recovery names the long start");
+
+        // A window that adopted a backend it did not spawn must never claim a
+        // long-start recovery, however long it has been probing: it did not
+        // spawn anything. This is the contradictory "after 75s" line.
+        const QString adopted = autostartReachabilityLabel(75, true, windowMs);
+        check(adopted == "backend reachable after 75s (backend already running)",
+              "adopted backend: no long-start claim, names the pre-existing backend");
+        check(!adopted.contains("ui recovered"), "adopted backend never claims recovery");
+    }
+
     if (g_failures == 0) {
         std::printf("Health mapping tests: all passed\n");
     } else {

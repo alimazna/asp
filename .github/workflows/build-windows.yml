@@ -86,6 +86,21 @@ jobs:
         run: cmake --build build --config Release --target aura_backend_host --parallel
         working-directory: .
 
+      - name: Run backend tests (incl. candle staleness + loopback concurrency)
+        # These exercise the two backend defects behind the reported field
+        # failure: (1) CandlesApiTests::real_bridge_allow_stale_* drives the REAL
+        # bundled Python bridge with a stale fake-MT5 feed and asserts that a
+        # strict fetch is refused (MARKET_DATA_STALE) while allow_stale returns
+        # the last real bars — the "chart never renders" bug; (2)
+        # LoopbackConcurrencyTests drives the REAL LoopbackApiServer with a slow
+        # bridge proxy and asserts /health is not blocked behind a slow /candles
+        # — the "ui health ok / offline" flip-flop. Both boot a real Python
+        # bridge and are Linux/Windows-portable (Python is on the runner PATH).
+        run: |
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release --output-on-failure
+        working-directory: .
+
       # ---------------------------------------------------------------- 3/5
       - name: Freeze Python bridge with PyInstaller
         run: |

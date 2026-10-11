@@ -48,6 +48,23 @@ namespace astra {
 class NavButton;
 class SvgIcon;
 
+// Pure label for the auto-start "backend reachable" log line. Extracted from
+// MainWindow so the timing semantics are unit-testable on any platform (the log
+// itself is written only on Windows). Two windows can share the log file: a
+// window that adopted a backend it did not spawn must not claim a long-start
+// recovery, and must say the backend was already running, so the log cannot show
+// two contradictory "after Ns" lines for one backend.
+inline QString autostartReachabilityLabel(qint64 secs, bool preexisting, int windowMs) {
+    if (!preexisting && secs > windowMs / 1000) {
+        return QStringLiteral(
+            "ui recovered: backend reachable after %1s (long-start)").arg(secs);
+    }
+    const QString suffix = preexisting
+                               ? QStringLiteral(" (backend already running)")
+                               : QString();
+    return QStringLiteral("backend reachable after %1s%2").arg(secs).arg(suffix);
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // MainWindow — ASTRA shell
 // Layout: sidebar (232px, grouped navigation) + main area
@@ -82,6 +99,10 @@ public:
     void setBackendAutostartSpawnedAt(qint64 msecsSinceEpoch) {
         if (msecsSinceEpoch > 0) mAutostartSpawnEpochMs = msecsSinceEpoch;
     }
+    // True when this window adopted a backend it did not spawn. The reachability
+    // log then measures from when this window began probing, and says so, so two
+    // windows sharing the log do not emit contradictory "after Ns" lines.
+    void setBackendPreexisting(bool preexisting) { mBackendPreexisting = preexisting; }
     // Test-only: shrink the auto-start window so the failure/recovery path can be
     // exercised without a 60s wall-clock wait.
     void setAutostartWindowMsForTest(int ms) { mAutostartWindowMs = ms; }
@@ -265,6 +286,12 @@ private:
     // Set once the first candle response is logged (success or failure), so the
     // evidence line is written exactly once per session.
     bool mLoggedCandleFetch = false;
+    // Set once the "market closed — showing last data" notice is logged, so the
+    // evidence line is written exactly once per session.
+    bool mLoggedStaleNotice = false;
+    // True when this window adopted a backend it did not spawn (see
+    // setBackendPreexisting); the reachability log measures from probe start.
+    bool mBackendPreexisting = false;
 
     // Settings
     QSettings mSettings;

@@ -42,6 +42,13 @@ QString g_backendStartFailure;
 // measure from the spawn rather than from whenever the health poll first runs.
 qint64 g_backendSpawnEpochMs = 0;
 
+// True when this window adopted a backend it did not spawn (one already
+// listening, or another ASTRA instance was starting it). The "reachable after
+// Ns" number must then be measured from when this window began probing, not
+// from a spawn instant that never existed — otherwise two windows logging to
+// the same file produced contradictory "after 2s"/"after 49s" lines.
+bool g_backendPreexisting = false;
+
 // User-writable log directory. MUST NOT be under the install dir: the installer
 // places ASTRA in Program Files, so a non-elevated launch cannot create or write
 // <appDir>\logs. QStandardPaths::GenericDataLocation resolves to
@@ -133,10 +140,16 @@ void startBackendHost() {
 
     switch (outcome) {
         case astra::AutoStartOutcome::Spawned:
+            g_backendExpected = true;
+            break;
         case astra::AutoStartOutcome::AlreadyListening:
         // Another ASTRA frontend is starting the backend; this window still needs
         // to poll it in, so it is "expected" too.
         case astra::AutoStartOutcome::LockedByAnotherInstance:
+            // We did not spawn this backend, so there is no spawn instant to
+            // measure from: mark it pre-existing so the reachability log uses
+            // this window's own probe start.
+            g_backendPreexisting = true;
             g_backendExpected = true;
             break;
         case astra::AutoStartOutcome::ExeMissing:
@@ -223,6 +236,7 @@ int main(int argc, char* argv[]) {
     // which starts the fast retry poll when this is true.
     if (g_backendExpected && g_backendStartFailure.isEmpty()) {
         mainWindow.setBackendAutostartSpawnedAt(g_backendSpawnEpochMs);
+        mainWindow.setBackendPreexisting(g_backendPreexisting);
         mainWindow.setBackendAutostartInProgress(true);
     }
 #endif

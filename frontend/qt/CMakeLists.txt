@@ -318,6 +318,28 @@ if(BUILD_ASTRA_TESTS)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    # Closed-market candle path: allow_stale bars must render with the
+    # "Market closed" notice instead of the dead-end empty overlay.
+    add_executable(astra_chart_stale_bars_tests
+        tests/ChartStaleBarsTests.cpp
+        src/pages/ChartPage.cpp
+        src/widgets/CandleChart.cpp
+        src/widgets/TimeframeSwitcher.cpp
+        src/api/ApiClient.cpp
+    )
+    target_include_directories(astra_chart_stale_bars_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(astra_chart_stale_bars_tests PRIVATE
+        Qt6::Core
+        Qt6::Widgets
+        Qt6::Network
+    )
+    add_test(NAME astra_chart_stale_bars_tests COMMAND astra_chart_stale_bars_tests)
+    set_tests_properties(astra_chart_stale_bars_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Health mapping: DEGRADED/STARTING must render distinctly from OFFLINE at
     # every layer (card, liveness chip, bottom bar), and an unreachable backend
     # (no aggregate) must render OFFLINE. Covers the bug where the frontend
