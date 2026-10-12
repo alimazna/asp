@@ -111,7 +111,14 @@ ApiResponse BackendFacade::systemState() const {
 
 ApiResponse BackendFacade::health() const {
     if (deps_.health == nullptr) return unavailable("health monitor");
-    const BackendHealth snapshot = deps_.health->snapshot();
+    // Read the snapshot the runtime tick published on its last cycle. This
+    // never touches the health engine, the tracker, or the bridge, so /health
+    // answers in microseconds even while the tick is inside a multi-second
+    // bridge proxy. Previously it called snapshot() live, which contended on
+    // the engine lock the tick writes through and serialized /health behind
+    // the slowest part of the cycle — the frontend's 5s health budget then
+    // counted a healthy backend as OFFLINE (the flip-flop).
+    const BackendHealth snapshot = deps_.health->readCache();
 
     std::vector<std::string> reasons;
     for (const auto& reason : snapshot.degradedReasons) {

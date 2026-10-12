@@ -257,6 +257,13 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
         }
     }
 
+    // Publish a cached health snapshot for the API layer. /health reads this
+    // copy instead of calling snapshot() live, so a health probe never blocks
+    // on the engine lock this tick writes through — and never serializes
+    // behind the slowest part of the cycle (the bridge proxy). One consistent
+    // observation is captured under the lock, then released.
+    health_.refreshCache(now);
+
     // Operating mode reflects data availability. M15 is the primary
     // operational timeframe; if it is not fresh, the system is not SHADOW.
     const DataQualityState m15 = timeframeStore_.qualityOf(Timeframe::M15);

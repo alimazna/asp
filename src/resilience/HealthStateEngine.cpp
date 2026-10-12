@@ -38,20 +38,12 @@ bool HealthStateEngine::latest(const EntityId& serviceId,
 
 std::vector<HealthSnapshot> HealthStateEngine::snapshots() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<HealthSnapshot> out;
-    out.reserve(latest_.size());
-    for (const auto& kv : latest_) out.push_back(kv.second);
-    return out;
+    return snapshotsLocked();
 }
 
 ServiceState HealthStateEngine::aggregateState() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (latest_.empty()) return ServiceState::STARTING;
-    ServiceState aggregate = ServiceState::ONLINE;
-    for (const auto& kv : latest_) {
-        aggregate = combine(aggregate, kv.second.serviceState);
-    }
-    return aggregate;
+    return aggregateStateLocked();
 }
 
 }  // namespace aura

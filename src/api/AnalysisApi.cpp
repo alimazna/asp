@@ -239,7 +239,11 @@ ApiResponse AnalysisApi::health(const HealthMonitor* health,
         return errorResponse(503, "dependency_unavailable",
                              "backend component unavailable: health monitor");
     }
-    const BackendHealth snapshot = health->snapshot();
+    // Read the snapshot the runtime tick published on its last cycle. The
+    // analysis surface is called from the API thread, which must never block
+    // on the engine lock this tick writes through; reading the cached copy
+    // keeps /health and /health/v1 lock-free.
+    const BackendHealth snapshot = health->readCache();
 
     // Map the service aggregate onto the frontend's ok/degraded/offline view.
     const char* status = "degraded";

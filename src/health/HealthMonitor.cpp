@@ -67,12 +67,17 @@ void HealthMonitor::observeTimeframes(const TimeframeStateStore& store,
     }
 }
 
-BackendHealth HealthMonitor::snapshot() const {
+BackendHealth HealthMonitor::snapshot() {
+    std::lock_guard<std::mutex> lock(engine_.mutex());
+    return buildSnapshotLocked();
+}
+
+BackendHealth HealthMonitor::buildSnapshotLocked() const {
     BackendHealth health;
     health.observedAt = Timestamp::now();
-    health.aggregate = engine_.aggregateState();
+    health.aggregate = engine_.aggregateStateLocked();
 
-    for (const auto& snapshot : engine_.snapshots()) {
+    for (const auto& snapshot : engine_.snapshotsLocked()) {
         health.services[snapshot.serviceName] = toString(snapshot.serviceState);
         if (snapshot.serviceState == ServiceState::DEGRADED ||
             !snapshot.isUsable()) {
@@ -86,7 +91,7 @@ BackendHealth HealthMonitor::snapshot() const {
     }
 
     const DataQualityState m15 = [&]() -> DataQualityState {
-        for (const auto& snapshot : engine_.snapshots()) {
+        for (const auto& snapshot : engine_.snapshotsLocked()) {
             if (snapshot.serviceName == "timeframe-M15") return snapshot.dataQuality;
         }
         return DataQualityState::UNKNOWN;
