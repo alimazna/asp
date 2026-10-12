@@ -221,7 +221,11 @@ ApiResponse AnalysisApi::history(const std::string& symbol,
 ApiResponse AnalysisApi::contextLatest(const std::string& symbol,
                                        const DecisionContext& context) const {
     std::vector<ApiField> fields;
-    fields.push_back({"timestamp", isoUtcSeconds(context.asOfBarOpenSec)});
+    if (context.available) {
+        fields.push_back({"timestamp", isoUtcSeconds(context.asOfBarOpenSec)});
+    } else {
+        fields.push_back({"timestamp", kNull, true});
+    }
     fields.push_back({"symbol", symbol});
     fields.push_back({"context", contextJson(symbol, context), true});
     return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true};

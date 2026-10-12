@@ -187,6 +187,9 @@ TEST_CASE(context_latest_reports_unknown_when_no_decision_exists) {
     CHECK(contains(response.body, "\"h4_bias\":\"UNKNOWN\""));
     CHECK(contains(response.body, "\"m15_trigger\":\"UNKNOWN\""));
     CHECK(contains(response.body, "\"mtf_agreement\":null"));
+    // No decision produced yet: the unset timestamp is null, never epoch 0.
+    CHECK(contains(response.body, "\"timestamp\":null"));
+    CHECK(!contains(response.body, "1970-01-01T00:00:00Z"));
 }
 
 TEST_CASE(health_v1_is_versioned_and_never_reports_unknown_as_ok) {

@@ -44,6 +44,25 @@ std::vector<Bar> syntheticUptrend(Timeframe timeframe, std::int64_t startOpen,
     return bars;
 }
 
+// A flat, low-volatility series: no trend, RSI near 50, structure RANGE.
+// The signal engine votes 0 long / 0 short -> NONE. Eligibility stays
+// ELIGIBLE (allowRanging defaults true), so the chain runs to completion and
+// hits the no-decision-grade branch rather than bailing early.
+std::vector<Bar> syntheticFlat(Timeframe timeframe, std::int64_t startOpen,
+                               std::size_t count) {
+    std::vector<Bar> bars;
+    const double pi = 3.14159265358979323846;
+    const std::int64_t step = 60;
+    for (std::size_t i = 0; i < count; ++i) {
+        const double wave = 15.0 * std::sin(static_cast<double>(i) * 2.0 * pi / 12.0);
+        const double close = 2000.0 + wave;
+        const std::int64_t openSec = startOpen + static_cast<std::int64_t>(i) * step;
+        bars.push_back(test::makeBar(timeframe, openSec, close - 0.2, close + 1.0,
+                                     close - 1.0, close));
+    }
+    return bars;
+}
+
 }  // namespace
 
 TEST_CASE(closed_bar_produces_decision_and_shadow_command) {
@@ -159,6 +178,46 @@ TEST_CASE(insufficient_history_yields_no_decision) {
     CHECK(!report.decisionProduced);
     CHECK_EQ(ledger.size(), static_cast<std::size_t>(0));
     CHECK_EQ(positions.openCount(), static_cast<std::size_t>(0));
+
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE(none_candidate_still_persists_a_real_context_timestamp) {
+    const std::string root = "/tmp/aura-pipeline-none";
+    std::filesystem::remove_all(root);
+
+    auto guardian = makeGuardian();
+    PredictionLedger ledger;
+    PositionSimulator positions;
+    OutcomeEngine outcomes;
+    FilePersistenceStore store(root);
+    REQUIRE(store.isAvailable());
+    PersistenceEngine persistence(&store);
+
+    DecisionPipeline pipeline(guardian.get(), &ledger, &persistence, &positions,
+                              &outcomes);
+    const std::vector<Bar> bars =
+        syntheticFlat(Timeframe::M15, 1700000000, 200);
+    REQUIRE(bars.size() >= 60);
+    const Timestamp now = Timestamp::fromEpochMillis(
+        (bars.back().openTimeSec + 900) * 1000);
+
+    // Flat market: no directional signal. No decision, no shadow, no ledger
+    // entry — but the context must still be persisted with the real bar time.
+    const PipelineCycleReport report =
+        pipeline.onClosedBar(bars.back(), bars, now);
+    CHECK(!report.decisionProduced);
+    CHECK(!report.shadowIssued);
+    CHECK_EQ(ledger.size(), static_cast<std::size_t>(0));
+    CHECK_EQ(positions.openCount(), static_cast<std::size_t>(0));
+
+    const DecisionContext& context = pipeline.lastDecisionContext();
+    CHECK(context.available);
+    CHECK_EQ(context.asOfBarOpenSec, bars.back().openTimeSec);
+    CHECK_EQ(static_cast<int>(context.direction),
+             static_cast<int>(SignalDirection::NONE));
+    // Honest current values, not fabricated ones.
+    CHECK(context.regime != RegimeType::UNKNOWN);
 
     std::filesystem::remove_all(root);
 }

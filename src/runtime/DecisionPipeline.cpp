@@ -76,6 +76,26 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
     if (candidate.direction == SignalDirection::NONE || !score.valid ||
         !confidence.valid) {
         report.issues.push_back("no decision-grade candidate on this bar");
+        // Persist the context anyway: /context/latest must report a real bar
+        // timestamp after the first closed bar, not epoch 0. No decision or
+        // signal is fabricated — direction stays NONE and available reflects
+        // that the chain produced nothing decision-grade this bar.
+        DecisionContext noDecision;
+        noDecision.available = true;
+        noDecision.decisionId =
+            EntityId(makeDecisionId(timeframe, asOf, SignalDirection::NONE));
+        noDecision.symbol = symbol_;
+        noDecision.timeframe = timeframe;
+        noDecision.asOfBarOpenSec = asOf;
+        noDecision.direction = SignalDirection::NONE;
+        noDecision.dataState = features.quality;
+        noDecision.structure = structure.bias;
+        noDecision.regime = regime.regime;
+        noDecision.eligibility = eligibility.decision;
+        noDecision.strategyVersion = strategyVersion_;
+        noDecision.configurationVersion = configurationVersion_;
+        noDecision.evaluatedAt = now;
+        lastContext_ = noDecision;
         return report;
     }
 
