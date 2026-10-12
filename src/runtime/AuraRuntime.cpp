@@ -146,6 +146,26 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
         return report;
     }
 
+    // Refresh the broker clock offset from bridge health, then shift the host's
+    // UTC clock to broker server time for every bar-time comparison below. Bars
+    // are stamped in server time; the raw UTC clock made recent bars appear
+    // future-dated, so they were rejected by validation and the tracker only
+    // kept the oldest covering timeframe. On a UTC-aligned feed the offset is 0
+    // and this is a no-op.
+    if (auto client = bridge()) {
+        const auto bridgeHealth = client->health();
+        if (bridgeHealth.ok) {
+            serverClockOffsetSec_.store(bridgeHealth.value.serverClockOffsetSeconds,
+                                        std::memory_order_release);
+        }
+    }
+    const std::int64_t clockOffsetSec =
+        serverClockOffsetSec_.load(std::memory_order_acquire);
+    const Timestamp effectiveNow =
+        clockOffsetSec == 0
+            ? now
+            : Timestamp::fromEpochMillis(now.epochMillis() + clockOffsetSec * 1000);
+
     for (Timeframe timeframe : allTimeframes()) {
         IngestRequest request;
         request.symbol = startupReport_.resolvedSymbol.empty()
@@ -161,25 +181,25 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
         // no decision is fabricated from it.
         request.allowStale = true;
 
-        IngestResult result = ingestor_->ingest(request, now);
+        IngestResult result = ingestor_->ingest(request, effectiveNow);
         report.qualityByTimeframe[toString(timeframe)] = result.quality;
         if (!result.ok) {
             ++report.timeframesFailed;
             for (const auto& issue : result.issues) {
                 report.issues.push_back(std::string(toString(timeframe)) + ": " + issue);
             }
-            timeframeStore_.refreshFreshness(timeframe, now);
+            timeframeStore_.refreshFreshness(timeframe, effectiveNow);
             continue;
         }
 
         // Only fully-closed bars advance timeframe state.
         BarFinalizer finalizer;
-        FinalizedBars finalized = finalizer.finalize(result.bars, now);
+        FinalizedBars finalized = finalizer.finalize(result.bars, effectiveNow);
         if (finalized.closedBars.empty()) {
             ++report.timeframesFailed;
             report.issues.push_back(std::string(toString(timeframe)) +
                                     ": no closed bars available");
-            timeframeStore_.refreshFreshness(timeframe, now);
+            timeframeStore_.refreshFreshness(timeframe, effectiveNow);
             continue;
         }
 
@@ -198,12 +218,12 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
         }
         if (newest == nullptr) {
             // No new closed bar this cycle; refresh freshness and move on.
-            timeframeStore_.refreshFreshness(timeframe, now);
+            timeframeStore_.refreshFreshness(timeframe, effectiveNow);
             ++report.timeframesIngested;
             continue;
         }
         timeframeStore_.updateFromClosedBar(*newest, lastSequence);
-        timeframeStore_.refreshFreshness(timeframe, now);
+        timeframeStore_.refreshFreshness(timeframe, effectiveNow);
         ++report.timeframesIngested;
 
         // The operational timeframe drives the live decision pipeline. Other

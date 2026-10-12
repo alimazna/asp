@@ -470,7 +470,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
         if freshness == "STALE":
             if allow_stale:
                 state.mark_success()
-                self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
+                # Age is measured against the broker's server clock (see
+                # mt5_client.read_candles); clamp at 0 so a bar whose server
+                # timestamp is not older than server-now is reported as fresh
+                # (0s), never a negative age that reads as time-travel.
+                data = dict(result.data)
+                data["age_seconds"] = max(0, int(data.get("age_seconds", 0)))
+                self._send_json(ok_envelope(data, generated_at_utc=int(time.time()),
                                             source=SOURCE_NAME, broker=state.client.broker,
                                             symbol=symbol, timeframe=timeframe,
                                             quality=QUALITY_UNKNOWN))
@@ -487,7 +493,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
 
         state.mark_success()
-        self._send_json(ok_envelope(result.data, generated_at_utc=int(time.time()),
+        data = dict(result.data)
+        data["age_seconds"] = max(0, int(data.get("age_seconds", 0)))
+        self._send_json(ok_envelope(data, generated_at_utc=int(time.time()),
                                     source=SOURCE_NAME, broker=state.client.broker,
                                     symbol=symbol, timeframe=timeframe,
                                     quality=QUALITY_VALID))
@@ -562,6 +570,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
             # market is normal and we return the newest real bars with an
             # explicit stale flag instead of hiding the chart.
             freshness = result.data.get("freshness", "UNKNOWN")
+            # Age is measured against the broker server clock by the client;
+            # clamp at 0 so a bar newer than server-now is reported as 0s fresh,
+            # never a negative age.
+            age = max(0, int(result.data.get("age_seconds") or 0))
             if freshness == "STALE":
                 if not allow_stale:
                     state.mark_error("stale market data")
@@ -593,7 +605,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                         return
                     payload = dict(fallback)
                     payload["stale"] = True
-                    payload["age_seconds"] = result.data.get("age_seconds")
+                    payload["age_seconds"] = age
                     self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
                                                 source=SOURCE_NAME, broker=state.client.broker,
                                                 symbol=symbol, timeframe=timeframe,
@@ -608,7 +620,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                     "newest_closed_time": result.data.get("newest_closed_time"),
                     "freshness": freshness,
                     "stale": True,
-                    "age_seconds": result.data.get("age_seconds"),
+                    "age_seconds": age,
                 }
                 self._send_json(ok_envelope(payload, generated_at_utc=int(time.time()),
                                             source=SOURCE_NAME, broker=state.client.broker,
@@ -626,7 +638,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "newest_closed_time": result.data.get("newest_closed_time"),
                 "freshness": freshness,
                 "stale": False,
-                "age_seconds": result.data.get("age_seconds"),
+                "age_seconds": age,
             }
             state.cache_put(symbol, timeframe, limit, payload)
             state.mark_success()

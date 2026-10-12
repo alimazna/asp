@@ -36,6 +36,12 @@ _TIMEFRAME_SECONDS = {
 # market closures without masking a genuinely dead feed.
 _STALE_INTERVAL_MULTIPLIER = 3
 
+# Largest |server - local UTC| we accept as a genuine broker timezone offset
+# (real brokers sit within a few hours of UTC; the extreme timezone is UTC+14).
+# A larger implied offset means the newest bar is old (a weekend or a stale
+# feed), not that the server clock is exotic, so it is not treated as skew.
+_MAX_CLOCK_OFFSET_SECONDS = 18 * 3600
+
 try:  # The package is Windows-only; absence must be reportable, not fatal.
     import MetaTrader5 as _mt5  # type: ignore
     _MT5_IMPORT_ERROR = ""
@@ -100,6 +106,15 @@ class Mt5Client:
         self._broker = ""
         self._server = ""
         self._terminal_version: Optional[tuple] = None
+        # Server wall clock, captured from the MT5 terminal's own timestamps.
+        # Broker MT5 servers stamp bars in *server* time (commonly UTC+2/+3),
+        # not UTC, so a live bar can appear to open "in the future" relative to
+        # the host's UTC clock. `_clock_offset_seconds` is (server_now -
+        # local_utc_now), estimated from the newest M1 bar open time; it is
+        # applied to every reported age so ages are non-negative and the host
+        # never rejects a real bar as future-dated. Zero until measured.
+        self._clock_offset_seconds = 0
+        self._clock_reference_epoch = 0
         # The MetaTrader5 Python API is not thread-safe. The bridge server is
         # threaded, so every terminal call is serialized through one lock to
         # prevent concurrent requests (chart, canonical candles, tick, symbol)
@@ -123,6 +138,64 @@ class Mt5Client:
     @property
     def broker(self) -> str:
         return self._broker
+
+    @property
+    def clock_offset_seconds(self) -> int:
+        return self._clock_offset_seconds
+
+    # -- clock alignment ----------------------------------------------------
+
+    def _server_now_epoch(self) -> Optional[int]:
+        """Read the newest *forming* M1 bar's time, i.e. the server's current
+        minute. Returns None when the terminal is unavailable. Caller must hold
+        no MT5 lock unless it already owns one (this acquires it)."""
+        if _mt5 is None:
+            return None
+        try:
+            with self._mt5_lock:
+                rates = _mt5.copy_rates_from_pos(
+                    self._resolved_symbol or "XAUUSD", _mt5.TIMEFRAME_M1, 0, 1)
+        except Exception:
+            return None
+        if rates is None or len(rates) == 0:
+            return None
+        try:
+            return int(rates[0]["time"])
+        except Exception:
+            return None
+
+    def _capture_clock_offset(self) -> None:
+        """Estimate (server_now - local_utc_now) and remember it so `age_seconds`
+        is computed against the server clock, never a skewed local one.
+
+        The read is the newest *forming* M1 bar's open time (the server's current
+        minute). The result is accepted only when it falls inside a plausible
+        broker timezone band: a larger implied offset means the feed is stale
+        (e.g. a weekend, or a synthetic stale feed), not that the server sits in
+        an exotic timezone. Accepting it would subtract that staleness and mask a
+        dead feed, which this system must never do. On a stale feed the offset
+        stays 0 and staleness is reported honestly.
+        """
+        server_now = self._server_now_epoch()
+        if server_now is None:
+            return
+        local_now = int(time.time())
+        # Round to the nearest minute: the source is a minute-boundary bar open
+        # time, so sub-minute noise is quantization, not real skew.
+        offset = server_now - (local_now - (local_now % 60))
+        if abs(offset) > _MAX_CLOCK_OFFSET_SECONDS:
+            # Outside any real timezone: a stale feed, not clock skew.
+            return
+        self._clock_offset_seconds = offset
+        self._clock_reference_epoch = local_now
+
+    def clock_alignment(self) -> Dict[str, Any]:
+        """Server-vs-UTC clock view for the health payload (diagnostics only)."""
+        return {
+            "server_clock_offset_seconds": self._clock_offset_seconds,
+            "clock_reference_epoch": self._clock_reference_epoch,
+        }
+
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -210,6 +283,10 @@ class Mt5Client:
         except Exception:
             pass
         self._resolved_symbol = chosen
+        # The symbol is now known, so the server clock can be read from its M1
+        # feed. Measure once here so every subsequent read reports server-time
+        # ages from the first bar onward.
+        self._capture_clock_offset()
         return ClientResult(ok=True, data={"symbol": chosen, "candidates": names})
 
     # -- market data --------------------------------------------------------
@@ -267,9 +344,11 @@ class Mt5Client:
             ))
 
         # Staleness: the newest *closed* bar should not be older than a few
-        # nominal bar intervals. Without a clock we cannot judge, so we report
-        # UNKNOWN rather than pretending the feed is fresh.
-        now = int(time.time())
+        # nominal bar intervals. Ages are measured against the *server* clock
+        # (local UTC + the measured broker offset), because MT5 stamps bars in
+        # broker server time; comparing them to a raw local UTC clock made every
+        # recent bar look future-dated (negative age) and had the host reject it.
+        now = int(time.time()) + self._clock_offset_seconds
         interval = _TIMEFRAME_SECONDS.get(timeframe, 0)
         newest_closed = candles[-1].time
         age_seconds = now - newest_closed
@@ -288,6 +367,7 @@ class Mt5Client:
             "newest_closed_time": newest_closed,
             "age_seconds": age_seconds,
             "freshness": freshness,
+            "clock_offset_seconds": self._clock_offset_seconds,
             "candles": [c.to_dict() for c in candles],
         })
 
@@ -346,4 +426,5 @@ class Mt5Client:
             "broker": self._broker,
             "server": self._server,
             "resolved_symbol": self._resolved_symbol,
+            "server_clock_offset_seconds": self._clock_offset_seconds,
         }

@@ -142,6 +142,7 @@ public:
         health.lastSuccessfulRequest = lastOk >= 0 ? Timestamp::fromEpochMillis(lastOk * 1000)
                                                    : Timestamp::unknown();
         health.generatedAtUtc = payload["generated_at_utc"].asInt64();
+        health.serverClockOffsetSeconds = payload["server_clock_offset_seconds"].asInt64(0);
         return BridgeResult<BridgeHealth>::success(std::move(health));
     }
 

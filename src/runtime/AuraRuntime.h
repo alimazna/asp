@@ -145,6 +145,12 @@ public:
         return true;
     }
 
+    // Current (broker server clock) - (local UTC) offset in seconds. Applied to
+    // the host's UTC clock so server-time-stamped bars are judged correctly.
+    std::int64_t serverClockOffsetSeconds() const noexcept {
+        return serverClockOffsetSec_.load(std::memory_order_acquire);
+    }
+
     // Health summary for the frontend/API layer.
     std::map<std::string, std::string> healthSummary() const;
 
@@ -195,6 +201,13 @@ private:
     BridgeHealth lastBridgeHealth_;
     bool lastBridgeHealthValid_ = false;
     mutable std::mutex bridgeHealthMutex_;
+
+    // (broker server clock) - (local UTC), seconds. Bars arrive stamped in the
+    // broker's server timezone (commonly UTC+2/+3); the host shifts its own UTC
+    // clock by this offset before judging bar closure or validating bar times,
+    // so a live bar is never rejected as future-dated. Atomic because the tick
+    // thread writes it while API workers read it.
+    std::atomic<std::int64_t> serverClockOffsetSec_{0};
 
     // Last bar published per timeframe, so an overlapping bridge window does
     // not duplicate closed-bar history.
