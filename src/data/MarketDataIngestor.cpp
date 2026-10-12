@@ -17,7 +17,7 @@ IngestResult MarketDataIngestor::ingest(const IngestRequest& request,
 
     const auto bridgeResult =
         client_->candles(request.symbol, request.timeframe, request.count,
-                         request.closedOnly);
+                         request.closedOnly, request.allowStale);
     if (!bridgeResult.ok) {
         result.quality = DataQualityState::MISSING;
         result.errorCode = bridgeResult.error.code;

@@ -32,9 +32,13 @@ public:
 
     virtual BridgeResult<HandshakeInfo> handshake() = 0;
     virtual BridgeResult<BridgeHealth> health() = 0;
+    // `allowStale` forwards allow_stale=true to the bridge: the newest real
+    // closed bars are returned even when the market is closed and they exceed
+    // the freshness threshold (the bridge flags them stale). Never fabricates
+    // bars; the ingestor marks them STALE so no decision-grade claim is made.
     virtual BridgeResult<std::vector<BridgeCandle>> candles(
         const std::string& symbol, Timeframe timeframe, int count,
-        bool closedOnly = true) = 0;
+        bool closedOnly = true, bool allowStale = false) = 0;
     virtual BridgeResult<BridgeTick> tick(const std::string& symbol) = 0;
     virtual BridgeResult<SymbolSpecification> symbolSpecification(
         const std::string& symbol) = 0;

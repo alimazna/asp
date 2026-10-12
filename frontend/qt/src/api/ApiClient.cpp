@@ -293,7 +293,9 @@ void ApiClient::fetchAnalysisHistory(int limit) {
                     items.append(parseAnalysisData(v.toObject()));
                 }
                 mCurrentHistory = items;
-                mIsOnline = true;
+                // Liveness is owned solely by /api/v1/health. A successful
+                // history fetch proves the API answered, but it must never set
+                // mIsOnline: only the aggregate health probe may flip liveness.
                 emit historyReceived(items);
             } catch (const std::exception& ex) {
                 emit error(QString::fromUtf8(ex.what()), "parse_error");
@@ -328,7 +330,9 @@ void ApiClient::fetchCandles(const QString& tf, int limit) {
                 resp.envelope = env;
                 resp.data = parseCandlesData(env.data);
                 mCurrentCandles = resp;
-                mIsOnline = true;
+                // The chart's bars are data, not liveness. Only /api/v1/health
+                // may set mIsOnline; a candle success must not resurrect the UI
+                // from an offline state the health probe established.
                 emit candlesReceived(resp);
             } catch (const std::exception& ex) {
                 emit candlesFailed(QString::fromUtf8(ex.what()), "parse_error");
@@ -370,7 +374,8 @@ void ApiClient::fetchTimeframes() {
                     items.append(parseTimeframeData(v.toObject()));
                 }
                 mCurrentTimeframes = items;
-                mIsOnline = true;
+                // Liveness is owned solely by /api/v1/health. A successful
+                // timeframes fetch must never set mIsOnline.
                 emit timeframesReceived(items);
             } catch (const std::exception& ex) {
                 emit error(QString::fromUtf8(ex.what()), "parse_error");

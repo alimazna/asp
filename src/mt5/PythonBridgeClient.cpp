@@ -147,12 +147,14 @@ public:
 
     BridgeResult<std::vector<BridgeCandle>> candles(const std::string& symbol,
                                                     Timeframe timeframe, int count,
-                                                    bool closedOnly) override {
+                                                    bool closedOnly,
+                                                    bool allowStale) override {
         std::ostringstream query;
         query << "symbol=" << symbol
               << "&timeframe=" << toString(timeframe)
               << "&count=" << count
               << "&closed_only=" << (closedOnly ? "true" : "false");
+        if (allowStale) query << "&allow_stale=true";
 
         JsonValue root;
         BridgeError transportError;

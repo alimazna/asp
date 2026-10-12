@@ -41,7 +41,7 @@ public:
     }
 
     BridgeResult<std::vector<BridgeCandle>> candles(const std::string&,
-                                                    Timeframe, int, bool) override {
+                                                    Timeframe, int, bool, bool) override {
         return BridgeResult<std::vector<BridgeCandle>>::failure(
             BridgeError{"BRIDGE_UNAVAILABLE", "UNKNOWN", "bridge down", "", ""});
     }

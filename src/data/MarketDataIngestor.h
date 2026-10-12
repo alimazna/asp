@@ -30,6 +30,10 @@ struct IngestRequest {
     Timeframe timeframe = Timeframe::M15;
     int count = 500;
     bool closedOnly = true;
+    // When true, a closed market still yields the newest real bars (flagged
+    // STALE by validation), so the timeframe tracker is fed with real data
+    // instead of staying empty. Never fabricates bars.
+    bool allowStale = false;
 };
 
 class MarketDataIngestor {

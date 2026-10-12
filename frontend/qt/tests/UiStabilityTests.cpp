@@ -187,6 +187,39 @@ int main(int argc, char** argv) {
         check(!client.isOnline(), "client reports offline after two strikes");
     }
 
+    // ── A successful data fetch must NOT resurrect liveness. ────────────────
+    // Only /api/v1/health owns mIsOnline. After two health strikes the client is
+    // OFFLINE; a successful /candles, /timeframes or /analysis/history must not
+    // set mIsOnline back to true. Before the fix each of those set
+    // mIsOnline = true on success, so a working chart masked a dead health probe
+    // and the UI oscillated ONLINE <-> OFFLINE.
+    {
+        MockBackend backend;
+        check(backend.startListening(), "mock backend binds 8790 for the liveness-ownership case");
+        backend.dropHealth = true;  // /health never answers; data routes still do
+
+        ApiClient client;
+        bool wentOffline = false;
+        QObject::connect(&client, &ApiClient::offline, [&]() { wentOffline = true; });
+
+        client.fetchHealth();
+        waitMs(5600);  // strike 1
+        client.cancelHealthProbe();
+        client.fetchHealth();
+        waitMs(5600);  // strike 2 -> offline
+        check(wentOffline && !client.isOnline(),
+              "client offline after two consecutive health strikes");
+
+        // These all answer successfully against the mock while /health stays dead.
+        client.fetchCandles("M15", 500);
+        client.fetchTimeframes();
+        client.fetchAnalysisHistory(20);
+        waitMs(500);
+
+        check(!client.isOnline(),
+              "a successful /candles, /timeframes or /analysis/history must not set liveness");
+    }
+
     if (g_failures == 0)
         std::printf("UI stability tests: all passed\n");
     else
