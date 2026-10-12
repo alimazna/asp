@@ -2613,3 +2613,133 @@ exist only in the local working tree — see "Blocker" below.
   request path is unchanged by this PR (`/candles` goes through the chart alias
   `/v1/candles`, which was not modified). No code change was made for the flake;
   the three runs are the evidence.
+
+## Tracker (H4 only) + Flip-Flop + Timing — FINAL FIX (PR #8)
+
+### Scope note
+The autostart task described in the message (reinstall/spawn/log path) was already
+delivered by **PR #5**, merged to `main` as **`9043fe9`** (branch
+`fix/autostart-real-launch-path`; the three commits named in the request,
+`4508582`/`72ee5e8`/`699d028`, are all in history). Current `main` HEAD before this
+task: `546c601`.
+
+The outstanding, reproducible defect on that tree was the one the structured task
+names: **the timeframe tracker feeds only H4**, so the decision engine cannot run.
+Traced, reproduced, fixed, and merged here as **PR #8 -> `7cb6125`**.
+
+### Step 1 — Trace the launch path (current code, file:line)
+
+- **Q1 — where `aura_backend_host.exe` is launched:** `frontend/qt/src/main.cpp:117-119`
+  resolves it and `main.cpp:122-126` `deps.spawn` calls
+  `QProcess::startDetached(exe, {"--api-port", ...})` (logic in
+  `frontend/qt/src/autostart/AutoStart.cpp:5,48-54`).
+- **Q2 — the gate:** `AutoStart.cpp:10` (skip if `backendListening()` on 8790),
+  `AutoStart.cpp:21-25` (once-per-process `attempted`), `AutoStart.cpp:27-28`
+  (`AURA_NO_BACKEND`), `AutoStart.cpp:34-38` (cross-process lock). None depends on CWD
+  or PATH.
+- **Q3 — resolved `aura_backend_host.exe` path:** `main.cpp:118`
+  `QDir(QCoreApplication::applicationDirPath())` -> after install
+  `C:\Program Files\ASTRA\aura_backend_host.exe` (valid; smoke log shows the spawn ok).
+- **Q4 — resolved `bridge.exe` path:** owned by the backend, not the frontend —
+  `src/platform/windows/BundleLocator.cpp:37` `join(paths_.bridgeDir, "bridge.exe")`
+  -> `.../resources/bridge/mt5_python/bridge.exe` (valid; smoke asserts it exists).
+- **Q5 — where "OFFLINE" is set:** `frontend/qt/src/pages/DashboardPage.cpp`
+  `setOnline(false)`; `MainWindow::onOffline` <- `ApiClient::offline()`, which fires only
+  after **two** consecutive real `/health` misses (`ApiClient.cpp:171-182`). It is not
+  set without an attempt.
+- **Q6 — log path:** user-writable, `main.cpp:58-63`
+  (`QStandardPaths::GenericDataLocation` -> `%LOCALAPPDATA%\ASTRA\logs`); written before
+  and after the spawn (`AutoStart.cpp:48,50,54`). The empty
+  `C:\Program Files\ASTRA\logs` in the field evidence is expected: this app never logs
+  to the install dir.
+- **Q7 — what CI exercises:** `.github/workflows/build-windows.yml` builds the **whole**
+  backend + frontend suites (`100% tests passed out of 23` / `12`) and the smoke step
+  silently installs to `$env:ProgramFiles\ASTRA`, launches the **installed**
+  `astra_desktop.exe` (not the portable build, not the backend directly), then asserts
+  processes/ports/log. It is not bypassing the Qt app.
+
+### Root cause (tracker feeds only H4 / timing)
+
+`bridge/mt5_python/mt5_client.py` computed `age_seconds = int(time.time()) - newest_closed`.
+MT5 stamps bars in **broker server time** (commonly UTC+2/+3); the host's `now` is
+**UTC**, so recent bars (M1-H1) had a **negative age** -> `BarValidator` marked them
+`FUTURE_DATED`/`INVALID` -> `MarketDataIngestor` (`result.ok = (worst == VALID)`) returned
+false -> `AuraRuntime::tick` `continue`d **before** updating the timeframe tracker. Only
+the oldest covering timeframes (H4/D1/W1/MN1) survived.
+
+Reproduced with `FAKE_MT5_REPLAY_NOW=now+3h` (broker at UTC+3):
+
+```
+BEFORE:  M1..H1  has_closed_bar=False seq=0 quality=UNKNOWN ; H4/D1/W1/MN1 VALID/FRESH
+         age_seconds=-9398 ; /analysis/latest regime=UNKNOWN direction=NONE
+```
+
+This is the "tracker feeds only H4" bug and the timing defect in one: ages were judged
+against the wrong clock.
+
+### Fix (commits)
+
+- `bridge/mt5_python/mt5_client.py` — measure (server - UTC) from the terminal's newest
+  M1 bar open time, bounded to `|offset| <= 18h` (a larger implied offset means the feed
+  is stale, so staleness is never masked); compute `age_seconds` against server time.
+- `bridge/mt5_python/bridge_service.py` — clamp reported `age_seconds` at 0 (canonical +
+  chart routes).
+- `src/mt5/Mt5BridgeContract.h`, `src/mt5/PythonBridgeClient.cpp` — parse
+  `server_clock_offset_seconds`.
+- `src/runtime/AuraRuntime.{h,cpp}` — learn the offset from bridge health each tick and
+  shift the host clock for bar-time comparison/finalization/freshness; the decision
+  pipeline keeps real UTC `now` for macro-event timing. UTC-aligned feeds get offset 0.
+- `src/api/BackendFacade.cpp` — expose `server_clock_offset_seconds` in `/bridge/status`.
+- Commit: **`7cb6125`** (squash of `5c85a52` + `8425f81`).
+
+### Flip-flop (already fixed on main)
+
+`mIsOnline` is written **only** in `frontend/qt/src/api/ApiClient.cpp:146` (online) and
+`:177` (offline, after `mConsecutiveHealthFailures >= 2` at `:171`); no other fetch writes
+it. Covered by `frontend/qt/tests/UiStabilityTests.cpp`. Verified live after the clock
+fix: with the broker at UTC+3 the aggregate held **ONLINE** and the tracker held **9/9**
+across 40 samples (stable after warm-up) — the clock fix introduces no new flip-flop.
+
+### AFTER (real host, broker UTC+3)
+
+```
+tracked 9/9 timeframes, all VALID/FRESH
+age_seconds=1282 (non-negative) freshness=FRESH
+/bridge/status server_clock_offset_seconds=10800
+/analysis/latest regime=QUIET direction=DOWN
+```
+UTC-aligned feed: `offset=0`, 9/9 tracked, aggregate ONLINE (unchanged).
+
+### Tests
+
+- New `tests/CandlesApiTests.cpp::real_bridge_reports_server_clock_offset_for_ahead_server`
+  (real bridge + fake MT5 3h ahead must report `10800` and a non-negative age).
+- Backend suite **23/23**; frontend suite **12/12** — both green on Windows CI.
+
+### CI
+
+- Branch run: **38248732606** (`workflow_dispatch`, `fix/tracker-clock-flipflop-timing`),
+  status **success** (2026-10-12T12:23:30Z -> 12:34Z).
+- Smoke excerpt (installed flow):
+  ```
+  t+10s gate: backendProc=1 bridgeProc=2 backendHealth=True(STARTING) bridgeHealth=True
+  [12:32:32Z] attempting to spawn C:/Program Files/ASTRA/aura_backend_host.exe ...
+  [12:32:32Z] spawn ok: C:/Program Files/ASTRA/aura_backend_host.exe
+  [12:32:52Z] backend reachable after 19s
+  final counts: desktop=1 backend=1 bridge=2
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+- `main` run after merge: **38249966945**; status recorded below.
+- Installer (`ASTRA-windows-installer`): **39,300,344 bytes** (portable
+  `ASTRA-windows`: 23,591,077 bytes).
+
+### Not reproduced in CI (manual on the Windows box)
+
+The runner has **no live MT5 terminal**, so the chart's candle fetch still ends on
+`MT5_TERMINAL_UNAVAILABLE` (honest data-absence) and the broker-server-clock path cannot
+be asserted end-to-end in CI against a real terminal. The clock behaviour is covered
+deterministically by the new `CandlesApiTests` case (real bridge + fake MT5 offset) and
+by the T13 harness locally. On the human's machine (MT5 live) the tracker must show all
+9 timeframes and `/analysis/latest` a real context.
