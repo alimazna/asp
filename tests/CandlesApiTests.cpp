@@ -334,3 +334,99 @@ TEST_CASE(real_bridge_allow_stale_returns_bars_when_market_closed) {
     CHECK(contains(tolerant.body, "\"age_seconds\":"));
     CHECK(contains(tolerant.body, "\"freshness\":\"STALE\""));
 }
+
+// A broker whose MT5 server clock runs ahead of UTC (commonly UTC+2/+3) stamps
+// its bars in *server* time. Comparing those stamps against the host's raw UTC
+// clock made every recent bar look future-dated, so the runtime rejected it and
+// only the oldest covering timeframe was tracked (the "tracker feeds only H4"
+// defect). The bridge must measure the server-vs-UTC offset and report it, and
+// must compute a non-negative age against server time so a freshly closed bar is
+// FRESH, not future-dated.
+TEST_CASE(real_bridge_reports_server_clock_offset_for_ahead_server) {
+    const std::string python = findPython();
+    if (python.empty()) {
+        std::cout << "  [SKIP] no python interpreter on PATH; "
+                     "clock-alignment integration not exercised\n";
+        return;
+    }
+
+    const std::string bridgeDir = std::string(AURA_SOURCE_DIR) + "/bridge/mt5_python";
+    const std::string fakeMt5 = std::string(AURA_SOURCE_DIR) + "/tests/integration/fake_mt5";
+    const std::uint16_t port = freePort();
+
+    ProcessLaunchSpec spec;
+    spec.executable = python;
+    spec.args = {bridgeDir + "/bridge_service.py", "--host", "127.0.0.1",
+                 "--port", std::to_string(port), "--symbol", "XAUUSD"};
+    spec.workingDir = bridgeDir;
+    spec.environment["PYTHONUNBUFFERED"] = "1";
+    spec.environment["FAKE_MT5_AVAILABLE"] = "1";
+    spec.environment["FAKE_MT5_TOTAL_BARS"] = "300";
+    // Newest forming bar is 3h in the future relative to UTC: a broker server
+    // running at UTC+3, with all bars stamped accordingly.
+    spec.environment["FAKE_MT5_LAST_TIME"] =
+        std::to_string(static_cast<long long>(std::time(nullptr)) + 3 * 3600);
+#ifdef _WIN32
+    spec.environment["PYTHONPATH"] = fakeMt5;
+#else
+    const char* existing = std::getenv("PYTHONPATH");
+    spec.environment["PYTHONPATH"] =
+        fakeMt5 + (existing != nullptr ? std::string(":") + existing : "");
+#endif
+
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 40 && !ready; ++i) {
+        HttpRequest ping;
+        ping.host = "127.0.0.1";
+        ping.port = port;
+        ping.path = "/v1/handshake";
+        ping.connectTimeoutMillis = 300;
+        ping.readTimeoutMillis = 500;
+        if (httpGet(ping).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    const char* previous = std::getenv("ASTRA_BRIDGE_PORT");
+    const std::string saved = previous != nullptr ? previous : "";
+    setEnv("ASTRA_BRIDGE_PORT", std::to_string(port));
+    BackendFacade facade(FacadeDependencies{});
+
+    // The offset is measured and surfaced by the bridge itself.
+    HttpRequest healthReq;
+    healthReq.host = "127.0.0.1";
+    healthReq.port = port;
+    healthReq.path = "/v1/health";
+    healthReq.connectTimeoutMillis = 500;
+    healthReq.readTimeoutMillis = 1000;
+    const HttpResponse bridgeHealth = httpGet(healthReq);
+    // The chart asks with allow_stale; with the offset applied the newest closed
+    // bar is fresh (age within tolerance), not stale-by-time-travel.
+    const ApiResponse candles =
+        facade.handle("GET", "/api/v1/candles", "tf=M15&limit=10&allow_stale=true");
+
+    if (saved.empty()) {
+#ifdef _WIN32
+        _putenv_s("ASTRA_BRIDGE_PORT", "");
+#else
+        ::unsetenv("ASTRA_BRIDGE_PORT");
+#endif
+    } else {
+        setEnv("ASTRA_BRIDGE_PORT", saved);
+    }
+    std::string stopError;
+    supervisor.stop(3000, stopError);
+
+    // ~3h offset, reported and non-zero.
+    CHECK(bridgeHealth.ok);
+    CHECK(contains(bridgeHealth.body, "\"server_clock_offset_seconds\": 10800"));
+    // Non-negative age against server time: not a "future" bar.
+    CHECK_EQ(candles.status, 200);
+    CHECK(contains(candles.body, "\"age_seconds\":"));
+    CHECK(!contains(candles.body, "\"age_seconds\":-"));
+}
+
