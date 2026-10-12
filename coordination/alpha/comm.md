@@ -2566,3 +2566,50 @@ exist only in the local working tree — see "Blocker" below.
    `/api/v1/analysis/latest` must return a real context (not all-UNKNOWN).
 3. Watch the dashboard for 60s: it must not oscillate ONLINE ↔ OFFLINE (one
    dropped health probe no longer flips it).
+
+## Tracker Feed + Flip-Flop — merged, CI green, fresh installer built
+
+- PR #6 (`fix/tracker-feed-flipflop` → `main`) merged as **`cf887701d3cdcfe331253838c28911c801db54ee`**
+  at 2026-10-12T07:54:44Z; source branch deleted. No conflicts.
+- `main` now carries the tracker-feed fix (`2dbe0c8`), the liveness-ownership fix
+  (`1f45879`) and the report (`8ad6df4`).
+
+### CI on main
+
+- Run id: **38220417806** (`https://github.com/alimazna/asp/actions/runs/38220417806`),
+  triggered by the merge push, head `cf88770`.
+- Status: **success** (2026-10-12T07:54:47Z → 08:02:56Z, 8m4s).
+- Smoke test (installed flow) output:
+
+  ```
+  t+10s gate: backendProc=1 bridgeProc=2 backendHealth=True(STARTING) bridgeHealth=True
+  early-bind ordering confirmed: API bound at 5 ms, before the bridge spawn at 2022 ms
+  final counts: desktop=1 backend=1 bridge=2
+  chart candle lines: 3; last: [2026-10-12T08:01:52Z] ui candles: fetch failed
+    (MT5_TERMINAL_UNAVAILABLE): mt5.initialize failed: (-10003, 'IPC initialize failed, MetaTrader 5 x64 not found')
+  reinstall counts: desktop=1 backend=1 bridge=2
+  ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
+  Regression PASSED: chain uses the user-writable root and logs there
+  ```
+
+  The `MT5_TERMINAL_UNAVAILABLE` last candle line is expected on this runner (no
+  MT5 terminal) and is the same acceptance the previous green main run used; the
+  chart fetch was retried 3× and ended on an honest structured reply, not a
+  transport failure.
+
+### Fresh installer built from main
+
+- **ASTRA-Setup.exe: 39,292,126 bytes** (artifact `ASTRA-windows-installer`, id 11734252222).
+- **ASTRA-windows (portable): 23,591,072 bytes** (artifact `ASTRA-windows`, id 11734471572).
+- Both built by run 38220417806 from head `cf88770`.
+
+### Note on the first branch run
+
+- The first `workflow_dispatch` run on the branch (`38217578770`) failed only the
+  smoke step, on a transient cold-start flake: the chart's first candle fetch was
+  aborted mid-flight by the 15s transfer timeout ("Operation canceled") and the
+  retry's last recorded line was a transport failure. The same commit passed on
+  re-run (`38217578770` rerun, 7m18s) and again on main (`38220417806`). The chart
+  request path is unchanged by this PR (`/candles` goes through the chart alias
+  `/v1/candles`, which was not modified). No code change was made for the flake;
+  the three runs are the evidence.
