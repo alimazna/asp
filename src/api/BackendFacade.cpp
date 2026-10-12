@@ -667,6 +667,8 @@ ApiResponse BackendFacade::bridgeStatus() const {
         fields.push_back({"last_successful_request",
                           jsonInteger(health.lastSuccessfulRequest.epochMillis()),
                           true});
+        fields.push_back({"server_clock_offset_seconds",
+                          jsonInteger(health.serverClockOffsetSeconds), true});
         fields.push_back({"observed", jsonBool(true), true});
     } else {
         // Bridge unreachable: report unknown, never a fabricated broker.
@@ -679,6 +681,7 @@ ApiResponse BackendFacade::bridgeStatus() const {
         fields.push_back({"process_state", "OFFLINE"});
         fields.push_back({"last_error", "bridge health not observed"});
         fields.push_back({"last_successful_request", "null", true});
+        fields.push_back({"server_clock_offset_seconds", jsonInteger(0), true});
         fields.push_back({"observed", jsonBool(false), true});
     }
     return ApiResponse{200, "application/json",

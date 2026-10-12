@@ -163,6 +163,11 @@ struct BridgeHealth {
     std::string lastError;
     Timestamp lastSuccessfulRequest;
     std::int64_t generatedAtUtc = 0;
+    // (broker server clock) - (local UTC), in seconds, as measured by the
+    // bridge from the terminal's own M1 timestamps. Bars are stamped in broker
+    // server time; the host adds this to its UTC clock before validating or
+    // finalizing a bar, so a live bar is never rejected as future-dated.
+    std::int64_t serverClockOffsetSeconds = 0;
 };
 
 // Generic bridge result. `ok` is the single source of truth; callers must not
