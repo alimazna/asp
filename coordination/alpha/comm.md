@@ -2731,9 +2731,11 @@ UTC-aligned feed: `offset=0`, 9/9 tracked, aggregate ONLINE (unchanged).
   ASTRA auto-start smoke test PASSED (installed flow, reinstall clean)
   Regression PASSED: chain uses the user-writable root and logs there
   ```
-- `main` run after merge: **38249966945**; status recorded below.
-- Installer (`ASTRA-windows-installer`): **39,300,344 bytes** (portable
-  `ASTRA-windows`: 23,591,077 bytes).
+- `main` run after merge: **38249966945** — status **success**. Fresh installer built
+  from `main` (`7cb6125`): **39,304,684 bytes** (`ASTRA-windows-installer`; portable
+  `ASTRA-windows`: 23,591,060 bytes).
+- Installer on the dispatch branch (`ASTRA-windows-installer`): **39,300,344 bytes**
+  (portable `ASTRA-windows`: 23,591,077 bytes).
 
 ### Not reproduced in CI (manual on the Windows box)
 
