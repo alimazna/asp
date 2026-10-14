@@ -1,0 +1,115 @@
+/*
+ * ASTRA design tokens — single source of truth.
+ * Derived from the ASTRA visual identity (docs/brand/ASTRA_VISUAL_IDENTITY.md):
+ * deep navy / near-black surfaces, silver accents, restrained, institutional.
+ * All colors, spacing, typography and states are centralized here.
+ */
+:root {
+  /* Surfaces — dark-first institutional navy */
+  --bg-app: #070b14;
+  --bg-surface: #0b1424;
+  --bg-surface-2: #101b2f;
+  --bg-raised: #13213a;
+  --bg-overlay: rgba(7, 11, 20, 0.78);
+
+  /* Text — silver/white on navy */
+  --text-primary: #e8edf4;
+  --text-secondary: #9fb0c6;
+  --text-muted: #64748b;
+  --text-faint: #45536b;
+
+  /* Borders */
+  --border-subtle: rgba(159, 176, 198, 0.14);
+  --border-strong: rgba(159, 176, 198, 0.28);
+
+  /* Accent — restrained institutional blue */
+  --accent: #4f7cc9;
+  --accent-strong: #6d9be0;
+  --accent-dim: rgba(79, 124, 201, 0.16);
+
+  /* Semantic states */
+  --up: #3fa46b;
+  --up-dim: rgba(63, 164, 107, 0.14);
+  --down: #d37166;
+  --down-dim: rgba(211, 113, 102, 0.14);
+  --warn: #d3a24f;
+  --warn-dim: rgba(211, 162, 79, 0.14);
+  --neutral: #8fa3be;
+  --neutral-dim: rgba(143, 163, 190, 0.12);
+  --critical: #c9584d;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.45);
+
+  /* Typography */
+  --font-sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, "Roboto Mono", monospace;
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-base: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+  --lh-tight: 1.2;
+  --lh-normal: 1.45;
+
+  /* Spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Layout */
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+
+  /* Motion — restrained */
+  --dur-fast: 120ms;
+  --dur-med: 200ms;
+}
+
+/* ---- Light theme (cool light-gray / off-white, per identity spec) ---- */
+[data-theme="light"] {
+  --bg-app: #eef1f5;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f5f7fa;
+  --bg-raised: #ffffff;
+  --bg-overlay: rgba(238, 241, 245, 0.85);
+
+  --text-primary: #16202e;
+  --text-secondary: #4b5a6e;
+  --text-muted: #7b8798;
+  --text-faint: #a3aebc;
+
+  --border-subtle: rgba(22, 32, 46, 0.12);
+  --border-strong: rgba(22, 32, 46, 0.22);
+
+  --accent: #3a68b8;
+  --accent-strong: #2d559b;
+  --accent-dim: rgba(58, 104, 184, 0.12);
+
+  --up: #2e8b57;
+  --up-dim: rgba(46, 139, 87, 0.12);
+  --down: #b85343;
+  --down-dim: rgba(184, 83, 67, 0.12);
+  --warn: #a87b2f;
+  --warn-dim: rgba(168, 123, 47, 0.14);
+  --neutral: #64748b;
+  --neutral-dim: rgba(100, 116, 139, 0.1);
+  --critical: #b04337;
+
+  --shadow-card: 0 1px 2px rgba(22, 32, 46, 0.08), 0 4px 16px rgba(22, 32, 46, 0.08);
+  --shadow-pop: 0 4px 12px rgba(22, 32, 46, 0.14), 0 12px 40px rgba(22, 32, 46, 0.12);
+}
