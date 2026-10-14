@@ -1,0 +1,38 @@
+{
+  "name": "astra-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ASTRA — XAUUSD Market Intelligence Terminal (web frontend)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "node scripts/dev-with-mock.mjs",
+    "mock": "python3 scripts/mock_api.py --port 8790 || python scripts/mock_api.py --port 8790",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "node scripts/test-live.mjs",
+    "typecheck": "tsc -b --force",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.26.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.4.8",
+    "@testing-library/react": "14.3.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "jsdom": "24.1.3",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vitest": "1.6.0"
+  }
+}
