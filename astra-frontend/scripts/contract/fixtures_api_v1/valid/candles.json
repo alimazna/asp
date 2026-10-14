@@ -1,0 +1,44 @@
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "bars": [
+      {
+        "time": 1760000100,
+        "open": 2650.10,
+        "high": 2651.40,
+        "low": 2649.60,
+        "close": 2651.05,
+        "tick_volume": 812,
+        "spread": 22,
+        "real_volume": 0
+      },
+      {
+        "time": 1760001000,
+        "open": 2651.05,
+        "high": 2652.30,
+        "low": 2650.20,
+        "close": 2650.75,
+        "tick_volume": 1044,
+        "spread": 20,
+        "real_volume": 0
+      },
+      {
+        "time": 1760001900,
+        "open": 2650.75,
+        "high": 2651.90,
+        "low": 2650.10,
+        "close": 2651.60,
+        "tick_volume": 967,
+        "spread": 21,
+        "real_volume": 0
+      }
+    ],
+    "timeframe": "M15",
+    "symbol": "XAUUSD",
+    "count": 3,
+    "closed_only": true,
+    "newest_closed_time": 1760001900,
+    "freshness": "FRESH"
+  }
+}
