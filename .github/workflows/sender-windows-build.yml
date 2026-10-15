@@ -42,10 +42,14 @@ jobs:
             Write-Error "AstraSender.exe was not built"
             exit 1
           }
-          # --version exits immediately (0) even in windowed mode.
-          & .\dist\AstraSender.exe --version
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Frozen app --version exited with $LASTEXITCODE"
+          # Windowed-subsystem exes do not set $LASTEXITCODE; use
+          # Start-Process -PassThru -Wait to read the real exit code.
+          $p = Start-Process -FilePath ".\dist\AstraSender.exe" `
+                              -ArgumentList "--version" -PassThru -Wait
+          $code = $p.ExitCode
+          Write-Host "Frozen app --version exit code: $code"
+          if ($code -ne 0) {
+            Write-Error "Frozen app --version exited with $code"
             exit 1
           }
           Write-Host "Frozen app --version passed (exit 0)"
