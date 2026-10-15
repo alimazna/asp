@@ -17,7 +17,9 @@
 #include "platform/windows/ProcessSupervisor.h"
 
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -295,6 +297,78 @@ TEST_CASE(astra_server_ingestion_is_idempotent_and_durable) {
 
         std::string stopError2; supervisor2.stop(2000, stopError2);
     }
+    fs::remove_all(dataDir);
+}
+
+TEST_CASE(astra_server_rejects_future_and_invalid_timestamps) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 60 && !ready; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    // A candle whose open_time is far in the future must be rejected, not
+    // stored as fabricated market history.
+    const int64_t future = std::time(nullptr) + 24 * 3600;
+    std::string body =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\": " + std::to_string(future) +
+        ",\"open\":2653.1,\"high\":2655.2,"
+        "\"low\":2651.8,\"close\":2654.05,\"tick_volume\":210,\"spread\":12,"
+        "\"real_volume\":0}]}";
+    const HttpResponse futureResp = postIngest(port, "s3cret-tok", body);
+    CHECK_EQ(futureResp.statusCode, 200);
+    CHECK(contains(futureResp.body, "\"state\":\"rejected\""));
+    CHECK(contains(futureResp.body, "in the future"));
+    CHECK(contains(futureResp.body, "\"ingested\":0"));
+
+    // A non-positive timestamp must also be rejected.
+    const std::string zeroBody =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":0,\"open\":2653.1,\"high\":2655.2,"
+        "\"low\":2651.8,\"close\":2654.05}]}";
+    const HttpResponse zeroResp = postIngest(port, "s3cret-tok", zeroBody);
+    CHECK_EQ(zeroResp.statusCode, 200);
+    CHECK(contains(zeroResp.body, "\"state\":\"rejected\""));
+    CHECK(contains(zeroResp.body, "positive epoch"));
+    CHECK(contains(zeroResp.body, "\"ingested\":0"));
+
+    // Nothing malformed may have entered the store: the chart route honestly
+    // reports that no candle data is available for the timeframe.
+    HttpRequest candles;
+    candles.host = "127.0.0.1";
+    candles.port = port;
+    candles.path = "/api/v1/candles?tf=M15&limit=10";
+    const HttpResponse chart = httpGet(candles);
+    CHECK_EQ(chart.statusCode, 503);
+    CHECK(contains(chart.body, "\"code\":\"dependency_unavailable\""));
+
+    std::string stopError; supervisor.stop(2000, stopError);
     fs::remove_all(dataDir);
 }
 

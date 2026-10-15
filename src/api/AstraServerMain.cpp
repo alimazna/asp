@@ -27,6 +27,7 @@
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -98,6 +99,21 @@ bool parseCandle(const JsonValue& candle, StoredCandle& out,
     };
 
     out.openTimeUtc = time.asInt64();
+
+    // Closed candles are historical: an open time far in the future means the
+    // record is malformed or fabricated. A few minutes of slack tolerates
+    // legitimate clock skew between the sending machine and this server.
+    const int64_t kFutureSkewSlackSeconds = 300;
+    const int64_t nowUtc = static_cast<int64_t>(std::time(nullptr));
+    if (out.openTimeUtc > nowUtc + kFutureSkewSlackSeconds) {
+        error = "candle open_time is in the future";
+        return false;
+    }
+    if (out.openTimeUtc <= 0) {
+        error = "candle open_time must be a positive epoch timestamp";
+        return false;
+    }
+
     bool hasOpen = false, hasHigh = false, hasLow = false, hasClose = false;
     readPrice("open", out.open, hasOpen);
     readPrice("high", out.high, hasHigh);
