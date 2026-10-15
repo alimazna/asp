@@ -1,0 +1,62 @@
+name: Deploy frontend to Cloudflare Pages
+
+# Publishes astra-frontend/ (the React/Vite/TS app) to the Cloudflare Pages
+# project that serves https://astra-dia.pages.dev.
+#
+# Requires two repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   - token with the "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID  - the account that owns the Pages project
+#
+# VITE_API_BASE_URL is a PUBLIC read-only backend URL, not a secret. It is set
+# here rather than in the Pages dashboard so the deployed bundle and this file
+# can never drift apart.
+
+on:
+  push:
+    branches: [astra-frontend]
+    paths:
+      - 'astra-frontend/**'
+      - '.github/workflows/deploy-frontend-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two frontend deploys race for the same Pages project.
+  group: pages-astra-dia
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: astra-frontend
+    env:
+      VITE_API_BASE_URL: https://astra-server-production.up.railway.app/api/v1/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: astra-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # typecheck + vitest + production build; a red gate must not deploy.
+      - name: Verify (typecheck, test, build)
+        run: npm run verify
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # `defaults.run` does not apply to `uses:` steps, so point wrangler at
+          # the app directory explicitly.
+          workingDirectory: astra-frontend
+          command: pages deploy dist --project-name=astra-dia --branch=main

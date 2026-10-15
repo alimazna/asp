@@ -20,6 +20,10 @@ export default function ChartPage() {
     fetcher: (s) => getCandles(tf, limit, { signal: s }),
     intervalMs: POLL.candles * pollScale,
     keepPreviousOnError: false,
+    // Refetch when the selected timeframe or series length changes. This must be
+    // explicit: the hook reads the fetcher through a ref, so a new inline arrow
+    // no longer triggers a fetch on its own.
+    deps: [tf, limit],
   });
 
   useEffect(() => {

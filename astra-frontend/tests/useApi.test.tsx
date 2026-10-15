@@ -122,4 +122,25 @@ describe("useApi", () => {
     act(() => result.current.refetch());
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
   });
+
+  it("does not re-fetch in a loop when the caller passes an inline fetcher", async () => {
+    // Regression: every real page passes `fetcher={(s) => api.getX({signal:s})}`,
+    // a NEW function identity each render. When `run` depended on `fetcher`, its
+    // identity changed on every render, the fetch effect re-ran, setState
+    // re-rendered, and each endpoint was hit ~11x/second instead of once per
+    // interval. Counting calls proves the effect is no longer self-triggering.
+    const fetcher = vi.fn(async (_signal: AbortSignal) => ({ ok: true }));
+    const { result } = renderHook(() =>
+      useApi({ fetcher: (signal: AbortSignal) => fetcher(signal), intervalMs: 5000 }),
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual({ ok: true }));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Several interval windows must pass with no extra traffic.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });
