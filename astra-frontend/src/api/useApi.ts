@@ -66,6 +66,19 @@ export function useApi<T>(opts: UseApiOptions<T>): UseApiResult<T> {
   }, [data]);
   const lastFetched = useRef<number | null>(null);
   const depsRef = useRef(deps);
+  // `deps` is a fresh array literal on every render, so keep its *values* in the
+  // ref and spread them into the effect's dependency list below. Without this
+  // the list stays frozen at its first-render values and a screen that refetches
+  // on a selection change (Chart's timeframe control) never re-fetches.
+  depsRef.current = deps;
+
+  // Callers pass an inline `fetcher` arrow on every render, so its identity
+  // changes each time. Reading it through a ref keeps `run` stable; otherwise
+  // `run` changes identity every render, the fetch effect below re-fires, its
+  // setState re-renders, and the screen polls at network speed instead of at
+  // `intervalMs`.
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   useEffect(() => {
     mounted.current = true;
@@ -82,7 +95,7 @@ export function useApi<T>(opts: UseApiOptions<T>): UseApiResult<T> {
     const ctrl = new AbortController();
     inFlight.current = ctrl;
 
-    fetcher(ctrl.signal)
+    fetcherRef.current(ctrl.signal)
       .then((result) => {
         if (!mounted.current || ctrl.signal.aborted) return;
         setData(result);
@@ -107,7 +120,7 @@ export function useApi<T>(opts: UseApiOptions<T>): UseApiResult<T> {
       .finally(() => {
         if (inFlight.current === ctrl) inFlight.current = null;
       });
-  }, [fetcher, enabled, keepPreviousOnError]);
+  }, [enabled, keepPreviousOnError]);
 
   // A disabled→enabled transition (e.g. the base URL becomes configured)
   // re-arms the first-load spinner.
