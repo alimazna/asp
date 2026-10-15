@@ -54,6 +54,11 @@ Thumbs.db
 .agent_tmp/
 build/
 
+# Local deployment linkage/state (project IDs only, but machine-local).
+.railway/
+.wrangler/
+astra-frontend/.wrangler/
+
 # Coordination notify config (secret webhook URL — never commit)
 coordination/notify/config
 __pycache__/

@@ -36,9 +36,10 @@ requests or executes orders and never transmits MT5 account passwords.
 
 2. Get the executable. Either:
 
-   - **download the release asset**: 
+   - **download the release asset** (verified PE, 11,985,360 bytes, SHA256
+     `f5f8639b6e20f98605a3334e61dd11ccbd9b7a3834d7638c1cf2dca5c96ae716`),
+     built by the *Build Windows Astra Sender* workflow on a Windows runner: 
      `https://github.com/alimazna/asp/releases/download/sender-v0.3.0/AstraSender.exe`
-     (built by the *Build Windows Astra Sender* workflow on a Windows runner),
    - or build it yourself (below),
    - or download `AstraSender.exe` from the latest GitHub Actions artifact
      (`Actions` tab → workflow *Build Windows Astra Sender* → artifact).
@@ -49,7 +50,7 @@ requests or executes orders and never transmits MT5 account passwords.
 
    ```json
    {
-     "backend_url": "https://<railway-service>.up.railway.app",
+     "backend_url": "https://astra-server-production.up.railway.app",
      "sender_token": "<the-dedicated-ingestion-token>",
      "sender_id": "win10-desk-01",
      "symbol": "XAUUSD",

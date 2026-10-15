@@ -17,14 +17,18 @@ contains no secrets — only a public HTTPS base URL is configured at build time
 - Honest loading / stale / unavailable / empty states, auto-refresh, and
   mobile-friendly layout.
 
-## Build & deploy (Cloudflare Pages)
+## Build & deploy (Cloudflare Pages) — DEPLOYED
+
+Live production URL: **https://astra-dia.pages.dev** (project `astra`,
+production branch `main`). It points at the live backend
+`https://astra-server-production.up.railway.app`.
 
 1. Create a Pages project with root directory `astra-frontend` (or deploy the
    built `dist/` directly):
 
    ```bash
    # from the repo root
-   BACKEND_BASE=https://<railway-service>.up.railway.app \
+   BACKEND_BASE=https://astra-server-production.up.railway.app \
      ASTRA_REFRESH_MS=30000 \
      node astra-frontend/build.js
    ```
@@ -38,11 +42,11 @@ contains no secrets — only a public HTTPS base URL is configured at build time
    env var: BACKEND_BASE
    ```
 
-   Alternatively, deploy the `dist/` directory directly:
+   Alternatively, deploy the `dist/` directory directly (this is what was used):
 
    ```bash
-   BACKEND_BASE=https://... node build.js
-   npx wrangler pages deploy astra-frontend/dist --project-name astra
+   BACKEND_BASE=https://astra-server-production.up.railway.app node build.js
+   wrangler pages deploy astra-frontend/dist --project-name astra --branch main
    ```
 
 2. The backend must allow the Cloudflare origin in `ASTRA_ALLOWED_ORIGINS`
