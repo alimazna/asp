@@ -24,6 +24,7 @@ else()
 endif()
 
 find_package(Threads REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Core backend library: every src/**/*.cpp except the host entry point.
@@ -34,10 +35,13 @@ list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
   ".*/platform/windows/AuraBackendHost\\.cpp$")
 list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
   ".*/analysis/features/emit_feature_set\\.cpp$")
+# The public server has its own main(); keep it out of the core library.
+list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
+  ".*/api/AstraServerMain\\.cpp$")
 
 add_library(aura_core STATIC ${AURA_CORE_SOURCES})
 target_include_directories(aura_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(aura_core PUBLIC Threads::Threads)
+target_link_libraries(aura_core PUBLIC Threads::Threads SQLite::SQLite3)
 
 if(WIN32)
   target_link_libraries(aura_core PUBLIC ws2_32)
@@ -49,6 +53,15 @@ endif()
 add_executable(aura_backend_host
   "${CMAKE_SOURCE_DIR}/src/platform/windows/AuraBackendHost.cpp")
 target_link_libraries(aura_backend_host PRIVATE aura_core)
+
+# ---------------------------------------------------------------------------
+# ASTRA public server (Railway / Linux). Hosts the frozen v1 read surface,
+# the additive authenticated candle ingestion + sync routes, and the durable
+# SQLite candle store.
+# ---------------------------------------------------------------------------
+add_executable(astra_server
+  "${CMAKE_SOURCE_DIR}/src/api/AstraServerMain.cpp")
+target_link_libraries(astra_server PRIVATE aura_core)
 
 # ---------------------------------------------------------------------------
 # Offline FeatureSet dumper (T26): runs the real feature engine over CSV bars

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASTRA — Market Intelligence (shadow)</title>
+  <meta name="description" content="ASTRA shadow market-intelligence dashboard. Shows real backend state only; never fabricated values." />
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">A</span>
+      <div>
+        <h1>ASTRA</h1>
+        <p>shadow market-intelligence terminal</p>
+      </div>
+    </div>
+    <div class="health-tile" id="healthTile">
+      <span class="dot" id="healthDot"></span>
+      <span id="healthText">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <section id="globalStatus" class="card statusline">
+      <div class="statusline-left">
+        <span>Server mode:</span>
+        <strong id="sysMode">—</strong>
+        <span class="pill" id="shadowPill">shadow-only</span>
+      </div>
+      <div class="statusline-right">
+        <span>Data grade:</span>
+        <strong id="dataGrade">—</strong>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Analysis</h2>
+        <div id="analysisBody" class="empty">No analysis available yet.</div>
+      </article>
+
+      <article class="card">
+        <h2>Context</h2>
+        <div id="contextBody" class="empty">No context available yet.</div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Timeframes</h2>
+      <div class="toolbar">
+        <select id="tfSelect" aria-label="Timeframe"></select>
+        <span id="chartMeta" class="dim"></span>
+      </div>
+      <canvas id="chart" height="260"></canvas>
+      <p id="chartStatus" class="dim"></p>
+    </section>
+
+    <section class="card">
+      <h2>Transport</h2>
+      <div id="transportBody" class="empty">No transport information.</div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Shadow-only intelligence. No order execution.</span>
+    <span id="lastUpdated">never</span>
+  </footer>
+
+  <script src="/config.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

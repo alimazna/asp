@@ -277,6 +277,100 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
     return report;
 }
 
+RuntimeCycleReport AuraRuntime::ingestExternalBars(
+    const std::string& source, const std::string& symbol, Timeframe timeframe,
+    const std::vector<Bar>& bars, Timestamp now) {
+    RuntimeCycleReport report;
+    report.at = now;
+
+    if (bars.empty()) {
+        report.issues.push_back("no bars in external ingestion batch");
+        return report;
+    }
+
+    // Validate every bar (defense in depth; the sender already validates).
+    // Per-bar validation mirrors the bridge-fed tick path.
+    BarFinalizer finalizer;
+    DataValidator validator;
+    DataQualityState worst = DataQualityState::VALID;
+    std::vector<Bar> closedBars;
+    for (const auto& bar : bars) {
+        const BarValidation validation = validator.validateBar(bar, now);
+        if (!validation.ok) {
+            worst = DataQualityState::INVALID;
+            report.issues.push_back(std::string(toString(timeframe)) + ": " +
+                                    validation.detail);
+            continue;
+        }
+        if (!finalizer.isClosed(bar, now)) {
+            report.issues.push_back(std::string(toString(timeframe)) +
+                                    ": rejecting not-yet-closed bar open=" +
+                                    std::to_string(bar.openTimeSec));
+            continue;
+        }
+        closedBars.push_back(bar);
+    }
+    if (closedBars.empty()) {
+        ++report.timeframesFailed;
+        report.qualityByTimeframe[toString(timeframe)] = DataQualityState::INVALID;
+        timeframeStore_.refreshFreshness(timeframe, now);
+        report.issues.push_back(std::string(toString(timeframe)) +
+                                ": no valid closed bars");
+        return report;
+    }
+
+    // Publish only bars strictly newer than the last published bar (dedup).
+    const std::string key = toString(timeframe);
+    const std::int64_t lastPublished = lastPublishedBarOpenSec_[key];
+    std::uint64_t lastSequence = dataBus_.sequence(timeframe);
+    const Bar* newest = nullptr;
+    for (const auto& bar : closedBars) {
+        if (bar.openTimeSec <= lastPublished) continue;
+        lastSequence = dataBus_.publish(bar, source, now);
+        lastPublishedBarOpenSec_[key] = bar.openTimeSec;
+        newest = &bar;
+    }
+    if (newest == nullptr) {
+        // No genuinely new closed bar; only freshness advances.
+        timeframeStore_.refreshFreshness(timeframe, now);
+        ++report.timeframesIngested;
+        return report;
+    }
+
+    timeframeStore_.updateFromClosedBar(*newest, lastSequence);
+    timeframeStore_.refreshFreshness(timeframe, now);
+    ++report.timeframesIngested;
+    report.qualityByTimeframe[toString(timeframe)] = DataQualityState::VALID;
+
+    // The operational timeframe drives the live decision pipeline, exactly as
+    // in tick().
+    const std::string sym = symbol.empty() ? "XAUUSD" : symbol;
+    pipeline_->setSymbol(sym);
+    if (timeframe == pipeline_->config().operationalTimeframe) {
+        runDecisionCycle(*newest, now, report);
+    }
+    if (positions_.openCount() > 0) {
+        std::vector<EntityId> closedOutcomes;
+        pipeline_->advancePositions(*newest, now, report.issues, &closedOutcomes);
+        for (const auto& outcomeId : closedOutcomes) {
+            appendAudit(AuditAction::OUTCOME_RECORDED, outcomeId.value(),
+                        "outcome recorded from closed shadow position", now);
+        }
+    }
+
+    // Refresh the health view so the API layer reports ingested state.
+    health_.observeTimeframes(timeframeStore_, now);
+    health_.refreshCache(now);
+
+    const DataQualityState m15 = timeframeStore_.qualityOf(Timeframe::M15);
+    if (!isDecisionGrade(m15)) {
+        mode_ = SystemMode::DEGRADED;
+    } else {
+        mode_ = SystemMode::SHADOW;
+    }
+    return report;
+}
+
 void AuraRuntime::runDecisionCycle(const Bar& closedBar, Timestamp now,
                                    RuntimeCycleReport& report) {
     if (!pipeline_) return;

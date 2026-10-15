@@ -21,6 +21,11 @@ bool StartupCoordinator::resolve(StartupReport& report) {
         report_ = report;
         return false;
     }
+    if (!options_.userRootOverride.empty()) {
+        report.paths.userRootDir = options_.userRootOverride;
+        report.paths.dataDir = PathResolver::join(options_.userRootOverride, "data");
+        report.paths.logDir = PathResolver::join(options_.userRootOverride, "logs");
+    }
 
     report.stage = StartupStage::LOCATING_BUNDLE;
     BundleLocator locator(report.paths);

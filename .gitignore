@@ -1,5 +1,6 @@
 # Build output (BLD-0002)
 build/
+build-linux/
 build-pyinstaller/
 out/
 dist/
@@ -33,6 +34,7 @@ cmake-build-*/
 # Local secrets and environment
 .env
 .env.*
+!.env.example
 *.secret
 *.pem
 *.key

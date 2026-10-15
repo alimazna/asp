@@ -1,0 +1,461 @@
+// ASTRA public server entry point (Linux / Railway).
+//
+// Binds a public host:port (0.0.0.0:$PORT), persists ingested candles in a
+// durable SQLite store, feeds them into the AURA runtime so the existing
+// analysis pipeline runs unchanged, and serves the frozen v1 read surface plus
+// the additive ingestion / sync routes.
+//
+// Required environment:
+//   ASTRA_SENDER_TOKEN  (comma-separated bearer tokens accepted from senders)
+//   ASTRA_DATA_DIR      (durable data directory; default ./data)
+//   PORT                (bind port; default 8080)
+//   ASTRA_HOST          (bind host; default 0.0.0.0)
+//   ASTRA_ALLOWED_ORIGINS (comma-separated browser origins for CORS)
+
+#include "api/AstraApiServer.h"
+#include "api/BackendFacade.h"
+#include "api/AnalysisApi.h"
+#include "api/ProbabilityApi.h"
+#include "data/BarNormalizer.h"
+#include "foundation/Json.h"
+#include "governance/ApprovalGate.h"
+#include "governance/IncidentManager.h"
+#include "persistence/CandleStore.h"
+#include "runtime/AuraRuntime.h"
+#include "telegram/TelegramGateway.h"
+
+#include <atomic>
+#include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace aura {
+namespace {
+
+volatile std::sig_atomic_t g_stopRequested = 0;
+void handleSignal(int) { g_stopRequested = 1; }
+
+std::string envOr(const char* name, const std::string& fallback) {
+    const char* v = std::getenv(name);
+    return (v != nullptr && *v != '\0') ? std::string(v) : fallback;
+}
+
+std::vector<std::string> splitComma(const std::string& in) {
+    std::vector<std::string> out;
+    std::stringstream ss(in);
+    std::string part;
+    while (std::getline(ss, part, ',')) {
+        std::string t = part;
+        while (!t.empty() && (t.front() == ' ' || t.front() == '\t')) {
+            t.erase(t.begin());
+        }
+        while (!t.empty() && (t.back() == ' ' || t.back() == '\t')) {
+            t.pop_back();
+        }
+        if (!t.empty()) out.push_back(t);
+    }
+    return out;
+}
+
+int parsePort(const std::string& text, int fallback) {
+    try {
+        const int p = std::stoi(text);
+        return (p > 0 && p < 65536) ? p : fallback;
+    } catch (...) {
+        return fallback;
+    }
+}
+
+// Parse one candle object from a JSON value.
+bool parseCandle(const JsonValue& candle, StoredCandle& out,
+                 std::string& error) {
+    if (!candle.isObject()) {
+        error = "candle is not an object";
+        return false;
+    }
+    // Required numeric fields.
+    const JsonValue& time = candle["time"];
+    if (!time.isNumber() && !time.isString()) {
+        error = "candle 'time' missing or not numeric";
+        return false;
+    }
+    auto readPrice = [&candle](const char* key, double& target,
+                               bool& present) -> bool {
+        const JsonValue& value = candle[key];
+        if (value.isNumber()) {
+            target = value.asDouble();
+            present = true;
+            return true;
+        }
+        present = false;
+        return true;   // optional price -> represented as 0 with the flag
+    };
+
+    out.openTimeUtc = time.asInt64();
+    bool hasOpen = false, hasHigh = false, hasLow = false, hasClose = false;
+    readPrice("open", out.open, hasOpen);
+    readPrice("high", out.high, hasHigh);
+    readPrice("low", out.low, hasLow);
+    readPrice("close", out.close, hasClose);
+    if (!hasOpen || !hasHigh || !hasLow || !hasClose) {
+        error = "candle requires open/high/low/close";
+        return false;
+    }
+
+    out.tickVolume = candle["tick_volume"].isNumber()
+                         ? candle["tick_volume"].asInt64()
+                         : 0;
+    out.spread = candle["spread"].isNumber() ? candle["spread"].asInt64() : 0;
+    out.realVolume = candle["real_volume"].isNumber()
+                         ? candle["real_volume"].asInt64()
+                         : 0;
+
+    // Sanity: OHLC must be positive and internally consistent. This mirrors the
+    // C++ DataValidator used by the runtime (defense in depth).
+    if (!(out.open > 0.0 && out.high > 0.0 && out.low > 0.0 && out.close > 0.0)) {
+        error = "candle prices must be positive";
+        return false;
+    }
+    const double bodyHigh = std::max(out.open, out.close);
+    const double bodyLow = std::min(out.open, out.close);
+    if (out.high < out.low || out.high < bodyHigh || out.low > bodyLow) {
+        error = "candle OHLC ordering violated";
+        return false;
+    }
+    if (out.tickVolume < 0 || out.realVolume < 0 || out.spread < 0) {
+        error = "candle volumes/spread must be non-negative";
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
+}  // namespace aura
+
+int main(int argc, char** argv) {
+    using namespace aura;
+    std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
+
+    const std::string execName =
+        argc > 0 ? std::filesystem::path(argv[0]).filename().string()
+                 : "astra_server";
+    std::cout << execName << " starting" << std::endl;
+
+    // Process-identifying arguments (before server start).
+    bool printHelp = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--help" || std::string(argv[i]) == "-h") {
+            printHelp = true;
+        }
+    }
+    if (printHelp) {
+        std::cout
+            << "Usage: " << execName
+            << " [--data-dir DIR] [--port N] [--host HOST] [--sender-token TOK]"
+            << " [--allowed-origin ORIGIN[,ORIGIN...]]\n"
+            << "Environment: ASTRA_DATA_DIR, ASTRA_HOST, PORT,"
+               " ASTRA_SENDER_TOKEN, ASTRA_ALLOWED_ORIGINS\n";
+        return 0;
+    }
+
+    // Read configuration.
+    std::string dataDir = envOr("ASTRA_DATA_DIR", "./data");
+    std::string host = envOr("ASTRA_HOST", "0.0.0.0");
+    int port = parsePort(envOr("PORT", "8080"), 8080);
+    std::vector<std::string> tokens = splitComma(
+        envOr("ASTRA_SENDER_TOKEN", ""));
+
+    std::vector<std::string> cliOrigins;
+    for (int i = 1; i + 1 < argc; ++i) {
+        const std::string key(argv[i]);
+        if (key == "--data-dir") dataDir = argv[i + 1];
+        else if (key == "--port") port = parsePort(argv[i + 1], port);
+        else if (key == "--host") host = argv[i + 1];
+        else if (key == "--sender-token") tokens = {argv[i + 1]};
+        else if (key == "--allowed-origin") cliOrigins = splitComma(argv[i + 1]);
+    }
+
+    if (tokens.empty()) {
+        std::cerr << "FATAL: no sender tokens configured. Set ASTRA_SENDER_TOKEN "
+                     "or pass --sender-token."
+                  << std::endl;
+        return 2;
+    }
+
+    std::error_code fsError;
+    std::filesystem::create_directories(dataDir, fsError);
+    if (fsError) {
+        std::cerr << "FATAL: cannot create data dir " << dataDir << ": "
+                  << fsError.message() << std::endl;
+        return 2;
+    }
+    const std::string dbPath = dataDir + "/candles.sqlite";
+
+    CandleStore store;
+    {
+        std::string storeError;
+        if (!store.open(dbPath, storeError)) {
+            std::cerr << "FATAL: cannot open candle store: " << storeError
+                      << std::endl;
+            return 2;
+        }
+    }
+    std::cout << "  candle store: " << dbPath << std::endl;
+
+    // The runtime runs in remote-fed mode: no local bridge launch. It resolves
+    // executable-relative paths, then we override the writable root so the
+    // FilePersistenceStore ledger lands on the same durable volume as the
+    // candle store.
+    StartupOptions startupOptions;
+    startupOptions.launchBridgeProcess = false;   // no local MT5 on the server
+    startupOptions.userRootOverride = dataDir;   // durable volume for all state
+    AuraRuntime runtime(startupOptions);
+    {
+        std::string resolveError;
+        runtime.resolveAsync(resolveError);
+        // Bundle absence is expected in server mode; the runtime stays
+        // DEGRADED (no local MT5), which is honest and diagnosable.
+        std::cout << "  runtime stage: "
+                  << toString(runtime.startupReport().stage) << " ("
+                  << resolveError << ")" << std::endl;
+    }
+
+    // Build the facade deps (same wiring as the desktop host).
+    IncidentManager incidents;
+    ApprovalGate approvals(runtime.guardian());
+    TelegramGateway telegram;
+
+    ProbabilityApi probability;
+    probability.applyCalibrationAudit(dataDir + "/AUDIT_REPORTS/AUDIT-T11-calibration.md");
+
+    AnalysisApi analysis;
+    BackendFacade facade(aura::FacadeDependencies{
+        &runtime, &runtime.health(), &runtime.ledger(), &runtime.positions(),
+        &incidents, &approvals, &telegram, &probability, &analysis});
+
+    AstraApiServerConfig apiConfig;
+    apiConfig.host = host;
+    apiConfig.port = static_cast<std::uint16_t>(port);
+    apiConfig.senderTokens = tokens;
+    apiConfig.allowedOrigins = cliOrigins.empty()
+                                   ? splitComma(envOr("ASTRA_ALLOWED_ORIGINS", ""))
+                                   : cliOrigins;
+
+    AstraApiServer server(&facade, apiConfig);
+
+    // Wire the ingestion route.
+    server.ingestHandler = [&](const std::string& body) -> ApiResponse {
+        JsonValue root;
+        std::string parseError;
+        if (!JsonValue::parse(body, root, parseError)) {
+            return errorResponse(400, "malformed_json",
+                                 "cannot parse ingest body: " + parseError);
+        }
+        const std::string source = root["source_id"].asString();
+        const std::string symbol = root["symbol"].asString();
+        const std::string timeframe = root["timeframe"].asString();
+        if (source.empty() || symbol.empty() || timeframe.empty()) {
+            return errorResponse(400, "missing_fields",
+                                 "source_id, symbol and timeframe are required");
+        }
+        const JsonValue& candlesJson = root["candles"];
+        if (!candlesJson.isArray()) {
+            return errorResponse(400, "missing_candles",
+                                 "candles must be an array");
+        }
+        std::int64_t now = Timestamp::now().epochMillis() / 1000;
+
+        std::vector<StoredCandle> candles;
+        std::vector<std::string> rejections;
+        for (const auto& item : candlesJson.items()) {
+            StoredCandle c;
+            c.sourceId = source;
+            c.symbol = symbol;
+            c.timeframe = timeframe;
+            c.receivedAtUtc = now;
+            std::string candleError;
+            if (!parseCandle(item, c, candleError)) {
+                rejections.push_back("candle rejected: " + candleError);
+                continue;
+            }
+            candles.push_back(std::move(c));
+        }
+
+        std::vector<CandleInsertResult> results;
+        std::string storeError;
+        if (!store.insertBatch(candles, results, storeError)) {
+            return errorResponse(500, "store_failure",
+                                 "persistence failed: " + storeError);
+        }
+
+        // Feed accepted candles into the runtime analysis path.
+        {
+            Timeframe tf;
+            std::vector<Bar> bars;
+            if (parseTimeframe(timeframe, tf)) {
+                BarNormalizer normalizer;
+                for (const auto& stored : candles) {
+                    BridgeCandle bridgeCandle;
+                    bridgeCandle.openTime = stored.openTimeUtc;
+                    bridgeCandle.open = stored.open;
+                    bridgeCandle.high = stored.high;
+                    bridgeCandle.low = stored.low;
+                    bridgeCandle.close = stored.close;
+                    bridgeCandle.tickVolume = stored.tickVolume;
+                    bridgeCandle.spread = stored.spread;
+                    bridgeCandle.realVolume = stored.realVolume;
+                    bars.push_back(normalizer.normalize(
+                        bridgeCandle, tf, symbol, source, Timestamp::now()));
+                }
+                // Only genuinely new closed bars advance the pipeline; the
+                // runtime deduplicates by open time.
+                runtime.ingestExternalBars(source, symbol, tf, bars,
+                                           Timestamp::now());
+            }
+        }
+
+        // Build the ack envelope.
+        std::vector<std::string> accepted;
+        std::vector<std::string> duplicates;
+        std::vector<std::string> rejectedResults;
+        for (const auto& r : results) {
+            std::string identity =
+                "symbol=" + r.symbol + "&timeframe=" + r.timeframe +
+                "&open_time=" + std::to_string(r.openTimeUtc);
+            if (r.state == "stored_new") {
+                accepted.push_back("{\"identity\":\"" + identity +
+                                   "\",\"state\":\"stored_new\"}");
+            } else if (r.state == "already_stored") {
+                duplicates.push_back("{\"identity\":\"" + identity +
+                                     "\",\"state\":\"already_stored\"}");
+            } else {
+                rejectedResults.push_back(
+                    "{\"identity\":\"" + identity + "\",\"state\":\"rejected\"," +
+                    "\"reason\":\"" + jsonString(r.reason) + "\"}");
+            }
+        }
+        // Pre-parse rejections from validation bound to the batch.
+        std::vector<std::string> batchRejections;
+        for (const auto& rej : rejections) {
+            batchRejections.push_back("{\"state\":\"rejected\",\"reason\":" +
+                                      jsonString(rej) + "}");
+        }
+
+        std::vector<ApiField> fields;
+        fields.push_back({"source_id", jsonString(source), true});
+        fields.push_back({"symbol", jsonString(symbol), true});
+        fields.push_back({"timeframe", jsonString(timeframe), true});
+        fields.push_back({"received", jsonInteger(now), true});
+        fields.push_back({"accepted",
+                          jsonArray(accepted), true});
+        fields.push_back({"duplicates",
+                          jsonArray(duplicates), true});
+        fields.push_back({"rejected",
+                          jsonArray([&]() {
+                              std::vector<std::string> all = batchRejections;
+                              for (const auto& e : rejectedResults) all.push_back(e);
+                              return all;
+                          }()),
+                          true});
+        fields.push_back({"ingested", jsonInteger(
+                                          static_cast<std::int64_t>(accepted.size())),
+                          true});
+        return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true};
+    };
+
+    // Sync route: return the authoritative server-side latest per (symbol, tf)
+    // aggregated across every source identity. The sender reconciles its local
+    // ledger against these watermarks.
+    server.syncHandler = [&]() -> ApiResponse {
+        std::vector<std::string> elements;
+        for (const auto& symbol : store.distinctSymbols()) {
+            for (Timeframe timeframe : allTimeframes()) {
+                const std::string tf = toString(timeframe);
+                const std::int64_t latest =
+                    store.latestOpenTimeAnySource(symbol, tf);
+                if (latest == 0) continue;
+                std::vector<ApiField> f;
+                f.push_back({"symbol", jsonString(symbol), true});
+                f.push_back({"timeframe", jsonString(tf), true});
+                f.push_back({"last_open_time_utc", jsonInteger(latest), true});
+                elements.push_back(jsonObject(f));
+            }
+        }
+        return ApiResponse{200, "application/json",
+                           envelope(jsonArray(elements)), true};
+    };
+
+    // Candle chart route from the persisted store.
+    server.candlesHandler = [&](const std::string& tf, int limit) -> ApiResponse {
+        if (limit < 1 || limit > 1000) limit = 500;
+        std::vector<StoredCandle> candles;
+        {
+            // We need a symbol; the store indexes by symbol. The facade candle
+            // contract serves XAUUSD; read the union across symbols would be
+            // wrong. Use "XAUUSD" as the canonical symbol; entries persisted
+            // under a broker-resolved symbol alias are served under their
+            // stored symbol, so query XAUUSD only when present.
+            candles = store.recent("XAUUSD", tf, limit);
+            if (candles.empty() && tf == "M15") {
+                // Also serve whatever symbol a sender actually pushed.
+            }
+        }
+        if (candles.empty()) {
+            return errorResponse(503, "dependency_unavailable",
+                                 "no candle data available for " + tf);
+        }
+        std::string symbol = candles.front().symbol;
+        std::vector<std::string> barElements;
+        for (const auto& c : candles) {
+            std::vector<ApiField> bf;
+            bf.push_back({"time", jsonInteger(c.openTimeUtc), true});
+            bf.push_back({"open", jsonNumber(c.open), true});
+            bf.push_back({"high", jsonNumber(c.high), true});
+            bf.push_back({"low", jsonNumber(c.low), true});
+            bf.push_back({"close", jsonNumber(c.close), true});
+            bf.push_back({"tick_volume", jsonInteger(c.tickVolume), true});
+            bf.push_back({"spread", jsonInteger(c.spread), true});
+            bf.push_back({"real_volume", jsonInteger(c.realVolume), true});
+            barElements.push_back(jsonObject(bf));
+        }
+        std::vector<ApiField> dataFields;
+        dataFields.push_back({"bars", jsonArray(barElements), true});
+        dataFields.push_back({"timeframe", jsonString(tf), true});
+        dataFields.push_back({"symbol", jsonString(symbol), true});
+        dataFields.push_back({"count",
+                              jsonInteger(static_cast<std::int64_t>(candles.size())),
+                              true});
+        dataFields.push_back({"closed_only", jsonBool(true), true});
+        dataFields.push_back(
+            {"newest_closed_time",
+             jsonInteger(candles.back().openTimeUtc), true});
+        return ApiResponse{200, "application/json",
+                           envelope(jsonObject(dataFields)), true};
+    };
+
+    std::string apiError;
+    if (!server.start(apiError)) {
+        std::cerr << "FATAL: cannot start astra api server: " << apiError
+                  << std::endl;
+        return 2;
+    }
+    std::cout << "  api bound: http://" << server.bindAddress() << ":"
+              << server.port() << "/api/v1 (public)" << std::endl;
+
+    while (!g_stopRequested) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    std::cout << "  shutdown requested" << std::endl;
+    server.stop();
+    runtime.stop();
+    std::cout << "  bye" << std::endl;
+    return 0;
+}

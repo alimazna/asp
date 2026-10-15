@@ -1,0 +1,4 @@
+# Runtime: standard library only (urllib, sqlite3, tkinter, json, time).
+# MT5 access requires MetaTrader5 on the Windows host (pip install MetaTrader5).
+# Build:  pip install pyinstaller  (dev only, never required at runtime).
+pyinstaller>=5.13,<7 ; sys_platform == "win32"

@@ -1,0 +1,28 @@
+# Railway service configuration for the astra-server container.
+#
+# Build: the Dockerfile is detected automatically at the repository root.
+# Runtime: astra_server binds 0.0.0.0 and honors $PORT. Secrets (sender token)
+# must be set in the Railway project dashboard — never in this file.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "./astra_server --host=0.0.0.0"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+[deploy.volumes]
+[deploy.volumes.astra-data]
+mountPath = "/opt/astra/data"
+name = "astra-data"
+
+# Environment (set values in the Railway dashboard, not here):
+#   PORT            - assigned by Railway automatically.
+#   ASTRA_SENDER_TOKEN - required: authorization bearer for ingestion/sync.
+#   ASTRA_ALLOWED_ORIGINS - comma-separated Cloudflare/browser origins.
+#   ASTRA_DATA_DIR  - /opt/astra/data (volume above).
+#   ASTRA_BRIDGE_SCRIPT - optional path to the Python bridge service.

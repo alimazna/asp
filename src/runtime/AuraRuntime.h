@@ -77,6 +77,17 @@ public:
     // Ingest one cycle across all canonical timeframes. Never throws; reports.
     RuntimeCycleReport tick(Timestamp now);
 
+    // Remote-fed ingestion: accept validated, time-ordered candles directly
+    // (instead of from the loopback bridge), publish closed bars into the data
+    // bus / timeframe store, and run the same decision pipeline the tick loop
+    // uses. `bars` must be normalized and sorted ascending by openTime. The
+    // returned report mirrors tick(): one entry per accepted timeframe with
+    // per-bar issues. This is the server-side seam used by the public
+    // ingestion API.
+    RuntimeCycleReport ingestExternalBars(
+        const std::string& source, const std::string& symbol, Timeframe timeframe,
+        const std::vector<Bar>& bars, Timestamp now);
+
     void stop();
 
     // Atomic so the API thread can read them while the startup thread finalizes.

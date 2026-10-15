@@ -1,0 +1,59 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller spec for the ASTRA sender single-file executable.
+
+Build on Windows (or in the GitHub Actions workflow):
+    pyinstaller --clean --noconfirm astra_sender.spec
+
+Produces `dist/AstraSender.exe`. The app bundles the bridge mt5_client and
+schemas modules; MetaTrader5 is imported lazily and required on the runtime
+host (it cannot be bundled as a frozen dependency reliably).
+"""
+
+import os
+
+block_cipher = None
+
+# Bundle the real bridge module (mt5_client.py, schemas.py) so symbol
+# discovery and closed-bar semantics are the exact production code.
+BRIDGE_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(SPECPATH)), "bridge", "mt5_python")
+)
+_bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "astra_sender"),
+                  (os.path.join(BRIDGE_DIR, "schemas.py"), "astra_sender")]
+
+a = Analysis(
+    ["astra_sender/__main__.py"],
+    pathex=["."],
+    binaries=[],
+    datas=_bridge_module,
+    hiddenimports=["sqlite3"],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=["matplotlib", "numpy", "pandas", "PIL"],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name="AstraSender",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,  # GUI app; no console window on launch
+    disable_windowed_traceback=False,
+    icon=None,
+)

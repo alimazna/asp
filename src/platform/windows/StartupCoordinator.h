@@ -49,6 +49,9 @@ struct StartupOptions {
     int handshakePollMillis = 250;
     std::string preferredSymbol = "XAUUSD";
     bool launchBridgeProcess = true;
+    // When non-empty, overrides the per-user writable root resolved by
+    // PathResolver (deployment: point durable state at a mounted volume).
+    std::string userRootOverride;
 };
 
 struct StartupReport {

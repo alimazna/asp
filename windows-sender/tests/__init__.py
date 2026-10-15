@@ -1,0 +1,1 @@
+# Test suite for the ASTRA sender (runs on Linux with the fake MT5 module).
