@@ -36,8 +36,11 @@ requests or executes orders and never transmits MT5 account passwords.
 
 2. Get the executable. Either:
 
-   - build it yourself (below), or
-   - download `AstraSender.exe` from the latest GitHub Actions artifact
+   - **download the release asset**: 
+     `https://github.com/alimazna/asp/releases/download/sender-v0.3.0/AstraSender.exe`
+     (built by the *Build Windows Astra Sender* workflow on a Windows runner),
+   - or build it yourself (below),
+   - or download `AstraSender.exe` from the latest GitHub Actions artifact
      (`Actions` tab → workflow *Build Windows Astra Sender* → artifact).
 
 3. Create the config file. On first run the app prints where it looks for

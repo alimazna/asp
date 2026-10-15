@@ -64,10 +64,14 @@
 2. **Cloudflare Pages deployment** — NO Cloudflare credentials available. The
    static frontend builds and passes an in-browser smoke test, but no Pages
    project was created. BLOCKED on credentials.
-3. **Windows .exe artifact** — PyInstaller spec (`windows-sender/astra_sender.spec`)
-   and a CI workflow exist, but a Windows runner has not executed it in this
-   environment. BLOCKED on a Windows GitHub Actions run (repo permissions /
-   runner availability) or a local Windows machine.
+3. **Windows .exe artifact** — **DONE**. The GitHub Actions workflow
+   *Build Windows Astra Sender* ran on a `windows-latest` runner from tag
+   `sender-v0.3.0`: unit tests passed on Windows, the single-file exe was
+   built, the `--version` smoke-run passed, and the artifact
+   `AstraSender-exe` (11,721,635 bytes) was uploaded. A GitHub Release
+   `https://github.com/alimazna/asp/releases/tag/sender-v0.3.0` carries the
+   asset `AstraSender.exe` (11,985,360 bytes). The exe is a valid PE (MZ/PE,
+   subsystem 2 GUI, PyInstaller, Python 3.11).
 4. **Live MT5 terminal integration** — no Windows PC with a logged-in MT5
    terminal is reachable; sender logic is tested against the fake MT5 feed only.
 5. **Railway persistent volume** — `railway.toml` declares the `astra-data`
