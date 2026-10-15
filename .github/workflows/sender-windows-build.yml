@@ -6,6 +6,9 @@ on:
     tags:
       - "sender-*"
 
+permissions:
+  contents: write   # allow attaching the .exe to a GitHub Release on tag push
+
 jobs:
   build-windows:
     runs-on: windows-latest
