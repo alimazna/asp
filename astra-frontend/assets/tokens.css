@@ -1,0 +1,119 @@
+/* ASTRA design tokens — single source of truth for colour, type, space, radius.
+   Palette derived from docs/brand/ASTRA_VISUAL_IDENTITY_REFERENCE.jpg:
+   navy #0A1823, panel #101E2A, light gray #E1E7E7, steel #BDC4CA. */
+
+:root {
+  color-scheme: dark;
+
+  /* --- surfaces (dark, premium navy) --- */
+  --bg:            #0A1622;
+  --bg-deep:       #07101A;
+  --surface:       #101E2A;
+  --surface-2:     #162634;
+  --surface-3:     #1D3040;
+  --overlay:       rgba(5, 11, 18, 0.72);
+
+  /* --- lines --- */
+  --border:        #223648;
+  --border-strong: #2E4759;
+  --hairline:      #1A2A38;
+
+  /* --- text --- */
+  --text:          #EEF3F5;
+  --text-muted:    #AAB4BE;
+  --text-dim:      #7C8B99;
+  --brand-light:   #E1E7E7;
+
+  /* --- brand accent (cool steel / silver) --- */
+  --accent:        #C9D6E2;
+  --accent-strong: #FFFFFF;
+  --accent-soft:   rgba(201, 214, 226, 0.12);
+
+  /* --- semantic status (restrained) --- */
+  --ok:            #3FB27F;
+  --ok-bg:         rgba(63, 178, 127, 0.13);
+  --ok-border:     rgba(63, 178, 127, 0.34);
+  --warn:          #D9A441;
+  --warn-bg:       rgba(217, 164, 65, 0.13);
+  --warn-border:   rgba(217, 164, 65, 0.34);
+  --bad:           #E0575C;
+  --bad-bg:        rgba(224, 87, 92, 0.13);
+  --bad-border:    rgba(224, 87, 92, 0.34);
+  --unknown:       #7C8B99;
+  --unknown-bg:    rgba(124, 139, 153, 0.12);
+  --unknown-border: rgba(124, 139, 153, 0.3);
+
+  /* --- chart --- */
+  --chart-up:      #3FB27F;
+  --chart-down:    #E0575C;
+  --chart-grid:    #1B2B3A;
+  --chart-axis:    #7C8B99;
+  --chart-cross:   rgba(201, 214, 226, 0.45);
+
+  /* --- typography --- */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue",
+               Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Consolas",
+               "Liberation Mono", monospace;
+
+  --fs-2xs: 0.6875rem;  /* 11px */
+  --fs-xs:  0.75rem;    /* 12px */
+  --fs-sm:  0.8125rem;  /* 13px */
+  --fs-md:  0.875rem;   /* 14px */
+  --fs-lg:  1rem;       /* 16px */
+  --fs-xl:  1.25rem;    /* 20px */
+  --fs-2xl: 1.5rem;     /* 24px */
+  --fs-3xl: 2rem;       /* 32px */
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+
+  --lh-tight: 1.2;
+  --lh-snug:  1.35;
+  --lh-base:  1.55;
+
+  /* --- spacing scale (4px base) --- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+
+  /* --- radius --- */
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+
+  /* --- elevation --- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.5);
+
+  /* --- layout --- */
+  --sidebar-w: 232px;
+  --sidebar-w-collapsed: 68px;
+  --header-h: 56px;
+  --content-max: 1600px;
+
+  /* --- motion --- */
+  --t-fast: 120ms ease;
+  --t-base: 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-base: 0ms; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

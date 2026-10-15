@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 120" width="110" height="120" role="img" aria-label="ASTRA symbol">
+  <title>ASTRA symbol — geometric faceted letter A</title>
+  <!-- Faithful web rendering of frontend/qt/src/resources/astra-symbol.svg.
+       Two leg triangles, a crossbar facet, and four hairline fold lines.
+       Colours use currentColor + two fixed facets so the mark reads on dark
+       and light surfaces. -->
+  <polygon points="55,5 15,115 42,115" fill="var(--mark-a, #E1E7E7)"/>
+  <polygon points="55,5 95,115 68,115" fill="var(--mark-b, #AAB4BE)"/>
+  <polygon points="30,62 80,62 80,70 30,70" fill="var(--mark-c, #5A6B80)"/>
+  <g stroke="var(--mark-fold, #162A44)" stroke-width="0.8" opacity="0.55">
+    <line x1="55" y1="5" x2="30" y2="65"/>
+    <line x1="55" y1="5" x2="80" y2="65"/>
+    <line x1="15" y1="115" x2="30" y2="65"/>
+    <line x1="95" y1="115" x2="80" y2="65"/>
+  </g>
+</svg>

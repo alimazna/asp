@@ -1,5 +1,6 @@
 # Build output (BLD-0002)
 build/
+build-*/
 build-linux/
 build-pyinstaller/
 out/
@@ -30,6 +31,8 @@ cmake-build-*/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # Local secrets and environment
 .env

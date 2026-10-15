@@ -189,13 +189,39 @@ int main(int argc, char** argv) {
         envOr("ASTRA_SENDER_TOKEN", ""));
 
     std::vector<std::string> cliOrigins;
-    for (int i = 1; i + 1 < argc; ++i) {
-        const std::string key(argv[i]);
-        if (key == "--data-dir") dataDir = argv[i + 1];
-        else if (key == "--port") port = parsePort(argv[i + 1], port);
-        else if (key == "--host") host = argv[i + 1];
-        else if (key == "--sender-token") tokens = {argv[i + 1]};
-        else if (key == "--allowed-origin") cliOrigins = splitComma(argv[i + 1]);
+    for (int i = 1; i < argc; ++i) {
+        std::string key(argv[i]);
+        std::string inlineValue;
+        // Accept both "--flag value" and "--flag=value". Railway and other
+        // container tooling commonly emit the "=" form, and silently falling
+        // back to the default port when it is used is hard to notice.
+        const auto eq = key.find('=');
+        if (eq != std::string::npos) {
+            inlineValue = key.substr(eq + 1);
+            key = key.substr(0, eq);
+        }
+        const bool hasNext = (i + 1 < argc);
+        const auto value = [&]() -> std::string {
+            return inlineValue.empty() && hasNext ? std::string(argv[i + 1]) : inlineValue;
+        };
+        const bool consumeNext = inlineValue.empty() && hasNext;
+
+        if (key == "--data-dir" && (consumeNext || !inlineValue.empty())) {
+            dataDir = value();
+            if (consumeNext) ++i;
+        } else if (key == "--port" && (consumeNext || !inlineValue.empty())) {
+            port = parsePort(value(), port);
+            if (consumeNext) ++i;
+        } else if (key == "--host" && (consumeNext || !inlineValue.empty())) {
+            host = value();
+            if (consumeNext) ++i;
+        } else if (key == "--sender-token" && (consumeNext || !inlineValue.empty())) {
+            tokens = {value()};
+            if (consumeNext) ++i;
+        } else if (key == "--allowed-origin" && (consumeNext || !inlineValue.empty())) {
+            cliOrigins = splitComma(value());
+            if (consumeNext) ++i;
+        }
     }
 
     if (tokens.empty()) {
@@ -281,6 +307,14 @@ int main(int argc, char** argv) {
             return errorResponse(400, "missing_fields",
                                  "source_id, symbol and timeframe are required");
         }
+        // Validate the timeframe before persisting anything. Storing a candle
+        // whose timeframe the analysis engine cannot map would create a row
+        // that is permanently unusable, so reject the batch up front instead.
+        Timeframe tf;
+        if (!parseTimeframe(timeframe, tf)) {
+            return errorResponse(400, "invalid_timeframe",
+                                 "unsupported timeframe: " + timeframe);
+        }
         const JsonValue& candlesJson = root["candles"];
         if (!candlesJson.isArray()) {
             return errorResponse(400, "missing_candles",
@@ -311,30 +345,28 @@ int main(int argc, char** argv) {
                                  "persistence failed: " + storeError);
         }
 
-        // Feed accepted candles into the runtime analysis path.
+        // Feed accepted candles into the runtime analysis path. The timeframe
+        // was validated above, so it is already known to map.
         {
-            Timeframe tf;
             std::vector<Bar> bars;
-            if (parseTimeframe(timeframe, tf)) {
-                BarNormalizer normalizer;
-                for (const auto& stored : candles) {
-                    BridgeCandle bridgeCandle;
-                    bridgeCandle.openTime = stored.openTimeUtc;
-                    bridgeCandle.open = stored.open;
-                    bridgeCandle.high = stored.high;
-                    bridgeCandle.low = stored.low;
-                    bridgeCandle.close = stored.close;
-                    bridgeCandle.tickVolume = stored.tickVolume;
-                    bridgeCandle.spread = stored.spread;
-                    bridgeCandle.realVolume = stored.realVolume;
-                    bars.push_back(normalizer.normalize(
-                        bridgeCandle, tf, symbol, source, Timestamp::now()));
-                }
-                // Only genuinely new closed bars advance the pipeline; the
-                // runtime deduplicates by open time.
-                runtime.ingestExternalBars(source, symbol, tf, bars,
-                                           Timestamp::now());
+            BarNormalizer normalizer;
+            for (const auto& stored : candles) {
+                BridgeCandle bridgeCandle;
+                bridgeCandle.openTime = stored.openTimeUtc;
+                bridgeCandle.open = stored.open;
+                bridgeCandle.high = stored.high;
+                bridgeCandle.low = stored.low;
+                bridgeCandle.close = stored.close;
+                bridgeCandle.tickVolume = stored.tickVolume;
+                bridgeCandle.spread = stored.spread;
+                bridgeCandle.realVolume = stored.realVolume;
+                bars.push_back(normalizer.normalize(
+                    bridgeCandle, tf, symbol, source, Timestamp::now()));
             }
+            // Only genuinely new closed bars advance the pipeline; the
+            // runtime deduplicates by open time.
+            runtime.ingestExternalBars(source, symbol, tf, bars,
+                                       Timestamp::now());
         }
 
         // Build the ack envelope.
