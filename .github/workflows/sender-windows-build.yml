@@ -42,14 +42,13 @@ jobs:
             Write-Error "AstraSender.exe was not built"
             exit 1
           }
-          # --console with no config exits with code 2 and an actionable message.
-          $env:ASTRA_CONFIG_SMOKE = "1"
-          & .\dist\AstraSender.exe --console 2>&1 | Out-String | Write-Host
-          if ($LASTEXITCODE -eq 2) {
-            Write-Host "Frozen app exits correctly when unconfigured (code 2)"
-            exit 0
+          # --version exits immediately (0) even in windowed mode.
+          & .\dist\AstraSender.exe --version
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Frozen app --version exited with $LASTEXITCODE"
+            exit 1
           }
-          Write-Host "Frozen app exited with code $LASTEXITCODE"
+          Write-Host "Frozen app --version passed (exit 0)"
           exit 0
 
       - name: Upload artifact

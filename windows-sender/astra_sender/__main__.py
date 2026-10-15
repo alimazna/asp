@@ -32,16 +32,31 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
+VERSION = "0.1.0"
+
+
+def _say(text: str) -> None:
+    """Print without crashing when stdout is None (PyInstaller windowed mode)."""
+    if sys.stdout is not None:
+        print(text, flush=True)
+
+
 def main() -> int:
     _module_path_dirs()
 
     parser = argparse.ArgumentParser(prog="astra_sender",
                                      description="ASTRA closed-candle data sender")
+    parser.add_argument("--version", action="store_true",
+                        help="print version and exit")
     parser.add_argument("--config", default="",
                         help="path to config.json (default: app data dir)")
     parser.add_argument("--console", action="store_true",
                         help="run headless, print status to stdout")
     args = parser.parse_args()
+
+    if args.version:
+        _say(f"AstraSender {VERSION}")
+        return 0
 
     from .config import SenderConfig, default_config_path, app_data_dir
     from .engine import SyncEngine
