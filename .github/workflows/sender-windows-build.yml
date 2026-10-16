@@ -282,10 +282,13 @@ jobs:
           if-no-files-found: error
 
       - name: Attach to GitHub Release (on tag push)
+        # A tag push has no `inputs`, so a token-less installer would be built
+        # and published. That is exactly how the owner received a setup that
+        # could not connect: install, launch, "not configured". Only attach the
+        # configured installer, and only when a token was actually available.
         if: startsWith(github.ref, 'refs/tags/sender-')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            windows-sender/dist/AstraSender.exe
-            windows-sender/installer/dist/AstraSenderSetup-*.exe
+            windows-sender/installer/dist/AstraSenderSetup-*-Configured.exe
           fail_on_unmatched_files: true
