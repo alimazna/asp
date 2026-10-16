@@ -25,6 +25,27 @@ requests or executes orders and never transmits MT5 account passwords.
   (sent / acked / dedup / queued / failed), a local event log, pause/resume,
   and reconnect in a lightweight ttk GUI.
 
+## Installing (recommended)
+
+For a normal Windows install that requests permissions (UAC) and keeps its
+files inside the system:
+
+1. Download **`AstraSenderSetup-<version>.exe`** from the releases page.
+2. Double-click it and accept the UAC prompt.
+3. Setup installs the app under `Program Files\AstraSender` and creates
+   `%PROGRAMDATA%\AstraSender` (writable by all users) for the config and the
+   SQLite ledger, plus Start Menu / desktop shortcuts and an uninstaller.
+
+If a `config.json` sits **next to the setup program**, setup copies it into
+`%PROGRAMDATA%\AstraSender\config.json` (only when none exists), so the app is
+configured on first launch with no JSON editing. Otherwise configure it in-app
+with the **Settings** button, or edit the file.
+
+## Portable / single-file use
+
+Prefer no install? Download `AstraSender.exe` and run it directly. It then
+keeps its config and ledger under `%LOCALAPPDATA%\AstraSender`.
+
 ## Quick start (owner's Windows PC)
 
 1. Have the **MetaTrader 5 desktop terminal** installed and logged in on this
@@ -43,7 +64,7 @@ requests or executes orders and never transmits MT5 account passwords.
    - **download the release asset** (verified PE, SHA256
      checksummed by the release workflow),
      built by the *Build Windows Astra Sender* workflow on a Windows runner: 
-     `https://github.com/alimazna/asp/releases/download/sender-v0.4.0/AstraSender.exe`
+     `https://github.com/alimazna/asp/releases/download/sender-v0.4.2/AstraSender.exe`
    - or build it yourself (below),
    - or download `AstraSender.exe` from the latest GitHub Actions artifact
      (`Actions` tab → workflow *Build Windows Astra Sender* → artifact).
