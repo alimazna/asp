@@ -17,11 +17,19 @@ block_cipher = None
 
 # Bundle the real bridge module (mt5_client.py, schemas.py) so symbol
 # discovery and closed-bar semantics are the exact production code.
+#
+# These MUST land at the bundle root, not under astra_sender/. The bridge is a
+# flat module pair: mt5_client.py does `from schemas import TIMEFRAMES`, and the
+# loader in collector.py imports them as top-level modules. Under the source tree
+# bridge/mt5_python is a flat directory on sys.path, so that works. Shipping them
+# inside the package instead produced a frozen app where `astra_sender.mt5_client`
+# raised `ModuleNotFoundError: No module named 'schemas'`, the loader swallowed
+# it, and the GUI reported MT5 UNAVAILABLE while the MT5 package was fine.
 BRIDGE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(SPECPATH)), "bridge", "mt5_python")
 )
-_bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "astra_sender"),
-                  (os.path.join(BRIDGE_DIR, "schemas.py"), "astra_sender")]
+_bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "."),
+                  (os.path.join(BRIDGE_DIR, "schemas.py"), ".")]
 
 # The MT5 diagnostic is a top-level module (imported by `--diag-mt5`), so it
 # must ship as data too; PyInstaller only follows imports from the entry point.

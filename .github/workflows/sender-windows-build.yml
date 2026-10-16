@@ -197,8 +197,30 @@ jobs:
               Write-Error "MetaTrader5 is not bundled in the exe"
               exit 1
             }
+            # The bridge must actually LOAD, not merely be present. A build that
+            # shipped mt5_client.py/schemas.py inside the astra_sender package
+            # passed every other check here and still reported MT5 UNAVAILABLE at
+            # runtime, because `from schemas import TIMEFRAMES` failed once
+            # frozen. This assertion is what would have caught it.
+            if (-not (Select-String -Path .\selfcheck.txt -Pattern "bridge mt5_client: loaded" -Quiet)) {
+              Write-Error "the frozen app could not load the MT5 bridge (mt5_client/schemas)"
+              exit 1
+            }
           } else {
             Write-Error "selfcheck.txt not produced"
+            exit 1
+          }
+
+          # Prove the guard can fail: with the bridge forced unimportable the
+          # self-check must exit non-zero. Without this the assertion above is
+          # only trusted, never tested.
+          $env:ASTRA_SENDER_TEST_BREAK_BRIDGE = "1"
+          $b = Start-Process -FilePath ".\dist\AstraSender.exe" `
+                              -ArgumentList "--selfcheck" -PassThru -Wait
+          Remove-Item Env:\ASTRA_SENDER_TEST_BREAK_BRIDGE
+          Write-Host "broken-bridge self-check exit code: $($b.ExitCode) (expected non-zero)"
+          if ($b.ExitCode -eq 0) {
+            Write-Error "the bridge self-check did not fail on a broken bridge"
             exit 1
           }
 

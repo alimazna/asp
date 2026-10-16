@@ -20,6 +20,7 @@ Exit codes:
     4  mt5.initialize() returned False, or timed out (terminal not reachable)
     5  no gold symbol is available from the broker
     6  the terminal is reachable but returns no usable closed candles
+    7  the sender's MT5 bridge module could not be loaded (a packaging fault)
 """
 
 from __future__ import annotations
@@ -152,6 +153,25 @@ def main() -> int:
         return 2
     _line("MetaTrader5 import:", "OK")
     _line("MetaTrader5 version:", getattr(mt5, "__version__", "unknown"))
+
+    # 1b. Can the SENDER's bridge module load? The GUI reads candles through
+    # mt5_client.py, not through MetaTrader5 directly. If the bridge cannot
+    # import, the GUI reports MT5 UNAVAILABLE even though this diagnostic's own
+    # MetaTrader5 calls would all succeed — the exact contradiction where a
+    # standalone script works but the packaged app does not. Check it explicitly.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import importlib
+        bridge = importlib.import_module("mt5_client")
+        _line("sender bridge:", f"OK ({os.path.basename(bridge.__file__)})")
+    except Exception as exc:
+        _line("sender bridge:", f"FAILED ({type(exc).__name__}: {exc})")
+        print("\nThe sender's MT5 bridge module (mt5_client.py) could not be loaded.")
+        print("This is a PACKAGING fault, not a terminal fault: the MetaTrader5")
+        print("package itself imported fine just above. The GUI reads candles")
+        print("through this bridge, so it would report MT5 UNAVAILABLE while a")
+        print("standalone Python script on the same PC works. Reinstall the app.")
+        return 7
 
     # 2. Can we attach to the running terminal? Bounded so it cannot hang.
     print(f"\nAttaching to the terminal (timeout {_INIT_TIMEOUT_MS} ms)...")
