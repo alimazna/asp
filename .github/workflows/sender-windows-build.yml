@@ -24,6 +24,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyinstaller
+          # Bundle the Windows-only MT5 package so the frozen app reads the
+          # local terminal with no extra setup on the owner's PC.
+          python -m pip install MetaTrader5
 
       - name: Verify sender unit tests on Windows
         working-directory: windows-sender
@@ -69,6 +72,18 @@ jobs:
             exit 1
           }
           Write-Host "Frozen app --selfcheck passed (exit 0)"
+
+          # The windowed exe has no stdout; it writes selfcheck.txt in cwd.
+          if (Test-Path .\selfcheck.txt) {
+            Get-Content .\selfcheck.txt | Write-Host
+            if (-not (Select-String -Path .\selfcheck.txt -Pattern "MetaTrader5: bundled" -Quiet)) {
+              Write-Error "MetaTrader5 is not bundled in the exe"
+              exit 1
+            }
+          } else {
+            Write-Error "selfcheck.txt not produced"
+            exit 1
+          }
           exit 0
 
       - name: Upload artifact

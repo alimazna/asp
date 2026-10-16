@@ -88,7 +88,22 @@ def main() -> int:
             _say(f"GUI modules skipped (tkinter unavailable: {exc})")
         else:
             from .gui import SenderGui  # noqa: F401
-        _say("ASTRA Sender self-check OK")
+
+        lines = ["ASTRA Sender self-check OK"]
+        try:
+            import MetaTrader5  # noqa: F401
+        except ImportError:
+            lines.append("MetaTrader5: NOT bundled")
+        else:
+            lines.append("MetaTrader5: bundled")
+        _say("\n".join(lines))
+        # A windowed exe has no stdout, so write the result where CI can read it.
+        report = os.path.join(os.getcwd(), "selfcheck.txt")
+        try:
+            with open(report, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(lines) + "\n")
+        except OSError:
+            pass
         return 0
 
     from .config import SenderConfig, default_config_path, app_data_dir

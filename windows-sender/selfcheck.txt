@@ -1,0 +1,2 @@
+ASTRA Sender self-check OK
+MetaTrader5: NOT bundled

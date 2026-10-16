@@ -5,8 +5,10 @@ Build on Windows (or in the GitHub Actions workflow):
     pyinstaller --clean --noconfirm astra_sender.spec
 
 Produces `dist/AstraSender.exe`. The app bundles the bridge mt5_client and
-schemas modules; MetaTrader5 is imported lazily and required on the runtime
-host (it cannot be bundled as a frozen dependency reliably).
+schemas modules plus the Windows-only MetaTrader5 package, so the frozen exe
+reads the local terminal with no extra setup on the owner's PC. MetaTrader5 is
+still imported lazily by the bridge, so a missing terminal is reported rather
+than fatal.
 """
 
 import os
