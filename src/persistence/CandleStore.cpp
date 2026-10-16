@@ -2,11 +2,30 @@
 
 #include "persistence/CandleStore.h"
 
+#include "mt5/Mt5BridgeContract.h"
+
 #include <sqlite3.h>
 
 #include <mutex>
 
 namespace aura {
+
+namespace {
+// A row is trustworthy for its timeframe only when its opening timestamp lands
+// on the timeframe grid. Reads apply this so a misaligned row (for example a
+// fabricated candle written before ingest enforced alignment) is never served
+// as a real bar or treated as a real watermark. Timeframes without a fixed grid
+// (D1/W1/MN1) and unknown labels are kept: their alignment cannot be judged.
+//
+// Expressed as a SQL predicate rather than a post-read C++ filter so that LIMIT
+// and MAX() operate on the trustworthy rows only.
+constexpr char kAlignedPredicate[] =
+    "((timeframe NOT IN ('M1','M5','M15','M30','H1','H4'))"
+    " OR (open_time % (CASE timeframe"
+    "   WHEN 'M1' THEN 60 WHEN 'M5' THEN 300 WHEN 'M15' THEN 900"
+    "   WHEN 'M30' THEN 1800 WHEN 'H1' THEN 3600 WHEN 'H4' THEN 14400"
+    " END))=0)";
+}  // namespace
 
 namespace {
 constexpr char kSchema[] =
@@ -186,12 +205,13 @@ std::vector<StoredCandle> CandleStore::recent(const std::string& symbol,
     if (db_ == nullptr) return out;
 
     sqlite3_stmt* stmt = nullptr;
-    const char* sql =
-        "SELECT source_id, symbol, timeframe, open_time, open, high, low, close,"
-        "       tick_volume, spread, real_volume, received_at"
-        " FROM candles WHERE symbol=?1 AND timeframe=?2"
-        " ORDER BY open_time ASC LIMIT ?3;";
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    const std::string sql =
+        std::string("SELECT source_id, symbol, timeframe, open_time, open, high,"
+                    "       low, close, tick_volume, spread, real_volume,"
+                    "       received_at"
+                    " FROM candles WHERE symbol=?1 AND timeframe=?2 AND ") +
+        kAlignedPredicate + " ORDER BY open_time ASC LIMIT ?3;";
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
     }
@@ -225,11 +245,11 @@ std::vector<CandleSyncPoint> CandleStore::syncPoints(
     if (db_ == nullptr) return out;
 
     sqlite3_stmt* stmt = nullptr;
-    const char* sql =
-        "SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
-        " FROM candles WHERE source_id=?1 AND symbol=?2"
-        " GROUP BY symbol, timeframe;";
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    const std::string sql =
+        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
+                    " FROM candles WHERE source_id=?1 AND symbol=?2 AND ") +
+        kAlignedPredicate + " GROUP BY symbol, timeframe;";
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
     }
@@ -254,11 +274,11 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
     if (db_ == nullptr) return out;
 
     sqlite3_stmt* stmt = nullptr;
-    const char* sql =
-        "SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
-        " FROM candles WHERE source_id=?1"
-        " GROUP BY symbol, timeframe;";
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    const std::string sql =
+        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
+                    " FROM candles WHERE source_id=?1 AND ") +
+        kAlignedPredicate + " GROUP BY symbol, timeframe;";
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
     }
@@ -330,11 +350,15 @@ std::int64_t CandleStore::latestOpenTimeAnySource(
     std::lock_guard<std::mutex> lock(mutex_);
     if (db_ == nullptr) return 0;
     sqlite3_stmt* stmt = nullptr;
-    const char* sql =
-        "SELECT COALESCE(MAX(open_time),0) FROM candles"
-        " WHERE symbol=?1 AND timeframe=?2;";
+
+    // Only grid-aligned rows count as a real watermark for the timeframe, so a
+    // leftover misaligned row cannot masquerade as the newest real candle.
+    const std::string sql =
+        std::string("SELECT COALESCE(MAX(open_time),0) FROM candles"
+                    " WHERE symbol=?1 AND timeframe=?2 AND ") +
+        kAlignedPredicate + ";";
     std::int64_t out = 0;
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
     }

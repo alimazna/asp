@@ -62,15 +62,15 @@ TEST_CASE(CandleStoreTest_DeduplicatesByIdentity) {
 
     std::vector<CandleInsertResult> results;
     std::vector<StoredCandle> candles;
-    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1000));
-    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1000));  // dup
-    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 2000));
-    candles.push_back(makeCandle("s2", "XAUUSD", "M5", 3000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 9000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 9000));  // dup
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 18000));
+    candles.push_back(makeCandle("s2", "XAUUSD", "M5", 45000));
 
     CHECK_TRUE(store.insertBatch(candles, results, error));
     CHECK_EQ(static_cast<std::size_t>(4), results.size());
 
-    // s1/M15/1000 stored once, then duplicate reported.
+    // s1/M15/9000 stored once, then duplicate reported.
     CHECK_EQ(std::string("stored_new"), results[0].state);
     CHECK_EQ(std::string("already_stored"), results[1].state);
     CHECK_EQ(std::string("stored_new"), results[2].state);
@@ -84,8 +84,8 @@ TEST_CASE(CandleStoreTest_DeduplicatesByIdentity) {
     // Distinct query by identity.
     const auto recent = store.recent("XAUUSD", "M15", 100);
     CHECK_EQ(std::size_t(2), recent.size());
-    CHECK_EQ(std::int64_t(1000), recent[0].openTimeUtc);
-    CHECK_EQ(std::int64_t(2000), recent[1].openTimeUtc);
+    CHECK_EQ(std::int64_t(9000), recent[0].openTimeUtc);
+    CHECK_EQ(std::int64_t(18000), recent[1].openTimeUtc);
 
     std::remove(path.c_str());
 }
@@ -99,11 +99,11 @@ TEST_CASE(CandleStoreTest_SyncPointsExposeNewestOpenTime) {
 
     std::vector<CandleInsertResult> results;
     std::vector<StoredCandle> candles;
-    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1000));
-    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 2000));
-    candles.push_back(makeCandle("s1", "XAUUSD", "H1", 3000));
-    candles.push_back(makeCandle("s1", "XAUUSD", "H1", 4000));
-    candles.push_back(makeCandle("s1", "GOLD", "M5", 5000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 9000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 18000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "H1", 36000));
+    candles.push_back(makeCandle("s1", "XAUUSD", "H1", 72000));
+    candles.push_back(makeCandle("s1", "GOLD", "M5", 45000));
     CHECK_TRUE(store.insertBatch(candles, results, error));
     CHECK_EQ(std::size_t(5), results.size());
 
@@ -114,11 +114,11 @@ TEST_CASE(CandleStoreTest_SyncPointsExposeNewestOpenTime) {
     for (const auto& p : points) {
         if (p.timeframe == "M15") {
             foundM15 = true;
-            CHECK_EQ(std::int64_t(2000), p.lastOpenTimeUtc);
+            CHECK_EQ(std::int64_t(18000), p.lastOpenTimeUtc);
             CHECK_EQ(std::int64_t(2), p.count);
         } else if (p.timeframe == "H1") {
             foundH1 = true;
-            CHECK_EQ(std::int64_t(4000), p.lastOpenTimeUtc);
+            CHECK_EQ(std::int64_t(72000), p.lastOpenTimeUtc);
         }
     }
     CHECK_TRUE(foundM15);
@@ -127,9 +127,9 @@ TEST_CASE(CandleStoreTest_SyncPointsExposeNewestOpenTime) {
     const auto symbols = store.distinctSymbols();
     CHECK_EQ(std::size_t(2), symbols.size());
 
-    CHECK_EQ(std::int64_t(2000),
+    CHECK_EQ(std::int64_t(18000),
              store.latestOpenTime("s1", "XAUUSD", "M15"));
-    CHECK_EQ(std::int64_t(4000),
+    CHECK_EQ(std::int64_t(72000),
              store.latestOpenTimeAnySource("XAUUSD", "H1"));
     CHECK_EQ(std::int64_t(0),
              store.latestOpenTimeAnySource("XAUUSD", "MN1"));
@@ -159,6 +159,39 @@ TEST_CASE(CandleStoreTest_PersistsAcrossReopen) {
         CHECK_EQ(std::size_t(1), recent.size());
         CHECK_EQ(std::int64_t(8000), recent[0].openTimeUtc);
     }
+
+    std::remove(path.c_str());
+}
+
+TEST_CASE(CandleStoreTest_WithholdsMisalignedRows) {
+    const std::string path = tempDbPath();
+    std::string error;
+
+    CandleStore store;
+    CHECK_TRUE(store.open(path, error));
+
+    // A misaligned M15 row (1792068271 is not a multiple of 900) simulates data
+    // written before ingest enforced grid alignment. It must never be served as
+    // a real bar or treated as a real watermark, even though it is persisted.
+    std::vector<CandleInsertResult> results;
+    std::vector<StoredCandle> candles;
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1792068271));  // bad
+    candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1792068300));  // good
+    CHECK_TRUE(store.insertBatch(candles, results, error));
+    CHECK_EQ(std::size_t(2), results.size());
+    CHECK_EQ(std::string("stored_new"), results[0].state);
+
+    const auto recent = store.recent("XAUUSD", "M15", 10);
+    CHECK_EQ(std::size_t(1), recent.size());
+    CHECK_EQ(std::int64_t(1792068300), recent[0].openTimeUtc);
+
+    const auto points = store.syncPoints("s1", "XAUUSD");
+    CHECK_EQ(std::size_t(1), points.size());
+    CHECK_EQ(std::int64_t(1792068300), points[0].lastOpenTimeUtc);
+    CHECK_EQ(std::int64_t(1), points[0].count);
+
+    CHECK_EQ(std::int64_t(1792068300),
+             store.latestOpenTimeAnySource("XAUUSD", "M15"));
 
     std::remove(path.c_str());
 }
