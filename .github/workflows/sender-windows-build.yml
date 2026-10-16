@@ -94,6 +94,30 @@ jobs:
             Write-Host "installer: $($_.Name) $($_.Length) bytes"
           }
 
+      - name: Verify the installer provisions the config (silent install)
+        if: github.event.inputs.embed == '1'
+        working-directory: windows-sender
+        shell: pwsh
+        run: |
+          # End-to-end proof of "install and run with no edits": run the setup
+          # silently and confirm the app lands in Program Files and the
+          # provisioned config lands in ProgramData with a non-empty token.
+          # Only lengths are printed, never the token value.
+          $setup = Get-ChildItem .\installer\dist -Filter *Configured*.exe | Select-Object -First 1
+          if (-not $setup) { throw "no configured installer produced" }
+          Start-Process -FilePath $setup.FullName `
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+
+          $cfg = Join-Path $env:PROGRAMDATA 'AstraSender\config.json'
+          if (-not (Test-Path $cfg)) { throw "config was not provisioned at $cfg" }
+          $j = Get-Content $cfg -Raw | ConvertFrom-Json
+          if (-not $j.sender_token) { throw "provisioned token is empty" }
+          Write-Host "config provisioned: backend=$($j.backend_url) sender_id=$($j.sender_id) token_len=$($j.sender_token.Length) timeframes=$($j.timeframes -join ',')"
+
+          $app = Join-Path $env:ProgramFiles 'AstraSender\AstraSender.exe'
+          if (-not (Test-Path $app)) { throw "app was not installed at $app" }
+          Write-Host "app installed: $app"
+
       - name: Smoke-run the frozen app (headless)
         working-directory: windows-sender
         env:
