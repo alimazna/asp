@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 INGEST_PATH = "/api/v1/candles/ingest"
 SYNC_PATH = "/api/v1/sync/latest"
+HEALTH_PATH = "/api/v1/health"
 
 
 class ProtocolError(Exception):
@@ -108,3 +109,11 @@ class ServerClient:
         if source_id:
             path = f"{SYNC_PATH}?source_id={urllib.parse.quote(source_id, safe='')}"
         return self._request(path, "GET")
+
+    def ping(self) -> Dict[str, Any]:
+        """Authenticated reachability probe used to report server state.
+
+        Lets the sender distinguish "server unreachable" from "server reachable
+        but local MT5 is down", instead of leaving the status stuck on STARTING.
+        """
+        return self._request(HEALTH_PATH, "GET")

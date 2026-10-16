@@ -38,10 +38,12 @@ class SenderGui:
         row = ttk.Frame(frame)
         row.pack(fill=tk.X, pady=(0, 8))
         ttk.Label(row, text="MT5 terminal:").pack(side=tk.LEFT)
-        self.mt5_label = ttk.Label(row, text="...", width=20, anchor="w")
+        self.mt5_label = tk.Label(row, text="...", width=20, anchor="w",
+                                  bg="#fff", relief=tk.SUNKEN, bd=1)
         self.mt5_label.pack(side=tk.LEFT, padx=(6, 24))
         ttk.Label(row, text="Server:").pack(side=tk.LEFT)
-        self.server_label = ttk.Label(row, text="...", width=20, anchor="w")
+        self.server_label = tk.Label(row, text="...", width=20, anchor="w",
+                                     bg="#fff", relief=tk.SUNKEN, bd=1)
         self.server_label.pack(side=tk.LEFT, padx=(6, 0))
 
         # Symbol + timeframes.
@@ -54,6 +56,10 @@ class SenderGui:
         ttk.Label(info, text="Timeframes:").pack(side=tk.LEFT)
         tf_text = ", ".join(self._config.timeframes)
         ttk.Label(info, text=tf_text).pack(side=tk.LEFT, padx=(6, 0))
+
+        # Last successful sync time.
+        self.sync_label = ttk.Label(frame, text="Last sync: -", foreground="#555")
+        self.sync_label.pack(fill=tk.X, pady=(0, 4))
 
         # Last candle per timeframe (two-line grid).
         candles_frame = ttk.LabelFrame(frame, text="Candles (last read / last acked, per timeframe)",
@@ -80,7 +86,12 @@ class SenderGui:
         # Status/error line.
         self.status_label = ttk.Label(frame, text="starting...", wraplength=520,
                                       foreground="#333")
-        self.status_label.pack(fill=tk.X, pady=(4, 6))
+        self.status_label.pack(fill=tk.X, pady=(4, 0))
+        # Second, muted line: the actionable reason (e.g. MT5 closed/not logged
+        # in), kept separate so the main status stays scannable.
+        self.reason_label = ttk.Label(frame, text="", wraplength=520,
+                                      foreground="#8a4b00", justify=tk.LEFT)
+        self.reason_label.pack(fill=tk.X, pady=(0, 6))
 
         # Local event log.
         ttk.Label(frame, text="Local event log:").pack(anchor="w")
@@ -181,9 +192,20 @@ class SenderGui:
 
     # -- engine integration -------------------------------------------------
 
+    @staticmethod
+    def _state_colour(state: str) -> str:
+        if state in ("READY", "ONLINE"):
+            return "#006400"   # green
+        if state in ("STARTING", "OFFLINE", "..."):
+            return "#8a6d00"   # amber
+        return "#b00020"       # red (UNAVAILABLE, ERROR, AUTH_FAILED)
+
     def update_from_status(self, snapshot: Dict[str, Any]) -> None:
-        self.mt5_label.config(text=snapshot.get("mt5_state", "..."))
-        self.server_label.config(text=snapshot.get("server_state", "..."))
+        mt5_state = snapshot.get("mt5_state", "...")
+        server_state = snapshot.get("server_state", "...")
+        self.mt5_label.config(text=mt5_state, fg=self._state_colour(mt5_state))
+        self.server_label.config(text=server_state,
+                                 fg=self._state_colour(server_state))
         self.symbol_label.config(text=snapshot.get("resolved_symbol") or self._config.symbol)
         sent = snapshot.get("sent", 0)
         acked = snapshot.get("acknowledged", 0)
@@ -198,11 +220,35 @@ class SenderGui:
 
         last_error = snapshot.get("last_error", "")
         last_sync = snapshot.get("last_sync_at")
-        if last_error:
-            self.status_label.config(text=f"Error: {last_error}", fg="#b00020")
-        elif snapshot.get("running"):
+        mt5_state = snapshot.get("mt5_state", "")
+        server_state = snapshot.get("server_state", "")
+
+        if mt5_state == "UNAVAILABLE":
+            self.status_label.config(text="Stopped: MT5 terminal not available",
+                                     fg="#b00020")
+        elif server_state in ("ERROR", "AUTH_FAILED", "OFFLINE"):
+            self.status_label.config(text=f"Stopped: server {server_state.lower()}",
+                                     fg="#b00020")
+        elif server_state == "ONLINE" and mt5_state == "READY":
             self.status_label.config(text="Running (shadow data, read-only)",
                                      fg="#006400")
+        elif snapshot.get("running"):
+            self.status_label.config(text="Starting...", fg="#333")
+
+        # Show the actionable reason. Prefer the explicit error, and fall back
+        # to a plain description of the current blocked state.
+        reason = last_error
+        if not reason:
+            if mt5_state == "UNAVAILABLE":
+                reason = "open the MT5 terminal and log in; retrying automatically"
+            elif server_state == "AUTH_FAILED":
+                reason = "server rejected the credential; check Settings"
+            elif server_state == "ERROR":
+                reason = "cannot reach the server; retrying with backoff"
+        self.reason_label.config(text=reason)
+
+        if last_sync:
+            self.sync_label.config(text=f"Last sync: {last_sync}")
 
         for tf, value in (snapshot.get("last_candle_per_timeframe") or {}).items():
             if isinstance(value, dict):

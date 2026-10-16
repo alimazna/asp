@@ -84,7 +84,7 @@ jobs:
           if ($tok -and $embed) {
             Write-Host "single installer: embedding config (token hidden)"
             $args += "/DEmbedConfig=1"
-            $args += '/FAstraSenderSetup-0.4.2-Configured'
+            $args += '/FAstraSenderSetup-0.4.3-Configured'
           } else {
             Write-Host "generic installer (config read from beside the setup)"
           }

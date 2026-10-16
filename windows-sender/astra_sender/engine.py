@@ -34,8 +34,10 @@ class EngineStatus:
     """Thread-safe snapshot exposed to the GUI."""
 
     running: bool = False
-    mt5_state: str = "OFFLINE"          # OFFLINE | READY | UNAVAILABLE
-    server_state: str = "OFFLINE"       # OFFLINE | ONLINE | AUTH_FAILED | ERROR
+    mt5_state: str = "OFFLINE"          # OFFLINE | STARTING | READY | UNAVAILABLE
+    server_state: str = "OFFLINE"       # OFFLINE | STARTING | ONLINE | AUTH_FAILED | ERROR
+    mt5_error_code: str = ""            # stable code, e.g. MT5_TERMINAL_UNAVAILABLE
+    server_error_code: str = ""
     resolved_symbol: str = ""
     last_error: str = ""
     last_sync_at: int = 0                # UTC epoch of last good loop
@@ -52,6 +54,8 @@ class EngineStatus:
             "running": self.running,
             "mt5_state": self.mt5_state,
             "server_state": self.server_state,
+            "mt5_error_code": self.mt5_error_code,
+            "server_error_code": self.server_error_code,
             "resolved_symbol": self.resolved_symbol,
             "last_error": self.last_error,
             "last_sync_at": self.last_sync_at,
@@ -144,35 +148,71 @@ class SyncEngine:
             try:
                 self._sync_once()
                 attempt = 0
-                self._update_status(last_error="")
+                # A completed loop proves the server accepted our credential and
+                # answered. Without this the Server field never left STARTING,
+                # which read as a permanent hang even when sync was healthy.
+                self._update_status(server_state="ONLINE", server_error_code="",
+                                    last_error="")
                 self._stop_event.wait(self._config.poll_interval_seconds)
             except ProtocolError as exc:
                 attempt += 1
                 if exc.code == "SENDER_AUTH_REJECTED" or "authorization" in exc.message.lower():
                     self._update_status(server_state="AUTH_FAILED",
+                                        server_error_code=exc.code,
                                         last_error=f"server rejected credential: {exc.message}")
                 else:
                     self._update_status(server_state="ERROR",
+                                        server_error_code=exc.code,
                                         last_error=f"server: {exc.message}")
                 self._stop_event.wait(_backoff_delay(min(attempt, 8)))
             except Exception as exc:  # pragma: no cover - defensive
                 attempt += 1
-                self._update_status(last_error=f"unexpected: {exc}")
+                self._update_status(server_state="ERROR",
+                                    server_error_code="UNEXPECTED",
+                                    last_error=f"unexpected: {exc}")
                 self._stop_event.wait(_backoff_delay(min(attempt, 8)))
 
     def _set_mt5_state(self, result: Dict[str, Any]) -> None:
         if result["ok"]:
-            self._update_status(mt5_state="READY",
+            self._update_status(mt5_state="READY", mt5_error_code="",
                                 resolved_symbol=self._collector.resolved_symbol)
         else:
-            self._update_status(mt5_state="UNAVAILABLE", last_error=result.get("message", ""))
+            code = str(result.get("error_code") or "")
+            self._update_status(mt5_state="UNAVAILABLE", mt5_error_code=code,
+                                last_error=self._mt5_hint(code, result.get("message", "")))
+
+    @staticmethod
+    def _mt5_hint(code: str, message: str) -> str:
+        """Turn a stable MT5 error code into actionable guidance.
+
+        The GUI shows the reason a terminal read failed. Without this the user
+        only saw "UNAVAILABLE" with no clue whether the package, the terminal,
+        the login, or the symbol was at fault.
+        """
+        if code == "MT5_CLIENT_MISSING":
+            return ("sender is missing its MT5 bridge module; reinstall the app "
+                    f"({message})")
+        if code == "MT5_TERMINAL_UNAVAILABLE":
+            return ("MetaTrader5 is not reachable. Open the MT5 desktop terminal, "
+                    "log in to your account, and enable Tools > Options > Expert "
+                    "Advisors > 'Allow algorithmic trading', then wait for a retry. "
+                    f"({message})")
+        if code == "MT5_SYMBOL_UNRESOLVED":
+            return ("no XAUUSD/GOLD symbol is visible in MT5. Add the gold symbol "
+                    f"to Market Watch in the terminal. ({message})")
+        if code in ("MARKET_DATA_MISSING", "MARKET_DATA_INVALID"):
+            return f"MT5 returned no usable closed candle: {message}"
+        return f"MT5 unavailable ({code or 'unknown'}): {message}"
 
     def _sync_once(self) -> None:
         result = self._ensure_collector()
         if not result["ok"]:
             self._set_mt5_state(result)
+            # MT5 being down must not hide the server state. Probe the backend
+            # so the user can tell "server unreachable" from "local MT5 down".
+            self._probe_server()
             return
-        self._update_status(mt5_state="READY",
+        self._update_status(mt5_state="READY", mt5_error_code="",
                             resolved_symbol=self._collector.resolved_symbol)
 
         if not self._reconciled:
@@ -194,6 +234,28 @@ class SyncEngine:
 
         self._update_status(last_sync_at=int(time.time()))
         self._update_status(queued=len(self._ledger.pending_identities()))
+        # Every send in this pass succeeded, so the credential is accepted and
+        # the server answered. Record that here rather than only in the loop, so
+        # the state is correct no matter which entry point drove the sync.
+        self._update_status(server_state="ONLINE", server_error_code="")
+
+    def _probe_server(self) -> None:
+        """Authenticated reachability probe; never raises into the loop."""
+        try:
+            self._client.ping()
+        except ProtocolError as exc:
+            if exc.code == "SENDER_AUTH_REJECTED" or "authorization" in exc.message.lower():
+                self._update_status(server_state="AUTH_FAILED",
+                                    server_error_code=exc.code)
+            else:
+                self._update_status(server_state="ERROR",
+                                    server_error_code=exc.code)
+        except Exception as exc:  # pragma: no cover - defensive
+            self._update_status(server_state="ERROR",
+                                server_error_code="UNEXPECTED")
+            self._update_status(last_error=f"server probe failed: {exc}")
+        else:
+            self._update_status(server_state="ONLINE", server_error_code="")
 
     # -- reconciliation -----------------------------------------------------
 

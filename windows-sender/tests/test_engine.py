@@ -72,6 +72,13 @@ class FakeAstraServer(BaseHTTPRequestHandler):
         return header == f"Bearer {self.auth_token}"
 
     def do_GET(self):  # noqa: N802
+        if self.path.startswith("/api/v1/health"):
+            if not self._auth_ok():
+                self._reply(401, {"error": "true", "code": "unauthorized"})
+                return
+            self._reply(200, {"api": "v1", "schema": "1.0",
+                              "data": {"status": "ok"}})
+            return
         if self.path.startswith("/api/v1/sync/latest"):
             if not self._auth_ok():
                 self._reply(401, {"error": "true", "code": "unauthorized"})
@@ -214,12 +221,42 @@ class EngineTest(EngineTearDownMixin, unittest.TestCase):
                         "latest closed candle should be acknowledged")
         snapshot = engine.status_snapshot()
         self.assertEqual(snapshot["mt5_state"], "READY")
-        self.assertEqual(snapshot["server_state"], "ERROR"
-                         if snapshot["server_state"] == "STARTING" else
-                         snapshot["server_state"])
+        self.assertEqual(snapshot["server_state"], "ONLINE")
         # At least one ingest request went out.
         self.assertGreaterEqual(len(FakeAstraServer.requests), 1)
         ledger.close()
+
+    def test_mt5_down_still_reports_server_online(self):
+        """A dead terminal must not mask a healthy backend.
+
+        Regression: the Server field used to stay STARTING forever whenever MT5
+        was unavailable, because the loop returned before any server call.
+        """
+        os.environ["FAKE_MT5_AVAILABLE"] = "0"
+        engine = self._make_engine()
+        engine._sync_once()
+        snapshot = engine.status_snapshot()
+        self.assertEqual(snapshot["mt5_state"], "UNAVAILABLE")
+        self.assertEqual(snapshot["server_state"], "ONLINE")
+        self.assertEqual(snapshot["mt5_error_code"], "MT5_TERMINAL_UNAVAILABLE")
+        self.assertIn("MetaTrader5 is not reachable", snapshot["last_error"])
+        os.environ["FAKE_MT5_AVAILABLE"] = "1"
+        ledger = DeliveryLedger(self.config.ledger_path)
+        ledger.close()
+
+    def test_unreachable_server_reports_error_not_starting(self):
+        """Server state must be truthful when the backend cannot be reached.
+
+        Exercises the reachability probe directly: this is the path the loop
+        takes while MT5 is down, and it used to leave the field on STARTING.
+        """
+        engine = self._make_engine()
+        engine._client._base = "http://127.0.0.1:1"  # nothing listens here
+        engine._client._timeout = 2
+        engine._probe_server()
+        snapshot = engine.status_snapshot()
+        self.assertEqual(snapshot["server_state"], "ERROR")
+        self.assertEqual(snapshot["server_error_code"], "NETWORK")
 
     def test_restart_does_not_resend_acked_candle(self):
         engine = self._make_engine()

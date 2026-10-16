@@ -43,7 +43,7 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 
 # Pre-filled into the first-run config template so the user only pastes a token.
 DEFAULT_BACKEND_URL = "https://astra-server-production.up.railway.app"
