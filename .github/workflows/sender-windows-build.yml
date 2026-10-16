@@ -76,7 +76,7 @@ jobs:
             poll_interval_seconds = 30
             catchup_max_bars = 200
             request_timeout_seconds = 30
-          } | ConvertTo-Json | Set-Content -Encoding utf8 .\config.json
+          } | ConvertTo-Json | Set-Content -Encoding utf8 .\installer\config.json
           Remove-Item Env:INPUT_TOKEN, Env:ASTRA_SENDER_TOKEN -ErrorAction SilentlyContinue
 
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
@@ -89,7 +89,7 @@ jobs:
             Write-Host "generic installer (config read from beside the setup)"
           }
           & $iscc @args ".\installer\astra_sender.iss"
-          Remove-Item .\config.json -Force -ErrorAction SilentlyContinue
+          Remove-Item .\installer\config.json -Force -ErrorAction SilentlyContinue
           Get-ChildItem .\installer\dist -Filter *.exe | ForEach-Object {
             Write-Host "installer: $($_.Name) $($_.Length) bytes"
           }
