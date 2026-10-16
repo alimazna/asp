@@ -25,8 +25,9 @@ _bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "astra_sender"),
 
 # The MT5 diagnostic is a top-level module (imported by `--diag-mt5`), so it
 # must ship as data too; PyInstaller only follows imports from the entry point.
-_diag_module = [(os.path.join(os.path.dirname(os.path.abspath(SPECPATH)),
-                              "diag_mt5.py"), ".")]
+# SPECPATH is the spec's own directory (windows-sender/), which is where
+# diag_mt5.py lives.
+_diag_module = [(os.path.join(os.path.abspath(SPECPATH), "diag_mt5.py"), ".")]
 
 # mt5_client is shipped as a *data* file (so its source is the exact production
 # bridge code), which means PyInstaller never scans it and would miss its
