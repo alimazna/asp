@@ -23,16 +23,24 @@ BRIDGE_DIR = os.path.normpath(
 _bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "astra_sender"),
                   (os.path.join(BRIDGE_DIR, "schemas.py"), "astra_sender")]
 
+# mt5_client is shipped as a *data* file (so its source is the exact production
+# bridge code), which means PyInstaller never scans it and would miss its
+# `import MetaTrader5`. MetaTrader5 is only installable on Windows, so it is
+# listed here rather than imported at build time.
+_hidden = ["sqlite3"]
+if os.name == "nt":
+    _hidden += ["MetaTrader5", "numpy"]
+
 a = Analysis(
     ["astra_sender/__main__.py"],
     pathex=["."],
     binaries=[],
     datas=_bridge_module,
-    hiddenimports=["sqlite3"],
+    hiddenimports=_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["matplotlib", "numpy", "pandas", "PIL"],
+    excludes=["matplotlib", "pandas", "PIL"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
