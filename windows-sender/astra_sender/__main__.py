@@ -43,7 +43,7 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
-VERSION = "0.1.0"
+VERSION = "0.4.0"
 
 
 def _say(text: str) -> None:
