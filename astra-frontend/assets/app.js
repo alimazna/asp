@@ -339,7 +339,8 @@ views.dashboard = function (mount) {
     api("/api/v1/analysis/latest"),
     api("/api/v1/bridge/status"),
     api("/api/v1/shadow/outcomes"),
-  ]).then(([health, system, tfs, analysis, bridge, outcomes]) => {
+    api("/api/v1/candles", { tf: "M15", limit: 60 }),
+  ]).then(([health, system, tfs, analysis, bridge, outcomes, m15]) => {
     clear(body);
     const healthD = health.status === "fulfilled" ? health.value : null;
     const systemD = system.status === "fulfilled" ? system.value : null;
@@ -357,6 +358,13 @@ views.dashboard = function (mount) {
     }
 
     const cov = A.coverageSummary(tfsD);
+    /* M15 currently holds non-MT5 rows; its "observed" flag comes from them, so
+       the coverage figure is reported without M15 rather than overstated. */
+    const m15Bars = m15.status === "fulfilled" && m15.value
+      && Array.isArray(m15.value.bars) ? m15.value.bars : [];
+    const m15Untrusted = m15Bars.length > 0
+      && !A.candleBatchIntegrity(m15Bars, "M15").ok;
+    const observedHonest = m15Untrusted ? Math.max(cov.observed - 1, 0) : cov.observed;
 
     /* degraded banner — honest, prominent */
     if (healthD && healthD.aggregate && healthD.aggregate !== "OK") {
@@ -418,8 +426,9 @@ views.dashboard = function (mount) {
     const lastBar = analysisD && analysisD.timestamp ? analysisD.timestamp : null;
     metrics.appendChild(metricText("Latest analysis", lastBar, "backend analysis timestamp", true));
     metrics.appendChild(metricText("Timeframe coverage",
-      cov.observed + " / " + cov.total + " observed",
-      cov.decisionGrade + " decision-grade"));
+      observedHonest + " / " + cov.total + " observed",
+      cov.decisionGrade + " decision-grade"
+        + (m15Untrusted ? " (M15 excluded: non-MT5 rows)" : "")));
     metrics.appendChild(metricText("Data grade",
       healthD ? (healthD.decision_grade_data ? "DECISION GRADE" : "DEGRADED") : null,
       "decision_grade_data"));
@@ -438,7 +447,8 @@ views.dashboard = function (mount) {
     /* coverage matrix + warnings */
     const row = h("div", { class: "grid grid--2-1" });
     row.appendChild(card("Timeframe Coverage",
-      tfsD ? matrixNode(tfsD, false) : stateBlock("Coverage unavailable",
+      tfsD ? matrixNode(tfsD, false, { untrustedTfs: m15Untrusted ? ["M15"] : [] })
+        : stateBlock("Coverage unavailable",
         "The /api/v1/timeframes endpoint did not respond.")));
 
     const warnBody = h("div", { class: "card__body stack" });
@@ -467,25 +477,30 @@ views.dashboard = function (mount) {
 };
 
 /* --- coverage matrix node (shared) --- */
-function matrixNode(tfs, withRoles) {
+function matrixNode(tfs, withRoles, opts) {
+  const untrusted = (opts && opts.untrustedTfs) || [];
   const byTf = {};
   (Array.isArray(tfs) ? tfs : []).forEach((t) => { if (t && t.timeframe) byTf[t.timeframe] = t; });
   const wrap = h("div", { class: "card__body stack" });
   const grid = h("div", { class: "matrix" });
   A.TIMEFRAMES.forEach((tf) => {
     const t = byTf[tf];
-    const observed = t ? t.observed === true : false;
-    const graded = t ? t.decision_grade === true : false;
-    const qstate = t && t.quality ? t.quality.state : "UNKNOWN";
+    const suspect = untrusted.indexOf(tf) !== -1;
+    const observed = (t ? t.observed === true : false) && !suspect;
+    const graded = (t ? t.decision_grade === true : false) && !suspect;
+    const qstate = suspect ? "UNTRUSTED"
+      : (t && t.quality ? t.quality.state : "UNKNOWN");
     const cell = h("button", {
       class: "mcell",
       dataset: { grade: graded ? "yes" : "no", observed: observed ? "true" : "false" },
-      title: tf + " — " + (t ? (observed ? "observed" : "not observed") : "no state observed"),
+      title: tf + " — " + (suspect ? "stored rows are not MT5-aligned"
+        : (t ? (observed ? "observed" : "not observed") : "no state observed")),
       on: { click: () => openTfDetail(tf) },
     }, [
       h("div", { class: "mcell__tf", text: tf }),
       h("span", { class: "dot mcell__dot " + A.statusClass(qstate) }),
-      h("div", { class: "mcell__state", text: observed ? qstate : "UNOBSERVED" }),
+      h("div", { class: "mcell__state", text: suspect ? "UNTRUSTED"
+        : (observed ? qstate : "UNOBSERVED") }),
       withRoles && A.TF_ROLE[tf] ? h("div", { class: "mcell--role", text: A.TF_ROLE[tf].label }) : null,
     ]);
     grid.appendChild(cell);
@@ -1102,11 +1117,17 @@ views.marketdata = function (mount) {
        taken at face value would report a synthetic timestamp as real. Only
        surface the timestamp when the batch passes the integrity check. */
     const m15Integ = A.candleBatchIntegrity(bars, "M15");
+    const m15Untrusted = bars.length > 0 && !m15Integ.ok;
+    /* The M15 "observed" flag is itself derived from those non-MT5 rows, so the
+       coverage count is reported with M15 excluded rather than overstated. */
+    const observedHonest = m15Untrusted ? Math.max(cov.observed - 1, 0) : cov.observed;
     body.appendChild(h("div", { class: "grid grid--metrics" }, [
       metricText("Bridge state", bd ? bd.bridge_process_state : null, "server-observed", true),
       metricText("MT5 ready", bd ? String(bd.mt5_ready === true) : null, "bridge report", true),
       metricText("Resolved symbol", (bd && bd.resolved_symbol) || null, "broker symbol", true),
-      metricText("Timeframes observed", cov.observed + " / " + cov.total, "with a closed bar", true),
+      metricText("Timeframes observed", observedHonest + " / " + cov.total,
+        m15Untrusted ? "with a real closed bar (M15 excluded: non-MT5 rows)"
+          : "with a closed bar", true),
       metricText("Last closed candle (M15)",
         bars.length && m15Integ.ok ? A.fmtEpochUTC(bars[bars.length - 1].time) : null,
         m15Integ.ok ? "from candle store" : "withheld: stored M15 rows are not MT5-aligned",
@@ -1142,7 +1163,7 @@ views.marketdata = function (mount) {
     const ingBody = h("div", { class: "card__body stack" });
     ingBody.appendChild(h("div", { class: "note",
       text: "Per-timeframe ingestion coverage from the authoritative store." }));
-    ingBody.appendChild(matrixNode(tfsD, false));
+    ingBody.appendChild(matrixNode(tfsD, false, { untrustedTfs: m15Untrusted ? ["M15"] : [] }));
     grid.appendChild(card("Ingestion Coverage", ingBody));
     body.appendChild(grid);
 
@@ -1156,11 +1177,18 @@ views.marketdata = function (mount) {
     const tb = h("tbody");
     (Array.isArray(tfsD) ? tfsD : []).forEach((t) => {
       const f = t.freshness;
+      /* An M15 watermark derived from non-MT5 rows is not a real market
+         reading, so it is withheld rather than shown as a fresh timestamp. */
+      const untrustedM15 = t.timeframe === "M15" && bars.length && !m15Integ.ok;
       tb.appendChild(h("tr", null, [
         h("td", { class: "mono", text: t.timeframe }),
-        h("td", { class: "mono", text: A.fmtEpochUTC(t.last_successful_update) || "—" }),
-        h("td", null, f ? badge(f.state) : badge("UNKNOWN", "unobserved")),
-        h("td", { class: "num", text: f ? (A.fmtAge(f.age_millis) || "—") : "—" }),
+        untrustedM15
+          ? h("td", null, h("span", { class: "badge warn", text: "withheld (non-MT5 rows)" }))
+          : h("td", { class: "mono", text: A.fmtEpochUTC(t.last_successful_update) || "—" }),
+        untrustedM15 ? h("td", null, badge("UNKNOWN", "untrusted"))
+          : h("td", null, f ? badge(f.state) : badge("UNKNOWN", "unobserved")),
+        h("td", { class: "num", text: untrustedM15 ? "—"
+          : (f ? (A.fmtAge(f.age_millis) || "—") : "—") }),
         h("td", { class: "num", text: f && f.max_age_millis != null ? Math.round(f.max_age_millis / 1000) + "s" : "—" }),
         h("td", null, badge(t.decision_grade ? "ok" : "warn", t.decision_grade ? "yes" : "no")),
       ]));
