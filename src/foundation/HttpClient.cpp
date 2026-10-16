@@ -134,7 +134,8 @@ HttpResponse httpRequest(const HttpRequest& request) {
     req << method << " " << request.path << " HTTP/1.1\r\n"
         << "Host: " << request.host << ":" << request.port << "\r\n"
         << "Connection: close\r\n";
-    if (method == "POST") {
+    if (!request.body.empty() || method == "POST" || method == "PUT"
+        || method == "DELETE" || method == "PATCH") {
         req << "Content-Type: application/json\r\n"
             << "Content-Length: " << request.body.size() << "\r\n";
     }

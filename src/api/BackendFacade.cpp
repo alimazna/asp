@@ -130,7 +130,40 @@ ApiResponse BackendFacade::health() const {
     fields.push_back({"degraded_reasons", jsonArray(reasons), true});
     fields.push_back({"observed_at", jsonInteger(snapshot.observedAt.epochMillis()), true});
     fields.push_back({"unknown_is_not_safe", jsonBool(true), true});
+    // Build/version identity so a client can pin behaviour to a release without
+    // guessing. Additive: existing consumers ignore unknown fields.
+    fields.push_back({"version", kApiVersion});
+    fields.push_back({"schema", kApiSchemaVersion.toString()});
+    fields.push_back({"strategy_version", kStrategyVersion});
     return ApiResponse{200, "application/json",
+                       envelope(jsonObject(fields)), true};
+}
+
+ApiResponse BackendFacade::livez() const {
+    // Liveness never consults the engine or the bridge: if this handler runs,
+    // the process is alive. That is the entire contract, and it means a busy or
+    // slow decision cycle cannot trigger a container restart.
+    std::vector<ApiField> fields;
+    fields.push_back({"live", jsonBool(true), true});
+    fields.push_back({"version", kApiVersion});
+    return ApiResponse{200, "application/json",
+                       envelope(jsonObject(fields)), true};
+}
+
+ApiResponse BackendFacade::readyz() const {
+    if (deps_.runtime == nullptr) {
+        return errorResponse(503, "dependency_unavailable",
+                             "backend component unavailable: runtime");
+    }
+    const bool ready = deps_.runtime->isReady();
+    std::vector<ApiField> fields;
+    fields.push_back({"ready", jsonBool(ready), true});
+    fields.push_back({"startup_stage",
+                      toString(deps_.runtime->startupStage())});
+    fields.push_back({"mode", toString(deps_.runtime->mode())});
+    fields.push_back({"version", kApiVersion});
+    // 503 until READY so a load balancer keeps the instance out of rotation.
+    return ApiResponse{ready ? 200 : 503, "application/json",
                        envelope(jsonObject(fields)), true};
 }
 
@@ -822,6 +855,8 @@ ApiResponse BackendFacade::handle(const std::string& method,
     }
     if (path == "/api/v1/system/state") return systemState();
     if (path == "/api/v1/health") return health();
+    if (path == "/api/v1/livez") return livez();
+    if (path == "/api/v1/readyz") return readyz();
     if (path == "/api/v1/timeframes") return timeframes();
     if (path == "/api/v1/signals/latest") return latestSignal();
     if (path == "/api/v1/probability/latest") return latestProbability();

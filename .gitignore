@@ -1,5 +1,7 @@
 # Build output (BLD-0002)
 build/
+build-*/
+build-linux/
 build-pyinstaller/
 out/
 dist/
@@ -29,10 +31,13 @@ cmake-build-*/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 
 # Local secrets and environment
 .env
 .env.*
+!.env.example
 *.secret
 *.pem
 *.key
@@ -52,6 +57,11 @@ Thumbs.db
 .agent_tmp/
 build/
 
+# Local deployment linkage/state (project IDs only, but machine-local).
+.railway/
+.wrangler/
+astra-frontend/.wrangler/
+
 # Coordination notify config (secret webhook URL — never commit)
 coordination/notify/config
 __pycache__/
@@ -66,3 +76,8 @@ research/features_real/corpus/*.json
 build-test/
 build-tests/
 build-be/
+
+# Never commit a pre-provisioned sender config (contains the ingestion token).
+windows-sender/config.json
+windows-sender/installer/config.json
+windows-sender/installer/dist/

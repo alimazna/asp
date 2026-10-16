@@ -21,6 +21,9 @@ struct ApiResponse {
     std::string contentType = "application/json";
     std::string body;
     bool ok = true;
+    // Additional response headers (e.g. "Retry-After: 60\r\n"). Empty for the
+    // normal case; used by rate limiting and future conditional responses.
+    std::string headers;
 };
 
 struct ApiField {

@@ -1,0 +1,291 @@
+name: Build Windows Astra Sender
+
+on:
+  workflow_dispatch:
+    inputs:
+      sender_token:
+        description: "Optional. When set, builds a single self-contained installer with this token embedded. Never logged."
+        required: false
+        default: ""
+      embed:
+        description: "Set to 1 with sender_token to produce the self-contained installer."
+        required: false
+        default: "0"
+  push:
+    tags:
+      - "sender-*"
+
+permissions:
+  contents: write   # allow attaching the .exe to a GitHub Release on tag push
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          # Bundle the Windows-only MT5 package so the frozen app reads the
+          # local terminal with no extra setup on the owner's PC.
+          python -m pip install MetaTrader5
+
+      - name: Verify sender unit tests on Windows
+        working-directory: windows-sender
+        shell: bash
+        run: |
+          python -m unittest discover -s tests -v
+
+      - name: Build single-file executable
+        working-directory: windows-sender
+        run: |
+          python -m PyInstaller --clean --noconfirm astra_sender.spec
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build installer (elevating, machine-wide)
+        working-directory: windows-sender
+        shell: pwsh
+        run: |
+          # Read the optional token from the event payload on disk. Passing it
+          # through the `env:` block would print it: GitHub echoes a step's env
+          # vars into the log. Reading $GITHUB_EVENT_PATH keeps it out of both
+          # the echoed script and the env dump. Never print $tok.
+          $evt = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+          $tok = ""
+          $embed = $false
+          if ($evt.PSObject.Properties.Name -contains "inputs" -and $evt.inputs) {
+            if ($evt.inputs.sender_token) { $tok = [string]$evt.inputs.sender_token }
+            $embed = ([string]$evt.inputs.embed -eq "1")
+          }
+
+          @{
+            backend_url = "https://astra-server-production.up.railway.app"
+            sender_token = $tok
+            sender_id = "win10-desk-01"
+            symbol = "XAUUSD"
+            timeframes = @("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
+            poll_interval_seconds = 30
+            catchup_max_bars = 200
+            request_timeout_seconds = 30
+          } | ConvertTo-Json | Set-Content -Encoding utf8 .\installer\config.json
+
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $args = @()
+          if ($tok -and $embed) {
+            Write-Host "single installer: embedding config (token hidden)"
+            $args += "/DEmbedConfig=1"
+            # Derive the name from the single version source so it cannot drift
+            # from the version the app reports.
+            $ver = (Select-String -Path .\astra_sender\__init__.py `
+                     -Pattern '__version__ = "([^"]+)"').Matches[0].Groups[1].Value
+            Write-Host "installer version: $ver"
+            $args += "/FAstraSenderSetup-$ver-Configured"
+          } else {
+            Write-Host "generic installer (config read from beside the setup)"
+          }
+          & $iscc @args ".\installer\astra_sender.iss"
+          Remove-Item .\installer\config.json -Force -ErrorAction SilentlyContinue
+          Get-ChildItem .\installer\dist -Filter *.exe | ForEach-Object {
+            Write-Host "installer: $($_.Name) $($_.Length) bytes"
+          }
+
+      - name: Verify the installer provisions the config (silent install)
+        if: github.event.inputs.embed == '1'
+        working-directory: windows-sender
+        shell: pwsh
+        run: |
+          # End-to-end proof of "install and run with no edits": run the setup
+          # silently and confirm the app lands in Program Files and the
+          # provisioned config lands in ProgramData with a non-empty token.
+          # Only lengths are printed, never the token value.
+          $setup = Get-ChildItem .\installer\dist -Filter *Configured*.exe | Select-Object -First 1
+          if (-not $setup) { throw "no configured installer produced" }
+          Start-Process -FilePath $setup.FullName `
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+
+          $cfg = Join-Path $env:PROGRAMDATA 'AstraSender\config.json'
+          if (-not (Test-Path $cfg)) { throw "config was not provisioned at $cfg" }
+          $j = Get-Content $cfg -Raw | ConvertFrom-Json
+          if (-not $j.sender_token) { throw "provisioned token is empty" }
+          Write-Host "config provisioned: backend=$($j.backend_url) sender_id=$($j.sender_id) token_len=$($j.sender_token.Length) timeframes=$($j.timeframes -join ',')"
+
+          $app = Join-Path ${env:ProgramFiles} 'AstraSender\AstraSender.exe'
+          if (-not (Test-Path $app)) {
+            # A 32-bit Inno build defaults to Program Files (x86).
+            $alt = Join-Path ${env:ProgramFiles(x86)} 'AstraSender\AstraSender.exe'
+            if (Test-Path $alt) { $app = $alt }
+          }
+          if (-not (Test-Path $app)) { throw "app was not installed under Program Files" }
+          Write-Host "app installed: $app"
+
+          # Confirm the uninstaller the owner is told to use actually exists, and
+          # record its exact path/name so the documented instructions match.
+          $unins = Get-ChildItem (Split-Path $app) -Filter 'unins*.exe' -ErrorAction SilentlyContinue
+          if (-not $unins) { throw "no uninstaller found next to $app" }
+          $reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+                                  'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' `
+                                  -ErrorAction SilentlyContinue |
+                  Where-Object { $_.DisplayName -like '*ASTRA*' }
+          if (-not $reg) { throw "no uninstall registry entry (Add/Remove Programs) found" }
+          foreach ($r in $reg) {
+            Write-Host "add/remove entry: DisplayName='$($r.DisplayName)' UninstallString='$($r.UninstallString)' QuietUninstallString='$($r.QuietUninstallString)'"
+          }
+
+          # The frozen app must start and find its provisioned config. Run the
+          # self-check, which loads config + ledger and exits non-zero on error.
+          $env:ASTRA_SENDER_NO_DIALOG = "1"
+          $p = Start-Process -FilePath $app -ArgumentList '--selfcheck' -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "installed app self-check failed: $($p.ExitCode)" }
+          Write-Host "installed app self-check exit code: $($p.ExitCode)"
+
+      - name: Smoke-run the frozen app (headless)
+        working-directory: windows-sender
+        env:
+          # A frozen windowed exe shows a native message box on setup errors,
+          # which blocks forever with no user to click it. --version and
+          # --selfcheck return before that path, but disable it regardless so a
+          # future change cannot hang CI.
+          ASTRA_SENDER_NO_DIALOG: "1"
+        run: |
+          if (Test-Path .\dist\AstraSender.exe) {
+            Write-Host "AstraSender.exe present: $((Get-Item .\dist\AstraSender.exe).Length) bytes"
+          } else {
+            Write-Error "AstraSender.exe was not built"
+            exit 1
+          }
+          # Windowed-subsystem exes do not set $LASTEXITCODE; use
+          # Start-Process -PassThru -Wait to read the real exit code.
+          $p = Start-Process -FilePath ".\dist\AstraSender.exe" `
+                              -ArgumentList "--version" -PassThru -Wait
+          $code = $p.ExitCode
+          Write-Host "Frozen app --version exit code: $code"
+          if ($code -ne 0) {
+            Write-Error "Frozen app --version exited with $code"
+            exit 1
+          }
+          Write-Host "Frozen app --version passed (exit 0)"
+
+          # --version returns before the relative imports, so it cannot catch
+          # the relative-import crash that shipped in sender-v0.3.0.
+          # --selfcheck imports every runtime module and must exit 0.
+          $s = Start-Process -FilePath ".\dist\AstraSender.exe" `
+                              -ArgumentList "--selfcheck" -PassThru -Wait
+          $scode = $s.ExitCode
+          Write-Host "Frozen app --selfcheck exit code: $scode"
+          if ($scode -ne 0) {
+            Write-Error "Frozen app --selfcheck exited with $scode"
+            exit 1
+          }
+          Write-Host "Frozen app --selfcheck passed (exit 0)"
+
+          # The windowed exe has no stdout; it writes selfcheck.txt in cwd.
+          if (Test-Path .\selfcheck.txt) {
+            Get-Content .\selfcheck.txt | Write-Host
+            if (-not (Select-String -Path .\selfcheck.txt -Pattern "MetaTrader5: bundled" -Quiet)) {
+              Write-Error "MetaTrader5 is not bundled in the exe"
+              exit 1
+            }
+          } else {
+            Write-Error "selfcheck.txt not produced"
+            exit 1
+          }
+
+          # The MT5 diagnostic must run inside the frozen exe and degrade
+          # honestly on a runner with no terminal: no crash, a written report,
+          # and a non-zero "terminal unavailable" exit. This is the tool the
+          # owner is told to run when the GUI shows MT5 UNAVAILABLE, so a
+          # missing diag module would leave them with no way to diagnose it.
+          $d = Start-Process -FilePath .\dist\AstraSender.exe `
+                             -ArgumentList "--diag-mt5" -PassThru -Wait
+          Write-Host "Frozen app --diag-mt5 exit code: $($d.ExitCode)"
+          # The report is written beside whichever config the app resolves:
+          # %PROGRAMDATA%\AstraSender when the configured installer has run,
+          # otherwise the per-user %LOCALAPPDATA%\AstraSender. Accept either so
+          # this check tests the diagnostic, not the install path.
+          $candidates = @(
+            (Join-Path $env:PROGRAMDATA 'AstraSender\mt5_diag.txt'),
+            (Join-Path $env:LOCALAPPDATA 'AstraSender\mt5_diag.txt')
+          )
+          $diag = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $diag) {
+            Write-Error "--diag-mt5 produced no report in any of: $($candidates -join ', ')"
+            exit 1
+          }
+          Write-Host "mt5_diag.txt written to: $diag"
+          Write-Host "--- mt5_diag.txt (first lines) ---"
+          Get-Content $diag -TotalCount 6 | Write-Host
+          if (-not (Select-String -Path $diag -Pattern "ASTRA Sender - MT5 diagnostic" -Quiet)) {
+            Write-Error "mt5_diag.txt is missing its header"
+            exit 1
+          }
+          # No terminal exists on a CI runner, so a clean non-zero exit is the
+          # expected, correct result here.
+          if ($d.ExitCode -eq 0) {
+            Write-Host "NOTE: diagnostic exited 0 (a terminal was present on the runner)"
+          }
+          exit 0
+
+      - name: Verify an unconfigured exe opens the settings window
+        working-directory: windows-sender
+        # Deliberately does NOT set ASTRA_SENDER_NO_DIALOG: this reproduces a
+        # real double-click on a fresh install, which must reach the settings
+        # window rather than exiting 2 with no way to enter the token.
+        run: |
+          # Windowed exes redirect stdout/stderr to sender.log under the
+          # per-user app data dir, not the machine-wide config dir.
+          $logDir = Join-Path $env:LOCALAPPDATA "AstraSender"
+          $logPath = Join-Path $logDir "sender.log"
+          if (Test-Path $logPath) { Remove-Item $logPath -Force }
+          foreach ($d in @((Join-Path $env:PROGRAMDATA "AstraSender"), $logDir)) {
+            $c = Join-Path $d "config.json"
+            if (Test-Path $c) { Remove-Item $c -Force }
+          }
+
+          $u = Start-Process -FilePath ".\dist\AstraSender.exe" -PassThru
+          $reached = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            if (Test-Path $logPath) {
+              if (Select-String -Path $logPath -Pattern "opening the settings window" -Quiet) {
+                $reached = $true
+                break
+              }
+            }
+            if ($u.HasExited) { break }
+          }
+          if (-not $u.HasExited) { Stop-Process -Id $u.Id -Force }
+
+          if (-not $reached) {
+            Write-Error "unconfigured exe did not open the settings window"
+            if (Test-Path $logPath) { Get-Content $logPath | Write-Host }
+            exit 1
+          }
+          Write-Host "unconfigured exe opened the settings window (not a dead end)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstraSender-exe
+          path: |
+            windows-sender/dist/AstraSender.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/sender-')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            windows-sender/dist/AstraSender.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
+          fail_on_unmatched_files: true

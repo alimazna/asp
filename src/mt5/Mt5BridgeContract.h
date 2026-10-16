@@ -91,6 +91,34 @@ inline std::int64_t intervalMillis(Timeframe tf) noexcept {
 inline bool isPrimaryOperational(Timeframe tf) noexcept { return tf == Timeframe::M15; }
 inline bool isPrimaryStructural(Timeframe tf) noexcept { return tf == Timeframe::H4; }
 
+// True when an opening timestamp must land exactly on a multiple of the
+// timeframe duration. Restricted to intraday timeframes: D1/W1/MN1 open on
+// broker-dependent day/week/month boundaries, so a fixed-length modulo would
+// falsely reject genuine bars from non-UTC brokers. Whole-hour broker offsets
+// (the common case) preserve alignment for every timeframe included here.
+inline bool hasAlignedGrid(Timeframe tf) noexcept {
+    switch (tf) {
+        case Timeframe::M1:
+        case Timeframe::M5:
+        case Timeframe::M15:
+        case Timeframe::M30:
+        case Timeframe::H1:
+        case Timeframe::H4:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Verify that a bar's opening timestamp is aligned to its timeframe grid.
+// Mirrors the frontend integrity gate (astra-frontend/assets/lib.js).
+inline bool openTimeAligned(Timeframe tf, std::int64_t openTimeSec) noexcept {
+    if (!hasAlignedGrid(tf)) return true;
+    const std::int64_t durationSec = intervalMillis(tf) / 1000;
+    if (durationSec <= 0) return false;
+    return openTimeSec % durationSec == 0;
+}
+
 // --- Candle / tick ---------------------------------------------------------
 
 struct BridgeCandle {

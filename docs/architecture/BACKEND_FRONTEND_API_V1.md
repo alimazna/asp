@@ -120,6 +120,51 @@ Semantics:
 (`tests/fixtures/api_v1/valid/candles.json` is the conformant fixture). This is
 an additive v1 change: no existing route, field, or behaviour is altered.
 
+## Admin quarantine routes (additive in v1)
+
+A candle series is served only when every row in it is aligned to the timeframe
+grid. One misaligned row withholds the whole `(symbol, timeframe)` series from
+every read route — that is the anti-synthetic-data guarantee, and it applies
+even to rows written by a deployment test rather than by MT5. The consequence
+is that a contaminated series returns `503 dependency_unavailable` and the
+offending row is invisible to the public API.
+
+Two admin-only routes close that gap. Both require the admin bearer token
+(`ASTRA_ADMIN_TOKEN`), which is a **separate credential** from the sender token:
+a leaked ingestion credential cannot reach them.
+
+`GET /api/v1/admin/candles?tf={tf}&limit={N}` — read-only inspection. Returns
+the raw rows for the timeframe, including any the guarded read path withholds,
+so the exact offending identity is visible:
+
+```json
+{
+  "api": "v1",
+  "schema": "1.0",
+  "data": {
+    "symbol": "XAUUSD",
+    "timeframe": "M15",
+    "count": 2,
+    "rows": [
+      {"source_id": "legacy", "symbol": "XAUUSD", "timeframe": "M15",
+       "open_time": 1792068271, "received_at": 1792069171},
+      {"source_id": "sender", "symbol": "XAUUSD", "timeframe": "M15",
+       "open_time": 1792068300, "received_at": 1792069721}
+    ]
+  }
+}
+```
+
+`DELETE /api/v1/admin/candles` — deletes exactly one row by full identity.
+The body is `{"source_id", "symbol", "timeframe", "open_time"}`; there is no
+bulk delete, so a mistake cannot wipe the store. The response reports
+`"state": "purged"` with `deleted: 1`, or `"state": "not_found"` with
+`deleted: 0`. Removing the misaligned row restores the clean series.
+
+`scripts/quarantine_admin.py` wraps both routes: `list --all` prints every row
+and flags the misaligned ones with a ready-to-run `purge` command. The admin
+token is read from `ASTRA_ADMIN_TOKEN` and never passed on a command line.
+
 ## Error schema
 
 Errors are **flat** (not enveloped) and always carry `error`, `code`, `message`:

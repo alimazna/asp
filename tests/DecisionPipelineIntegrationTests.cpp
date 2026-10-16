@@ -221,3 +221,138 @@ TEST_CASE(none_candidate_still_persists_a_real_context_timestamp) {
 
     std::filesystem::remove_all(root);
 }
+
+// --- T33: multi-timeframe context in the live path ---------------------------
+
+// A caller that supplies no MTF context must behave exactly as the historical
+// single-timeframe build: the same closed bar that produced a decision before
+// still produces one. Backward compatibility is a hard requirement.
+TEST_CASE(mtf_absent_keeps_single_timeframe_behaviour) {
+    const std::string root = "/tmp/aura-pipeline-mtf-off";
+    std::filesystem::remove_all(root);
+
+    auto guardian = makeGuardian();
+    PredictionLedger ledger;
+    PositionSimulator positions;
+    OutcomeEngine outcomes;
+    FilePersistenceStore store(root);
+    REQUIRE(store.isAvailable());
+    PersistenceEngine persistence(&store);
+
+    DecisionPipeline pipeline(guardian.get(), &ledger, &persistence, &positions,
+                              &outcomes);
+    const std::vector<Bar> bars = syntheticUptrend(Timeframe::M15, 1700000000, 200);
+    const Timestamp now = Timestamp::fromEpochMillis(
+        (bars.back().openTimeSec + 900) * 1000);
+
+    const PipelineCycleReport report = pipeline.onClosedBar(bars.back(), bars, now);
+    CHECK(report.decisionProduced);
+    CHECK(pipeline.lastDecisionContext().available);
+    CHECK(!pipeline.lastDecisionContext().mtf.available);
+
+    std::filesystem::remove_all(root);
+}
+
+// When a cross-timeframe context was built but its core gate failed (H4 missing
+// or not decision-grade), the chain must suppress the decision and report the
+// objective as UNKNOWN. It must never assert a bias it could not verify.
+TEST_CASE(mtf_failed_core_gate_suppresses_decision) {
+    const std::string root = "/tmp/aura-pipeline-mtf-gate";
+    std::filesystem::remove_all(root);
+
+    auto guardian = makeGuardian();
+    PredictionLedger ledger;
+    PositionSimulator positions;
+    OutcomeEngine outcomes;
+    FilePersistenceStore store(root);
+    REQUIRE(store.isAvailable());
+    PersistenceEngine persistence(&store);
+
+    DecisionPipeline pipeline(guardian.get(), &ledger, &persistence, &positions,
+                              &outcomes);
+    const std::vector<Bar> bars = syntheticUptrend(Timeframe::M15, 1700000000, 200);
+    const Timestamp now = Timestamp::fromEpochMillis(
+        (bars.back().openTimeSec + 900) * 1000);
+
+    MtfContext mtf;
+    mtf.available = true;
+    mtf.coreGatePassed = false;   // H4 unavailable
+    mtf.h4Available = false;
+    mtf.blockReason = "multi-timeframe core gate: H4 structural authority unavailable";
+
+    const PipelineCycleReport report =
+        pipeline.onClosedBar(bars.back(), bars, now, mtf);
+    CHECK(!report.decisionProduced);
+    CHECK(!report.shadowIssued);
+    CHECK_EQ(ledger.size(), static_cast<std::size_t>(0));
+
+    const DecisionContext& context = pipeline.lastDecisionContext();
+    CHECK(context.available);
+    CHECK_EQ(context.asOfBarOpenSec, bars.back().openTimeSec);
+    CHECK_EQ(static_cast<int>(context.direction),
+             static_cast<int>(SignalDirection::NONE));
+    CHECK(context.mtf.available);
+    CHECK(!context.mtf.coreGatePassed);
+    REQUIRE(!context.blockReasons.empty());
+    CHECK(context.blockReasons.front().find("core gate") != std::string::npos);
+
+    std::filesystem::remove_all(root);
+}
+
+// When H4 structural authority is available and directly opposes the operational
+// candidate, the real objective vetoes the trade: no decision, no shadow, and
+// the reason is recorded. This is the honest multi-timeframe veto.
+TEST_CASE(mtf_h4_authority_vetoes_opposing_candidate) {
+    const std::string root = "/tmp/aura-pipeline-mtf-veto";
+    std::filesystem::remove_all(root);
+
+    auto guardian = makeGuardian();
+    PredictionLedger ledger;
+    PositionSimulator positions;
+    OutcomeEngine outcomes;
+    FilePersistenceStore store(root);
+    REQUIRE(store.isAvailable());
+    PersistenceEngine persistence(&store);
+
+    DecisionPipeline pipeline(guardian.get(), &ledger, &persistence, &positions,
+                              &outcomes);
+    // Uptrend on M15 => the chain proposes LONG.
+    const std::vector<Bar> bars = syntheticUptrend(Timeframe::M15, 1700000000, 200);
+    const Timestamp now = Timestamp::fromEpochMillis(
+        (bars.back().openTimeSec + 900) * 1000);
+
+    // Verify the baseline first: without MTF this bar yields a LONG decision.
+    {
+        DecisionPipeline baseline(guardian.get(), nullptr, nullptr, nullptr, nullptr);
+        const PipelineCycleReport base = baseline.onClosedBar(bars.back(), bars, now);
+        REQUIRE(base.decisionProduced);
+        CHECK_EQ(static_cast<int>(base.decisions[0].direction),
+                 static_cast<int>(SignalDirection::LONG));
+    }
+
+    MtfContext mtf;
+    mtf.available = true;
+    mtf.coreGatePassed = true;
+    mtf.h4Available = true;
+    mtf.d1Available = true;
+    mtf.h4Bias = StructureBias::BEARISH;   // H4 disagrees with the LONG
+    mtf.h4M15Agreement = -1.0;
+    mtf.h4StructuralAuthority = -0.6;
+    mtf.mtfConflictScore = 0.5;
+
+    const PipelineCycleReport report =
+        pipeline.onClosedBar(bars.back(), bars, now, mtf);
+    CHECK(!report.decisionProduced);
+    CHECK(!report.shadowIssued);
+    CHECK_EQ(ledger.size(), static_cast<std::size_t>(0));
+
+    const DecisionContext& context = pipeline.lastDecisionContext();
+    CHECK(context.mtf.available);
+    CHECK_EQ(static_cast<int>(context.mtf.h4Bias),
+             static_cast<int>(StructureBias::BEARISH));
+    REQUIRE(!context.blockReasons.empty());
+    CHECK(context.blockReasons.front().find("veto") != std::string::npos);
+
+    std::filesystem::remove_all(root);
+}
+

@@ -86,6 +86,16 @@ public:
     ApiResponse contextLatest() const;
     ApiResponse healthV1() const;
 
+    // Liveness: is the HTTP process serving at all? Always 200 when reachable;
+    // carries the build/version identity. Never depends on the engine, so a
+    // slow decision cycle cannot cause a restart loop.
+    ApiResponse livez() const;
+    // Readiness: may this instance serve traffic? 200 only when the runtime has
+    // reached READY (data + engine wiring complete); 503 otherwise, with the
+    // current stage so an orchestrator can see why. This is what a load
+    // balancer / Railway healthcheck should gate on.
+    ApiResponse readyz() const;
+
     // Route table: method + path dispatch. Returns 404 for unknown paths and
     // 405 for a known path with the wrong method.
     ApiResponse handle(const std::string& method, const std::string& path) const;

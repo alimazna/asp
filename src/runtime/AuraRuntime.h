@@ -6,6 +6,7 @@
 // timeframes; a failure in one timeframe never aborts the others.
 
 #include "audit/AuditLog.h"
+#include "analysis/features/AnalyticalFeatureEngine.h"
 #include "data/DataBus.h"
 #include "data/MarketDataIngestor.h"
 #include "data/TimeframeStateStore.h"
@@ -76,6 +77,22 @@ public:
 
     // Ingest one cycle across all canonical timeframes. Never throws; reports.
     RuntimeCycleReport tick(Timestamp now);
+
+    // Remote-fed ingestion: accept validated, time-ordered candles directly
+    // (instead of from the loopback bridge), publish closed bars into the data
+    // bus / timeframe store, and run the same decision pipeline the tick loop
+    // uses. `bars` must be normalized and sorted ascending by openTime. The
+    // returned report mirrors tick(): one entry per accepted timeframe with
+    // per-bar issues. This is the server-side seam used by the public
+    // ingestion API.
+    //
+    // In remote-fed mode (launchBridgeProcess=false, i.e. the Railway server)
+    // there is no local MT5 handshake to flip readiness, so the first accepted
+    // closed bar is what promotes the runtime to READY. Until then it stays
+    // DEGRADED, which is honest: no data has arrived.
+    RuntimeCycleReport ingestExternalBars(
+        const std::string& source, const std::string& symbol, Timeframe timeframe,
+        const std::vector<Bar>& bars, Timestamp now);
 
     void stop();
 
@@ -158,6 +175,13 @@ private:
     // Runs the live decision pipeline for a freshly closed operational bar.
     void runDecisionCycle(const Bar& closedBar, Timestamp now,
                           RuntimeCycleReport& report);
+
+    // Build the cross-timeframe context for the operational bar close from the
+    // closed-bar history already published on the data bus. Reads M15 (trigger)
+    // and H4/D1 (context). When M15 or H4 is unavailable, the core gate is
+    // reported as not passed, honestly, rather than asserting a bias. Requires
+    // pipeline_ to exist (operational timeframe is read from it).
+    MtfContext buildMtfContext(std::int64_t asOfBarOpenSec) const;
 
     // Append an audit record. Best-effort: audit failure never aborts a cycle.
     void appendAudit(AuditAction action, const std::string& subject,
