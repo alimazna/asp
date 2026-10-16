@@ -88,10 +88,14 @@ class SenderGui:
                                       foreground="#333")
         self.status_label.pack(fill=tk.X, pady=(4, 0))
         # Second, muted line: the actionable reason (e.g. MT5 closed/not logged
-        # in), kept separate so the main status stays scannable.
-        self.reason_label = ttk.Label(frame, text="", wraplength=520,
-                                      foreground="#8a4b00", justify=tk.LEFT)
+        # in), kept separate so the main status stays scannable. Selectable so
+        # the owner can copy the exact text when asking for help.
+        self.reason_label = tk.Text(frame, height=3, wrap=tk.WORD,
+                                    relief=tk.FLAT, background="#fdf6e3",
+                                    foreground="#8a4b00", font=("Segoe UI", 9),
+                                    cursor="arrow")
         self.reason_label.pack(fill=tk.X, pady=(0, 6))
+        self._set_reason("")
 
         # Local event log.
         ttk.Label(frame, text="Local event log:").pack(anchor="w")
@@ -107,7 +111,16 @@ class SenderGui:
         ttk.Button(controls, text="Reconnect now", command=self._reconnect).pack(side=tk.LEFT)
         ttk.Button(controls, text="Settings", command=self._open_settings).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(controls, text="Open config folder", command=self._open_config).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(controls, text="MT5 diagnostic", command=self._run_diagnostic).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Label(controls, text=f"config: {self._config_file_summary()}").pack(side=tk.RIGHT)
+
+    def _set_reason(self, text: str) -> None:
+        """Replace the reason text, keeping the widget read-only but copyable."""
+        self.reason_label.configure(state=tk.NORMAL)
+        self.reason_label.delete("1.0", tk.END)
+        if text:
+            self.reason_label.insert("1.0", text)
+        self.reason_label.configure(state=tk.DISABLED)
 
     def _counter_frame(self, parent: ttk.Frame, label: str, col: int,
                        value: int = 0) -> tk.Label:
@@ -150,6 +163,30 @@ class SenderGui:
                 os.system(f'xdg-open "{self._data_dir}" &')
         except Exception as exc:
             self.log(f"cannot open config folder: {exc}")
+
+    def _run_diagnostic(self) -> None:
+        """Run the MT5 diagnostic in-process and show the findings in the log.
+
+        Runs on a worker thread because a failed initialize can block for
+        seconds; the Tk main loop must stay responsive.
+        """
+        import threading
+
+        def worker() -> None:
+            try:
+                from diag_mt5 import main as diag_main
+            except Exception as exc:
+                self.log(f"diagnostic unavailable: {exc}")
+                return
+            try:
+                code = diag_main()
+            except Exception as exc:
+                self.log(f"diagnostic failed: {type(exc).__name__}: {exc}")
+                return
+            self.log(f"MT5 diagnostic finished (exit {code})")
+
+        self.log("running MT5 diagnostic...")
+        threading.Thread(target=worker, daemon=True).start()
 
     def _open_settings(self) -> None:
         """Edit the connection settings in the GUI instead of hand-editing JSON.
@@ -245,7 +282,7 @@ class SenderGui:
                 reason = "server rejected the credential; check Settings"
             elif server_state == "ERROR":
                 reason = "cannot reach the server; retrying with backoff"
-        self.reason_label.config(text=reason)
+        self._set_reason(reason)
 
         if last_sync:
             self.sync_label.config(text=f"Last sync: {last_sync}")

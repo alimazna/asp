@@ -84,7 +84,7 @@ jobs:
           if ($tok -and $embed) {
             Write-Host "single installer: embedding config (token hidden)"
             $args += "/DEmbedConfig=1"
-            $args += '/FAstraSenderSetup-0.4.3-Configured'
+            $args += '/FAstraSenderSetup-0.4.4-Configured'
           } else {
             Write-Host "generic installer (config read from beside the setup)"
           }
@@ -193,6 +193,31 @@ jobs:
           } else {
             Write-Error "selfcheck.txt not produced"
             exit 1
+          }
+
+          # The MT5 diagnostic must run inside the frozen exe and degrade
+          # honestly on a runner with no terminal: no crash, a written report,
+          # and a non-zero "terminal unavailable" exit. This is the tool the
+          # owner is told to run when the GUI shows MT5 UNAVAILABLE, so a
+          # missing diag module would leave them with no way to diagnose it.
+          $d = Start-Process -FilePath .\dist\AstraSender.exe `
+                             -ArgumentList "--diag-mt5" -PassThru -Wait
+          Write-Host "Frozen app --diag-mt5 exit code: $($d.ExitCode)"
+          $diag = Join-Path $env:PROGRAMDATA 'AstraSender\mt5_diag.txt'
+          if (-not (Test-Path $diag)) {
+            Write-Error "--diag-mt5 produced no report at $diag"
+            exit 1
+          }
+          Write-Host "--- mt5_diag.txt (first lines) ---"
+          Get-Content $diag -TotalCount 6 | Write-Host
+          if (-not (Select-String -Path $diag -Pattern "ASTRA Sender - MT5 diagnostic" -Quiet)) {
+            Write-Error "mt5_diag.txt is missing its header"
+            exit 1
+          }
+          # No terminal exists on a CI runner, so a clean non-zero exit is the
+          # expected, correct result here.
+          if ($d.ExitCode -eq 0) {
+            Write-Host "NOTE: diagnostic exited 0 (a terminal was present on the runner)"
           }
           exit 0
 

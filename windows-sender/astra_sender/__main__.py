@@ -43,7 +43,7 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 
 # Pre-filled into the first-run config template so the user only pastes a token.
 DEFAULT_BACKEND_URL = "https://astra-server-production.up.railway.app"
@@ -140,6 +140,44 @@ def main() -> int:
         return 1
 
 
+def _run_mt5_diagnostic() -> int:
+    """Run the MT5 connectivity diagnostic, writing a report beside the log.
+
+    A windowed exe has no console, so the output is also written to
+    ``mt5_diag.txt`` in the app data directory where the user can open it.
+    """
+    import io
+    buf = io.StringIO()
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import diag_mt5  # type: ignore
+    except Exception as exc:  # pragma: no cover - packaging fault
+        _say(f"diagnostic module missing: {exc}")
+        return 1
+
+    real_stdout = sys.stdout
+    sys.stdout = buf
+    try:
+        code = diag_mt5.main()
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"diagnostic crashed: {type(exc).__name__}: {exc}")
+        code = 1
+    finally:
+        sys.stdout = real_stdout
+
+    report = buf.getvalue()
+    _say(report)
+    try:
+        from .config import app_data_dir
+        path = os.path.join(app_data_dir(), "mt5_diag.txt")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        _say(f"\nreport written to: {path}")
+    except Exception:
+        pass
+    return code
+
+
 def _main_impl() -> int:
     _module_path_dirs()
 
@@ -154,11 +192,17 @@ def _main_impl() -> int:
                         help="path to config.json (default: app data dir)")
     parser.add_argument("--console", action="store_true",
                         help="run headless, print status to stdout")
+    parser.add_argument("--diag-mt5", action="store_true",
+                        help="print an MT5 connectivity diagnostic and exit; "
+                             "use this when the GUI reports MT5 UNAVAILABLE")
     args = parser.parse_args()
 
     if args.version:
         _say(f"AstraSender {VERSION}")
         return 0
+
+    if args.diag_mt5:
+        return _run_mt5_diagnostic()
 
     if args.selfcheck:
         # Import the whole runtime surface so a broken/relative import fails the
