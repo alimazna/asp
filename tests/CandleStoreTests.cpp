@@ -198,3 +198,42 @@ TEST_CASE(CandleStoreTest_WithholdsContaminatedSeries) {
 
     std::remove(path.c_str());
 }
+
+// The guarded read path deliberately withholds a contaminated series, which
+// means an operator cannot even see the row that needs purging. allRows() is
+// the quarantine view: it returns every raw row for the timeframe, aligned or
+// not, so the exact offending identity can be found and deleted.
+TEST_CASE(CandleStoreTest_AllRowsExposesWithheldQuarantineRows) {
+    const std::string path = tempDbPath();
+    std::string error;
+
+    CandleStore store;
+    CHECK_TRUE(store.open(path, error));
+
+    std::vector<CandleInsertResult> results;
+    std::vector<StoredCandle> candles;
+    candles.push_back(makeCandle("legacy", "XAUUSD", "M15", 1792068271));  // bad
+    candles.push_back(makeCandle("sender", "XAUUSD", "M15", 1792068300));  // good
+    CHECK_TRUE(store.insertBatch(candles, results, error));
+
+    // The guarded view hides the whole series.
+    CHECK_EQ(std::size_t(0), store.recent("XAUUSD", "M15", 10).size());
+
+    // The quarantine view shows both rows, so the bad one is identifiable.
+    const auto rows = store.allRows("XAUUSD", "M15", 10);
+    CHECK_EQ(std::size_t(2), rows.size());
+    CHECK_EQ(std::int64_t(1792068271), rows[0].openTimeUtc);
+    CHECK_EQ(std::string("legacy"), rows[0].sourceId);
+    CHECK_EQ(std::int64_t(1792068300), rows[1].openTimeUtc);
+
+    // Purging the bad row by full identity restores the clean series.
+    int deleted = 0;
+    CHECK_TRUE(store.deleteCandle("legacy", "XAUUSD", "M15", 1792068271,
+                                  deleted, error));
+    CHECK_EQ(1, deleted);
+    const auto restored = store.recent("XAUUSD", "M15", 10);
+    CHECK_EQ(std::size_t(1), restored.size());
+    CHECK_EQ(std::int64_t(1792068300), restored[0].openTimeUtc);
+
+    std::remove(path.c_str());
+}

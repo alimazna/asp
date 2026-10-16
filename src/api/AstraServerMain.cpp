@@ -645,6 +645,35 @@ int main(int argc, char** argv) {
                            envelope(jsonObject(fields)), true};
     };
 
+    // Admin inspection route: list the raw rows for a timeframe, including any
+    // that the read guard withholds. A contaminated series is hidden from every
+    // public route, so without this an operator cannot even see the row they
+    // need to purge. Read-only; still requires the admin credential.
+    server.adminListHandler = [&](const std::string& tf,
+                                  int limit) -> ApiResponse {
+        if (limit < 1 || limit > 1000) limit = 500;
+        const std::vector<StoredCandle> rows = store.allRows("XAUUSD", tf, limit);
+        std::vector<std::string> elements;
+        for (const auto& c : rows) {
+            std::vector<ApiField> rf;
+            rf.push_back({"source_id", jsonString(c.sourceId), true});
+            rf.push_back({"symbol", jsonString(c.symbol), true});
+            rf.push_back({"timeframe", jsonString(c.timeframe), true});
+            rf.push_back({"open_time", jsonInteger(c.openTimeUtc), true});
+            rf.push_back({"received_at", jsonInteger(c.receivedAtUtc), true});
+            elements.push_back(jsonObject(rf));
+        }
+        std::vector<ApiField> fields;
+        fields.push_back({"symbol", jsonString("XAUUSD"), true});
+        fields.push_back({"timeframe", jsonString(tf), true});
+        fields.push_back({"count",
+                          jsonInteger(static_cast<std::int64_t>(rows.size())),
+                          true});
+        fields.push_back({"rows", jsonArray(elements), true});
+        return ApiResponse{200, "application/json",
+                           envelope(jsonObject(fields)), true};
+    };
+
     std::string apiError;
     if (!server.start(apiError)) {
         std::cerr << "FATAL: cannot start astra api server: " << apiError

@@ -80,6 +80,10 @@ public:
     // DELETE /api/v1/admin/candles -> adminDeleteHandler(body). Requires the
     // admin credential (config_.adminTokens), never a sender token.
     std::function<ApiResponse(const std::string&)> adminDeleteHandler;
+    // GET /api/v1/admin/candles?tf&limit -> adminListHandler(tf, limit). The
+    // quarantine inspection view: it returns rows the guarded read APIs hide,
+    // so it too requires the admin credential.
+    std::function<ApiResponse(const std::string&, int)> adminListHandler;
 
 private:
     void acceptLoop();

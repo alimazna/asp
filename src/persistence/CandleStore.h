@@ -118,6 +118,15 @@ public:
                       const std::string& timeframe, std::int64_t openTimeUtc,
                       int& deleted, std::string& error);
 
+    // Every persisted row for (symbol, timeframe), ascending by open time,
+    // WITHOUT the alignment guard that `recent` applies. This is the quarantine
+    // view: the read APIs hide a contaminated series, so an operator needs a way
+    // to see the exact offending rows in order to purge them one by one. Never
+    // exposed on an unauthenticated route.
+    std::vector<StoredCandle> allRows(const std::string& symbol,
+                                      const std::string& timeframe,
+                                      int limit) const;
+
 private:
     bool exec(const std::string& sql, std::string& error) const;
     mutable std::mutex mutex_;

@@ -841,15 +841,26 @@ TEST_CASE(astra_server_admin_purge_requires_admin_token_and_deletes_one_row) {
     // No token -> 401.
     const HttpResponse noToken = deleteReq("");
     CHECK_EQ(noToken.statusCode, 401);
-    // A GET on the admin route is a method error.
+    // GET on the admin route is the read-only quarantine inspection view. It
+    // requires the admin credential (never the sender credential) and lists the
+    // raw rows, including any the guarded read APIs withhold.
     {
         HttpRequest getReq;
         getReq.host = "127.0.0.1";
         getReq.port = port;
-        getReq.path = "/api/v1/admin/candles";
+        getReq.path = "/api/v1/admin/candles?tf=M15";
         getReq.headers = "Authorization: Bearer adm1n-tok\r\n";
         const HttpResponse r = httpGet(getReq);
-        CHECK_EQ(r.statusCode, 405);
+        CHECK_EQ(r.statusCode, 200);
+        CHECK(contains(r.body, "\"rows\""));
+        CHECK(contains(r.body, "\"sender-1\""));
+
+        HttpRequest getNoAuth;
+        getNoAuth.host = "127.0.0.1";
+        getNoAuth.port = port;
+        getNoAuth.path = "/api/v1/admin/candles?tf=M15";
+        getNoAuth.headers = "Authorization: Bearer s3cret-tok\r\n";
+        CHECK_EQ(httpGet(getNoAuth).statusCode, 401);
     }
 
     // The admin credential purges exactly one row.

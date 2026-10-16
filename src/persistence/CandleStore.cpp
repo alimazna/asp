@@ -418,4 +418,44 @@ bool CandleStore::deleteCandle(const std::string& sourceId,
     return true;
 }
 
+std::vector<StoredCandle> CandleStore::allRows(const std::string& symbol,
+                                               const std::string& timeframe,
+                                               int limit) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<StoredCandle> out;
+    if (db_ == nullptr) return out;
+
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql =
+        "SELECT source_id, symbol, timeframe, open_time, open, high, low, close,"
+        "       tick_volume, spread, real_volume, received_at"
+        " FROM candles WHERE symbol=?1 AND timeframe=?2"
+        " ORDER BY open_time ASC LIMIT ?3;";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        if (stmt != nullptr) sqlite3_finalize(stmt);
+        return out;
+    }
+    sqlite3_bind_text(stmt, 1, symbol.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, timeframe.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 3, limit);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        StoredCandle c;
+        c.sourceId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        c.symbol = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        c.timeframe = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        c.openTimeUtc = sqlite3_column_int64(stmt, 3);
+        c.open = sqlite3_column_double(stmt, 4);
+        c.high = sqlite3_column_double(stmt, 5);
+        c.low = sqlite3_column_double(stmt, 6);
+        c.close = sqlite3_column_double(stmt, 7);
+        c.tickVolume = sqlite3_column_int64(stmt, 8);
+        c.spread = sqlite3_column_int64(stmt, 9);
+        c.realVolume = sqlite3_column_int64(stmt, 10);
+        c.receivedAtUtc = sqlite3_column_int64(stmt, 11);
+        out.push_back(std::move(c));
+    }
+    sqlite3_finalize(stmt);
+    return out;
+}
+
 }  // namespace aura

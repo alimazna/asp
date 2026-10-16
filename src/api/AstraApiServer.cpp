@@ -472,9 +472,9 @@ ApiResponse AstraApiServer::handleRequest(
     }
 
     if (path == "/api/v1/admin/candles") {
-        if (method != "DELETE") {
+        if (method != "DELETE" && method != "GET") {
             return errorResponse(405, "method_not_allowed",
-                                 "admin candle route requires DELETE");
+                                 "admin candle route requires DELETE or GET");
         }
         if (!authorizeAdmin(authHeader)) {
             return errorResponse(401, "unauthorized",
@@ -486,6 +486,33 @@ ApiResponse AstraApiServer::handleRequest(
                 "admin rate limit exceeded; retry after backoff");
             tooMany.headers += "Retry-After: 60\r\n";
             return tooMany;
+        }
+        if (method == "GET") {
+            // Inspection mode: list the raw rows (including any the guarded read
+            // APIs withhold) so an operator can identify a contaminating row
+            // before purging it by full identity.
+            std::string tf = "M15";
+            int limit = 500;
+            std::istringstream qs(query);
+            std::string pair;
+            while (std::getline(qs, pair, '&')) {
+                const std::size_t eq = pair.find('=');
+                if (eq == std::string::npos) continue;
+                const std::string key = pair.substr(0, eq);
+                const std::string value = pair.substr(eq + 1);
+                if (key == "tf" || key == "timeframe") {
+                    if (!value.empty()) tf = value;
+                } else if (key == "limit") {
+                    try {
+                        limit = std::stoi(value);
+                    } catch (...) {
+                    }
+                }
+            }
+            if (limit < 1 || limit > 1000) limit = 500;
+            if (adminListHandler) return adminListHandler(tf, limit);
+            return errorResponse(503, "dependency_unavailable",
+                                 "admin list handler not configured");
         }
         if (body.empty()) {
             return errorResponse(400, "malformed_request",
