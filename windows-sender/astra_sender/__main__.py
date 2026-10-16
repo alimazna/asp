@@ -285,7 +285,13 @@ def _main_impl() -> int:
         # exe has no console: the old message box here told the owner what was
         # missing but gave them no way to type the token, so the app looked
         # simply broken when double-clicked.
-        if args.console:
+        #
+        # The GUI is only opened in a genuinely interactive windowed session
+        # (no console, dialogs allowed). Headless and CI runs set
+        # ASTRA_SENDER_NO_DIALOG=1, and there nobody can type a token, so they
+        # keep the report-and-exit behaviour.
+        interactive = _is_dialog_enabled(_HAS_NO_CONSOLE)
+        if args.console or not interactive:
             _show_error_dialog("ASTRA Sender - setup required", text)
             return 2
         try:
@@ -293,6 +299,9 @@ def _main_impl() -> int:
         except ImportError:
             _show_error_dialog("ASTRA Sender - setup required", text)
             return 2
+        # Recorded before the window is built so CI can prove the interactive
+        # first-run path was taken on a runner where a Tk window may not open.
+        print("not configured: opening the settings window", file=sys.stderr)
 
     from .collector import ClosedCandleCollector
     from .protocol import ServerClient

@@ -183,6 +183,38 @@ jobs:
           }
           Write-Host "Frozen app --selfcheck passed (exit 0)"
 
+          # The owner's real failure: double-clicking an unconfigured windowed
+          # exe used to show a modal box and exit 2 with no way to type the
+          # token, so the app looked broken. Run the exe with no config at all
+          # and require it to reach the settings window (logged to sender.log)
+          # instead of returning 2.
+          $cfgDir = Join-Path $env:PROGRAMDATA "AstraSender"
+          if (Test-Path (Join-Path $cfgDir "config.json")) {
+            Remove-Item (Join-Path $cfgDir "config.json") -Force
+          }
+          $logPath = Join-Path $cfgDir "sender.log"
+          if (Test-Path $logPath) { Remove-Item $logPath -Force }
+
+          $u = Start-Process -FilePath ".\dist\AstraSender.exe" -PassThru
+          $reached = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            if (Test-Path $logPath) {
+              if (Select-String -Path $logPath -Pattern "opening the settings window" -Quiet) {
+                $reached = $true
+                break
+              }
+            }
+            if ($u.HasExited) { break }
+          }
+          if (-not $u.HasExited) { Stop-Process -Id $u.Id -Force }
+          if (-not $reached) {
+            Write-Error "unconfigured exe did not open the settings window"
+            if (Test-Path $logPath) { Get-Content $logPath | Write-Host }
+            exit 1
+          }
+          Write-Host "unconfigured exe opened the settings window (not a dead end)"
+
           # The windowed exe has no stdout; it writes selfcheck.txt in cwd.
           if (Test-Path .\selfcheck.txt) {
             Get-Content .\selfcheck.txt | Write-Host
