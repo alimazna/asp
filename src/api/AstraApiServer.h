@@ -55,11 +55,13 @@ public:
 
     // Route hooks (exclusive to this server, not in the facade):
     //   POST /api/v1/candles/ingest        -> ingestHandler(body)
-    //   GET  /api/v1/sync/latest           -> syncHandler()
+    //   GET  /api/v1/sync/latest           -> syncHandler(query)
     //   GET  /api/v1/candles?tf&limit      -> candlesHandler(tf, limit)
-    // Both pass only after a valid sender bearer token is presented.
+    // All three pass only after a valid sender bearer token is presented.
+    // syncHandler receives the raw query so a caller can scope reconciliation
+    // to its own source identity with ?source_id=...
     std::function<ApiResponse(const std::string&)> ingestHandler;
-    std::function<ApiResponse()> syncHandler;
+    std::function<ApiResponse(const std::string&)> syncHandler;
     std::function<ApiResponse(const std::string&, int)> candlesHandler;
 
 private:

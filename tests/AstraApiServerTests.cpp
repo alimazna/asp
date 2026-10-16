@@ -251,6 +251,46 @@ TEST_CASE(astra_server_ingestion_is_idempotent_and_durable) {
     CHECK(contains(syncResp.body, "\"timeframe\":\"M15\""));
     CHECK(contains(syncResp.body, "\"last_open_time_utc\":1792045800"));
 
+    // A second source sends the SAME symbol/timeframe at a DIFFERENT (earlier)
+    // open time. The aggregate sync view legitimately reports the newest row
+    // across sources, but a source-scoped query must never let source A read
+    // source B's watermark as proof that A's own candle was persisted.
+    const std::string bodyB =
+        "{\"source_id\":\"sender-2\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":1792042200,\"open\":2654.1,\"high\":2656.2,"
+        "\"low\":2652.8,\"close\":2655.05,\"tick_volume\":180,\"spread\":11,"
+        "\"real_volume\":0}]}";
+    const HttpResponse secondSource = postIngest(port, "s3cret-tok", bodyB);
+    CHECK_EQ(secondSource.statusCode, 200);
+    CHECK(contains(secondSource.body, "\"state\":\"stored_new\""));
+
+    // Aggregate: newest across sources (sender-1's later candle).
+    const HttpResponse aggregate = httpGet(sync);
+    CHECK(contains(aggregate.body, "\"last_open_time_utc\":1792045800"));
+
+    // Scoped to sender-2: only sender-2's own watermark, never sender-1's.
+    HttpRequest scoped;
+    scoped.host = "127.0.0.1";
+    scoped.port = port;
+    scoped.path = "/api/v1/sync/latest?source_id=sender-2";
+    scoped.headers = "Authorization: Bearer s3cret-tok\r\n";
+    const HttpResponse scopedResp = httpGet(scoped);
+    CHECK_EQ(scopedResp.statusCode, 200);
+    CHECK(contains(scopedResp.body, "\"last_open_time_utc\":1792042200"));
+    CHECK(!contains(scopedResp.body, "1792045800"));
+
+    // Scoped to an unknown source: empty, not another source's data.
+    HttpRequest unknown;
+    unknown.host = "127.0.0.1";
+    unknown.port = port;
+    unknown.path = "/api/v1/sync/latest?source_id=ghost";
+    unknown.headers = "Authorization: Bearer s3cret-tok\r\n";
+    const HttpResponse unknownResp = httpGet(unknown);
+    CHECK_EQ(unknownResp.statusCode, 200);
+    CHECK(!contains(unknownResp.body, "1792045800"));
+    CHECK(!contains(unknownResp.body, "1792042200"));
+
     // Stop the process.
     std::string stopError; supervisor.stop(2000, stopError);
 
@@ -278,15 +318,17 @@ TEST_CASE(astra_server_ingestion_is_idempotent_and_durable) {
         }
         CHECK(ready2);
 
-        // The persisted candle is still there after restart.
+        // Both persisted candles are still there after restart (sender-1's and
+        // sender-2's), proving the store is durable and not source-collapsed.
         HttpRequest candles2;
         candles2.host = "127.0.0.1";
         candles2.port = port2;
         candles2.path = "/api/v1/candles?tf=M15&limit=10";
         const HttpResponse chart2 = httpGet(candles2);
         CHECK_EQ(chart2.statusCode, 200);
-        CHECK(contains(chart2.body, "\"count\":1"));
+        CHECK(contains(chart2.body, "\"count\":2"));
         CHECK(contains(chart2.body, "2654.05"));
+        CHECK(contains(chart2.body, "2655.05"));
 
         // The same candle is still a duplicate (not stored again).
         const HttpResponse replay2 =
@@ -367,6 +409,87 @@ TEST_CASE(astra_server_rejects_future_and_invalid_timestamps) {
     const HttpResponse chart = httpGet(candles);
     CHECK_EQ(chart.statusCode, 503);
     CHECK(contains(chart.body, "\"code\":\"dependency_unavailable\""));
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+TEST_CASE(astra_server_rejects_misaligned_open_times) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 60 && !ready; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    // A candle whose open_time is not a multiple of the M15 duration (900s)
+    // is not real M15 data. The production store previously accepted such
+    // rows; the ingest path must now reject them so state stays honest.
+    const std::string misalignedBody =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":1792068271,\"open\":1900,\"high\":1910.5,"
+        "\"low\":1898.2,\"close\":1905.7,\"tick_volume\":1234,\"spread\":0,"
+        "\"real_volume\":0}]}";
+    const HttpResponse misaligned = postIngest(port, "s3cret-tok", misalignedBody);
+    CHECK_EQ(misaligned.statusCode, 200);
+    CHECK(contains(misaligned.body, "\"state\":\"rejected\""));
+    CHECK(contains(misaligned.body, "not aligned"));
+    CHECK(contains(misaligned.body, "\"ingested\":0"));
+
+    // A genuinely aligned M15 candle (exact multiple of 900, and old enough to
+    // be closed) is accepted.
+    const std::string alignedBody =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":1792068300,\"open\":2653.1,\"high\":2655.2,"
+        "\"low\":2651.8,\"close\":2654.05,\"tick_volume\":210,\"spread\":12,"
+        "\"real_volume\":0}]}";
+    const HttpResponse aligned = postIngest(port, "s3cret-tok", alignedBody);
+    CHECK_EQ(aligned.statusCode, 200);
+    CHECK(contains(aligned.body, "\"state\":\"stored_new\""));
+    CHECK(contains(aligned.body, "\"ingested\":1"));
+
+    // The store holds exactly the one aligned candle, and the timeframe now
+    // reports itself as observed because of real, grid-aligned data.
+    HttpRequest candles;
+    candles.host = "127.0.0.1";
+    candles.port = port;
+    candles.path = "/api/v1/candles?tf=M15&limit=10";
+    const HttpResponse chart = httpGet(candles);
+    CHECK_EQ(chart.statusCode, 200);
+    CHECK(contains(chart.body, "\"count\":1"));
+    CHECK(contains(chart.body, "2654.05"));
+
+    HttpRequest tfReq;
+    tfReq.host = "127.0.0.1";
+    tfReq.port = port;
+    tfReq.path = "/api/v1/timeframes";
+    const HttpResponse tfResp = httpGet(tfReq);
+    CHECK_EQ(tfResp.statusCode, 200);
+    CHECK(contains(tfResp.body, "\"last_closed_bar_open\":1792068300"));
 
     std::string stopError; supervisor.stop(2000, stopError);
     fs::remove_all(dataDir);

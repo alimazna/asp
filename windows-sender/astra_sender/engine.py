@@ -91,6 +91,7 @@ class SyncEngine:
         self._status_mutex = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._collected_count = 1
+        self._reconciled = False
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -174,6 +175,9 @@ class SyncEngine:
         self._update_status(mt5_state="READY",
                             resolved_symbol=self._collector.resolved_symbol)
 
+        if not self._reconciled:
+            self._reconcile_from_server()
+
         pending_all = self._ledger.pending_identities()
         if pending_all:
             self._update_status(queued=len(pending_all))
@@ -190,6 +194,43 @@ class SyncEngine:
 
         self._update_status(last_sync_at=int(time.time()))
         self._update_status(queued=len(self._ledger.pending_identities()))
+
+    # -- reconciliation -----------------------------------------------------
+
+    def _reconcile_from_server(self) -> None:
+        """Align the local ledger with the server's authoritative state once.
+
+        The query is scoped to this sender's own source identity. The unscoped
+        aggregate would mix in other senders' candles and could mark a candle
+        acknowledged that this sender never had persisted, so it is never used
+        here. A failure is non-fatal: the normal sync loop simply re-sends.
+        """
+        source = self._config.sender_id
+        try:
+            response = self._client.sync_latest(source)
+        except ProtocolError as exc:
+            self._update_status(last_error=f"reconcile skipped: {exc.message}")
+            return
+        self._reconciled = True
+
+        entries = response.get("data")
+        if not isinstance(entries, list):
+            return
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            symbol = str(entry.get("symbol") or "")
+            timeframe = str(entry.get("timeframe") or "")
+            open_time = entry.get("last_open_time_utc")
+            if not symbol or not timeframe or open_time is None:
+                continue
+            # The server stated it holds this exact candle for our source; that
+            # is an explicit acknowledgment, so record it as such.
+            self._ledger.record_acknowledged(
+                source, symbol, timeframe, int(open_time),
+                self._ledger.make_identity(source, symbol, timeframe,
+                                           int(open_time)),
+                int(entry.get("count") or 0))
 
     # -- collector ----------------------------------------------------------
 

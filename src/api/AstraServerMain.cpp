@@ -64,6 +64,38 @@ std::vector<std::string> splitComma(const std::string& in) {
     return out;
 }
 
+// Percent-decode a URL query value (also turns '+' into a space). The sync
+// route takes a source identity from the query string, and identities may
+// legitimately contain characters a client has to escape.
+std::string urlDecode(const std::string& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (std::size_t i = 0; i < in.size(); ++i) {
+        const char c = in[i];
+        if (c == '+') {
+            out.push_back(' ');
+        } else if (c == '%' && i + 2 < in.size()) {
+            const auto hex = [](char h) -> int {
+                if (h >= '0' && h <= '9') return h - '0';
+                if (h >= 'a' && h <= 'f') return h - 'a' + 10;
+                if (h >= 'A' && h <= 'F') return h - 'A' + 10;
+                return -1;
+            };
+            const int hi = hex(in[i + 1]);
+            const int lo = hex(in[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                out.push_back(static_cast<char>((hi << 4) | lo));
+                i += 2;
+            } else {
+                out.push_back(c);
+            }
+        } else {
+            out.push_back(c);
+        }
+    }
+    return out;
+}
+
 int parsePort(const std::string& text, int fallback) {
     try {
         const int p = std::stoi(text);
@@ -335,6 +367,16 @@ int main(int argc, char** argv) {
                 rejections.push_back("candle rejected: " + candleError);
                 continue;
             }
+            // A candle whose opening time is not on its timeframe grid is not
+            // real data for that timeframe (the production store previously
+            // held such rows, which skewed freshness/observed state). Reject
+            // it here so the authoritative store never accepts misaligned data.
+            if (!openTimeAligned(tf, c.openTimeUtc)) {
+                rejections.push_back(
+                    "candle rejected: open_time not aligned to timeframe " +
+                    timeframe);
+                continue;
+            }
             candles.push_back(std::move(c));
         }
 
@@ -418,24 +460,57 @@ int main(int argc, char** argv) {
         return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true};
     };
 
-    // Sync route: return the authoritative server-side latest per (symbol, tf)
-    // aggregated across every source identity. The sender reconciles its local
-    // ledger against these watermarks.
-    server.syncHandler = [&]() -> ApiResponse {
-        std::vector<std::string> elements;
-        for (const auto& symbol : store.distinctSymbols()) {
-            for (Timeframe timeframe : allTimeframes()) {
-                const std::string tf = toString(timeframe);
-                const std::int64_t latest =
-                    store.latestOpenTimeAnySource(symbol, tf);
-                if (latest == 0) continue;
-                std::vector<ApiField> f;
-                f.push_back({"symbol", jsonString(symbol), true});
-                f.push_back({"timeframe", jsonString(tf), true});
-                f.push_back({"last_open_time_utc", jsonInteger(latest), true});
-                elements.push_back(jsonObject(f));
+    // Sync route: authoritative server-side latest per (symbol, tf).
+    //
+    // With ?source_id=<id> the response is scoped to that source identity, which
+    // is the only safe basis for a sender to reconcile its local ledger: another
+    // sender's watermark must never be read as proof that this sender's candle
+    // was persisted. Without the parameter the aggregate across every source is
+    // returned, which is useful for diagnostics but carries no delivery proof.
+    server.syncHandler = [&](const std::string& query) -> ApiResponse {
+        std::string sourceId;
+        {
+            std::istringstream qs(query);
+            std::string pair;
+            while (std::getline(qs, pair, '&')) {
+                const std::size_t eq = pair.find('=');
+                if (eq == std::string::npos) continue;
+                if (pair.substr(0, eq) == "source_id") {
+                    sourceId = urlDecode(pair.substr(eq + 1));
+                }
             }
         }
+
+        std::vector<std::string> elements;
+        if (!sourceId.empty()) {
+            for (const auto& sp : store.syncPointsForSource(sourceId)) {
+                std::vector<ApiField> f;
+                f.push_back({"symbol", jsonString(sp.symbol), true});
+                f.push_back({"timeframe", jsonString(sp.timeframe), true});
+                f.push_back({"last_open_time_utc",
+                             jsonInteger(sp.lastOpenTimeUtc), true});
+                f.push_back({"count", jsonInteger(sp.count), true});
+                elements.push_back(jsonObject(f));
+            }
+        } else {
+            for (const auto& symbol : store.distinctSymbols()) {
+                for (Timeframe timeframe : allTimeframes()) {
+                    const std::string tf = toString(timeframe);
+                    const std::int64_t latest =
+                        store.latestOpenTimeAnySource(symbol, tf);
+                    if (latest == 0) continue;
+                    std::vector<ApiField> f;
+                    f.push_back({"symbol", jsonString(symbol), true});
+                    f.push_back({"timeframe", jsonString(tf), true});
+                    f.push_back({"last_open_time_utc", jsonInteger(latest), true});
+                    elements.push_back(jsonObject(f));
+                }
+            }
+        }
+        // Bare array preserved for compatibility with existing senders. A
+        // caller that needs delivery proof must ask for its own scope with
+        // ?source_id=; without it the result is an aggregate across sources and
+        // must not be treated as proof for any one sender.
         return ApiResponse{200, "application/json",
                            envelope(jsonArray(elements)), true};
     };

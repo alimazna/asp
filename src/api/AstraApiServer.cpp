@@ -443,7 +443,7 @@ ApiResponse AstraApiServer::handleRequest(
             return errorResponse(405, "method_not_allowed",
                                  "sync route requires GET");
         }
-        if (syncHandler) return syncHandler();
+        if (syncHandler) return syncHandler(query);
         return errorResponse(503, "dependency_unavailable",
                              "sync handler not configured");
     }

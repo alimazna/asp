@@ -308,6 +308,15 @@ RuntimeCycleReport AuraRuntime::ingestExternalBars(
                                     std::to_string(bar.openTimeSec));
             continue;
         }
+        // Grid alignment: a bar whose open time is not on its timeframe grid
+        // is not real data for that timeframe and must never advance state.
+        if (!openTimeAligned(timeframe, bar.openTimeSec)) {
+            worst = DataQualityState::INVALID;
+            report.issues.push_back(std::string(toString(timeframe)) +
+                                    ": rejecting misaligned bar open=" +
+                                    std::to_string(bar.openTimeSec));
+            continue;
+        }
         closedBars.push_back(bar);
     }
     if (closedBars.empty()) {

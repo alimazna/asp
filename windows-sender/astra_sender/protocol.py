@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
 
@@ -96,6 +97,14 @@ class ServerClient:
         }
         return self._request(INGEST_PATH, "POST", body)
 
-    def sync_latest(self) -> Dict[str, Any]:
-        """Fetch the authoritative server-side watermark set (reconcile)."""
-        return self._request(SYNC_PATH, "GET")
+    def sync_latest(self, source_id: str = "") -> Dict[str, Any]:
+        """Fetch the authoritative server-side watermark set.
+
+        Scoped to ``source_id`` when given, which is the only form safe to use
+        for reconciliation: the unscoped response is an aggregate across every
+        sender and cannot prove that this sender's candle was persisted.
+        """
+        path = SYNC_PATH
+        if source_id:
+            path = f"{SYNC_PATH}?source_id={urllib.parse.quote(source_id, safe='')}"
+        return self._request(path, "GET")

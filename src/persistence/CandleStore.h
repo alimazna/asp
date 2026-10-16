@@ -84,6 +84,13 @@ public:
     std::vector<CandleSyncPoint> syncPoints(const std::string& sourceId,
                                             const std::string& symbol) const;
 
+    // The newest persisted open time per (symbol, timeframe) for one source
+    // identity, across every symbol that source has sent. This is the safe
+    // basis for reconciliation: a sender must never treat another source's
+    // watermark as proof that its own candle was persisted.
+    std::vector<CandleSyncPoint> syncPointsForSource(
+        const std::string& sourceId) const;
+
     // Names of timeframes that have at least one persisted candle for the
     // identity.
     std::vector<std::string> timeframesWithData(const std::string& sourceId,

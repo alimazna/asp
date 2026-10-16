@@ -247,6 +247,34 @@ std::vector<CandleSyncPoint> CandleStore::syncPoints(
     return out;
 }
 
+std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
+    const std::string& sourceId) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<CandleSyncPoint> out;
+    if (db_ == nullptr) return out;
+
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql =
+        "SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
+        " FROM candles WHERE source_id=?1"
+        " GROUP BY symbol, timeframe;";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        if (stmt != nullptr) sqlite3_finalize(stmt);
+        return out;
+    }
+    sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_TRANSIENT);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        CandleSyncPoint sp;
+        sp.symbol = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        sp.timeframe = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        sp.lastOpenTimeUtc = sqlite3_column_int64(stmt, 2);
+        sp.count = sqlite3_column_int64(stmt, 3);
+        out.push_back(std::move(sp));
+    }
+    sqlite3_finalize(stmt);
+    return out;
+}
+
 std::vector<std::string> CandleStore::timeframesWithData(
     const std::string& sourceId, const std::string& symbol) const {
     std::vector<std::string> out;

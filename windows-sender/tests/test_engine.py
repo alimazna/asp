@@ -49,6 +49,8 @@ class FakeAstraServer(BaseHTTPRequestHandler):
     auth_token = "stub-token"
     fail_once = False
     count_ingest_calls = 0
+    sync_paths: List[str] = []
+    sync_data: List[Dict[str, Any]] = []
 
     def log_message(self, *args):  # silence
         pass
@@ -74,7 +76,9 @@ class FakeAstraServer(BaseHTTPRequestHandler):
             if not self._auth_ok():
                 self._reply(401, {"error": "true", "code": "unauthorized"})
                 return
-            self._reply(200, {"api": "v1", "schema": "1.0", "data": []})
+            FakeAstraServer.sync_paths.append(self.path)
+            self._reply(200, {"api": "v1", "schema": "1.0",
+                              "data": list(FakeAstraServer.sync_data)})
             return
         self._reply(404, {"error": "true", "code": "not_found"})
 
@@ -179,6 +183,8 @@ class EngineTest(EngineTearDownMixin, unittest.TestCase):
         FakeAstraServer.count_ingest_calls = 0
         FakeAstraServer.fail_once = False
         FakeAstraServer.stored = []
+        FakeAstraServer.sync_paths = []
+        FakeAstraServer.sync_data = []
         # Keep the fake feed pinned to a healthy "now" across tests. The
         # collector suite runs first and leaves FAKE_MT5_AVAILABLE=0 after the
         # "unavailable" case; restore availability + fresh clock here.
@@ -297,6 +303,56 @@ class EngineTest(EngineTearDownMixin, unittest.TestCase):
         latest_acked = final_ledger.latest_acknowledged("s1", "XAUUSD", "M15")
         self.assertGreaterEqual(latest_acked, t)
         final_ledger.close()
+        engine.stop()
+
+
+    def test_reconcile_is_scoped_to_this_sender_identity(self):
+        # The sender must reconcile against its OWN source identity. An
+        # unscoped query mixes in other senders' candles and could mark a
+        # candle acknowledged that this sender never had persisted.
+        engine = self._make_engine()
+        engine._sync_once()
+        self.assertTrue(FakeAstraServer.sync_paths,
+                        "the sender should query the sync endpoint")
+        for path in FakeAstraServer.sync_paths:
+            self.assertIn("source_id=s1", path,
+                          "reconciliation must be scoped to the sender id")
+        engine.stop()
+
+    def test_reconcile_adopts_server_watermark_and_skips_resend(self):
+        # A fresh local ledger (e.g. after a local DB loss) must adopt the
+        # server's authoritative watermark for THIS source and therefore not
+        # re-send a candle the server already holds.
+        t = latest_fake_candle_time()
+        FakeAstraServer.sync_data = [
+            {"symbol": "XAUUSD", "timeframe": "M15",
+             "last_open_time_utc": t, "count": 7},
+        ]
+        engine = self._make_engine()
+        engine._sync_once()
+        ledger = DeliveryLedger(self.config.ledger_path)
+        self.assertTrue(ledger.is_acknowledged("s1", "XAUUSD", "M15", t),
+                        "server watermark must be adopted as acknowledged")
+        self.assertEqual(FakeAstraServer.count_ingest_calls, 0,
+                         "an already-persisted candle must not be re-sent")
+        ledger.close()
+        engine.stop()
+
+    def test_reconcile_does_not_suppress_a_candle_the_server_lacks(self):
+        # A watermark that is AHEAD of the sender's real newest closed candle
+        # (as a cross-source aggregate could be) must not cause the sender to
+        # withhold its own candle: the exact candle is still delivered.
+        t = latest_fake_candle_time()
+        FakeAstraServer.sync_data = [
+            {"symbol": "XAUUSD", "timeframe": "M15",
+             "last_open_time_utc": t + 10 * 900, "count": 99},
+        ]
+        engine = self._make_engine()
+        engine._sync_once()
+        ledger = DeliveryLedger(self.config.ledger_path)
+        self.assertTrue(ledger.is_acknowledged("s1", "XAUUSD", "M15", t),
+                        "the sender's own candle must still be delivered")
+        ledger.close()
         engine.stop()
 
 
