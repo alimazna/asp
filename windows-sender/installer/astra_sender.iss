@@ -30,6 +30,8 @@ DisableDirPage=auto
 ; Elevation: "requests permissions from the system".
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=dist
 OutputBaseFilename=AstraSenderSetup-{#AppVersion}
 Compression=lzma2

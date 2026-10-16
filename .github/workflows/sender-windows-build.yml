@@ -114,9 +114,21 @@ jobs:
           if (-not $j.sender_token) { throw "provisioned token is empty" }
           Write-Host "config provisioned: backend=$($j.backend_url) sender_id=$($j.sender_id) token_len=$($j.sender_token.Length) timeframes=$($j.timeframes -join ',')"
 
-          $app = Join-Path $env:ProgramFiles 'AstraSender\AstraSender.exe'
-          if (-not (Test-Path $app)) { throw "app was not installed at $app" }
+          $app = Join-Path ${env:ProgramFiles} 'AstraSender\AstraSender.exe'
+          if (-not (Test-Path $app)) {
+            # A 32-bit Inno build defaults to Program Files (x86).
+            $alt = Join-Path ${env:ProgramFiles(x86)} 'AstraSender\AstraSender.exe'
+            if (Test-Path $alt) { $app = $alt }
+          }
+          if (-not (Test-Path $app)) { throw "app was not installed under Program Files" }
           Write-Host "app installed: $app"
+
+          # The frozen app must start and find its provisioned config. Run the
+          # self-check, which loads config + ledger and exits non-zero on error.
+          $env:ASTRA_SENDER_NO_DIALOG = "1"
+          $p = Start-Process -FilePath $app -ArgumentList '--selfcheck' -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "installed app self-check failed: $($p.ExitCode)" }
+          Write-Host "installed app self-check exit code: $($p.ExitCode)"
 
       - name: Smoke-run the frozen app (headless)
         working-directory: windows-sender
