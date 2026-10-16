@@ -48,9 +48,12 @@ requests or executes orders and never transmits MT5 account passwords.
    - or download `AstraSender.exe` from the latest GitHub Actions artifact
      (`Actions` tab → workflow *Build Windows Astra Sender* → artifact).
 
-3. Create the config file. On first run the app prints where it looks for
-   `config.json` (default `%LOCALAPPDATA%\AstraSender\config.json`). Create it
-   with these fields:
+3. Let the app create the config. The **first launch writes a template config**
+   pre-filled with the backend URL, symbol, the nine timeframes and a
+   `sender_id`, then shows a message box telling you the exact path (default
+   `%LOCALAPPDATA%\AstraSender\config.json`). Open it and paste the dedicated
+   ingestion token into `sender_token` — that is the only field you must
+   supply:
 
    ```json
    {
@@ -74,6 +77,49 @@ requests or executes orders and never transmits MT5 account passwords.
 5. On first install the sender sends the **newest closed candle per timeframe
    only** — it never floods months of history. Historical backfill must be
    explicitly configured (documented below).
+
+## Troubleshooting
+
+**Double-clicking does nothing at all (no window, no error).**
+Until v0.4.1 this was the app's most confusing failure. The exe is built as a
+*windowed* app (`console=False`), so it has no console and `sys.stdout` /
+`sys.stderr` are `None`. When the config was missing, the old code printed the
+"not configured" message to `stderr` — which in windowed mode is discarded — so
+the process exited instantly and invisibly.
+
+v0.4.1 fixes this three ways:
+
+- a startup **message box** tells you what is wrong and where the config lives;
+- every startup failure is appended to
+  `%LOCALAPPDATA%\AstraSender\sender.log`;
+- an unexpected crash is logged and shown in a dialog instead of vanishing.
+
+If you are on v0.4.0 and see nothing, check for `sender.log` next to the config
+path; if it is absent, the process died before logging — run the exe from
+`cmd` once (it still prints to a real console when one is attached) to see the
+message.
+
+**Nothing happens, or the window closes instantly.**
+Look at `%LOCALAPPDATA%\AstraSender\sender.log`. Each of these has a distinct
+message:
+
+| Log message | Cause | Fix |
+|---|---|---|
+| `not configured` / `Sender token is empty` | `config.json` incomplete | paste the ingestion token into `sender_token` |
+| `AUTH_FAILED` / `server rejected credential` | wrong/rotated token | put the current token in `config.json` |
+| `MT5` / `UNAVAILABLE` | terminal not running or not logged in | open and log in to MT5 |
+| `cannot reach server` | no internet or wrong `backend_url` | check the URL and connection |
+| `MetaTrader5: NOT bundled` | exe built without the MT5 package | use the release exe, not a manual build |
+
+**Antivirus flags or deletes the exe.** One-file PyInstaller executables are
+frequently false-positive flagged because they self-extract at runtime. Add an
+exclusion for `AstraSender.exe`, or build the onedir variant. The exe is UPX
+compressed, which increases false positives; build with `upx=False` if your AV
+is strict.
+
+**SmartScreen blocks the first launch.** The exe is unsigned, so Windows shows
+"Windows protected your PC". Choose *More info → Run anyway*. Signing the
+binary is the only way to remove this prompt.
 
 ## Headless mode
 

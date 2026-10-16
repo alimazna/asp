@@ -51,6 +51,42 @@ class EntryPointTest(unittest.TestCase):
         self.assertNotIn(_RELATIVE_IMPORT_ERROR, result.stderr)
         self.assertIn(result.returncode, (0, 2), result.stderr)
 
+    def test_windowed_mode_writes_log_instead_of_failing_silently(self):
+        # A PyInstaller windowed exe has sys.stdout is None and sys.stderr is
+        # None. The old code did `print(..., file=sys.stderr)`, which discarded
+        # the message AND raised, so double-clicking with no config produced no
+        # window, no dialog and no log — indistinguishable from "nothing
+        # happened". Simulate that environment and require the failure to be
+        # captured on disk.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ)
+            env["LOCALAPPDATA"] = tmp
+            env["XDG_CONFIG_HOME"] = tmp
+            code = (
+                "import sys\n"
+                "sys.stdout = None\n"
+                "sys.stderr = None\n"
+                "sys.path.insert(0, %r)\n"
+                "import astra_sender.__main__ as m\n"
+                "raise SystemExit(m.main())\n" % _PKG_DIR
+            )
+            result = subprocess.run([sys.executable, "-c", code],
+                                    capture_output=True, text=True,
+                                    timeout=60, env=env)
+            # Exit 2 = "not configured" is the correct outcome; a crash (1)
+            # would mean the guard fired instead.
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+            log = os.path.join(tmp, "astra_sender" if sys.platform != "win32"
+                               else "AstraSender", "sender.log")
+            self.assertTrue(os.path.exists(log),
+                            "windowed startup failure left no sender.log")
+            with open(log, encoding="utf-8") as fh:
+                body = fh.read()
+            self.assertIn("not configured", body)
+
 
 if __name__ == "__main__":
     unittest.main()

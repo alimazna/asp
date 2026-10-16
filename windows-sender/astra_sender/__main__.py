@@ -43,7 +43,10 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
+
+# Pre-filled into the first-run config template so the user only pastes a token.
+DEFAULT_BACKEND_URL = "https://astra-server-production.up.railway.app"
 
 
 def _say(text: str) -> None:
@@ -52,7 +55,66 @@ def _say(text: str) -> None:
         print(text, flush=True)
 
 
+def _install_console_fallback() -> None:
+    """Capture output and tracebacks when the exe has no console.
+
+    A PyInstaller *windowed* build sets ``sys.stdout``/``sys.stderr`` to None.
+    Anything written to them is discarded AND raises inside the print, so a
+    startup failure such as a missing config file used to exit silently: the
+    user double-clicked and nothing happened with no way to tell why. Route
+    both streams to a rotating log next to the config so every startup
+    problem leaves evidence on disk.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+
+    from .config import app_data_dir  # local: this runs before main()'s imports
+
+    log_path = os.path.join(app_data_dir(), "sender.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        stream = open(log_path, "a", encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    if sys.stdout is None:
+        sys.stdout = stream
+    if sys.stderr is None:
+        sys.stderr = stream
+
+
+def _show_error_dialog(title: str, message: str) -> None:
+    """Best-effort native message box, used when there is no console."""
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, message, title, 0x40000)  # MB_TOPMOST
+    except Exception:
+        pass
+
+
 def main() -> int:
+    """Run the app, turning any unexpected crash into a visible message.
+
+    In a windowed exe an uncaught exception terminates with no output, which
+    looks identical to "nothing happened". Log the traceback and show a dialog
+    so a failure is always diagnosable.
+    """
+    _install_console_fallback()
+    try:
+        return _main_impl()
+    except SystemExit:
+        raise
+    except BaseException as exc:  # noqa: BLE001 - last-resort guard
+        import traceback
+        detail = traceback.format_exc()
+        print(detail, file=sys.stderr)
+        _show_error_dialog(
+            "ASTRA Sender — unexpected error",
+            f"{type(exc).__name__}: {exc}\n\nA log was written to:\n"
+            f"{os.path.join(app_data_dir(), 'sender.log')}")
+        return 1
+
+
+def _main_impl() -> int:
     _module_path_dirs()
 
     parser = argparse.ArgumentParser(prog="astra_sender",
@@ -115,12 +177,39 @@ def main() -> int:
     data_dir = os.path.dirname(config_path) or app_data_dir()
 
     if not config.backend_url or not config.sender_token or not config.sender_id:
-        problems = config.validate()
-        print("ASTRA Sender is not configured.", file=sys.stderr)
-        for problem in problems:
-            print(f"  - {problem}", file=sys.stderr)
-        print(f"Open {config_path} and set backend_url, sender_token and sender_id.",
-              file=sys.stderr)
+        # Write an editable template on first run so the user has a file to
+        # fill in rather than hand-authoring JSON at an unfamiliar path.
+        created = False
+        if not os.path.exists(config_path):
+            try:
+                template = SenderConfig.from_dict(config.to_dict(),
+                                                  os.path.dirname(config_path))
+                # Pre-fill everything known so the user only pastes the token.
+                if not template.backend_url:
+                    template.backend_url = DEFAULT_BACKEND_URL
+                if not template.sender_id:
+                    template.sender_id = "win10-desk-01"
+                SenderConfig.save(template, config_path)
+                created = True
+            except OSError:
+                pass
+
+        # Validate what the user actually has on disk now (the template, if we
+        # just wrote one) so the reported problems match the file they open.
+        reported = SenderConfig.load(config_path).validate() if created else config.validate()
+        lines = ["ASTRA Sender is not configured."]
+        lines += [f"  - {p}" for p in reported]
+        if created:
+            lines.append(f"A template was created at:\n  {config_path}")
+            lines.append("Fill in backend_url, sender_token and sender_id, then "
+                         "start the app again.")
+        else:
+            lines.append(f"Open this file and set the three fields:\n  {config_path}")
+        text = "\n".join(lines)
+        print(text, file=sys.stderr)
+        # A windowed exe has no console, so also surface it in a message box —
+        # otherwise the user sees nothing at all when double-clicking.
+        _show_error_dialog("ASTRA Sender — setup required", text)
         return 2
 
     from .collector import ClosedCandleCollector
