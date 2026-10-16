@@ -6,6 +6,7 @@
 // timeframes; a failure in one timeframe never aborts the others.
 
 #include "audit/AuditLog.h"
+#include "analysis/features/AnalyticalFeatureEngine.h"
 #include "data/DataBus.h"
 #include "data/MarketDataIngestor.h"
 #include "data/TimeframeStateStore.h"
@@ -169,6 +170,13 @@ private:
     // Runs the live decision pipeline for a freshly closed operational bar.
     void runDecisionCycle(const Bar& closedBar, Timestamp now,
                           RuntimeCycleReport& report);
+
+    // Build the cross-timeframe context for the operational bar close from the
+    // closed-bar history already published on the data bus. Reads M15 (trigger)
+    // and H4/D1 (context). When M15 or H4 is unavailable, the core gate is
+    // reported as not passed, honestly, rather than asserting a bias. Requires
+    // pipeline_ to exist (operational timeframe is read from it).
+    MtfContext buildMtfContext(std::int64_t asOfBarOpenSec) const;
 
     // Append an audit record. Best-effort: audit failure never aborts a cycle.
     void appendAudit(AuditAction action, const std::string& subject,

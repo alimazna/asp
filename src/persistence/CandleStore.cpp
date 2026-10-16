@@ -384,4 +384,38 @@ std::int64_t CandleStore::latestOpenTimeAnySource(
     return out;
 }
 
+bool CandleStore::deleteCandle(const std::string& sourceId,
+                               const std::string& symbol,
+                               const std::string& timeframe,
+                               std::int64_t openTimeUtc, int& deleted,
+                               std::string& error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    deleted = 0;
+    if (db_ == nullptr) {
+        error = "candle store is not open";
+        return false;
+    }
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql =
+        "DELETE FROM candles WHERE source_id=?1 AND symbol=?2"
+        " AND timeframe=?3 AND open_time=?4;";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        error = std::string("cannot prepare delete: ") + sqlite3_errmsg(db_);
+        if (stmt != nullptr) sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, symbol.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, timeframe.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 4, openTimeUtc);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        error = std::string("delete failed: ") + sqlite3_errmsg(db_);
+        return false;
+    }
+    deleted = sqlite3_changes(db_);
+    return true;
+}
+
 }  // namespace aura

@@ -64,6 +64,12 @@ public:
         std::string date;
         std::string source;
         std::string reason;
+        // Provenance of the sample the methodology was fitted on. Parsed from
+        // the same artifact when present; empty means "not stated", never a
+        // fabricated value.
+        std::string method;
+        std::string window;
+        long samples = -1;   // -1 == not stated
     };
 
     ProbabilityApi() = default;

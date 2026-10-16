@@ -58,11 +58,29 @@ std::string contextJson(const std::string& symbol,
     std::vector<ApiField> fields;
     if (context.available) {
         fields.push_back({"regime", regimeLabel(context.regime)});
-        fields.push_back({"h4_bias", h4BiasLabel(context.structure)});
+        // When a cross-timeframe objective was computed, its H4 structural
+        // authority is the honest h4_bias — even on the no-decision path. Fall
+        // back to the M15-only structure only when no cross context exists.
+        if (context.mtf.available && context.mtf.h4Available) {
+            fields.push_back({"h4_bias", h4BiasLabel(context.mtf.h4Bias)});
+        } else {
+            fields.push_back({"h4_bias", h4BiasLabel(context.structure)});
+        }
         fields.push_back({"m15_trigger", triggerLabel(context.direction)});
-        // Multi-TF agreement is not computed anywhere yet: honest null.
-        fields.push_back({"mtf_agreement", kNull, true});
-        fields.push_back({"volatility_state", volatilityLabel(context.regime)});
+        // Multi-TF agreement: only reported when the cross context was actually
+        // computed; otherwise an honest null (never a guessed number).
+        if (context.mtf.available && context.mtf.h4Available) {
+            fields.push_back({"mtf_agreement",
+                              jsonNumber(1.0 - context.mtf.mtfConflictScore), true});
+        } else {
+            fields.push_back({"mtf_agreement", kNull, true});
+        }
+        if (context.mtf.available) {
+            fields.push_back({"volatility_state",
+                              volatilityLabel(context.mtf.volatilityState)});
+        } else {
+            fields.push_back({"volatility_state", volatilityLabel(context.regime)});
+        }
     } else {
         fields.push_back({"regime", "UNKNOWN"});
         fields.push_back({"h4_bias", "UNKNOWN"});
@@ -129,6 +147,37 @@ std::string levelsJson(const DecisionContext& context) {
     return jsonObject(fields);
 }
 
+// The `decision` object (additive, T33). Explains *why* the chain did or did
+// not produce a decision: whether a cross-timeframe objective was applied, the
+// core-gate result, and the ordered reasons a decision was withheld. This is
+// the difference between "no plan because data is missing" and "no plan because
+// the market state was rejected" — both honest, but not the same thing.
+std::string decisionJson(const DecisionContext& context) {
+    std::vector<ApiField> fields;
+    fields.push_back({"available", jsonBool(context.available), true});
+    fields.push_back({"mtf_available", jsonBool(context.mtf.available), true});
+    fields.push_back({"mtf_core_gate_passed",
+                      jsonBool(context.mtf.coreGatePassed), true});
+    if (context.mtf.available && context.mtf.h4Available) {
+        fields.push_back({"h4_structural_authority",
+                          jsonNumber(context.mtf.h4StructuralAuthority), true});
+        fields.push_back({"h4_m15_agreement",
+                          jsonNumber(context.mtf.h4M15Agreement), true});
+        fields.push_back({"h4_d1_agreement",
+                          jsonNumber(context.mtf.h4D1Agreement), true});
+    } else {
+        fields.push_back({"h4_structural_authority", kNull, true});
+        fields.push_back({"h4_m15_agreement", kNull, true});
+        fields.push_back({"h4_d1_agreement", kNull, true});
+    }
+    std::vector<std::string> reasons;
+    for (const auto& r : context.blockReasons) {
+        reasons.push_back(jsonString(r));
+    }
+    fields.push_back({"block_reasons", jsonArray(reasons), true});
+    return jsonObject(fields);
+}
+
 // The `meta` object.
 std::string metaJson(const ProbabilityApi::Gate* gate, bool degraded) {
     std::vector<ApiField> fields;
@@ -167,6 +216,7 @@ ApiResponse AnalysisApi::latest(const std::string& symbol,
     fields.push_back({"symbol", symbol});
     fields.push_back({"context", contextJson(symbol, context), true});
     fields.push_back({"signal", signalJson(gate), true});
+    fields.push_back({"decision", decisionJson(context), true});
     fields.push_back({"levels", levelsJson(context), true});
     fields.push_back({"meta", metaJson(gate, false), true});
     return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true};

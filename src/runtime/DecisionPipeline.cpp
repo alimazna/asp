@@ -30,7 +30,8 @@ DecisionPipeline::DecisionPipeline(const IGuardian* guardian,
 
 PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
                                                   const std::vector<Bar>& history,
-                                                  Timestamp now) {
+                                                  Timestamp now,
+                                                  const MtfContext& mtf) {
     PipelineCycleReport report;
 
     // Causality: only a genuinely closed bar with a valid open time may be
@@ -47,11 +48,53 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
     const Timeframe timeframe = config_.operationalTimeframe;
     const std::int64_t asOf = closedBar.openTimeSec;
 
+    // Multi-timeframe core gate. When a cross-timeframe context was built and it
+    // shows the operational (M15) or structural-authority (H4) stream missing or
+    // not decision-grade, the objective cannot be verified: suppress the
+    // decision and report the objective as UNKNOWN. This never fabricates a
+    // bias; it is the honest analogue of the research gate
+    // `cross.m15Available && cross.h4Available`. When no context is available
+    // (single-timeframe caller / tests) the chain behaves as before.
+    if (mtf.available && !mtf.coreGatePassed) {
+        DecisionContext blocked;
+        blocked.available = true;
+        blocked.decisionId =
+            EntityId(makeDecisionId(timeframe, asOf, SignalDirection::NONE));
+        blocked.symbol = symbol_;
+        blocked.timeframe = timeframe;
+        blocked.asOfBarOpenSec = asOf;
+        blocked.direction = SignalDirection::NONE;
+        blocked.mtf = mtf;
+        blocked.blockReasons.push_back(
+            mtf.blockReason.empty() ? "multi-timeframe core gate not passed"
+                                    : mtf.blockReason);
+        blocked.strategyVersion = strategyVersion_;
+        blocked.configurationVersion = configurationVersion_;
+        blocked.evaluatedAt = now;
+        lastContext_ = blocked;
+        report.issues.push_back(blocked.blockReasons.front());
+        return report;
+    }
+
     // Macro/event boundary. A high-impact imminent event suppresses the
     // decision. An absent feed is UNKNOWN (not "clear") and is carried through
     // as an explicit uncertainty rather than fabricated as safe.
     const MacroContext macro = macro_.evaluate(now);
     if (macro.highImpactImminent) {
+        DecisionContext blocked;
+        blocked.available = true;
+        blocked.decisionId =
+            EntityId(makeDecisionId(timeframe, asOf, SignalDirection::NONE));
+        blocked.symbol = symbol_;
+        blocked.timeframe = timeframe;
+        blocked.asOfBarOpenSec = asOf;
+        blocked.direction = SignalDirection::NONE;
+        blocked.mtf = mtf;
+        blocked.blockReasons.push_back("macro gate: high-impact event window");
+        blocked.strategyVersion = strategyVersion_;
+        blocked.configurationVersion = configurationVersion_;
+        blocked.evaluatedAt = now;
+        lastContext_ = blocked;
         report.issues.push_back("macro gate: high-impact event window");
         return report;
     }
@@ -72,6 +115,45 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
         score, structure, regime, candidate, candidate.quality);
     const ProbabilityResult probability =
         probabilityEngine_.compute(score, confidence, candidate);
+
+    // Multi-timeframe veto. When the structural-authority stream (H4) is
+    // available and its verified bias directly opposes the operational
+    // candidate, the objective contradicts the setup: suppress the decision
+    // rather than act against a real higher-timeframe bias. Only fires when the
+    // cross-timeframe objective was actually computed (mtf.available), so the
+    // single-timeframe caller is unchanged. It never invents a bias: an
+    // UNKNOWN H4 leaves the candidate untouched.
+    if (mtf.available && mtf.h4Available &&
+        candidate.direction != SignalDirection::NONE) {
+        const bool candidateLong = candidate.direction == SignalDirection::LONG;
+        const bool h4Opposes =
+            (candidateLong && mtf.h4Bias == StructureBias::BEARISH) ||
+            (!candidateLong && mtf.h4Bias == StructureBias::BULLISH);
+        if (h4Opposes && mtf.h4M15Agreement < 0.0) {
+            DecisionContext vetoed;
+            vetoed.available = true;
+            vetoed.decisionId = EntityId(
+                makeDecisionId(timeframe, asOf, SignalDirection::NONE));
+            vetoed.symbol = symbol_;
+            vetoed.timeframe = timeframe;
+            vetoed.asOfBarOpenSec = asOf;
+            vetoed.direction = SignalDirection::NONE;
+            vetoed.dataState = features.quality;
+            vetoed.structure = structure.bias;
+            vetoed.regime = regime.regime;
+            vetoed.eligibility = eligibility.decision;
+            vetoed.strategyVersion = strategyVersion_;
+            vetoed.configurationVersion = configurationVersion_;
+            vetoed.evaluatedAt = now;
+            vetoed.mtf = mtf;
+            vetoed.blockReasons.push_back(
+                "multi-timeframe veto: operational candidate opposes H4 "
+                "structural authority");
+            lastContext_ = vetoed;
+            report.issues.push_back(vetoed.blockReasons.front());
+            return report;
+        }
+    }
 
     if (candidate.direction == SignalDirection::NONE || !score.valid ||
         !confidence.valid) {
@@ -95,6 +177,34 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
         noDecision.strategyVersion = strategyVersion_;
         noDecision.configurationVersion = configurationVersion_;
         noDecision.evaluatedAt = now;
+        noDecision.mtf = mtf;
+        // Distinguish the scarcity cause instead of one generic message, so a
+        // consumer can tell "data is blocked" from "the market state was
+        // rejected" from "nothing directional this bar". These are honest,
+        // ordered, and non-exclusive.
+        if (features.quality == DataQualityState::UNKNOWN ||
+            features.quality == DataQualityState::MISSING ||
+            features.quality == DataQualityState::INCOMPLETE) {
+            noDecision.blockReasons.push_back("data blocked: feature window not decision-grade");
+        }
+        if (eligibility.decision == EligibilityDecision::NOT_ELIGIBLE) {
+            noDecision.blockReasons.push_back("eligibility rejected the market state");
+        }
+        if (candidate.direction == SignalDirection::NONE) {
+            noDecision.blockReasons.push_back("no directional signal on this bar");
+        } else if (!score.valid && !confidence.valid) {
+            noDecision.blockReasons.push_back("score and confidence below decision-grade");
+        } else if (!score.valid) {
+            noDecision.blockReasons.push_back("score below decision-grade threshold");
+        } else {
+            noDecision.blockReasons.push_back("confidence below decision-grade threshold");
+        }
+        // When a cross-timeframe objective was computed, expose whether it
+        // contradicts the operational direction instead of leaving the caller
+        // to infer agreement from nulls.
+        if (mtf.available && mtf.h4Available) {
+            noDecision.blockReasons.push_back("no verified multi-timeframe objective");
+        }
         lastContext_ = noDecision;
         return report;
     }
@@ -126,6 +236,7 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
     context.strategyVersion = strategyVersion_;
     context.configurationVersion = configurationVersion_;
     context.evaluatedAt = now;
+    context.mtf = mtf;
     lastContext_ = context;
 
     // A decision identity is deterministic; a repeat is a duplicate, never a
@@ -172,6 +283,7 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
 
     if (proposal.decision == RiskDecision::DENIED || !proposal.valid) {
         decision.reason = "risk denied: " + proposal.reason;
+        lastContext_.blockReasons.push_back(decision.reason);
         report.decisions.push_back(decision);
         return report;
     }
@@ -183,6 +295,7 @@ PipelineCycleReport DecisionPipeline::onClosedBar(const Bar& closedBar,
         const PortfolioDecision portfolio = portfolioEngine_.admit(exposure, proposal);
         if (!portfolio.allowed) {
             decision.reason = "portfolio denied: " + portfolio.reason;
+            lastContext_.blockReasons.push_back(decision.reason);
             report.decisions.push_back(decision);
             return report;
         }

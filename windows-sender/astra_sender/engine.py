@@ -232,6 +232,27 @@ class SyncEngine:
                                            int(open_time)),
                 int(entry.get("count") or 0))
 
+    # -- backfill planning --------------------------------------------------
+
+    def plan_backfill(self, source_id: str, symbol: str, timeframe: str,
+                      open_times: List[int], max_bars: int,
+                      ledger: Optional[DeliveryLedger] = None) -> List[int]:
+        """Plan a bounded, chronological, idempotent catch-up/backfill.
+
+        Returns the most recent unacknowledged open times, oldest first, capped
+        at ``max_bars``. Acknowledged candles are never re-planned, so a
+        backfill cannot duplicate the normal live sync. ``max_bars <= 0`` plans
+        nothing. Identity is (source, symbol, timeframe, open time) — never a
+        price — so a re-run of the same window is a no-op server-side.
+        """
+        if max_bars <= 0 or not open_times:
+            return []
+        book = ledger if ledger is not None else self._ledger
+        ordered = sorted(int(t) for t in open_times)
+        unacked = [t for t in ordered
+                   if not book.is_acknowledged(source_id, symbol, timeframe, t)]
+        return unacked[-max_bars:]
+
     # -- collector ----------------------------------------------------------
 
     def _ensure_collector(self) -> Dict[str, Any]:

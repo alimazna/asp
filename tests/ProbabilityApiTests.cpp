@@ -300,3 +300,72 @@ TEST_CASE(real_t11_report_keeps_the_gate_closed_on_this_build) {
     CHECK(!api.calibrationAudited());
 }
 
+
+// T33 item 4: calibration provenance reaches the payload. A consumer must be
+// able to see which methodology and sample earned a probability, and absent
+// fields must be reported as absent rather than invented.
+TEST_CASE(probability_payload_carries_calibration_provenance) {
+    ProbabilityApi api;
+    const std::string path = writeTempAudit(
+        "provenance",
+        "# Audit Report - T11\n- **Verdict:** PASS\n"
+        "- **Publication:** authorised\n"
+        "- **Calibration method:** isotonic\n"
+        "- **Calibration window:** 2024-01..2024-12\n"
+        "- **Calibration samples:** 1200 bars\n");
+    const ProbabilityApi::Audit audit = api.applyCalibrationAudit(path);
+    REQUIRE(audit.present);
+    CHECK(audit.passed);
+    CHECK(audit.publicationAuthorised);
+    CHECK_EQ(audit.method, std::string("isotonic"));
+    CHECK_EQ(audit.window, std::string("2024-01..2024-12"));
+    CHECK_EQ(audit.samples, 1200L);
+
+    PredictionLedger ledger;
+    PredictionRecord record;
+    record.decisionId = EntityId("M15-1700000000-LONG");
+    record.direction = SignalDirection::LONG;
+    record.score = 0.72;
+    record.probabilityEstimate = 0.61;
+    record.probabilityCalibrated = true;
+    record.recordedAt = Timestamp::fromEpochMillis(1700000000000LL);
+    REQUIRE(ledger.append(record));
+
+    const ApiResponse resp = api.latest(&ledger);
+    CHECK_EQ(resp.status, 200);
+    CHECK(resp.body.find("\"calibration_method\":\"isotonic\"") != std::string::npos);
+    CHECK(resp.body.find("\"calibration_window\":\"2024-01..2024-12\"") !=
+          std::string::npos);
+    CHECK(resp.body.find("\"calibration_samples\":1200") != std::string::npos);
+    CHECK(resp.body.find("\"calibration_publication_authorised\":true") !=
+          std::string::npos);
+
+    ::remove(path.c_str());
+}
+
+// Absent provenance is reported as null, never fabricated.
+TEST_CASE(probability_payload_reports_absent_provenance_as_null) {
+    ProbabilityApi api;
+    const std::string path = writeTempAudit(
+        "no-prov",
+        "# Audit Report - T11\n- **Verdict:** PASS\n"
+        "- **Publication:** authorised\n");
+    api.applyCalibrationAudit(path);
+
+    PredictionLedger ledger;
+    PredictionRecord record;
+    record.decisionId = EntityId("M15-1700000000-LONG");
+    record.direction = SignalDirection::LONG;
+    record.score = 0.5;
+    record.probabilityEstimate = 0.55;
+    record.probabilityCalibrated = true;
+    record.recordedAt = Timestamp::fromEpochMillis(1700000000000LL);
+    REQUIRE(ledger.append(record));
+
+    const ApiResponse resp = api.latest(&ledger);
+    CHECK(resp.body.find("\"calibration_method\":null") != std::string::npos);
+    CHECK(resp.body.find("\"calibration_samples\":null") != std::string::npos);
+
+    ::remove(path.c_str());
+}
+

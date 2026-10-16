@@ -357,8 +357,8 @@ void AstraApiServer::handleConnection(std::intptr_t connHandle) {
                     path = path.substr(0, q);
                 }
                 response = handleRequest(method, path, query, body,
-                                         authenticated, hasOrigin,
-                                         origin, corsOk);
+                                         authenticated, headers.authorization,
+                                         hasOrigin, origin, corsOk);
             }
         }
 
@@ -371,7 +371,8 @@ void AstraApiServer::handleConnection(std::intptr_t connHandle) {
             corsHeaders += "Vary: Origin\r\n";
         }
         const std::string out =
-            encodeHttpResponse(response.status, response.body, corsHeaders);
+            encodeHttpResponse(response.status, response.body,
+                               corsHeaders + response.headers);
         std::size_t sent = 0;
         while (sent < out.size()) {
 #ifdef _WIN32
@@ -402,6 +403,21 @@ bool AstraApiServer::authorize(const std::string& authorizationHeader) const {
     return false;
 }
 
+bool AstraApiServer::authorizeAdmin(const std::string& authorizationHeader) const {
+    // Admin tokens are checked against a SEPARATE list from sender tokens, so a
+    // leaked ingestion credential can never reach the destructive surface.
+    if (authorizationHeader.empty() || config_.adminTokens.empty()) return false;
+    constexpr const char* kBearer = "Bearer ";
+    const std::string trimmed = trim(authorizationHeader);
+    if (trimmed.rfind(kBearer, 0) != 0) return false;
+    const std::string presented = trim(trimmed.substr(6));
+    if (presented.empty()) return false;
+    for (const auto& token : config_.adminTokens) {
+        if (presented == token) return true;
+    }
+    return false;
+}
+
 bool AstraApiServer::originAllowed(const std::string& origin) const {
     if (origin.empty()) return true;   // non-browser requests need no CORS
     for (const auto& allowed : config_.allowedOrigins) {
@@ -410,12 +426,43 @@ bool AstraApiServer::originAllowed(const std::string& origin) const {
     return false;
 }
 
+bool AstraApiServer::rateAllow(const std::string& route,
+                               const std::string& authorizationHeader,
+                               int limitPerMinute) {
+    if (limitPerMinute <= 0) return true;   // disabled
+
+    // Identify the credential without storing it: FNV-1a over the raw header is
+    // enough to separate callers and is not reversible.
+    std::uint64_t hash = 1469598103934665603ULL;
+    for (char c : authorizationHeader) {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= 1099511628211ULL;
+    }
+    const std::string key = route + "|" + std::to_string(hash);
+
+    const std::int64_t nowSec = Timestamp::now().epochMillis() / 1000;
+    constexpr std::int64_t kWindowSec = 60;
+
+    std::lock_guard<std::mutex> lock(rateMutex_);
+    RateWindow& window = rateWindows_[key];
+    if (nowSec - window.windowStartSec >= kWindowSec) {
+        window.windowStartSec = nowSec;
+        window.count = 0;
+    }
+    if (window.count >= limitPerMinute) {
+        return false;
+    }
+    ++window.count;
+    return true;
+}
+
 ApiResponse AstraApiServer::handleRequest(
     const std::string& method, const std::string& path, const std::string& query,
-    const std::string& body, bool authenticated, bool hasCorsOrigin,
-    const std::string& origin, bool& isCorsOk) {
+    const std::string& body, bool authenticated, const std::string& authHeader,
+    bool hasCorsOrigin, const std::string& origin, bool& isCorsOk) {
 
-    // Ingestion and sync routes require the sender credential.
+    // Ingestion and sync routes require the sender credential. The destructive
+    // admin route requires the separate admin credential.
     const bool requiresAuth =
         (path == "/api/v1/candles/ingest") || (path == "/api/v1/sync/latest");
 
@@ -424,10 +471,43 @@ ApiResponse AstraApiServer::handleRequest(
                              "a valid sender bearer token is required");
     }
 
+    if (path == "/api/v1/admin/candles") {
+        if (method != "DELETE") {
+            return errorResponse(405, "method_not_allowed",
+                                 "admin candle route requires DELETE");
+        }
+        if (!authorizeAdmin(authHeader)) {
+            return errorResponse(401, "unauthorized",
+                                 "a valid admin bearer token is required");
+        }
+        if (!rateAllow("admin", authHeader, config_.ingestRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "admin rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
+        if (body.empty()) {
+            return errorResponse(400, "malformed_request",
+                                 "admin delete requires a JSON body");
+        }
+        if (adminDeleteHandler) return adminDeleteHandler(body);
+        return errorResponse(503, "dependency_unavailable",
+                             "admin delete handler not configured");
+    }
+
     if (path == "/api/v1/candles/ingest") {
         if (method != "POST") {
             return errorResponse(405, "method_not_allowed",
                                  "ingest route requires POST");
+        }
+        if (!rateAllow("ingest", authHeader,
+                       config_.ingestRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "ingestion rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
         }
         if (body.empty()) {
             return errorResponse(400, "malformed_request",
@@ -442,6 +522,14 @@ ApiResponse AstraApiServer::handleRequest(
         if (method != "GET") {
             return errorResponse(405, "method_not_allowed",
                                  "sync route requires GET");
+        }
+        if (!rateAllow("sync", authHeader,
+                       config_.syncRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "sync rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
         }
         if (syncHandler) return syncHandler(query);
         return errorResponse(503, "dependency_unavailable",

@@ -71,6 +71,29 @@ struct PipelineCycleReport {
     std::vector<EntityId> outcomesRecorded;
 };
 
+// Multi-timeframe context, computed once per operational bar close and applied
+// to the decision chain. `available == false` means the runtime could not build
+// a cross-timeframe snapshot; the chain then behaves exactly as the historical
+// single-timeframe build and reports the objective as UNKNOWN rather than
+// asserting a bias it did not verify. Every field here is a real observation of
+// the closed-bar streams, never a fabricated value.
+struct MtfContext {
+    bool available = false;
+    bool coreGatePassed = false;      // m15 AND h4 both available & decision-grade
+    std::string blockReason;          // why the core gate did not pass, when it didn't
+    // Objective recomputed from the H4/D1 streams (independent of the M15-only
+    // structure the chain computes on the operational timeframe).
+    StructureBias h4Bias = StructureBias::UNKNOWN;
+    double h4StructuralAuthority = 0.0;   // [-1,1]
+    double m15TriggerState = 0.0;         // [-1,1]
+    double h4M15Agreement = 0.0;          // {-1,0,1}
+    double h4D1Agreement = 0.0;           // {-1,0,1}
+    double mtfConflictScore = 0.0;        // [0,1] share of disagreeing TF pairs
+    bool h4Available = false;
+    bool d1Available = false;
+    RegimeType volatilityState = RegimeType::UNKNOWN;
+};
+
 // Per-decision metadata that the frontend contract exposes but which is not
 // stored in the prediction ledger (structure/regime/eligibility and the risk
 // proposal are computed, not persisted). Captured for the most recent
@@ -92,6 +115,12 @@ struct DecisionContext {
     std::string strategyVersion;
     std::string configurationVersion;
     Timestamp evaluatedAt;
+    MtfContext mtf;                // multi-timeframe context applied this bar
+    // Reasons the chain produced no decision this bar. Populated on the
+    // no-decision path so the API can report *why* (data blocked vs macro gate
+    // vs eligibility vs portfolio) instead of a generic message. Empty when a
+    // decision was produced.
+    std::vector<std::string> blockReasons;
 };
 
 class DecisionPipeline {
@@ -102,10 +131,13 @@ public:
                      DecisionPipelineConfig config = {});
 
     // Evaluate one closed bar. `history` is the closed-bar window ending at
-    // `closedBar` (ascending). Returns what was produced; never throws.
+    // `closedBar` (ascending). `mtf` carries the cross-timeframe context for
+    // this decision instant; when unavailable the chain runs single-timeframe
+    // exactly as before. Returns what was produced; never throws.
     PipelineCycleReport onClosedBar(const Bar& closedBar,
                                     const std::vector<Bar>& history,
-                                    Timestamp now);
+                                    Timestamp now,
+                                    const MtfContext& mtf = MtfContext{});
 
     // Advance open positions against a newly closed bar and persist any
     // outcomes that became known. Non-critical: a failure here is reported,

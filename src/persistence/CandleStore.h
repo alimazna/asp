@@ -110,6 +110,14 @@ public:
     std::int64_t latestOpenTimeAnySource(const std::string& symbol,
                                          const std::string& timeframe) const;
 
+    // Delete exactly one candle by its full identity. Deliberately narrow: only
+    // a single, fully-qualified row can be removed, so quarantine-purge tooling
+    // cannot be turned into a bulk wipe. Returns true and sets `deleted` to 1
+    // when a row was removed, 0 when no such row existed.
+    bool deleteCandle(const std::string& sourceId, const std::string& symbol,
+                      const std::string& timeframe, std::int64_t openTimeUtc,
+                      int& deleted, std::string& error);
+
 private:
     bool exec(const std::string& sql, std::string& error) const;
     mutable std::mutex mutex_;

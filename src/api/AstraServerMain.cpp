@@ -47,6 +47,16 @@ std::string envOr(const char* name, const std::string& fallback) {
     return (v != nullptr && *v != '\0') ? std::string(v) : fallback;
 }
 
+int parseIntEnv(const char* name, int fallback) {
+    const char* v = std::getenv(name);
+    if (v == nullptr || *v == '\0') return fallback;
+    try {
+        return std::stoi(std::string(v));
+    } catch (...) {
+        return fallback;
+    }
+}
+
 std::vector<std::string> splitComma(const std::string& in) {
     std::vector<std::string> out;
     std::stringstream ss(in);
@@ -207,9 +217,9 @@ int main(int argc, char** argv) {
         std::cout
             << "Usage: " << execName
             << " [--data-dir DIR] [--port N] [--host HOST] [--sender-token TOK]"
-            << " [--allowed-origin ORIGIN[,ORIGIN...]]\n"
+            << " [--admin-token TOK] [--allowed-origin ORIGIN[,ORIGIN...]]\n"
             << "Environment: ASTRA_DATA_DIR, ASTRA_HOST, PORT,"
-               " ASTRA_SENDER_TOKEN, ASTRA_ALLOWED_ORIGINS\n";
+               " ASTRA_SENDER_TOKEN, ASTRA_ADMIN_TOKEN, ASTRA_ALLOWED_ORIGINS\n";
         return 0;
     }
 
@@ -219,6 +229,10 @@ int main(int argc, char** argv) {
     int port = parsePort(envOr("PORT", "8080"), 8080);
     std::vector<std::string> tokens = splitComma(
         envOr("ASTRA_SENDER_TOKEN", ""));
+    // Administrative credential for the destructive purge surface. Absent by
+    // default, so the admin route is disabled unless explicitly configured.
+    std::vector<std::string> adminTokens = splitComma(
+        envOr("ASTRA_ADMIN_TOKEN", ""));
 
     std::vector<std::string> cliOrigins;
     for (int i = 1; i < argc; ++i) {
@@ -249,6 +263,9 @@ int main(int argc, char** argv) {
             if (consumeNext) ++i;
         } else if (key == "--sender-token" && (consumeNext || !inlineValue.empty())) {
             tokens = {value()};
+            if (consumeNext) ++i;
+        } else if (key == "--admin-token" && (consumeNext || !inlineValue.empty())) {
+            adminTokens = splitComma(value());
             if (consumeNext) ++i;
         } else if (key == "--allowed-origin" && (consumeNext || !inlineValue.empty())) {
             cliOrigins = splitComma(value());
@@ -318,9 +335,18 @@ int main(int argc, char** argv) {
     apiConfig.host = host;
     apiConfig.port = static_cast<std::uint16_t>(port);
     apiConfig.senderTokens = tokens;
+    apiConfig.adminTokens = adminTokens;
     apiConfig.allowedOrigins = cliOrigins.empty()
                                    ? splitComma(envOr("ASTRA_ALLOWED_ORIGINS", ""))
                                    : cliOrigins;
+    // Operational limits are tunable without a rebuild. Defaults are safe for a
+    // single sender; set to 0 to disable a limit (not recommended in prod).
+    apiConfig.ingestRequestsPerMinute =
+        parseIntEnv("ASTRA_INGEST_RATE_PER_MIN", 240);
+    apiConfig.syncRequestsPerMinute =
+        parseIntEnv("ASTRA_SYNC_RATE_PER_MIN", 240);
+    apiConfig.maxCandlesPerBatch = static_cast<std::size_t>(
+        parseIntEnv("ASTRA_MAX_CANDLES_PER_BATCH", 500));
 
     AstraApiServer server(&facade, apiConfig);
 
@@ -351,6 +377,14 @@ int main(int argc, char** argv) {
         if (!candlesJson.isArray()) {
             return errorResponse(400, "missing_candles",
                                  "candles must be an array");
+        }
+        // Bound the batch so a single request cannot pin the parser or the
+        // store. A sender paginates; this is a safety cap, not a business rule.
+        if (candlesJson.items().size() > apiConfig.maxCandlesPerBatch) {
+            return errorResponse(
+                413, "batch_too_large",
+                "candles array exceeds the maximum batch size of " +
+                    std::to_string(apiConfig.maxCandlesPerBatch));
         }
         std::int64_t now = Timestamp::now().epochMillis() / 1000;
 
@@ -561,6 +595,54 @@ int main(int argc, char** argv) {
              jsonInteger(candles.back().openTimeUtc), true});
         return ApiResponse{200, "application/json",
                            envelope(jsonObject(dataFields)), true};
+    };
+
+    // Administrative purge route: delete ONE reviewed candle row by its full
+    // identity. Deliberately single-row and explicit — there is no bulk delete,
+    // so a mistake cannot wipe the store. Requires ASTRA_ADMIN_TOKEN, which is
+    // separate from the sender credential. The read guard already withholds a
+    // misaligned row from every API response; this is the only way to reclaim
+    // its storage, and it is never automatic.
+    server.adminDeleteHandler = [&](const std::string& body) -> ApiResponse {
+        JsonValue root;
+        std::string parseError;
+        if (!JsonValue::parse(body, root, parseError)) {
+            return errorResponse(400, "malformed_json",
+                                 "cannot parse admin body: " + parseError);
+        }
+        const std::string source = root["source_id"].asString();
+        const std::string symbol = root["symbol"].asString();
+        const std::string timeframe = root["timeframe"].asString();
+        const JsonValue& openTime = root["open_time"];
+        if (source.empty() || symbol.empty() || timeframe.empty()
+            || !openTime.isNumber()) {
+            return errorResponse(
+                400, "missing_fields",
+                "source_id, symbol, timeframe and numeric open_time are required");
+        }
+        Timeframe tf;
+        if (!parseTimeframe(timeframe, tf)) {
+            return errorResponse(400, "invalid_timeframe",
+                                 "unsupported timeframe: " + timeframe);
+        }
+        int deleted = 0;
+        std::string deleteError;
+        if (!store.deleteCandle(source, symbol, timeframe, openTime.asInt64(),
+                                deleted, deleteError)) {
+            return errorResponse(500, "store_failure",
+                                 "purge failed: " + deleteError);
+        }
+        std::vector<ApiField> fields;
+        fields.push_back({"source_id", jsonString(source), true});
+        fields.push_back({"symbol", jsonString(symbol), true});
+        fields.push_back({"timeframe", jsonString(timeframe), true});
+        fields.push_back({"open_time", jsonInteger(openTime.asInt64()), true});
+        fields.push_back({"deleted", jsonInteger(deleted), true});
+        fields.push_back({"state", jsonString(deleted > 0 ? "purged"
+                                                          : "not_found"),
+                          true});
+        return ApiResponse{200, "application/json",
+                           envelope(jsonObject(fields)), true};
     };
 
     std::string apiError;

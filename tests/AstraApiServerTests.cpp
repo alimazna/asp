@@ -539,3 +539,251 @@ TEST_CASE(astra_server_enforces_cors_allowlist) {
     std::string stopError; supervisor.stop(2000, stopError);
     fs::remove_all(dataDir);
 }
+
+// T33 item 2: liveness and readiness are distinct, and /health carries the
+// build identity. livez must answer even while the engine is not READY (it
+// never consults the engine); readyz must gate on the runtime and expose the
+// version.
+TEST_CASE(astra_server_exposes_livez_readyz_and_health_version) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool alive = false;
+    for (int i = 0; i < 60 && !alive; ++i) {
+        HttpRequest probe;
+        probe.host = "127.0.0.1";
+        probe.port = port;
+        probe.path = "/api/v1/livez";
+        probe.connectTimeoutMillis = 300;
+        probe.readTimeoutMillis = 500;
+        if (httpGet(probe).ok) alive = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(alive);
+
+    HttpRequest live;
+    live.host = "127.0.0.1";
+    live.port = port;
+    live.path = "/api/v1/livez";
+    const HttpResponse liveResp = httpGet(live);
+    CHECK_EQ(liveResp.statusCode, 200);
+    CHECK(contains(liveResp.body, "\"live\":true"));
+    CHECK(contains(liveResp.body, "\"version\":\"v1\""));
+
+    // /health now advertises the build identity.
+    HttpRequest health;
+    health.host = "127.0.0.1";
+    health.port = port;
+    health.path = "/api/v1/health";
+    const HttpResponse healthResp = httpGet(health);
+    CHECK_EQ(healthResp.statusCode, 200);
+    CHECK(contains(healthResp.body, "\"version\":\"v1\""));
+    CHECK(contains(healthResp.body, "\"schema\":\"1.0\""));
+
+    // /readyz must be reachable and carry a boolean ready flag. In this
+    // server-only deployment there is no local MT5 bridge, so the runtime is
+    // expected to be not-ready (503); the test accepts either but requires the
+    // flag to be truthful and the version present.
+    HttpRequest ready;
+    ready.host = "127.0.0.1";
+    ready.port = port;
+    ready.path = "/api/v1/readyz";
+    const HttpResponse readyResp = httpGet(ready);
+    CHECK(readyResp.statusCode == 200 || readyResp.statusCode == 503);
+    CHECK(contains(readyResp.body, "\"ready\":"));
+    CHECK(contains(readyResp.body, "\"version\":\"v1\""));
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// T33 item 3: the ingestion surface is rate-limited and bounds the batch size.
+// A hostile or buggy sender must not be able to loop the parser or the store.
+TEST_CASE(astra_server_rate_limits_ingest_and_caps_batch) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    // Tiny per-minute budget and a batch cap of 2 so the test is fast. The
+    // rejected oversized batch still consumes one token (rate limiting happens
+    // before parsing), so the limit is set to 4 to leave room for 3 valid ones.
+    spec.environment["ASTRA_INGEST_RATE_PER_MIN"] = "4";
+    spec.environment["ASTRA_MAX_CANDLES_PER_BATCH"] = "2";
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 60 && !ready; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    const auto minuteBody = [](int baseSec) {
+        return std::string(
+                   "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+                   "\"timeframe\":\"M15\",\"candles\":[{\"time\":") +
+               std::to_string(baseSec) +
+               ",\"open\":2653.1,\"high\":2655.2,\"low\":2651.8,"
+               "\"close\":2654.05,\"tick_volume\":210,\"spread\":12,"
+               "\"real_volume\":0}]}";
+    };
+
+    // A batch of 3 exceeds the cap of 2 and must be refused before parsing.
+    const std::string threeBody =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\",\"candles\":["
+        "{\"time\":1,\"open\":1,\"high\":1,\"low\":1,\"close\":1},"
+        "{\"time\":2,\"open\":1,\"high\":1,\"low\":1,\"close\":1},"
+        "{\"time\":3,\"open\":1,\"high\":1,\"low\":1,\"close\":1}]}";
+    const HttpResponse tooBig = postIngest(port, "s3cret-tok", threeBody);
+    CHECK_EQ(tooBig.statusCode, 413);
+    CHECK(contains(tooBig.body, "\"code\":\"batch_too_large\""));
+
+    // The oversized batch consumed one token, then three valid ones consume the
+    // rest of the budget (limit 4); the next is 429.
+    const int64_t base = (std::time(nullptr) / 900) * 900 - 3600;
+    for (int i = 0; i < 3; ++i) {
+        const HttpResponse r =
+            postIngest(port, "s3cret-tok",
+                       minuteBody(static_cast<int>(base + i * 900)));
+        CHECK_EQ(r.statusCode, 200);
+    }
+    const HttpResponse limited =
+        postIngest(port, "s3cret-tok",
+                   minuteBody(static_cast<int>(base + 3 * 900)));
+    CHECK_EQ(limited.statusCode, 429);
+    CHECK(contains(limited.body, "\"code\":\"rate_limited\""));
+
+    // A different (wrong) credential never reaches the limiter: 401 first.
+    const HttpResponse unauth = postIngest(port, "another-tok",
+                                           minuteBody(static_cast<int>(base)));
+    CHECK_EQ(unauth.statusCode, 401);
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// T33 item 7: an authenticated admin route can purge exactly one reviewed
+// quarantined row. The sender credential must NOT be able to reach it.
+TEST_CASE(astra_server_admin_purge_requires_admin_token_and_deletes_one_row) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok",
+                 "--admin-token", "adm1n-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool ready = false;
+    for (int i = 0; i < 60 && !ready; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) ready = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(ready);
+
+    // Seed one aligned M15 candle through the normal ingestion path.
+    const int64_t openTime = (std::time(nullptr) / 900) * 900 - 3600;
+    const std::string body =
+        std::string("{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+                    "\"timeframe\":\"M15\",\"candles\":[{\"time\":") +
+        std::to_string(openTime) +
+        ",\"open\":2653.1,\"high\":2655.2,\"low\":2651.8,\"close\":2654.05,"
+        "\"tick_volume\":210,\"spread\":12,\"real_volume\":0}]}";
+    const HttpResponse seeded = postIngest(port, "s3cret-tok", body);
+    CHECK_EQ(seeded.statusCode, 200);
+    CHECK(contains(seeded.body, "\"state\":\"stored_new\""));
+
+    const std::string deleteBody =
+        std::string("{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+                    "\"timeframe\":\"M15\",\"open_time\":") +
+        std::to_string(openTime) + "}";
+
+    const auto deleteReq = [&](const std::string& token) {
+        HttpRequest request;
+        request.host = "127.0.0.1";
+        request.port = port;
+        request.path = "/api/v1/admin/candles";
+        request.method = "DELETE";
+        request.body = deleteBody;
+        request.headers = "Authorization: Bearer " + token + "\r\n";
+        request.connectTimeoutMillis = 3000;
+        request.readTimeoutMillis = 8000;
+        return httpRequest(request);
+    };
+
+    // The SENDER credential must not be accepted on the admin surface.
+    const HttpResponse senderTry = deleteReq("s3cret-tok");
+    CHECK_EQ(senderTry.statusCode, 401);
+    // No token -> 401.
+    const HttpResponse noToken = deleteReq("");
+    CHECK_EQ(noToken.statusCode, 401);
+    // A GET on the admin route is a method error.
+    {
+        HttpRequest getReq;
+        getReq.host = "127.0.0.1";
+        getReq.port = port;
+        getReq.path = "/api/v1/admin/candles";
+        getReq.headers = "Authorization: Bearer adm1n-tok\r\n";
+        const HttpResponse r = httpGet(getReq);
+        CHECK_EQ(r.statusCode, 405);
+    }
+
+    // The admin credential purges exactly one row.
+    const HttpResponse purged = deleteReq("adm1n-tok");
+    CHECK_EQ(purged.statusCode, 200);
+    CHECK(contains(purged.body, "\"deleted\":1"));
+    CHECK(contains(purged.body, "\"state\":\"purged\""));
+
+    // A repeat is a no-op that reports not_found (never a second deletion).
+    const HttpResponse again = deleteReq("adm1n-tok");
+    CHECK_EQ(again.statusCode, 200);
+    CHECK(contains(again.body, "\"deleted\":0"));
+    CHECK(contains(again.body, "\"state\":\"not_found\""));
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}

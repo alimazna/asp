@@ -6,6 +6,18 @@
 
 namespace aura {
 
+namespace {
+// Structural bias of one timeframe's closed-bar stream, from its own structural
+// trend (-1..1). A neutral or degenerate trend is RANGE; only a clear sign is a
+// directional bias. Never returns a direction the data does not support.
+StructureBias trendBiasOf(const TimeframeFeatures& tf) {
+    if (!tf.valid) return StructureBias::UNKNOWN;
+    if (tf.structureTrend > 0.0) return StructureBias::BULLISH;
+    if (tf.structureTrend < 0.0) return StructureBias::BEARISH;
+    return StructureBias::RANGE;
+}
+}  // namespace
+
 AuraRuntime::AuraRuntime(StartupOptions startupOptions, int candlesPerTimeframe)
     : startupOptions_(std::move(startupOptions)),
       startup_(startupOptions_),
@@ -390,8 +402,12 @@ void AuraRuntime::runDecisionCycle(const Bar& closedBar, Timestamp now,
 
     const std::vector<Bar> history = dataBus_.recent(
         closedBar.timeframe, pipeline_->config().historyBars);
+    // Cross-timeframe objective for the same decision instant, built from the
+    // closed-bar streams already on the bus. When M15/H4 are not both present
+    // the core gate fails and the chain suppresses the decision honestly.
+    const MtfContext mtf = buildMtfContext(closedBar.openTimeSec);
     const PipelineCycleReport decision =
-        pipeline_->onClosedBar(closedBar, history, now);
+        pipeline_->onClosedBar(closedBar, history, now, mtf);
     lastDecisionBarOpenSec_[key] = closedBar.openTimeSec;
 
     if (decision.decisionProduced && !decision.decisions.empty()) {
@@ -410,6 +426,71 @@ void AuraRuntime::runDecisionCycle(const Bar& closedBar, Timestamp now,
     for (const auto& issue : decision.issues) {
         report.issues.push_back(key + ": " + issue);
     }
+}
+
+// Cross-timeframe context for one decision instant. Deterministic and causal:
+// only bars with open time <= asOf are read (the analytical engine enforces the
+// cutoff). Returns available=false when the operational (M15) stream has no
+// closed history yet, so the caller does not run a cross analysis on nothing.
+MtfContext AuraRuntime::buildMtfContext(std::int64_t asOfBarOpenSec) const {
+    MtfContext out;
+    if (!pipeline_) return out;
+
+    const Timeframe op = pipeline_->config().operationalTimeframe;
+    const std::size_t bars = 300;   // ~3 days of M15; enough for H4/D1 context
+
+    std::map<Timeframe, std::vector<Bar>> byTimeframe;
+    byTimeframe[op] = dataBus_.recent(op, bars);
+    byTimeframe[Timeframe::H4] = dataBus_.recent(Timeframe::H4, bars);
+    byTimeframe[Timeframe::D1] = dataBus_.recent(Timeframe::D1, bars);
+
+    if (byTimeframe[op].empty()) {
+        // No operational history at all: nothing to verify. Not an error, just
+        // an unavailable objective.
+        return out;
+    }
+
+    static const AnalyticalFeatureEngine engine{};
+    const AnalyticalFeatureSet set =
+        engine.computeAll(byTimeframe, asOfBarOpenSec);
+    const CrossTimeframeFeatures& cross = set.cross;
+
+    out.available = true;
+    out.h4Available = cross.h4Available;
+    out.d1Available = cross.d1Available;
+    out.h4M15Agreement = cross.h4M15Agreement;
+    out.h4D1Agreement = cross.h4D1Agreement;
+    out.mtfConflictScore = cross.mtfConflictScore;
+    out.h4StructuralAuthority = cross.h4StructuralAuthority;
+    out.m15TriggerState = cross.m15TriggerState;
+
+    // H4 objective from its own structural trend (independent of the M15-only
+    // structure the chain computes on the operational timeframe).
+    for (const auto& tf : set.perTimeframe) {
+        if (tf.timeframe == Timeframe::H4 && tf.valid) {
+            out.h4Bias = trendBiasOf(tf);
+        }
+    }
+
+    // Core gate: the operational trigger and the structural authority must both
+    // be present and decision-grade. This mirrors the research gate
+    // `cross.m15Available && cross.h4Available` and is the honest blocker.
+    const bool m15Ok = cross.m15Available;
+    const bool h4Ok = cross.h4Available;
+    out.coreGatePassed = m15Ok && h4Ok;
+    if (!out.coreGatePassed) {
+        if (!m15Ok && !h4Ok) {
+            out.blockReason =
+                "multi-timeframe core gate: M15 and H4 streams unavailable";
+        } else if (!h4Ok) {
+            out.blockReason =
+                "multi-timeframe core gate: H4 structural authority unavailable";
+        } else {
+            out.blockReason =
+                "multi-timeframe core gate: M15 operational stream unavailable";
+        }
+    }
+    return out;
 }
 
 void AuraRuntime::appendAudit(AuditAction action, const std::string& subject,

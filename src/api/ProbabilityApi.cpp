@@ -162,6 +162,29 @@ ApiResponse ProbabilityApi::latest(const PredictionLedger* ledger) const {
     fields.push_back({"available", jsonBool(true), true});
     fields.push_back({"calibrated", jsonBool(v.gate.presentable), true});
 
+    // Calibration provenance: the audit that gates RULE C, so a consumer can
+    // judge whether a shown probability is earned. Absent fields are reported as
+    // null / "not stated", never fabricated.
+    fields.push_back({"calibration_audited", jsonBool(calibrationAudited()), true});
+    fields.push_back({"calibration_publication_authorised",
+                      jsonBool(audit_.publicationAuthorised), true});
+    fields.push_back({"calibration_method",
+                      audit_.method.empty() ? "null" : jsonString(audit_.method),
+                      true});
+    fields.push_back({"calibration_window",
+                      audit_.window.empty() ? "null" : jsonString(audit_.window),
+                      true});
+    fields.push_back({"calibration_samples",
+                      audit_.samples >= 0 ? jsonInteger(audit_.samples) : "null",
+                      true});
+    fields.push_back({"calibration_source",
+                      audit_.source.empty() ? "null" : jsonString(audit_.source),
+                      true});
+    fields.push_back({"calibration_audit_date",
+                      audit_.date.empty() ? "null" : jsonString(audit_.date),
+                      true});
+    fields.push_back({"calibration_note", jsonString(audit_.reason), true});
+
     if (v.gate.presentable) {
         fields.push_back({"probability", jsonNumber(v.gate.probability), true});
         // No interval/model version is sourced yet; report them as absent rather
@@ -211,6 +234,30 @@ ProbabilityApi::Audit ProbabilityApi::applyCalibrationAudit(const std::string& p
     const std::string auditor = reportValue(content, "Auditor:");
     audit.date = date;
     audit.auditor = auditor;
+    // Provenance fields: best-effort parsing of the same artifact. When a field
+    // is absent it stays empty/-1 ("not stated"), never invented.
+    audit.method = reportValue(content, "Calibration method:");
+    if (audit.method.empty()) audit.method = reportValue(content, "Method:");
+    audit.window = reportValue(content, "Calibration window:");
+    if (audit.window.empty()) audit.window = reportValue(content, "Window:");
+    {
+        std::string samples = reportValue(content, "Calibration samples:");
+        if (samples.empty()) samples = reportValue(content, "Samples:");
+        if (!samples.empty()) {
+            // Keep leading digits only ("1200 bars" -> 1200).
+            std::size_t end = 0;
+            while (end < samples.size() &&
+                   std::isdigit(static_cast<unsigned char>(samples[end]))) {
+                ++end;
+            }
+            if (end > 0) {
+                try {
+                    audit.samples = std::stol(samples.substr(0, end));
+                } catch (...) {
+                }
+            }
+        }
+    }
 
     // Explicit "NOT AUTHORISED" (or a withheld authorisation) anywhere relevant.
     const std::string verdictLower = lowerCopy(verdict);
@@ -234,6 +281,7 @@ ProbabilityApi::Audit ProbabilityApi::applyCalibrationAudit(const std::string& p
                                        : "verdict is not PASS");
 
     audited_ = audit.publicationAuthorised;
+    audit_ = audit;   // persist provenance for calibrationAudit() / payloads
     return audit;
 }
 

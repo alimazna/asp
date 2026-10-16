@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -34,8 +35,21 @@ struct AstraApiServerConfig {
     std::size_t maxRequestBytes = 1024 * 1024;
     // Sender bearer tokens accepted for ingestion / sync routes.
     std::vector<std::string> senderTokens;
+    // Administrative bearer tokens accepted for the destructive admin surface.
+    // Deliberately separate from senderTokens so a leaked ingestion credential
+    // cannot purge stored data.
+    std::vector<std::string> adminTokens;
     // Allowed browser origins for CORS (exact match, no trailing slash).
     std::vector<std::string> allowedOrigins;
+
+    // Rate limits for the authenticated write/sync surface, per credential.
+    // A denied request returns 429 with a Retry-After hint. 0 disables the
+    // corresponding limit (used by tests that must not be throttled).
+    int ingestRequestsPerMinute = 240;
+    int syncRequestsPerMinute = 240;
+    // Largest accepted ingestion batch. A sender paginates; the server refuses
+    // an unbounded batch rather than parse it. Enforced in the ingest handler.
+    std::size_t maxCandlesPerBatch = 500;
 };
 
 class AstraApiServer {
@@ -63,18 +77,29 @@ public:
     std::function<ApiResponse(const std::string&)> ingestHandler;
     std::function<ApiResponse(const std::string&)> syncHandler;
     std::function<ApiResponse(const std::string&, int)> candlesHandler;
+    // DELETE /api/v1/admin/candles -> adminDeleteHandler(body). Requires the
+    // admin credential (config_.adminTokens), never a sender token.
+    std::function<ApiResponse(const std::string&)> adminDeleteHandler;
 
 private:
     void acceptLoop();
     void handleConnection(std::intptr_t conn);
     ApiResponse handleRequest(const std::string& method, const std::string& path,
                               const std::string& query, const std::string& body,
-                              bool authenticated, bool hasCorsOrigin,
+                              bool authenticated, const std::string& authHeader,
+                              bool hasCorsOrigin,
                               const std::string& origin, bool& isCorsOk);
 
     // CORS / auth helpers.
     bool authorize(const std::string& authorizationHeader) const;
+    bool authorizeAdmin(const std::string& authorizationHeader) const;
     bool originAllowed(const std::string& origin) const;
+
+    // Fixed-window, per-credential rate limit. Returns true when the request is
+    // allowed, false when the caller must be told to back off. Keyed on the
+    // presented bearer token so one sender cannot starve another.
+    bool rateAllow(const std::string& route, const std::string& authorizationHeader,
+                   int limitPerMinute);
 
     BackendFacade* facade_;
     AstraApiServerConfig config_;
@@ -85,6 +110,16 @@ private:
     std::mutex workersMutex_;
     std::condition_variable workersCv_;
     int activeWorkers_ = 0;
+
+    // Rate-limit state: open-address-free map guarded by a mutex. Each key is
+    // "<route>|<sha-free token id>" -> (windowStartSec, count). The token itself
+    // is never stored; a stable FNV-1a hash identifies the credential.
+    struct RateWindow {
+        std::int64_t windowStartSec = 0;
+        int count = 0;
+    };
+    std::mutex rateMutex_;
+    std::map<std::string, RateWindow> rateWindows_;
 };
 
 }  // namespace aura

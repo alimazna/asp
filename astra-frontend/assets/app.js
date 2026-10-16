@@ -1705,3 +1705,19 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+
+/* Test-only surface. Exposes the view functions and state so the degraded-path
+   integration tests can render a single view against a stubbed fetch without
+   booting the full shell. Harmless in the browser: it only publishes the
+   already-loaded module's internals. */
+if (typeof window !== "undefined") {
+  window.__ASTRA_TEST__ = {
+    views: views,
+    state: state,
+    api: api,
+    h: h,
+    clear: clear,
+    init: init,
+    renderRoute: renderRoute,
+  };
+}
