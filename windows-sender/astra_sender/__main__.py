@@ -14,6 +14,17 @@ import os
 import sys
 from typing import Optional
 
+if __package__ in (None, ""):
+    # PyInstaller runs this file as a top-level script, where relative imports
+    # cannot resolve. Register the package under its real name and re-run this
+    # module through the normal import machinery so `from .x import y` works.
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import astra_sender as _pkg
+    from astra_sender.__main__ import main as _main
+
+    if __name__ == "__main__":
+        sys.exit(_main())
+
 
 def _module_path_dirs() -> None:
     """Make the real bridge modules importable when frozen or run from source.
@@ -48,6 +59,9 @@ def main() -> int:
                                      description="ASTRA closed-candle data sender")
     parser.add_argument("--version", action="store_true",
                         help="print version and exit")
+    parser.add_argument("--selfcheck", action="store_true",
+                        help="import every runtime module and exit 0 "
+                             "(used by CI to catch frozen-app import errors)")
     parser.add_argument("--config", default="",
                         help="path to config.json (default: app data dir)")
     parser.add_argument("--console", action="store_true",
@@ -56,6 +70,25 @@ def main() -> int:
 
     if args.version:
         _say(f"AstraSender {VERSION}")
+        return 0
+
+    if args.selfcheck:
+        # Import the whole runtime surface so a broken/relative import fails the
+        # CI smoke test even though the windowed exe can never reach a terminal.
+        # The old `--version` check returned before these imports, which is how
+        # the relative-import crash shipped in sender-v0.3.0.
+        from .config import SenderConfig, default_config_path, app_data_dir
+        from .engine import SyncEngine
+        from .ledger import DeliveryLedger
+        from .collector import ClosedCandleCollector
+        from .protocol import ServerClient
+        try:
+            import tkinter  # noqa: F401
+        except ImportError as exc:
+            _say(f"GUI modules skipped (tkinter unavailable: {exc})")
+        else:
+            from .gui import SenderGui  # noqa: F401
+        _say("ASTRA Sender self-check OK")
         return 0
 
     from .config import SenderConfig, default_config_path, app_data_dir

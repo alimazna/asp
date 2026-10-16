@@ -34,12 +34,19 @@ requests or executes orders and never transmits MT5 account passwords.
    py -m pip install MetaTrader5
    ```
 
-2. Get the executable. Either:
+2. Get the executable.
 
-   - **download the release asset** (verified PE, 11,985,360 bytes, SHA256
-     `f5f8639b6e20f98605a3334e61dd11ccbd9b7a3834d7638c1cf2dca5c96ae716`),
+   > **Do not use `sender-v0.3.0`.** That build crashes on launch with
+   > `ImportError: attempted relative import with no known parent package`,
+   > because PyInstaller runs `astra_sender/__main__.py` as a top-level script
+   > and the module used relative imports. The bug was masked by a `--version`
+   > CI smoke test that returned before the imports ran. It is fixed in the
+   > current source; the release below supersedes it.
+
+   - **download the release asset** (verified PE, SHA256
+     checksummed by the release workflow),
      built by the *Build Windows Astra Sender* workflow on a Windows runner: 
-     `https://github.com/alimazna/asp/releases/download/sender-v0.3.0/AstraSender.exe`
+     `https://github.com/alimazna/asp/releases/download/sender-v0.4.0/AstraSender.exe`
    - or build it yourself (below),
    - or download `AstraSender.exe` from the latest GitHub Actions artifact
      (`Actions` tab → workflow *Build Windows Astra Sender* → artifact).
