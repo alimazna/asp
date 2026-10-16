@@ -20,7 +20,7 @@ Shadow-only XAUUSD market-intelligence system. No order execution, ever.
 # backend (needs libsqlite3-dev)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 # no ctest in this image; run the binaries directly:
-cd build-linux && for t in *Tests; do ./"$t" || echo "FAIL $t"; done   # 25 binaries
+cd build-linux && for t in *Tests; do ./"$t" || echo "FAIL $t"; done   # 26 binaries
 
 # frontend
 cd astra-frontend && node --test tests/*.test.js && node build.js
@@ -38,18 +38,29 @@ cd windows-sender && python3 -m unittest discover -s tests -v   # 17 tests
 
 ## Data-honesty rules (enforced in code)
 
-The production store contains **4 M15 rows that are not MT5 data** (price jumps
+The production store contains **M15 rows that are not MT5 data** (price jumps
 1901→2001; open times not M15-aligned). The backend derives its M15 `observed`
 flag, watermark, and freshness from them, so a naive UI reports a synthetic
 timestamp as a real reading.
 
-`assets/lib.js#candleBatchIntegrity(bars, timeframe)` checks that open times are
-exact multiples of the timeframe and spaced exactly one timeframe apart. Every
-view that could surface M15 calls it and withholds or flags failing data:
+Two independent guards withhold that data:
 
-chart, forecast watermark, market-data last-closed-candle, market-data observed
-count, market-data coverage matrix + watermark table, dashboard coverage metric
-and matrix.
+- **Ingest** rejects any intraday candle whose `open_time` is not aligned to its
+  timeframe grid (`parseCandle` / `AuraRuntime`), so no new bad row is stored.
+  D1/W1/MN1 are exempt (whole-hour broker offsets break the check for them).
+- **Reads** quarantine a whole `(symbol, timeframe)` series when any of its rows
+  is grid-misaligned: `CandleStore::recent`, `syncPoints`, `syncPointsForSource`
+  and `latestOpenTimeAnySource` append a correlated `NOT EXISTS` predicate, so
+  `LIMIT` and `MAX()` only ever see a clean series. A plausible-looking aligned
+  sibling of a fabricated row is therefore withheld too, and the API reports
+  "no candle data available" for that timeframe rather than serving a fake.
+
+Third layer: the frontend `assets/lib.js#candleBatchIntegrity(bars, timeframe)`
+gate checks open times are exact multiples of the timeframe and spaced exactly
+one timeframe apart. Every view that could surface M15 calls it and withholds or
+flags failing data: chart, forecast watermark, market-data last-closed-candle,
+market-data observed count, market-data coverage matrix + watermark table,
+dashboard coverage metric and matrix.
 
 The gate is data-driven: genuine MT5 bars pass and display normally. Never
 hardcode a timeframe as untrusted.

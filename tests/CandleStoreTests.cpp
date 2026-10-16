@@ -163,35 +163,38 @@ TEST_CASE(CandleStoreTest_PersistsAcrossReopen) {
     std::remove(path.c_str());
 }
 
-TEST_CASE(CandleStoreTest_WithholdsMisalignedRows) {
+TEST_CASE(CandleStoreTest_WithholdsContaminatedSeries) {
     const std::string path = tempDbPath();
     std::string error;
 
     CandleStore store;
     CHECK_TRUE(store.open(path, error));
 
-    // A misaligned M15 row (1792068271 is not a multiple of 900) simulates data
-    // written before ingest enforced grid alignment. It must never be served as
-    // a real bar or treated as a real watermark, even though it is persisted.
+    // One misaligned M15 row (1792068271 is not a multiple of 900) simulates
+    // data written before ingest enforced grid alignment. It contaminates the
+    // whole M15 series: even a plausible-looking aligned sibling must not be
+    // served as real data.
     std::vector<CandleInsertResult> results;
     std::vector<StoredCandle> candles;
     candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1792068271));  // bad
     candles.push_back(makeCandle("s1", "XAUUSD", "M15", 1792068300));  // good
+    candles.push_back(makeCandle("s1", "XAUUSD", "H1", 1792065600));   // clean
     CHECK_TRUE(store.insertBatch(candles, results, error));
-    CHECK_EQ(std::size_t(2), results.size());
+    CHECK_EQ(std::size_t(3), results.size());
     CHECK_EQ(std::string("stored_new"), results[0].state);
 
-    const auto recent = store.recent("XAUUSD", "M15", 10);
-    CHECK_EQ(std::size_t(1), recent.size());
-    CHECK_EQ(std::int64_t(1792068300), recent[0].openTimeUtc);
+    // Contaminated M15 series is withheld from every read path.
+    CHECK_EQ(std::size_t(0), store.recent("XAUUSD", "M15", 10).size());
+    CHECK_EQ(std::int64_t(0),
+             store.latestOpenTimeAnySource("XAUUSD", "M15"));
 
+    // The clean H1 series is unaffected and is the only sync point returned.
     const auto points = store.syncPoints("s1", "XAUUSD");
     CHECK_EQ(std::size_t(1), points.size());
-    CHECK_EQ(std::int64_t(1792068300), points[0].lastOpenTimeUtc);
-    CHECK_EQ(std::int64_t(1), points[0].count);
-
-    CHECK_EQ(std::int64_t(1792068300),
-             store.latestOpenTimeAnySource("XAUUSD", "M15"));
+    CHECK_EQ(std::string("H1"), points[0].timeframe);
+    const auto h1 = store.recent("XAUUSD", "H1", 10);
+    CHECK_EQ(std::size_t(1), h1.size());
+    CHECK_EQ(std::int64_t(1792065600), h1[0].openTimeUtc);
 
     std::remove(path.c_str());
 }

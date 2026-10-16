@@ -11,20 +11,33 @@
 namespace aura {
 
 namespace {
-// A row is trustworthy for its timeframe only when its opening timestamp lands
-// on the timeframe grid. Reads apply this so a misaligned row (for example a
-// fabricated candle written before ingest enforced alignment) is never served
-// as a real bar or treated as a real watermark. Timeframes without a fixed grid
-// (D1/W1/MN1) and unknown labels are kept: their alignment cannot be judged.
-//
-// Expressed as a SQL predicate rather than a post-read C++ filter so that LIMIT
-// and MAX() operate on the trustworthy rows only.
-constexpr char kAlignedPredicate[] =
-    "((timeframe NOT IN ('M1','M5','M15','M30','H1','H4'))"
-    " OR (open_time % (CASE timeframe"
-    "   WHEN 'M1' THEN 60 WHEN 'M5' THEN 300 WHEN 'M15' THEN 900"
-    "   WHEN 'M30' THEN 1800 WHEN 'H1' THEN 3600 WHEN 'H4' THEN 14400"
-    " END))=0)";
+// A candle series is trustworthy only when none of its rows is misaligned to the
+// timeframe grid. A fabricated row (for example one written before ingest
+// enforced alignment) contaminates the whole series, so reads withhold the
+// entire series rather than serving a plausible-looking sibling as real data.
+// Timeframes without a fixed grid (D1/W1/MN1) and unknown labels are never
+// judged. Expressed as a correlated NOT EXISTS predicate so LIMIT and MAX()
+// operate on trustworthy rows only. `candles` is the outer table alias.
+std::string misalignedExpr(const std::string& a) {
+    return "(" + a + ".timeframe IN ('M1','M5','M15','M30','H1','H4') AND ("
+           + a + ".open_time % (CASE " + a + ".timeframe"
+           "   WHEN 'M1' THEN 60 WHEN 'M5' THEN 300 WHEN 'M15' THEN 900"
+           "   WHEN 'M30' THEN 1800 WHEN 'H1' THEN 3600"
+           "   WHEN 'H4' THEN 14400 END))<>0)";
+}
+// Series keyed by (symbol, timeframe) across all sources.
+std::string cleanSeriesExpr() {
+    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
+           " bad.symbol=candles.symbol AND bad.timeframe=candles.timeframe AND "
+           + misalignedExpr("bad") + ")";
+}
+// Series keyed by (source_id, symbol, timeframe).
+std::string cleanSourceSeriesExpr() {
+    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
+           " bad.source_id=candles.source_id AND bad.symbol=candles.symbol"
+           " AND bad.timeframe=candles.timeframe AND "
+           + misalignedExpr("bad") + ")";
+}
 }  // namespace
 
 namespace {
@@ -210,7 +223,7 @@ std::vector<StoredCandle> CandleStore::recent(const std::string& symbol,
                     "       low, close, tick_volume, spread, real_volume,"
                     "       received_at"
                     " FROM candles WHERE symbol=?1 AND timeframe=?2 AND ") +
-        kAlignedPredicate + " ORDER BY open_time ASC LIMIT ?3;";
+        cleanSeriesExpr() + " ORDER BY open_time ASC LIMIT ?3;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
@@ -248,7 +261,7 @@ std::vector<CandleSyncPoint> CandleStore::syncPoints(
     const std::string sql =
         std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
                     " FROM candles WHERE source_id=?1 AND symbol=?2 AND ") +
-        kAlignedPredicate + " GROUP BY symbol, timeframe;";
+        cleanSourceSeriesExpr() + " GROUP BY symbol, timeframe;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
@@ -277,7 +290,7 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
     const std::string sql =
         std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
                     " FROM candles WHERE source_id=?1 AND ") +
-        kAlignedPredicate + " GROUP BY symbol, timeframe;";
+        cleanSourceSeriesExpr() + " GROUP BY symbol, timeframe;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
@@ -356,7 +369,7 @@ std::int64_t CandleStore::latestOpenTimeAnySource(
     const std::string sql =
         std::string("SELECT COALESCE(MAX(open_time),0) FROM candles"
                     " WHERE symbol=?1 AND timeframe=?2 AND ") +
-        kAlignedPredicate + ";";
+        cleanSeriesExpr() + ";";
     std::int64_t out = 0;
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
