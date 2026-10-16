@@ -185,8 +185,143 @@
     return payload.data;
   }
 
+  /* Nominal bar duration per timeframe, in seconds. Mirrors the backend's
+     intervalMillis(): W1 and MN1 are approximations, so any value derived from
+     them is labelled "expected", never a hard guarantee. */
+  const TF_SECONDS = {
+    M1: 60, M5: 300, M15: 900, M30: 1800,
+    H1: 3600, H4: 14400, D1: 86400,
+    W1: 7 * 86400, MN1: 30 * 86400,
+  };
+
+  /* Directional reading for a backend structure bias.
+     The backend emits "UP" | "DOWN" | "RANGE" | "UNKNOWN". Anything
+     unrecognised stays UNKNOWN so it can render as unavailable. */
+  function biasDirection(bias) {
+    const s = String(bias === null || bias === undefined ? "" : bias).toUpperCase();
+    if (s === "UP" || s === "BULLISH" || s === "LONG") return "UP";
+    if (s === "DOWN" || s === "BEARISH" || s === "SHORT") return "DOWN";
+    if (s === "RANGE" || s === "NEUTRAL") return "RANGE";
+    return "UNKNOWN";
+  }
+
+  /* Closed-candle timing for one timeframe.
+     `lastOpenSec` is the open time of the most recent candle the backend has.
+     The candle is fully closed once a whole nominal duration has elapsed since
+     it opened. `overdueSec` shows how long the next bar has been pending, which
+     is how stale-coverage gaps surface. Returns null when the input is unusable. */
+  function closedCandleInfo(lastOpenSec, timeframe, nowMillis) {
+    const dur = TF_SECONDS[timeframe];
+    if (!dur) return null;
+    const open = Number(lastOpenSec);
+    if (!Number.isFinite(open) || open <= 0) return null;
+    const nowSec = Math.floor((nowMillis === undefined ? Date.now() : nowMillis) / 1000);
+    const nextOpen = open + dur;
+    const overdueSec = nowSec - nextOpen;
+    return {
+      durationSec: dur,
+      nextOpenUtc: nextOpen,
+      closed: overdueSec >= 0,
+      overdueSec: overdueSec > 0 ? overdueSec : 0,
+      overdueLabel: overdueSec <= 0 ? "in time" : fmtAge(overdueSec * 1000) + " overdue",
+    };
+  }
+
+  /* Integrity check for a batch of candles from the backend.
+
+     Every candle on a real feed opens on a timeframe boundary (a multiple of
+     the timeframe duration), and one timeframe's candles are that far apart.
+     A batch that violates both is not a real MT5 series. The live M15 store,
+     for example, contains non-MT5 rows whose open times are not 15-minute
+     aligned and are only seconds apart, with price jumps of hundreds of units.
+
+     This does NOT reject a batch for being sparse or gappy: missing bars are
+     legitimate and are reported elsewhere. It only flags a batch that could
+     not have come from a timeframe-aligned bar feed. Non-integer prices are
+     never flagged, because they are genuine for other instruments. */
+  function candleBatchIntegrity(bars, timeframe) {
+    const dur = TF_SECONDS[timeframe];
+    const list = Array.isArray(bars) ? bars : [];
+    if (!dur || list.length === 0) {
+      return { ok: true, checked: 0, misaligned: 0, minGapSec: null };
+    }
+    let misaligned = 0;
+    let minGapSec = null;
+    let prevOpen = null;
+    for (const bar of list) {
+      const open = Number(bar && bar.time);
+      if (!Number.isFinite(open) || open <= 0 || open % dur !== 0) misaligned += 1;
+      if (prevOpen !== null && Number.isFinite(open)) {
+        const gap = open - prevOpen;
+        if (minGapSec === null || gap < minGapSec) minGapSec = gap;
+      }
+      if (Number.isFinite(open)) prevOpen = open;
+    }
+    const ok = misaligned === 0 && (minGapSec === null || minGapSec >= dur);
+    return { ok: ok, checked: list.length, misaligned: misaligned, minGapSec: minGapSec };
+  }
+
+  /* Normalise a shadow outcome classification. */
+  function outcomeLabel(outcomeClass) {
+    const s = String(outcomeClass === null || outcomeClass === undefined
+      ? "" : outcomeClass).toUpperCase();
+    if (s === "WIN" || s === "LOSS" || s === "BREAKEVEN") return s;
+    return "UNKNOWN";
+  }
+
+  /* Semantic class for an outcome, for badges. Unknown never becomes ok. */
+  function outcomeClass(outcomeClass) {
+    const o = outcomeLabel(outcomeClass);
+    if (o === "WIN") return "ok";
+    if (o === "LOSS") return "bad";
+    if (o === "BREAKEVEN") return "neutral";
+    return "neutral";
+  }
+
+  /* When a win rate is defined. A rate needs at least one decided outcome;
+     with zero decided outcomes it is null (shown as unavailable) rather than
+     0% or 100%, either of which would be a fabricated claim. */
+  function outcomeTally(outcomes) {
+    const list = Array.isArray(outcomes) ? outcomes : [];
+    let wins = 0, losses = 0, breakeven = 0, unknown = 0, rSum = 0, rCount = 0;
+    list.forEach((o) => {
+      const o2 = o || {};
+      const label = outcomeLabel(o2.outcome_class);
+      if (label === "WIN") wins++;
+      else if (label === "LOSS") losses++;
+      else if (label === "BREAKEVEN") breakeven++;
+      else unknown++;
+      const r = Number(o2.realized_r);
+      if (Number.isFinite(r)) { rSum += r; rCount++; }
+    });
+    const decided = wins + losses + breakeven;
+    return {
+      total: list.length,
+      wins: wins,
+      losses: losses,
+      breakeven: breakeven,
+      unknown: unknown,
+      decided: decided,
+      /* A breakeven result is not a win, so it is excluded from the numerator
+         but kept in the denominator. */
+      winRate: decided > 0 ? wins / decided : null,
+      avgR: rCount > 0 ? rSum / rCount : null,
+    };
+  }
+
+  /* Split shadow positions into still-open and finished. */
+  function partitionPositions(positions) {
+    const open = [], closed = [];
+    (Array.isArray(positions) ? positions : []).forEach((p) => {
+      const s = String((p && p.state) || "").toUpperCase();
+      (s === "OPEN" ? open : closed).push(p);
+    });
+    return { open: open, closed: closed };
+  }
+
   return {
     TIMEFRAMES: TIMEFRAMES,
+    TF_SECONDS: TF_SECONDS,
     TF_ROLE: TF_ROLE,
     TF_TIERS: TF_TIERS,
     esc: esc,
@@ -202,5 +337,12 @@
     coverageSummary: coverageSummary,
     buildQuery: buildQuery,
     unwrap: unwrap,
+    biasDirection: biasDirection,
+    closedCandleInfo: closedCandleInfo,
+    candleBatchIntegrity: candleBatchIntegrity,
+    outcomeLabel: outcomeLabel,
+    outcomeClass: outcomeClass,
+    outcomeTally: outcomeTally,
+    partitionPositions: partitionPositions,
   };
 });

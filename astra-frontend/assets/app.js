@@ -11,7 +11,13 @@ const A = window.ASTRA;                 // pure helpers from lib.js
 const BACKEND = (window.ASTRA_BACKEND_BASE || "").replace(/\/+$/, "");
 const REFRESH_MS = window.ASTRA_REFRESH_MS || 30000;
 const REQUEST_TIMEOUT_MS = 12000;
-const CONFIGURED = Boolean(BACKEND) && !BACKEND.includes("REPLACE_WITH_BACKEND_URL");
+/* An empty base URL means "call the same origin this page was served from".
+   That is only allowed when the build explicitly opts in (e.g. a local
+   `wrangler pages dev` proxy), so a production build that forgot to set
+   BACKEND_BASE still fails loudly instead of silently hitting the wrong host. */
+const SAME_ORIGIN = BACKEND === "" && window.ASTRA_ALLOW_SAME_ORIGIN === true;
+const CONFIGURED = (Boolean(BACKEND) && !BACKEND.includes("REPLACE_WITH_BACKEND_URL"))
+  || SAME_ORIGIN;
 
 const state = {
   route: "dashboard",
@@ -170,9 +176,13 @@ const ICONS = {
 const NAV = [
   { group: "Overview", items: [
     { id: "dashboard", label: "Dashboard", icon: "dashboard", title: "Dashboard",
-      subtitle: "Market data and system state at a glance" },
+      subtitle: "Market state, H4 forecast and system health at a glance" },
   ]},
   { group: "Market", items: [
+    { id: "forecast", label: "Forecast", icon: "signal", title: "Market Forecast",
+      subtitle: "Directional read from the H4 structural timeframe and the closed M15 trigger" },
+    { id: "plan", label: "Trade Plan", icon: "shield", title: "Trade Plan & Outcomes",
+      subtitle: "Backend entry / stop / target levels and the recorded shadow outcome record" },
     { id: "chart", label: "Market Chart", icon: "chart", title: "Market Chart",
       subtitle: "Closed-candle series for the selected instrument and timeframe" },
     { id: "analysis", label: "Analysis", icon: "layers", title: "Multi-Timeframe Analysis",
@@ -199,14 +209,15 @@ const NAV = [
 ];
 
 const NAV_FLAT = NAV.reduce((acc, g) => acc.concat(g.items), []);
-const BOTTOM_NAV = ["dashboard", "chart", "latest", "marketdata", "system"];
+const BOTTOM_NAV = ["dashboard", "forecast", "plan", "chart", "system"];
 const routeMeta = (id) => NAV_FLAT.find((n) => n.id === id) || NAV_FLAT[0];
 
 /* ------------------------------------------------------------------ chart */
 /* Lightweight canvas candlestick renderer: 2D only, no WebGL, DPR-aware,
    redrawn on demand (never a render loop). */
 
-function renderChart(canvas, bars) {
+function renderChart(canvas, bars, opts) {
+  const suspicious = Boolean(opts && opts.suspicious);
   const dpr = window.devicePixelRatio || 1;
   const cssW = Math.max(canvas.clientWidth || 320, 240);
   const cssH = canvas.clientHeight || 320;
@@ -215,7 +226,15 @@ function renderChart(canvas, bars) {
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
-  if (!bars || bars.length === 0) return;
+  if (!bars || bars.length === 0) {
+    if (suspicious) {
+      const cssRoot = getComputedStyle(document.documentElement);
+      ctx.fillStyle = cssRoot.getPropertyValue("--bad").trim() || "#E0575C";
+      ctx.font = "12px " + (cssRoot.getPropertyValue("--font-sans").trim() || "sans-serif");
+      ctx.fillText("Not plotted: stored candles are not a real MT5 series.", 14, cssH / 2);
+    }
+    return;
+  }
 
   const css = getComputedStyle(document.documentElement);
   const cUp = css.getPropertyValue("--chart-up").trim() || "#3FB27F";
@@ -319,13 +338,17 @@ views.dashboard = function (mount) {
     api("/api/v1/timeframes"),
     api("/api/v1/analysis/latest"),
     api("/api/v1/bridge/status"),
-  ]).then(([health, system, tfs, analysis, bridge]) => {
+    api("/api/v1/shadow/outcomes"),
+  ]).then(([health, system, tfs, analysis, bridge, outcomes]) => {
     clear(body);
     const healthD = health.status === "fulfilled" ? health.value : null;
     const systemD = system.status === "fulfilled" ? system.value : null;
     const tfsD = tfs.status === "fulfilled" ? tfs.value : null;
     const analysisD = analysis.status === "fulfilled" ? analysis.value : null;
     const bridgeD = bridge.status === "fulfilled" ? bridge.value : null;
+    const outcomesD = outcomes.status === "fulfilled" && Array.isArray(outcomes.value)
+      ? outcomes.value : [];
+    const tally = A.outcomeTally(outcomesD);
 
     if (!healthD && !systemD) {
       body.appendChild(callout("bad",
@@ -341,6 +364,52 @@ views.dashboard = function (mount) {
         "Backend aggregate is " + healthD.aggregate
         + (healthD.decision_grade_data ? "" : " — decision-grade data is NOT available")
         + (healthD.unknown_is_not_safe ? ". Unknown states are treated as not safe." : ".")));
+    }
+
+    /* H4 forecast hero — the primary directional read, from the backend.
+       Built only from responses already fetched for this view, so the
+       dashboard adds no extra polling. */
+    if (analysisD) {
+      const ctx = analysisD.context || {};
+      const bias = A.biasDirection(ctx.h4_bias);
+      const lean = bias === "UP" ? { kind: "ok", arrow: "▲", word: "UP" }
+        : bias === "DOWN" ? { kind: "bad", arrow: "▼", word: "DOWN" }
+        : bias === "RANGE" ? { kind: "warn", arrow: "◆", word: "RANGE" }
+        : { kind: "warn", arrow: "•", word: "unavailable" };
+      const tfRec = Array.isArray(tfsD)
+        ? tfsD.find((x) => x && x.timeframe === "H4") : null;
+      const h4HasClosed = Boolean(tfRec && tfRec.has_closed_bar === true);
+      const lastOpen = h4HasClosed && Number.isFinite(Number(tfRec.last_successful_update))
+        ? Number(tfRec.last_successful_update) : null;
+      const info = lastOpen ? A.closedCandleInfo(lastOpen, "H4", Date.now()) : null;
+
+      const hero = h("section", { class: "card forecast-hero" }, [
+        h("div", { class: "forecast-hero__main" }, [
+          h("span", { class: "forecast-hero__label", text: "H4 market forecast (structural authority)" }),
+          h("div", { class: "forecast-hero__lean badge " + lean.kind }, [
+            h("span", { class: "forecast-hero__arrow", text: lean.arrow }),
+            h("span", { text: lean.word }),
+          ]),
+          h("div", { class: "forecast-hero__note", text: bias === "UNKNOWN"
+            ? "The backend has not reported an H4 structure bias yet, so no direction is shown."
+            : "Read directly from the backend's H4 structure bias. Not a prediction of our own." }),
+        ]),
+        h("div", { class: "forecast-hero__facts" }, kv([
+          ["H4 bias", valueOrUnavailable(ctx.h4_bias)],
+          ["M15 trigger", valueOrUnavailable(ctx.m15_trigger)],
+          ["Last closed H4 candle", lastOpen
+            ? h("span", { class: "mono", text: A.fmtEpochUTC(lastOpen) })
+            : valueOrUnavailable(null)],
+          ["Next H4 bar", info ? h("span", { text: info.overdueLabel }) : valueOrUnavailable(null)],
+        ])),
+        h("div", { class: "forecast-hero__actions" }, [
+          h("button", { class: "btn", on: { click: () => navigate("forecast") },
+            text: "Open full forecast" }),
+          h("button", { class: "btn", on: { click: () => navigate("plan") },
+            text: "Trade plan & outcomes" }),
+        ]),
+      ]);
+      body.appendChild(hero);
     }
 
     /* metric strip */
@@ -359,6 +428,11 @@ views.dashboard = function (mount) {
       "system/state"));
     metrics.appendChild(metricText("Bridge / sender",
       bridgeD ? bridgeD.bridge_process_state : null, "MT5 bridge process"));
+    metrics.appendChild(metricText("Shadow success rate",
+      tally.winRate == null ? null : (tally.winRate * 100).toFixed(0) + "%",
+      tally.winRate == null ? "no decided outcome yet — not 0%"
+        : tally.decided + " decided of " + tally.total + " recorded",
+      true));
     body.appendChild(metrics);
 
     /* coverage matrix + warnings */
@@ -383,7 +457,8 @@ views.dashboard = function (mount) {
 
     /* shortcuts */
     const sc = h("div", { class: "card__body row" });
-    [["chart", "Open Market Chart"], ["latest", "View Latest Analysis"],
+    [["forecast", "Open Market Forecast"], ["plan", "Trade Plan & Outcomes"],
+     ["chart", "Open Market Chart"], ["latest", "View Latest Analysis"],
      ["marketdata", "Market Data & MT5"], ["system", "Risk & System"]].forEach(([id, label]) => {
       sc.appendChild(h("button", { class: "btn", on: { click: () => navigate(id) }, text: label }));
     });
@@ -474,17 +549,28 @@ views.chart = function (mount) {
     meta.className = "badge neutral"; meta.textContent = "loading";
     api("/api/v1/candles", { tf: state.chartTf, limit: 300 }).then((data) => {
       const part = A.partitionBars(data && data.bars);
-      bars = part.valid;
+      const integ = A.candleBatchIntegrity(part.valid, state.chartTf);
+      /* A batch that is not timeframe-aligned cannot be a real MT5 series.
+         Refuse to present it as real rather than mislabel fabricated rows. */
+      const trusted = integ.ok;
+      bars = trusted ? part.valid : [];
       const latest = bars.length ? bars[bars.length - 1].time : null;
-      meta.className = "badge " + (bars.length ? "ok" : "neutral");
-      meta.textContent = bars.length + " closed bars";
-      statusLine.textContent = bars.length
-        ? "Real closed candles from the backend (read-only). Latest: "
-          + (A.fmtEpochUTC(latest) || "—")
-          + (part.rejected.length ? "  ·  " + part.rejected.length + " malformed record(s) rejected" : "")
-        : "The backend returned no closed bars for " + state.chartTf
-          + ". Nothing is drawn rather than fabricating values.";
-      renderChart(canvas, bars);
+      meta.className = "badge " + (trusted ? (bars.length ? "ok" : "neutral") : "bad");
+      meta.textContent = trusted ? bars.length + " closed bars" : "unsourced data";
+      if (!trusted) {
+        statusLine.textContent = "This timeframe's stored candles are not a real "
+          + "MT5 series (open times are not " + state.chartTf
+          + "-aligned), so nothing is plotted. " + integ.misaligned + " of "
+          + integ.checked + " record(s) failed the closed-candle integrity check.";
+      } else {
+        statusLine.textContent = bars.length
+          ? "Closed candles from the backend (read-only). Latest: "
+            + (A.fmtEpochUTC(latest) || "—")
+            + (part.rejected.length ? "  ·  " + part.rejected.length + " malformed record(s) rejected" : "")
+          : "The backend returned no closed bars for " + state.chartTf
+            + ". Nothing is drawn rather than fabricating values.";
+      }
+      renderChart(canvas, bars, { suspicious: !trusted });
     }).catch((err) => {
       bars = [];
       meta.className = "badge bad"; meta.textContent = "unavailable";
@@ -493,7 +579,7 @@ views.chart = function (mount) {
     });
   }
   load();
-  window.addEventListener("resize", () => renderChart(canvas, bars));
+  window.addEventListener("resize", () => renderChart(canvas, bars, {}));
 };
 
 function syncRail(rail, active) {
@@ -648,6 +734,288 @@ views.latest = function (mount) {
   });
 };
 
+
+/* --- D2. Market forecast --------------------------------------------------
+   A directional reading of the H4 (structural authority) timeframe, plus the
+   closed M15 trigger. Every value comes from the backend. When the backend has
+   no structure yet every field renders as unavailable, and the panel says so
+   instead of guessing a direction. */
+views.forecast = function (mount) {
+  const body = h("div", { class: "stack" });
+  mount.appendChild(body);
+  body.appendChild(loadingBlock("Reading H4 structure and closed candles…"));
+
+  Promise.allSettled([
+    api("/api/v1/analysis/latest"),
+    api("/api/v1/timeframes"),
+    api("/api/v1/candles", { tf: "H4", limit: 60 }),
+    api("/api/v1/candles", { tf: "M15", limit: 60 }),
+  ]).then(([a, tfs, h4, m15]) => {
+    clear(body);
+    const d = a.status === "fulfilled" ? a.value : null;
+    if (!d) {
+      body.appendChild(callout("bad",
+        "The backend did not return an analysis snapshot, so no forecast can be shown."));
+      return;
+    }
+    const c = d.context || {};
+    const bias = A.biasDirection(c.h4_bias);
+    const trigger = String(c.m15_trigger || "NONE").toUpperCase();
+
+    /* Honest headline: derived from the reported bias, with its reasons. */
+    let headline, kind;
+    if (bias === "UP") { headline = "H4 lean: UP (bullish structure)"; kind = "ok"; }
+    else if (bias === "DOWN") { headline = "H4 lean: DOWN (bearish structure)"; kind = "bad"; }
+    else if (bias === "RANGE") { headline = "H4 lean: RANGE (no directional edge)"; kind = "warn"; }
+    else { headline = "H4 lean: not available"; kind = "warn"; }
+
+    body.appendChild(callout(kind, headline +
+      " — derived from the backend's H4 structure bias, not from a formula of our own."));
+
+    body.appendChild(h("div", { class: "grid grid--metrics" }, [
+      metricText("H4 bias", c.h4_bias, "context.h4_bias (structural authority)"),
+      metricText("M15 trigger", trigger, "context.m15_trigger (reflexive)", true),
+      metricText("Regime", c.regime, "context.regime", true),
+      metricText("MTF agreement", c.mtf_agreement == null ? null
+        : (Number(c.mtf_agreement) * 100).toFixed(0) + "%", "context.mtf_agreement", true),
+      metricText("Signal direction", d.signal ? d.signal.direction : null,
+        "signal.direction", true),
+      metricText("Timestamp", d.timestamp, "analysis timestamp", true),
+    ]));
+
+    /* Closed-candle timing per timeframe: proves we never treat the forming
+       candle as closed, and surfaces coverage gaps as an overdue duration. */
+    const tfList = tfs.status === "fulfilled" && Array.isArray(tfs.value)
+      ? tfs.value : [];
+    const h4Bars = h4.status === "fulfilled" && h4.value && Array.isArray(h4.value.bars)
+      ? h4.value.bars : [];
+    /* The M15 store currently holds non-MT5 rows. A watermark derived from them
+       (as M15 currently is) would report a synthetic timestamp as a real closed
+       bar. Only trust M15's closed-bar time when a live sample of its candles is
+       genuinely M15-aligned. */
+    const m15Sample = m15.status === "fulfilled" && m15.value
+      && Array.isArray(m15.value.bars) ? m15.value.bars : null;
+    const m15Trusted = m15Sample === null
+      ? true : A.candleBatchIntegrity(m15Sample, "M15").ok;
+    const now = Date.now();
+    const tfRows = A.TIMEFRAMES.map((tf) => {
+      const rec = tfList.find((x) => x && x.timeframe === tf);
+      const hasClosed = Boolean(rec && rec.has_closed_bar === true)
+        && (tf !== "M15" || m15Trusted);
+      /* last_successful_update is a closed-bar open time (UTC seconds) only when
+         has_closed_bar is true; otherwise it is a millisecond freshness value.
+         Read it only in the first case so the two units can never be mixed. */
+      const lastOpen = hasClosed && Number.isFinite(Number(rec.last_successful_update))
+        ? Number(rec.last_successful_update) : null;
+      const info = lastOpen ? A.closedCandleInfo(lastOpen, tf, now) : null;
+      return [tf,
+        badge(rec && rec.quality ? rec.quality.state : "UNKNOWN"),
+        hasClosed ? badge("ok", "yes") : badge("warn", "no"),
+        lastOpen ? h("span", { class: "mono", text: A.fmtEpochUTC(lastOpen) })
+          : h("span", { class: "badge neutral", text: "no closed bar" }),
+        info ? h("span", { text: info.overdueLabel }) : valueOrUnavailable(null),
+        rec && rec.decision_grade ? badge("ok", "yes") : badge("neutral", "no")];
+    });
+    body.appendChild(card("Closed-candle status by timeframe",
+      h("div", { class: "card__body" }, h("div", { class: "table-wrap" },
+        h("table", { class: "data" }, [
+          h("thead", null, h("tr", null, ["Timeframe", "Quality", "Closed bar?",
+            "Last closed bar (UTC)", "Next-bar timing", "Decision grade"]
+            .map((x) => h("th", { text: x })))),
+          h("tbody", null, tfRows.map((r) => h("tr", null, [
+            h("td", { text: r[0] }), h("td", null, r[1]), h("td", null, r[2]),
+            h("td", null, r[3]), h("td", null, r[4]), h("td", null, r[5]),
+          ]))),
+        ])))));
+    if (!m15Trusted) {
+      body.appendChild(callout("warn",
+        "M15 is reported as having no trustworthy closed bar: the stored M15 candles "
+        + "are not MT5-aligned, so its watermark is withheld rather than shown as a "
+        + "real market reading."));
+    }
+
+    if (h4Bars.length) {
+      const last = h4Bars[h4Bars.length - 1];
+      const prev = h4Bars.length > 1 ? h4Bars[h4Bars.length - 2] : null;
+      const delta = prev ? Number(last.close) - Number(prev.close) : null;
+      body.appendChild(card("Latest closed H4 candle",
+        h("div", { class: "card__body" }, kv([
+          ["Open time (UTC)", h("span", { text: A.fmtEpochUTC(last.time) })],
+          ["Open", h("span", { text: A.fmtNum(last.open, 2) })],
+          ["High", h("span", { text: A.fmtNum(last.high, 2) })],
+          ["Low", h("span", { text: A.fmtNum(last.low, 2) })],
+          ["Close", h("span", { text: A.fmtNum(last.close, 2) })],
+          ["Change vs prior close", delta == null ? valueOrUnavailable(null)
+            : h("span", { text: (delta >= 0 ? "+" : "") + A.fmtNum(delta, 2) })],
+          ["Tick volume", h("span", { text: String(last.tick_volume) })],
+          ["Source", h("span", { text: last.source_id || "—" })],
+        ]))));
+    } else {
+      body.appendChild(card("Latest closed H4 candle",
+        h("div", { class: "card__body" }, stateBlock("No H4 candles",
+          "The backend holds no H4 bars, so no directional read is possible."))));
+    }
+
+    body.appendChild(card("How this page reads the market",
+      h("div", { class: "card__body" }, h("div", { class: "stack" }, [
+        h("div", { class: "note", text: "The H4 timeframe is the structural authority: its bias is the primary directional read." }),
+        h("div", { class: "note", text: "M15 is the operational trigger; it confirms or refuses the H4 lean." }),
+        h("div", { class: "note", text: "A forming candle is never used. A row is closed only once a full timeframe duration has elapsed." }),
+        h("div", { class: "note", text: "ASTRA is shadow-only: this is decision support, never an order instruction." }),
+      ]))));
+  });
+};
+
+/* --- D3. Trade plan -------------------------------------------------------
+   Shows the backend's proposed levels (entry / stop / target / reward-risk)
+   and the recorded shadow outcomes. ASTRA never opens a real order, so this is
+   a plan the owner can read and a record of what WOULD have happened. */
+views.plan = function (mount) {
+  const body = h("div", { class: "stack" });
+  mount.appendChild(body);
+  body.appendChild(loadingBlock("Loading the current plan and outcome record…"));
+
+  Promise.allSettled([
+    api("/api/v1/analysis/latest"),
+    api("/api/v1/risk/latest"),
+    api("/api/v1/shadow/positions"),
+    api("/api/v1/shadow/outcomes"),
+  ]).then(([a, risk, pos, out]) => {
+    clear(body);
+    const d = a.status === "fulfilled" ? a.value : null;
+    const levels = (d && d.levels) || {};
+    const dir = d && d.signal ? String(d.signal.direction || "NONE").toUpperCase() : "NONE";
+    const hasPlan = Boolean(levels.entry != null || levels.stop_loss != null ||
+      levels.take_profit != null);
+
+    const rD = risk.status === "fulfilled" ? risk.value : null;
+    const positions = pos.status === "fulfilled" && Array.isArray(pos.value) ? pos.value : [];
+    const outcomes = out.status === "fulfilled" && Array.isArray(out.value) ? out.value : [];
+    const tally = A.outcomeTally(outcomes);
+    const parts = A.partitionPositions(positions);
+
+    /* Headline: an honest statement of plan availability. */
+    if (!d) {
+      body.appendChild(callout("bad",
+        "The backend is unreachable, so no plan or outcome record can be shown."));
+    } else if (!hasPlan) {
+      body.appendChild(callout("warn",
+        dir === "NONE"
+          ? "No trade plan is available: the backend reports no directional signal."
+          : "No trade plan is available yet: the backend has not produced entry/stop/target levels."));
+    } else {
+      body.appendChild(callout("ok",
+        "The backend has produced a plan. Levels are shown exactly as reported; nothing here is estimated."));
+    }
+
+    body.appendChild(h("div", { class: "grid grid--metrics" }, [
+      metricText("Direction", dir, "signal.direction"),
+      metricText("Entry", A.fmtNum(levels.entry, 2), "levels.entry", true),
+      metricText("Stop loss", A.fmtNum(levels.stop_loss, 2), "levels.stop_loss", true),
+      metricText("Target", A.fmtNum(levels.take_profit, 2), "levels.take_profit", true),
+      metricText("Reward / risk", A.fmtNum(levels.reward_risk, 2), "levels.reward_risk", true),
+      metricText("Suggested risk %", A.fmtNum(levels.suggested_risk_pct, 2),
+        "levels.suggested_risk_pct", true),
+    ]));
+
+    /* The win-rate tile. Null when nothing has been decided yet. */
+    const rateText = tally.winRate == null ? null
+      : (tally.winRate * 100).toFixed(0) + "%";
+    body.appendChild(h("div", { class: "grid grid--metrics" }, [
+      metricText("Recorded outcomes", String(tally.decided),
+        tally.total + " total row(s)", true),
+      metricText("Win rate", rateText,
+        tally.winRate == null ? "no decided outcome yet — not 0%"
+          : tally.decided + " decided (win / loss / breakeven)", true),
+      metricText("Average realized R", A.fmtNum(tally.avgR, 3),
+        "mean of realized_r across outcomes", true),
+      metricText("Open shadow positions", rD ? String(rD.open_positions) : null,
+        "risk.latest", true),
+    ]));
+
+    body.appendChild(card("Plan status (why it is or is not actionable)",
+      h("div", { class: "card__body" }, kv([
+        ["Shadow only", badge("neutral", "true")],
+        ["Plan available", hasPlan ? badge("ok", "available") : badge("neutral", "not available")],
+        ["Entry method", valueOrUnavailable(levels.sl_method || levels.tp_method)],
+        ["Plan reference time", d && d.timestamp
+          ? h("span", { class: "mono", text: String(d.timestamp) })
+          : valueOrUnavailable(null)],
+        ["Risk bounded by guardian", rD ? badge(rD.risk_bounded_by_guardian ? "ok" : "warn",
+          String(rD.risk_bounded_by_guardian === true)) : valueOrUnavailable(null)],
+        ["Aggregate open risk", rD ? h("span", { text: A.fmtNum(rD.aggregate_open_risk_fraction, 4) }) : valueOrUnavailable(null)],
+        ["Proposal", rD ? (rD.proposal_available ? badge("ok", "available")
+          : badge("neutral", rD.proposal_reason || "none")) : valueOrUnavailable(null)],
+      ]))));
+
+    /* Open positions. */
+    const openWrap = h("div", { class: "card__body card__body--flush" });
+    if (!parts.open.length) {
+      openWrap.appendChild(stateBlock("No open shadow position",
+        "The backend reports no position currently open."));
+    } else {
+      openWrap.appendChild(positionTable(parts.open));
+    }
+    body.appendChild(card("Open shadow positions", openWrap));
+
+    /* Closed outcomes: success or failure per trade, exactly as recorded. */
+    const closedWrap = h("div", { class: "card__body card__body--flush" });
+    if (!positions.length && !outcomes.length) {
+      closedWrap.appendChild(stateBlock("No outcomes recorded yet",
+        "The backend has not recorded any completed shadow trade."));
+    } else if (outcomes.length) {
+      closedWrap.appendChild(outcomeTable(outcomes));
+    } else {
+      closedWrap.appendChild(positionTable(parts.closed));
+    }
+    body.appendChild(card("Outcome record (did the plan win or lose?)", closedWrap,
+      h("span", { class: "badge " + (tally.winRate == null ? "neutral" : "ok"),
+        text: tally.winRate == null ? "rate unavailable"
+          : (tally.winRate * 100).toFixed(0) + "% win rate" })));
+
+    body.appendChild(callout("warn",
+      "ASTRA is shadow-only. It never places, modifies, or closes a real order," +
+      " and it never transmits MT5 credentials. Everything here is a record of" +
+      " decision support."));
+  });
+};
+
+function positionTable(rows) {
+  const table = h("table", { class: "data" }, [
+    h("thead", null, h("tr", null, ["Position", "Dir", "State", "Entry", "Stop",
+      "Target", "R", "Opened (UTC)"].map((x) => h("th", { text: x })))),
+    h("tbody", null, rows.map((p) => h("tr", null, [
+      h("td", { class: "mono", text: String(p.position_id || "—") }),
+      h("td", null, badge(p.direction || "UNKNOWN")),
+      h("td", null, badge(p.state || "UNKNOWN")),
+      h("td", { class: "num", text: A.fmtNum(p.entry_price, 2) || "—" }),
+      h("td", { class: "num", text: A.fmtNum(p.stop_price, 2) || "—" }),
+      h("td", { class: "num", text: A.fmtNum(p.target_price, 2) || "—" }),
+      h("td", { class: "num", text: A.fmtNum(p.realized_r, 3) || "—" }),
+      h("td", { class: "mono", text: p.opened_at ? String(p.opened_at) : "—" }),
+    ]))),
+  ]);
+  return h("div", { class: "table-wrap" }, table);
+}
+
+function outcomeTable(rows) {
+  const table = h("table", { class: "data" }, [
+    h("thead", null, h("tr", null, ["Outcome", "Dir", "Result", "Entry", "Exit",
+      "Realized R", "Bars", "Recorded (UTC)"].map((x) => h("th", { text: x })))),
+    h("tbody", null, rows.map((o) => h("tr", null, [
+      h("td", { class: "mono", text: String(o.outcome_id || "—") }),
+      h("td", null, badge(o.direction || "UNKNOWN")),
+      h("td", null, badge(A.outcomeClass(o.outcome_class), A.outcomeLabel(o.outcome_class))),
+      h("td", { class: "num", text: A.fmtNum(o.entry_price, 2) || "—" }),
+      h("td", { class: "num", text: A.fmtNum(o.exit_price, 2) || "—" }),
+      h("td", { class: "num", text: A.fmtNum(o.realized_r, 3) || "—" }),
+      h("td", { class: "num", text: o.bars_held == null ? "—" : String(o.bars_held) }),
+      h("td", { class: "mono", text: o.recorded_at ? String(o.recorded_at) : "—" }),
+    ]))),
+  ]);
+  return h("div", { class: "table-wrap" }, table);
+}
+
 /* --- E. History --- */
 views.history = function (mount) {
   const body = h("div", { class: "stack" });
@@ -730,15 +1098,29 @@ views.marketdata = function (mount) {
     }
 
     const bars = bar && Array.isArray(bar.bars) ? bar.bars : [];
+    /* The M15 store currently holds non-MT5 rows, so a "last closed candle"
+       taken at face value would report a synthetic timestamp as real. Only
+       surface the timestamp when the batch passes the integrity check. */
+    const m15Integ = A.candleBatchIntegrity(bars, "M15");
     body.appendChild(h("div", { class: "grid grid--metrics" }, [
       metricText("Bridge state", bd ? bd.bridge_process_state : null, "server-observed", true),
       metricText("MT5 ready", bd ? String(bd.mt5_ready === true) : null, "bridge report", true),
       metricText("Resolved symbol", (bd && bd.resolved_symbol) || null, "broker symbol", true),
       metricText("Timeframes observed", cov.observed + " / " + cov.total, "with a closed bar", true),
       metricText("Last closed candle (M15)",
-        bars.length ? A.fmtEpochUTC(bars[bars.length - 1].time) : null, "from candle store", true),
+        bars.length && m15Integ.ok ? A.fmtEpochUTC(bars[bars.length - 1].time) : null,
+        m15Integ.ok ? "from candle store" : "withheld: stored M15 rows are not MT5-aligned",
+        true),
       metricText("Transport", bd ? bd.transport : null, "loopback only: " + (bd ? String(bd.loopback_only) : "—"), true),
     ]));
+
+    if (bars.length && !m15Integ.ok) {
+      body.appendChild(callout("warn",
+        "The stored M15 candles are not a real MT5 series (" + m15Integ.misaligned
+        + " of " + m15Integ.checked + " open times are not M15-aligned), so no M15 "
+        + "timestamp is shown as a genuine market reading. The chart page withholds "
+        + "these rows for the same reason."));
+    }
 
     const grid = h("div", { class: "grid grid--2" });
     grid.appendChild(card("Server-Observed Bridge Status", h("div", { class: "card__body" },

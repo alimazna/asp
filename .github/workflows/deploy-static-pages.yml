@@ -1,0 +1,71 @@
+name: Deploy static frontend to Cloudflare Pages
+
+# Publishes astra-frontend/ (the dependency-free static SPA that Cloudflare Pages
+# actually serves at https://astra-dia.pages.dev) to the Pages project `astra`.
+#
+# This is the app the owner sees. The React/Vite app on the `astra-frontend`
+# branch is NOT what is live, so its workflow does not deploy this site.
+#
+# Requires two repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   - token with the "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID  - the account that owns the Pages project
+#
+# BACKEND_BASE is a PUBLIC read-only backend URL, not a secret. It is set here
+# rather than in the Pages dashboard so the deployed bundle and this file cannot
+# drift apart.
+
+on:
+  push:
+    branches: [deploy/astra-stack]
+    paths:
+      - 'astra-frontend/**'
+      - '.github/workflows/deploy-static-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two frontend deploys race for the same Pages project.
+  group: pages-astra
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: astra-frontend
+    env:
+      BACKEND_BASE: https://astra-server-production.up.railway.app
+      ASTRA_REFRESH_MS: '30000'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # A red gate must never reach production: these are the pure helpers
+      # (formatting, OHLC validation, scale maths) that the render path relies on.
+      - name: Run unit tests
+        run: node --test tests/*.test.js
+
+      - name: Build dist/
+        run: node build.js
+
+      - name: Assert the bundle carries no secret
+        run: node scripts/secret-scan.js dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # `defaults.run` does not apply to `uses:` steps, so pass the working
+          # directory and the deploy target explicitly.
+          workingDirectory: astra-frontend
+          command: >-
+            pages deploy dist
+            --project-name=astra
+            --branch=main

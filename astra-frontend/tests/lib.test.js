@@ -124,3 +124,129 @@ test("unwrap returns data and throws on error envelopes", () => {
   assert.throws(() => lib.unwrap({ api: "v1" }), /no data/);
   assert.throws(() => lib.unwrap(null), /malformed/);
 });
+
+/* ---- analytical helpers added for the forecast / trade-plan pages ---- */
+
+test("biasDirection maps only recognised backend biases", () => {
+  assert.strictEqual(lib.biasDirection("UP"), "UP");
+  assert.strictEqual(lib.biasDirection("DOWN"), "DOWN");
+  assert.strictEqual(lib.biasDirection("RANGE"), "RANGE");
+  assert.strictEqual(lib.biasDirection("UNKNOWN"), "UNKNOWN");
+  assert.strictEqual(lib.biasDirection(""), "UNKNOWN");
+  assert.strictEqual(lib.biasDirection(null), "UNKNOWN");
+  assert.strictEqual(lib.biasDirection("SIDEWAYS"), "UNKNOWN");
+});
+
+test("closedCandleInfo: a candle is closed only after a full duration", () => {
+  const open = 1792000000;
+  const dur = lib.TF_SECONDS.H4;
+  // 1 second before the next bar opens -> still the forming candle.
+  const forming = lib.closedCandleInfo(open, "H4", (open + dur - 1) * 1000);
+  assert.strictEqual(forming.closed, false);
+  assert.strictEqual(forming.overdueSec, 0);
+  assert.strictEqual(forming.overdueLabel, "in time");
+  // Exactly at the boundary -> closed.
+  const closed = lib.closedCandleInfo(open, "H4", (open + dur) * 1000);
+  assert.strictEqual(closed.closed, true);
+  assert.strictEqual(closed.nextOpenUtc, open + dur);
+});
+
+test("closedCandleInfo reports staleness as an overdue duration", () => {
+  const open = 1792000000;
+  const info = lib.closedCandleInfo(open, "M15", (open + 900 + 7 * 900) * 1000);
+  assert.strictEqual(info.overdueSec, 7 * 900);
+  assert.match(info.overdueLabel, /overdue/);
+});
+
+test("closedCandleInfo is null for unusable input", () => {
+  assert.strictEqual(lib.closedCandleInfo(0, "M15", Date.now()), null);
+  assert.strictEqual(lib.closedCandleInfo(null, "M15", Date.now()), null);
+  assert.strictEqual(lib.closedCandleInfo(1792000000, "M7", Date.now()), null);
+});
+
+test("outcomeTally never invents a win rate without decided outcomes", () => {
+  const empty = lib.outcomeTally([]);
+  assert.strictEqual(empty.winRate, null);
+  assert.strictEqual(empty.decided, 0);
+
+  const undecided = lib.outcomeTally([
+    { outcome_class: "UNKNOWN", realized_r: null }]);
+  assert.strictEqual(undecided.winRate, null);
+
+  const mixed = lib.outcomeTally([
+    { outcome_class: "WIN", realized_r: 2 },
+    { outcome_class: "LOSS", realized_r: -1 },
+    { outcome_class: "BREAKEVEN", realized_r: 0 },
+    { outcome_class: "WIN", realized_r: 3 },
+  ]);
+  assert.strictEqual(mixed.wins, 2);
+  assert.strictEqual(mixed.losses, 1);
+  assert.strictEqual(mixed.breakeven, 1);
+  assert.strictEqual(mixed.decided, 4);
+  // Breakeven is in the denominator but never the numerator.
+  assert.strictEqual(mixed.winRate, 0.5);
+  assert.strictEqual(mixed.avgR, 1);
+});
+
+test("outcomeClass maps losses to bad and unknown to neutral", () => {
+  assert.strictEqual(lib.outcomeClass("WIN"), "ok");
+  assert.strictEqual(lib.outcomeClass("LOSS"), "bad");
+  assert.strictEqual(lib.outcomeClass("BREAKEVEN"), "neutral");
+  assert.strictEqual(lib.outcomeClass("WHATEVER"), "neutral");
+  assert.strictEqual(lib.outcomeLabel("win"), "WIN");
+});
+
+test("partitionPositions separates open from finished", () => {
+  const parts = lib.partitionPositions([
+    { position_id: "a", state: "OPEN" },
+    { position_id: "b", state: "CLOSED_TARGET" },
+    { position_id: "c", state: "CLOSED_STOP" },
+  ]);
+  assert.strictEqual(parts.open.length, 1);
+  assert.strictEqual(parts.closed.length, 2);
+  assert.deepStrictEqual(lib.partitionPositions(null),
+    { open: [], closed: [] });
+});
+
+test("candleBatchIntegrity accepts a real timeframe-aligned series", () => {
+  const m15 = 900;
+  const base = 1790000000 - (1790000000 % m15);
+  const bars = [0, 1, 2, 3].map((i) => ({ time: base + i * m15 }));
+  const r = lib.candleBatchIntegrity(bars, "M15");
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.misaligned, 0);
+  assert.strictEqual(r.minGapSec, m15);
+});
+
+test("candleBatchIntegrity tolerates sparse data but flags misaligned bars", () => {
+  const m15 = 900;
+  const base = 1790000000 - (1790000000 % m15);
+  // A wide gap is legitimate (missing bars), so it stays trusted.
+  const gappy = lib.candleBatchIntegrity(
+    [{ time: base }, { time: base + 8 * m15 }], "M15");
+  assert.strictEqual(gappy.ok, true);
+  // Times that are not 15-minute aligned, or only seconds apart, are not a
+  // real M15 feed. These are the exact shapes seen in the live M15 store.
+  const synthetic = lib.candleBatchIntegrity([
+    { time: 1792065000 },
+    { time: 1792068271 },
+    { time: 1792068276 },
+    { time: 1792068300 },
+  ], "M15");
+  assert.strictEqual(synthetic.ok, false);
+  assert.strictEqual(synthetic.misaligned, 3);
+  assert.ok(synthetic.minGapSec < m15);
+});
+
+test("candleBatchIntegrity ignores prices and handles empty input", () => {
+  // Non-integer prices must not be rejected: they are real for other symbols.
+  const m1 = 60;
+  const base = 1790000000 - (1790000000 % m1);
+  const r = lib.candleBatchIntegrity(
+    [{ time: base, close: 1901.37 }, { time: base + m1, close: 1902.5 }], "M1");
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(lib.candleBatchIntegrity([], "M15"),
+    { ok: true, checked: 0, misaligned: 0, minGapSec: null });
+  assert.strictEqual(lib.candleBatchIntegrity(null, "NOPE").ok, true);
+});
+
