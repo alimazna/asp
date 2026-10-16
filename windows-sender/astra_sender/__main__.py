@@ -91,7 +91,11 @@ def _install_console_fallback() -> bool:
         from .config import app_data_dir
         log_path = os.path.join(app_data_dir(), "sender.log")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        stream = open(log_path, "a", encoding="utf-8", errors="replace")
+        # Line-buffered: the GUI keeps running after these startup messages, so
+        # a block-buffered stream would hold them in memory and leave an empty
+        # log exactly when the app is hung and the log matters most.
+        stream = open(log_path, "a", encoding="utf-8", errors="replace",
+                      buffering=1)
     except (ImportError, OSError):
         return True
     if sys.stdout is None:
