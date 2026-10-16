@@ -46,12 +46,21 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; \
 
 [Files]
 Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-; Optional pre-provisioned config supplied next to the setup program. The
-; `external` flag resolves {src} at run time, so the credential (if present)
-; never lives inside the compiled setup. Skipped silently when absent.
+; Config provisioning. Two modes:
+;   default          -> read config.json from beside the setup program at run
+;                       time (external), so the setup binary holds no secret.
+;   /DEmbedConfig=1  -> compile a config.json that sits in the build directory
+;                       directly into the setup, producing a single
+;                       self-contained installer. Build such a setup privately:
+;                       it contains the ingestion credential.
+#ifdef EmbedConfig
+Source: "config.json"; DestDir: "{commonappdata}\AstraSender"; \
+    DestName: "config.json"; Flags: onlyifdoesntexist uninsneveruninstall
+#else
 Source: "{src}\config.json"; DestDir: "{commonappdata}\AstraSender"; \
     DestName: "config.json"; \
     Flags: external skipifsourcedoesntexist onlyifdoesntexist uninsneveruninstall
+#endif
 
 [Dirs]
 ; Let any user run the sender and write its ledger/state here.

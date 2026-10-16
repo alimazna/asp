@@ -2,6 +2,15 @@ name: Build Windows Astra Sender
 
 on:
   workflow_dispatch:
+    inputs:
+      sender_token:
+        description: "Optional. When set, builds a single self-contained installer with this token embedded. Never logged."
+        required: false
+        default: ""
+      embed:
+        description: "Set to 1 with sender_token to produce the self-contained installer."
+        required: false
+        default: "0"
   push:
     tags:
       - "sender-*"
@@ -47,29 +56,40 @@ jobs:
         working-directory: windows-sender
         shell: pwsh
         env:
-          # Optional: when set, a pre-provisioned config.json is placed next to
-          # the setup program so the built installer configures itself. The
-          # token is written to a file and never printed, and the setup program
-          # carries no secret itself. Absent -> generic installer.
           ASTRA_SENDER_TOKEN: ${{ secrets.ASTRA_SENDER_TOKEN }}
+          INPUT_TOKEN: ${{ github.event.inputs.sender_token }}
+          INPUT_EMBED: ${{ github.event.inputs.embed }}
         run: |
-          if ($env:ASTRA_SENDER_TOKEN) {
-            @{
-              backend_url = "https://astra-server-production.up.railway.app"
-              sender_token = $env:ASTRA_SENDER_TOKEN
-              sender_id = "win10-desk-01"
-              symbol = "XAUUSD"
-              timeframes = @("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
-              poll_interval_seconds = 30
-              catchup_max_bars = 200
-              request_timeout_seconds = 30
-            } | ConvertTo-Json | Set-Content -Encoding utf8 .\config.json
-            Write-Host "config.json provisioned (token hidden)"
-          } else {
-            Write-Host "No ASTRA_SENDER_TOKEN secret: building generic installer"
-          }
+          # Resolve the token: prefer the explicit dispatch input, else a repo
+          # secret if one exists. Keep it in an env var and write only to a
+          # file; never echo it. `Remove-Item Env:` narrows its lifetime.
+          $tok = $env:INPUT_TOKEN
+          if (-not $tok) { $tok = $env:ASTRA_SENDER_TOKEN }
+          $embed = ($env:INPUT_EMBED -eq "1")
+
+          @{
+            backend_url = "https://astra-server-production.up.railway.app"
+            sender_token = $tok
+            sender_id = "win10-desk-01"
+            symbol = "XAUUSD"
+            timeframes = @("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
+            poll_interval_seconds = 30
+            catchup_max_bars = 200
+            request_timeout_seconds = 30
+          } | ConvertTo-Json | Set-Content -Encoding utf8 .\config.json
+          Remove-Item Env:INPUT_TOKEN, Env:ASTRA_SENDER_TOKEN -ErrorAction SilentlyContinue
+
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc ".\installer\astra_sender.iss"
+          $args = @()
+          if ($tok -and $embed) {
+            Write-Host "single installer: embedding config (token hidden)"
+            $args += "/DEmbedConfig=1"
+            $args += '/FAstraSenderSetup-0.4.2-Configured'
+          } else {
+            Write-Host "generic installer (config read from beside the setup)"
+          }
+          & $iscc @args ".\installer\astra_sender.iss"
+          Remove-Item .\config.json -Force -ErrorAction SilentlyContinue
           Get-ChildItem .\installer\dist -Filter *.exe | ForEach-Object {
             Write-Host "installer: $($_.Name) $($_.Length) bytes"
           }
