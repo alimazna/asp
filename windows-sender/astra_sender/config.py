@@ -39,12 +39,45 @@ def app_data_dir() -> str:
     return os.path.join(base, "astra_sender")
 
 
+def machine_data_dir() -> str:
+    """Machine-wide data directory used by a per-machine installer.
+
+    Windows only; returns "" elsewhere. The installer writes the config (and
+    the ledger) under %PROGRAMDATA% so the app works for every user with the
+    elevated write rights the installer granted at setup time.
+    """
+    if sys.platform != "win32":  # pragma: no cover - Windows path
+        return ""
+    base = os.environ.get("PROGRAMDATA") or os.environ.get("ALLUSERSPROFILE")
+    return os.path.join(base, "AstraSender") if base else ""
+
+
+def _looks_configured(path: str) -> bool:
+    """True when a config file exists and already holds the required fields."""
+    if not path or not os.path.exists(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return False
+    return bool(data.get("backend_url") and data.get("sender_token")
+                and data.get("sender_id"))
+
+
 def default_config_path() -> str:
+    """Prefer an installer-provisioned machine config, else the per-user path."""
+    machine = machine_data_dir()
+    if machine:
+        machine_cfg = os.path.join(machine, "config.json")
+        if _looks_configured(machine_cfg):
+            return machine_cfg
     return os.path.join(app_data_dir(), "config.json")
 
 
 def default_ledger_path() -> str:
-    return os.path.join(app_data_dir(), "ledger.sqlite")
+    """Keep the ledger beside whichever config is in use."""
+    return os.path.join(os.path.dirname(default_config_path()), "ledger.sqlite")
 
 
 @dataclass

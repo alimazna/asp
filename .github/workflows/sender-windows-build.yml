@@ -39,6 +39,41 @@ jobs:
         run: |
           python -m PyInstaller --clean --noconfirm astra_sender.spec
 
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build installer (elevating, machine-wide)
+        working-directory: windows-sender
+        shell: pwsh
+        env:
+          # Optional: when set, a pre-provisioned config.json is placed next to
+          # the setup program so the built installer configures itself. The
+          # token is written to a file and never printed, and the setup program
+          # carries no secret itself. Absent -> generic installer.
+          ASTRA_SENDER_TOKEN: ${{ secrets.ASTRA_SENDER_TOKEN }}
+        run: |
+          if ($env:ASTRA_SENDER_TOKEN) {
+            @{
+              backend_url = "https://astra-server-production.up.railway.app"
+              sender_token = $env:ASTRA_SENDER_TOKEN
+              sender_id = "win10-desk-01"
+              symbol = "XAUUSD"
+              timeframes = @("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
+              poll_interval_seconds = 30
+              catchup_max_bars = 200
+              request_timeout_seconds = 30
+            } | ConvertTo-Json | Set-Content -Encoding utf8 .\config.json
+            Write-Host "config.json provisioned (token hidden)"
+          } else {
+            Write-Host "No ASTRA_SENDER_TOKEN secret: building generic installer"
+          }
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc ".\installer\astra_sender.iss"
+          Get-ChildItem .\installer\dist -Filter *.exe | ForEach-Object {
+            Write-Host "installer: $($_.Name) $($_.Length) bytes"
+          }
+
       - name: Smoke-run the frozen app (headless)
         working-directory: windows-sender
         env:
@@ -96,12 +131,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AstraSender-exe
-          path: windows-sender/dist/AstraSender.exe
+          path: |
+            windows-sender/dist/AstraSender.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
           if-no-files-found: error
 
       - name: Attach to GitHub Release (on tag push)
         if: startsWith(github.ref, 'refs/tags/sender-')
         uses: softprops/action-gh-release@v2
         with:
-          files: windows-sender/dist/AstraSender.exe
+          files: |
+            windows-sender/dist/AstraSender.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
           fail_on_unmatched_files: true

@@ -76,3 +76,8 @@ research/features_real/corpus/*.json
 build-test/
 build-tests/
 build-be/
+
+# Never commit a pre-provisioned sender config (contains the ingestion token).
+windows-sender/config.json
+windows-sender/installer/config.json
+windows-sender/installer/dist/

@@ -94,6 +94,7 @@ class SenderGui:
         self.pause_btn = ttk.Button(controls, text="Pause", command=self._toggle_pause)
         self.pause_btn.pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(controls, text="Reconnect now", command=self._reconnect).pack(side=tk.LEFT)
+        ttk.Button(controls, text="Settings", command=self._open_settings).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(controls, text="Open config folder", command=self._open_config).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Label(controls, text=f"config: {self._config_file_summary()}").pack(side=tk.RIGHT)
 
@@ -138,6 +139,45 @@ class SenderGui:
                 os.system(f'xdg-open "{self._data_dir}" &')
         except Exception as exc:
             self.log(f"cannot open config folder: {exc}")
+
+    def _open_settings(self) -> None:
+        """Edit the connection settings in the GUI instead of hand-editing JSON.
+
+        Writes through SenderConfig.save() so the on-disk format stays the
+        single source of truth; the token is masked on screen and never logged.
+        """
+        from tkinter import simpledialog
+        from .config import SenderConfig
+
+        backend = simpledialog.askstring(
+            "ASTRA Sender — backend URL", "Backend HTTPS URL:",
+            initialvalue=self._config.backend_url, parent=self._root)
+        if backend is None:
+            return
+        sender_id = simpledialog.askstring(
+            "ASTRA Sender — sender ID", "Sender ID (stable instance name):",
+            initialvalue=self._config.sender_id, parent=self._root)
+        if sender_id is None:
+            return
+        token = simpledialog.askstring(
+            "ASTRA Sender — ingestion token",
+            "Sender token (paste ASTRA_SENDER_TOKEN):", show="*",
+            parent=self._root)
+        if token is None:
+            return
+
+        self._config.backend_url = backend.strip()
+        self._config.sender_id = sender_id.strip()
+        if token.strip():
+            self._config.sender_token = token.strip()
+        path = os.path.join(self._data_dir, "config.json")
+        try:
+            SenderConfig.save(self._config, path)
+        except OSError as exc:
+            self.log(f"cannot save config: {exc}")
+            return
+        self.log(f"settings saved to {path}")
+        self.log("restart the app to apply the new settings")
 
     # -- engine integration -------------------------------------------------
 
