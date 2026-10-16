@@ -82,3 +82,22 @@ hardcode a timeframe as untrusted.
   `astra-frontend/scripts/deploy-pages.sh`.
 - The Windows release-attach CI step returns 403, but the
   `sender-v0.3.0` release asset exists and is valid.
+
+## Production state (2026-10-16)
+
+- Backend: `https://astra-server-production.up.railway.app` (service
+  `astra-server`, project `romantic-warmth`). Railway has **no GitHub repo
+  connected** — deploy the current source with
+  `railway up --service astra-server --environment production --ci`.
+- Durable store: Railway volume `astra-server-volume`
+  (`4605ca78-b54a-4688-934d-45b37f54a7a8`) mounted at `/opt/astra/data`.
+- Frontend: `https://astra-dia.pages.dev` (Cloudflare Pages project `astra`).
+- All five synthetic deployment-verification rows were purged on 2026-10-16.
+  Production currently holds **zero** candles, so `/api/v1/candles` returns
+  `503` and `readyz` returns `503` — the honest pre-data state. Genuine MT5
+  data must arrive from the Windows sender.
+- Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
+  `scripts/quarantine_admin.py list --all` flags misaligned rows and prints
+  the exact purge command.
+- Railway SSH needs interactive account auth, so the project token cannot open
+  a shell in the container; use the admin HTTP routes instead.
