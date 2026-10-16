@@ -203,6 +203,8 @@ jobs:
           $d = Start-Process -FilePath .\dist\AstraSender.exe `
                              -ArgumentList "--diag-mt5" -PassThru -Wait
           Write-Host "Frozen app --diag-mt5 exit code: $($d.ExitCode)"
+          # The report lands beside the config the app resolves, which is
+          # %PROGRAMDATA%\AstraSender for the per-machine install.
           $diag = Join-Path $env:PROGRAMDATA 'AstraSender\mt5_diag.txt'
           if (-not (Test-Path $diag)) {
             Write-Error "--diag-mt5 produced no report at $diag"

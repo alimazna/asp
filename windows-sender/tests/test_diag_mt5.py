@@ -87,5 +87,35 @@ class DiagMt5Test(unittest.TestCase):
         self.assertEqual(self._run(fake), 0)
 
 
+class DiagReportPathTest(unittest.TestCase):
+    """`--diag-mt5` must write its report where the GUI opens the folder.
+
+    The CI smoke test asserts the report exists at %PROGRAMDATA%\\AstraSender
+    because that is where the per-machine installer puts the config. An earlier
+    build wrote to %LOCALAPPDATA% instead and the check failed, so the path is
+    pinned here rather than left to drift.
+    """
+
+    def test_report_is_written_beside_the_resolved_config(self):
+        import tempfile
+        from astra_sender import __main__ as m
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = os.path.join(tmp, "config.json")
+            with mock.patch.object(m, "_run_mt5_diagnostic", wraps=m._run_mt5_diagnostic):
+                with mock.patch("astra_sender.config.default_config_path",
+                                return_value=cfg_path):
+                    with mock.patch.dict(sys.modules, {"MetaTrader5": None}):
+                        code = m._run_mt5_diagnostic()
+            report = os.path.join(tmp, "mt5_diag.txt")
+            self.assertTrue(os.path.exists(report),
+                            "report was not written beside the config")
+            with open(report, encoding="utf-8") as fh:
+                body = fh.read()
+            self.assertIn("ASTRA Sender - MT5 diagnostic", body)
+            # No package on this machine, so a non-zero finding is correct.
+            self.assertEqual(code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

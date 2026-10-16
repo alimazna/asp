@@ -168,13 +168,16 @@ def _run_mt5_diagnostic() -> int:
     report = buf.getvalue()
     _say(report)
     try:
-        from .config import app_data_dir
-        path = os.path.join(app_data_dir(), "mt5_diag.txt")
+        # Write beside the config the app actually uses, so the file shows up
+        # in the same folder the GUI's "Open config folder" button opens.
+        from .config import default_config_path
+        path = os.path.join(os.path.dirname(default_config_path()),
+                            "mt5_diag.txt")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(report)
         _say(f"\nreport written to: {path}")
-    except Exception:
-        pass
+    except Exception as exc:
+        _say(f"\ncould not write the report: {exc}")
     return code
 
 
