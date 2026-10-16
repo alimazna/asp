@@ -77,6 +77,8 @@ jobs:
             poll_interval_seconds = 30
             catchup_max_bars = 200
             request_timeout_seconds = 30
+            mt5_path = ""
+            mt5_timeout_ms = 15000
           } | ConvertTo-Json | Set-Content -Encoding utf8 .\installer\config.json
 
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"

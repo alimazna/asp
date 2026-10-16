@@ -250,9 +250,20 @@ class SenderGui:
             parent=self._root)
         if token is None:
             return False
+        mt5_path = simpledialog.askstring(
+            "ASTRA Sender - MT5 terminal path",
+            "Path to terminal64.exe\n\n"
+            "Leave BLANK unless MT5 uses a broker-specific install\n"
+            "(e.g. \"MetaTrader 5 IC Markets (SC)\").\n"
+            "With a blank path ASTRA attaches to the running terminal.\n\n"
+            "Example: C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+            initialvalue=self._config.mt5_path, parent=self._root)
+        if mt5_path is None:
+            return False
 
         self._config.backend_url = backend.strip()
         self._config.sender_id = sender_id.strip()
+        self._config.mt5_path = mt5_path.strip().strip('"')
         if token.strip():
             self._config.sender_token = token.strip()
         path = self._settings_path()
