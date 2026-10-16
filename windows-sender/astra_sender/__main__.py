@@ -249,7 +249,9 @@ def _main_impl() -> int:
     config = SenderConfig.load(config_path)
     data_dir = os.path.dirname(config_path) or app_data_dir()
 
-    if not config.backend_url or not config.sender_token or not config.sender_id:
+    needs_config = bool(not config.backend_url or not config.sender_token
+                        or not config.sender_id)
+    if needs_config:
         # Write an editable template on first run so the user has a file to
         # fill in rather than hand-authoring JSON at an unfamiliar path.
         created = False
@@ -274,16 +276,23 @@ def _main_impl() -> int:
         lines += [f"  - {p}" for p in reported]
         if created:
             lines.append(f"A template was created at:\n  {config_path}")
-            lines.append("Fill in backend_url, sender_token and sender_id, then "
-                         "start the app again.")
-        else:
-            lines.append(f"Open this file and set the three fields:\n  {config_path}")
+        lines.append(f"Config file:\n  {config_path}")
         text = "\n".join(lines)
         print(text, file=sys.stderr)
-        # A windowed exe has no console, so also surface it in a message box —
-        # otherwise the user sees nothing at all when double-clicking.
-        _show_error_dialog("ASTRA Sender — setup required", text)
-        return 2
+
+        # Console mode has no widgets, so it can only report and exit. The GUI
+        # path instead opens the window with Settings ready, because a windowed
+        # exe has no console: the old message box here told the owner what was
+        # missing but gave them no way to type the token, so the app looked
+        # simply broken when double-clicked.
+        if args.console:
+            _show_error_dialog("ASTRA Sender - setup required", text)
+            return 2
+        try:
+            import tkinter  # noqa: F401
+        except ImportError:
+            _show_error_dialog("ASTRA Sender - setup required", text)
+            return 2
 
     from .collector import ClosedCandleCollector
     from .protocol import ServerClient
@@ -320,7 +329,8 @@ def _main_impl() -> int:
 
     from .gui import SenderGui
     gui = SenderGui(SyncEngine(config, collector=collector, ledger=ledger,
-                               client=client), config, data_dir)
+                               client=client), config, data_dir,
+                    config_path=config_path, needs_config=needs_config)
 
     def poll():
         snapshot = gui._engine.status_snapshot()

@@ -18,15 +18,29 @@ from typing import Any, Dict, List, Optional
 
 
 class SenderGui:
-    def __init__(self, engine, config, app_data_dir: str):
+    def __init__(self, engine, config, app_data_dir: str,
+                 config_path: Optional[str] = None,
+                 needs_config: bool = False):
         self._engine = engine
         self._config = config
         self._data_dir = app_data_dir
+        # The exact file Settings must write to. Deriving it from _data_dir
+        # wrote to %LOCALAPPDATA% even when the app was reading the
+        # installer-provisioned %PROGRAMDATA% config, so saved edits were
+        # silently ignored. None keeps the old behaviour for the tests.
+        self._config_path = config_path
+        self._needs_config = needs_config
         self._root = tk.Tk()
         self._root.title("ASTRA Sender")
         self._root.minsize(560, 480)
         self._build()
         self._last_log_count = 0
+        if needs_config:
+            # A windowed exe shows no console, so a double-click on a
+            # not-yet-configured app used to raise a message box that exited
+            # without offering any way to enter the token. Open the window,
+            # explain, and jump straight into Settings instead.
+            self._root.after(300, self._prompt_setup)
 
     # -- construction -------------------------------------------------------
 
@@ -133,10 +147,9 @@ class SenderGui:
         return lbl
 
     def _config_file_summary(self) -> str:
-        path = self._data_dir
-        if path:
-            return os.path.join(path, "config.json")
-        return "config.json"
+        # Show the file actually in use, so the label never points the owner at
+        # a different config.json than the one Settings writes.
+        return self._settings_path() or "-"
 
     # -- control handlers ---------------------------------------------------
 
@@ -188,44 +201,88 @@ class SenderGui:
         self.log("running MT5 diagnostic...")
         threading.Thread(target=worker, daemon=True).start()
 
-    def _open_settings(self) -> None:
+    def _settings_path(self) -> str:
+        """The file Settings writes. Falls back to data_dir/config.json."""
+        return self._config_path or os.path.join(self._data_dir, "config.json")
+
+    def _prompt_setup(self) -> None:
+        """First-run guidance: explain, then open Settings in one click."""
+        from tkinter import messagebox
+        self._set_reason(
+            "ASTRA Sender is not configured yet.\n"
+            "Click OK to enter the backend URL, sender ID and ingestion "
+            "token. Nothing is sent anywhere until you do.")
+        try:
+            messagebox.showinfo(
+                "ASTRA Sender - setup required",
+                "ASTRA Sender is not configured yet.\n\n"
+                f"Config file:\n{self._settings_path()}\n\n"
+                "Click OK to fill in the backend URL, sender ID and ingestion "
+                "token now. If you already have a config.json, copy it to the "
+                "folder above and restart.")
+        except Exception:
+            pass
+        self._open_settings()
+
+    def _open_settings(self) -> bool:
         """Edit the connection settings in the GUI instead of hand-editing JSON.
 
         Writes through SenderConfig.save() so the on-disk format stays the
         single source of truth; the token is masked on screen and never logged.
+        Returns True when the config was saved and is now usable.
         """
         from tkinter import simpledialog
         from .config import SenderConfig
 
         backend = simpledialog.askstring(
-            "ASTRA Sender — backend URL", "Backend HTTPS URL:",
+            "ASTRA Sender - backend URL", "Backend HTTPS URL:",
             initialvalue=self._config.backend_url, parent=self._root)
         if backend is None:
-            return
+            return False
         sender_id = simpledialog.askstring(
-            "ASTRA Sender — sender ID", "Sender ID (stable instance name):",
+            "ASTRA Sender - sender ID", "Sender ID (stable instance name):",
             initialvalue=self._config.sender_id, parent=self._root)
         if sender_id is None:
-            return
+            return False
         token = simpledialog.askstring(
-            "ASTRA Sender — ingestion token",
+            "ASTRA Sender - ingestion token",
             "Sender token (paste ASTRA_SENDER_TOKEN):", show="*",
             parent=self._root)
         if token is None:
-            return
+            return False
 
         self._config.backend_url = backend.strip()
         self._config.sender_id = sender_id.strip()
         if token.strip():
             self._config.sender_token = token.strip()
-        path = os.path.join(self._data_dir, "config.json")
+        path = self._settings_path()
         try:
+            parent = os.path.dirname(path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
             SenderConfig.save(self._config, path)
         except OSError as exc:
             self.log(f"cannot save config: {exc}")
-            return
+            self._set_reason(f"Could not write {path}: {exc}")
+            return False
+
+        problems = self._config.validate()
+        if problems:
+            # Saved, but still unusable (e.g. the token was left blank).
+            for problem in problems:
+                self.log(f"still not configured: {problem}")
+            self._set_reason("Config saved but incomplete:\n  - "
+                             + "\n  - ".join(problems))
+            return False
+
+        self._needs_config = False
         self.log(f"settings saved to {path}")
-        self.log("restart the app to apply the new settings")
+        # The engine holds its own client built from the old config, so the
+        # new values only take effect after a restart. Say so plainly rather
+        # than silently keeping the stale connection.
+        self._set_reason("Settings saved. Restart the app to connect with the "
+                         "new settings.")
+        return True
 
     # -- engine integration -------------------------------------------------
 
