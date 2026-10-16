@@ -96,12 +96,15 @@ class CollectorStartup:
 
 
 class ClosedCandleCollector:
-    def __init__(self, preferred_symbol: str = "XAUUSD"):
+    def __init__(self, preferred_symbol: str = "XAUUSD",
+                 mt5_path: str = "", mt5_timeout_ms: int = 15000):
         self._client = None
         self._preferred = preferred_symbol
         self._resolved = ""
         self._broker = ""
         self._server = ""
+        self._mt5_path = mt5_path
+        self._mt5_timeout_ms = mt5_timeout_ms
 
     @property
     def resolved_symbol(self) -> str:
@@ -125,7 +128,8 @@ class ClosedCandleCollector:
                                     message=str(exc))
         self._client = module.Mt5Client()
 
-        result = self._client.initialize()
+        result = self._client.initialize(path=self._mt5_path,
+                                         timeout_ms=self._mt5_timeout_ms)
         if not result.ok:
             return CollectorStartup(ok=False, error_code=result.error_code,
                                     message=result.message)

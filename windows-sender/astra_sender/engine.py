@@ -82,7 +82,11 @@ class SyncEngine:
                  on_status: Optional[Callable[[Dict[str, Any]], None]] = None,
                  status_refresh_seconds: float = 1.0):
         self._config = config
-        self._collector = collector or ClosedCandleCollector(config.symbol)
+        self._collector = collector or ClosedCandleCollector(
+            config.symbol,
+            mt5_path=getattr(config, "mt5_path", ""),
+            mt5_timeout_ms=getattr(config, "mt5_timeout_ms", 15000),
+        )
         self._ledger = ledger or DeliveryLedger(config.resolved_ledger_path())
         self._client = client or ServerClient(config.backend_url, config.sender_token,
                                               config.sender_id,
@@ -193,9 +197,12 @@ class SyncEngine:
             return ("sender is missing its MT5 bridge module; reinstall the app "
                     f"({message})")
         if code == "MT5_TERMINAL_UNAVAILABLE":
-            return ("MetaTrader5 is not reachable. Open the MT5 desktop terminal, "
-                    "log in to your account, and enable Tools > Options > Expert "
-                    "Advisors > 'Allow algorithmic trading', then wait for a retry. "
+            return ("MetaTrader5 is not reachable. Run the MT5 diagnostic button "
+                    "for the exact error code. Usual causes: the terminal is not "
+                    "running or not logged in; Algo Trading is off; ASTRA Sender "
+                    "and terminal64.exe run at DIFFERENT privilege levels (elevate "
+                    "both or neither); or a suffixed broker terminal needs its "
+                    "path set in Settings. "
                     f"({message})")
         if code == "MT5_SYMBOL_UNRESOLVED":
             return ("no XAUUSD/GOLD symbol is visible in MT5. Add the gold symbol "

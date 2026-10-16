@@ -59,5 +59,53 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.sender_token, "")
 
 
+class Mt5PathConfigTest(unittest.TestCase):
+    """`mt5_path` must survive a save/load round-trip.
+
+    A previously reported bug was a key the user hand-added to config.json that
+    the loader silently discarded. Anything the GUI can now write has to come
+    back, or the same confusion returns.
+    """
+
+    def test_defaults_to_empty_auto_discovery(self):
+        cfg = SenderConfig()
+        self.assertEqual(cfg.mt5_path, "")
+        self.assertGreater(cfg.mt5_timeout_ms, 0)
+
+    def test_round_trips_through_save_and_load(self):
+        directory = tempfile.mkdtemp(prefix="astra_cfg_")
+        path = os.path.join(directory, "config.json")
+        cfg = SenderConfig()
+        cfg.backend_url = "https://astra.example"
+        cfg.sender_token = "tok"
+        cfg.sender_id = "win-01"
+        cfg.mt5_path = r"C:\Program Files\MetaTrader 5 IC Markets (SC)\terminal64.exe"
+        cfg.mt5_timeout_ms = 8000
+        SenderConfig.save(cfg, path)
+        loaded = SenderConfig.load(path)
+        self.assertEqual(loaded.mt5_path, cfg.mt5_path)
+        self.assertEqual(loaded.mt5_timeout_ms, 8000)
+
+    def test_blank_path_is_valid(self):
+        cfg = SenderConfig()
+        cfg.backend_url = "https://astra.example"
+        cfg.sender_token = "tok"
+        cfg.sender_id = "win-01"
+        self.assertEqual(cfg.validate(), [])
+
+    def test_non_exe_path_is_rejected(self):
+        cfg = SenderConfig()
+        cfg.backend_url = "https://astra.example"
+        cfg.sender_token = "tok"
+        cfg.sender_id = "win-01"
+        cfg.mt5_path = r"C:\Program Files\MetaTrader 5"
+        problems = cfg.validate()
+        self.assertTrue(any("terminal64.exe" in p for p in problems))
+
+    def test_bad_timeout_falls_back_to_default(self):
+        cfg = SenderConfig.from_dict({"mt5_timeout_ms": "not-a-number"})
+        self.assertEqual(cfg.mt5_timeout_ms, 15000)
+
+
 if __name__ == "__main__":
     unittest.main()

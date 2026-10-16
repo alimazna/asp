@@ -95,6 +95,14 @@ class SenderConfig:
     catchup_bar_limit: int = 1000        # max bars fetched per catch-up read
     request_timeout_seconds: int = 30
     ledger_path: str = ""                # resolved; empty -> default
+    # Explicit path to the broker's terminal64.exe. Optional: without it MT5
+    # attaches to the running terminal by IPC. It is needed when a broker
+    # installs a suffixed terminal (e.g. "MetaTrader 5 IC Markets (SC)") and
+    # auto-discovery picks the wrong one.
+    mt5_path: str = ""
+    # IPC attach timeout. MT5's own default is 60000 ms, which is why a failed
+    # attach looked like a hang rather than an error.
+    mt5_timeout_ms: int = 15000
 
     # -- validation ---------------------------------------------------------
 
@@ -120,6 +128,10 @@ class SenderConfig:
             problems.append("Poll interval must be at least 5 seconds.")
         if self.catchup_max_bars < 0 or self.catchup_bar_limit <= 0:
             problems.append("Catch-up bounds must be non-negative.")
+        if self.mt5_path and not self.mt5_path.lower().endswith(".exe"):
+            problems.append("MT5 terminal path must point at terminal64.exe.")
+        if self.mt5_timeout_ms <= 0:
+            problems.append("MT5 timeout must be a positive number of milliseconds.")
         return problems
 
     @staticmethod
@@ -138,6 +150,11 @@ class SenderConfig:
         cfg.request_timeout_seconds = int(data.get("request_timeout_seconds", 30))
         ledger = str(data.get("ledger_path", "") or "")
         cfg.ledger_path = ledger if ledger else default_ledger_path()
+        cfg.mt5_path = str(data.get("mt5_path", "") or "").strip()
+        try:
+            cfg.mt5_timeout_ms = int(data.get("mt5_timeout_ms", 15000))
+        except (TypeError, ValueError):
+            cfg.mt5_timeout_ms = 15000
         return cfg
 
     def to_dict(self) -> Dict[str, Any]:
@@ -152,6 +169,8 @@ class SenderConfig:
             "catchup_bar_limit": self.catchup_bar_limit,
             "request_timeout_seconds": self.request_timeout_seconds,
             "ledger_path": self.ledger_path,
+            "mt5_path": self.mt5_path,
+            "mt5_timeout_ms": self.mt5_timeout_ms,
         }
 
     @staticmethod

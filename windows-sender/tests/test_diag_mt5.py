@@ -87,6 +87,130 @@ class DiagMt5Test(unittest.TestCase):
         self.assertEqual(self._run(fake), 0)
 
 
+class DiagPrivilegeAndErrorReportingTest(unittest.TestCase):
+    """The diagnostic must name the failure, not just fail.
+
+    Two real support cases drove these tests:
+      * a failed attach that printed no ``last_error()``, leaving nothing to act
+        on, and
+      * a failed attach that never returned, because MT5's own IPC default is
+        60000 ms, so the tool looked like it had hung.
+    """
+
+    def _run_capture(self, fake):
+        sys.modules.pop("diag_mt5", None)
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with mock.patch.dict(sys.modules, {"MetaTrader5": fake}):
+            import diag_mt5
+            with redirect_stdout(buf):
+                code = diag_mt5.main()
+        return code, buf.getvalue()
+
+    def test_prints_raw_last_error_code_on_failure(self):
+        """-10005 is the privilege-mismatch code; it must appear verbatim."""
+        fake = _fake_mt5(initialize_ok=False)
+        fake.last_error.return_value = (-10005, "IPC timeout")
+        code, out = self._run_capture(fake)
+        self.assertEqual(code, 4)
+        self.assertIn("-10005", out, "the raw MT5 code must be printed")
+        self.assertIn("IPC timeout", out)
+        self.assertIn("Error code -10005", out)
+
+    def test_prints_privilege_level_guidance(self):
+        fake = _fake_mt5(initialize_ok=False)
+        fake.last_error.return_value = (-10005, "IPC timeout")
+        _, out = self._run_capture(fake)
+        self.assertIn("PRIVILEGE LEVEL CHECK", out)
+        self.assertIn("SAME level", out)
+
+    def test_passes_a_bounded_timeout_to_initialize(self):
+        """An unbounded attach is what made the tool appear to hang."""
+        fake = _fake_mt5()
+        self._run_capture(fake)
+        self.assertTrue(fake.initialize.called)
+        kwargs = fake.initialize.call_args.kwargs
+        self.assertIn("timeout", kwargs)
+        self.assertGreater(kwargs["timeout"], 0)
+
+    def test_blocking_initialize_does_not_hang(self):
+        """A terminal that never answers must produce a finding, not a hang."""
+        import time as _time
+        fake = _fake_mt5()
+        fake.initialize.side_effect = lambda **kw: _time.sleep(120)
+        sys.modules.pop("diag_mt5", None)
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with mock.patch.dict(sys.modules, {"MetaTrader5": fake}):
+            import diag_mt5
+            # Shrink the ceilings so the test does not wait the real 15s + 30s.
+            diag_mt5._INIT_TIMEOUT_MS = 200
+            diag_mt5._INIT_WALL_CLOCK_GRACE_SECONDS = 0.5
+            started = _time.time()
+            with redirect_stdout(buf):
+                code = diag_mt5.main()
+            elapsed = _time.time() - started
+        self.assertEqual(code, 4, "a timeout is a failed attach")
+        self.assertLess(elapsed, 10, "the diagnostic must not hang")
+        self.assertIn("TIMED OUT", buf.getvalue())
+
+
+class DiagMt5PathTest(unittest.TestCase):
+    """The bridge must be able to target a specific terminal64.exe."""
+
+    def _bridge(self):
+        sys.path.insert(0, os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "..", "bridge", "mt5_python"))
+        import importlib
+        import mt5_client
+        return importlib.reload(mt5_client)
+
+    def test_initialize_passes_path_positionally(self):
+        client_mod = self._bridge()
+        fake = mock.MagicMock()
+        fake.initialize.return_value = True
+        fake.version.return_value = (500, 0, 0)
+        fake.account_info.return_value = None
+        with mock.patch.object(client_mod, "_mt5", fake):
+            client = client_mod.Mt5Client()
+            result = client.initialize(
+                path=r"C:\Program Files\MetaTrader 5\terminal64.exe",
+                timeout_ms=5000)
+        self.assertTrue(result.ok)
+        args, kwargs = fake.initialize.call_args
+        # MT5 takes the path as the first positional argument.
+        self.assertEqual(args[0], r"C:\Program Files\MetaTrader 5\terminal64.exe")
+        self.assertEqual(kwargs.get("timeout"), 5000)
+
+    def test_initialize_without_path_uses_auto_discovery(self):
+        client_mod = self._bridge()
+        fake = mock.MagicMock()
+        fake.initialize.return_value = True
+        fake.version.return_value = (500, 0, 0)
+        fake.account_info.return_value = None
+        with mock.patch.object(client_mod, "_mt5", fake):
+            client = client_mod.Mt5Client()
+            client.initialize(timeout_ms=1000)
+        args, kwargs = fake.initialize.call_args
+        self.assertEqual(args, (), "no path must be passed for auto-discovery")
+        self.assertEqual(kwargs.get("timeout"), 1000)
+
+    def test_failed_initialize_reports_the_raw_error(self):
+        client_mod = self._bridge()
+        fake = mock.MagicMock()
+        fake.initialize.return_value = False
+        fake.last_error.return_value = (-10005, "IPC timeout")
+        with mock.patch.object(client_mod, "_mt5", fake):
+            client = client_mod.Mt5Client()
+            result = client.initialize(timeout_ms=1000)
+        self.assertFalse(result.ok)
+        self.assertIn("-10005", result.message)
+        self.assertIn("1000", result.message)
+
+
 class DiagReportPathTest(unittest.TestCase):
     """`--diag-mt5` must write its report where the GUI opens the folder.
 

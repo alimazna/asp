@@ -225,7 +225,7 @@ class SettingsWritesTheConfigInUseTest(unittest.TestCase):
             gui = self._gui(cfg_path, config)
 
             simpledialog.askstring = _answers(
-                "https://astra.example", "win10-desk-01", "tok-123")
+                "https://astra.example", "win10-desk-01", "tok-123", "")
             try:
                 saved = gui._open_settings()
             finally:
@@ -264,7 +264,7 @@ class SettingsWritesTheConfigInUseTest(unittest.TestCase):
             gui = self._gui(cfg_path, config)
 
             simpledialog.askstring = _answers(
-                "https://astra.example", "win10-desk-01", "   ")
+                "https://astra.example", "win10-desk-01", "   ", "")
             try:
                 saved = gui._open_settings()
             finally:

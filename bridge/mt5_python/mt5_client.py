@@ -199,19 +199,41 @@ class Mt5Client:
 
     # -- lifecycle ----------------------------------------------------------
 
-    def initialize(self) -> ClientResult:
+    def initialize(self, path: str = "", timeout_ms: int = 0) -> ClientResult:
+        """Attach to the MetaTrader 5 terminal.
+
+        With no ``path`` the MT5 package finds the running terminal itself over
+        IPC. ``path`` is only needed to target a specific installation, e.g. a
+        broker that ships a suffixed terminal ("MetaTrader 5 IC Markets (SC)").
+
+        ``timeout_ms`` bounds the IPC handshake. MT5's own default is 60000 ms,
+        which is why an unreachable terminal looked like a hang rather than a
+        reported error.
+        """
         if _mt5 is None:
             return ClientResult(
                 ok=False,
                 error_code="MT5_TERMINAL_UNAVAILABLE",
                 message=f"MetaTrader5 package unavailable: {_MT5_IMPORT_ERROR}",
             )
+        kwargs: Dict[str, Any] = {}
+        if timeout_ms and timeout_ms > 0:
+            kwargs["timeout"] = int(timeout_ms)
         try:
-            if not _mt5.initialize():
+            # MT5 takes the path as the first *positional* argument; passing it
+            # by keyword is not supported by the package.
+            ok = _mt5.initialize(path, **kwargs) if path else _mt5.initialize(**kwargs)
+            if not ok:
+                err = ""
+                try:
+                    err = str(_mt5.last_error())
+                except Exception:
+                    err = "unknown"
+                detail = f"path={path!r} " if path else "auto-discovery "
                 return ClientResult(
                     ok=False,
                     error_code="MT5_TERMINAL_UNAVAILABLE",
-                    message=f"mt5.initialize failed: {_mt5.last_error()}",
+                    message=f"mt5.initialize failed ({detail}timeout={kwargs.get('timeout', 'default')}ms): {err}",
                 )
         except Exception as exc:  # pragma: no cover
             return ClientResult(ok=False, error_code="MT5_TERMINAL_UNAVAILABLE", message=str(exc))
