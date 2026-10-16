@@ -14,7 +14,7 @@
 ; without embedding the credential in the setup binary itself.
 
 #define AppName "ASTRA Sender"
-#define AppVersion "0.4.4"
+#define AppVersion "0.4.5"
 #define AppPublisher "ASTRA"
 #define AppExeName "AstraSender.exe"
 
