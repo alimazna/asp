@@ -41,6 +41,12 @@ jobs:
 
       - name: Smoke-run the frozen app (headless)
         working-directory: windows-sender
+        env:
+          # A frozen windowed exe shows a native message box on setup errors,
+          # which blocks forever with no user to click it. --version and
+          # --selfcheck return before that path, but disable it regardless so a
+          # future change cannot hang CI.
+          ASTRA_SENDER_NO_DIALOG: "1"
         run: |
           if (Test-Path .\dist\AstraSender.exe) {
             Write-Host "AstraSender.exe present: $((Get-Item .\dist\AstraSender.exe).Length) bytes"

@@ -23,12 +23,19 @@ _MAIN = os.path.join(_PKG_DIR, "astra_sender", "__main__.py")
 _RELATIVE_IMPORT_ERROR = "attempted relative import with no known parent package"
 
 
-def _run_script(*args):
+def _run_script(*args, extra_env=None):
     # Execute the file directly (not `-m`), exactly like the PyInstaller
     # bootloader. cwd is the package parent so `astra_sender` is importable.
+    # ASTRA_SENDER_NO_DIALOG keeps a startup message box from blocking: the
+    # test environment has no console, and a native dialog would wait forever
+    # for a click that never comes.
+    env = dict(os.environ)
+    env["ASTRA_SENDER_NO_DIALOG"] = "1"
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         [sys.executable, _MAIN, *args],
-        cwd=_PKG_DIR, capture_output=True, text=True, timeout=120,
+        cwd=_PKG_DIR, capture_output=True, text=True, timeout=120, env=env,
     )
 
 
@@ -64,6 +71,9 @@ class EntryPointTest(unittest.TestCase):
             env = dict(os.environ)
             env["LOCALAPPDATA"] = tmp
             env["XDG_CONFIG_HOME"] = tmp
+            # No real user to click a message box, so disable it: the point of
+            # this test is the log file, not the dialog.
+            env["ASTRA_SENDER_NO_DIALOG"] = "1"
             code = (
                 "import sys\n"
                 "sys.stdout = None\n"

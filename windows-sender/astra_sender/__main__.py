@@ -48,6 +48,21 @@ VERSION = "0.4.1"
 # Pre-filled into the first-run config template so the user only pastes a token.
 DEFAULT_BACKEND_URL = "https://astra-server-production.up.railway.app"
 
+# True when the process has no console (a PyInstaller windowed build). Only
+# then does a dialog add information the user cannot already see on stderr.
+_HAS_NO_CONSOLE = False
+
+
+def _is_dialog_enabled(no_console: bool) -> bool:
+    """Show message boxes only when there is no console and not disabled.
+
+    A native message box blocks until the user dismisses it, so raising one
+    while a console is attached (or in headless CI) would hang the process.
+    """
+    if not no_console:
+        return False
+    return os.environ.get("ASTRA_SENDER_NO_DIALOG", "") not in ("1", "true", "yes")
+
 
 def _say(text: str) -> None:
     """Print without crashing when stdout is None (PyInstaller windowed mode)."""
@@ -55,35 +70,41 @@ def _say(text: str) -> None:
         print(text, flush=True)
 
 
-def _install_console_fallback() -> None:
+def _install_console_fallback() -> bool:
     """Capture output and tracebacks when the exe has no console.
 
     A PyInstaller *windowed* build sets ``sys.stdout``/``sys.stderr`` to None.
     Anything written to them is discarded AND raises inside the print, so a
     startup failure such as a missing config file used to exit silently: the
     user double-clicked and nothing happened with no way to tell why. Route
-    both streams to a rotating log next to the config so every startup
-    problem leaves evidence on disk.
+    both streams to a log next to the config so every startup problem leaves
+    evidence on disk.
+
+    Returns True when there was no console (so the caller knows a dialog is
+    the only way to reach the user).
     """
-    if sys.stdout is not None and sys.stderr is not None:
-        return
+    no_console = sys.stdout is None or sys.stderr is None
+    if not no_console:
+        return False
 
-    from .config import app_data_dir  # local: this runs before main()'s imports
-
-    log_path = os.path.join(app_data_dir(), "sender.log")
     try:
+        from .config import app_data_dir
+        log_path = os.path.join(app_data_dir(), "sender.log")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         stream = open(log_path, "a", encoding="utf-8", errors="replace")
-    except OSError:
-        return
+    except (ImportError, OSError):
+        return True
     if sys.stdout is None:
         sys.stdout = stream
     if sys.stderr is None:
         sys.stderr = stream
+    return True
 
 
 def _show_error_dialog(title: str, message: str) -> None:
-    """Best-effort native message box, used when there is no console."""
+    """Best-effort native message box, only when there is no console."""
+    if not _is_dialog_enabled(_HAS_NO_CONSOLE):
+        return
     try:
         import ctypes
         ctypes.windll.user32.MessageBoxW(None, message, title, 0x40000)  # MB_TOPMOST
@@ -98,7 +119,8 @@ def main() -> int:
     looks identical to "nothing happened". Log the traceback and show a dialog
     so a failure is always diagnosable.
     """
-    _install_console_fallback()
+    global _HAS_NO_CONSOLE
+    _HAS_NO_CONSOLE = _install_console_fallback()
     try:
         return _main_impl()
     except SystemExit:
@@ -107,10 +129,14 @@ def main() -> int:
         import traceback
         detail = traceback.format_exc()
         print(detail, file=sys.stderr)
+        try:
+            from .config import app_data_dir
+            log_hint = os.path.join(app_data_dir(), "sender.log")
+        except Exception:
+            log_hint = "sender.log"
         _show_error_dialog(
             "ASTRA Sender — unexpected error",
-            f"{type(exc).__name__}: {exc}\n\nA log was written to:\n"
-            f"{os.path.join(app_data_dir(), 'sender.log')}")
+            f"{type(exc).__name__}: {exc}\n\nA log was written to:\n{log_hint}")
         return 1
 
 
