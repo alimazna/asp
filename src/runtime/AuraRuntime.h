@@ -85,6 +85,11 @@ public:
     // returned report mirrors tick(): one entry per accepted timeframe with
     // per-bar issues. This is the server-side seam used by the public
     // ingestion API.
+    //
+    // In remote-fed mode (launchBridgeProcess=false, i.e. the Railway server)
+    // there is no local MT5 handshake to flip readiness, so the first accepted
+    // closed bar is what promotes the runtime to READY. Until then it stays
+    // DEGRADED, which is honest: no data has arrived.
     RuntimeCycleReport ingestExternalBars(
         const std::string& source, const std::string& symbol, Timeframe timeframe,
         const std::vector<Bar>& bars, Timestamp now);

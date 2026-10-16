@@ -363,6 +363,15 @@ RuntimeCycleReport AuraRuntime::ingestExternalBars(
     ++report.timeframesIngested;
     report.qualityByTimeframe[toString(timeframe)] = DataQualityState::VALID;
 
+    // Remote-fed mode has no local MT5 handshake, so nothing else will ever
+    // flip readiness. The first closed bar that actually reaches the store is
+    // the evidence that the ingestion path works end to end; that is the point
+    // at which the service is genuinely ready to serve. Readiness is never
+    // granted before real data exists.
+    if (!startupOptions_.launchBridgeProcess && !ready_.load(std::memory_order_acquire)) {
+        ready_.store(true, std::memory_order_release);
+    }
+
     // The operational timeframe drives the live decision pipeline, exactly as
     // in tick().
     const std::string sym = symbol.empty() ? "XAUUSD" : symbol;

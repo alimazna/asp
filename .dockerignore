@@ -1,0 +1,23 @@
+# Keep the Railway build context small: only the C++ sources, CMake file and
+# Dockerfile are needed. Research notes, local build trees and docs are not.
+.git
+/research
+/docs
+/coordination
+/frontend
+astra-frontend/node_modules
+/windows-sender
+/tests
+build
+build-linux
+build-verify
+build-*
+**/*.o
+**/*.a
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+logs
+*.log
+.env
+.env.*

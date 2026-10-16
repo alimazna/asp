@@ -10,10 +10,14 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "./astra_server --host=0.0.0.0"
-# Readiness (not liveness): Railway should only route traffic once the runtime
-# has finished wiring. /api/v1/health stays available for diagnostics and
-# /api/v1/livez answers a pure process-liveness probe.
-healthcheckPath = "/api/v1/readyz"
+# Railway restarts the container when this probe fails. It must therefore probe
+# process liveness, not data readiness: /api/v1/livez never consults the engine
+# or the MT5 bridge, so a container with no sender data yet is still healthy.
+# /api/v1/readyz deliberately returns 503 until closed candles have arrived and
+# the runtime flips READY; using it here would restart-loop the service while it
+# is legitimately waiting for the first sender upload. /api/v1/health remains
+# available for diagnostics.
+healthcheckPath = "/api/v1/livez"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5

@@ -610,6 +610,86 @@ TEST_CASE(astra_server_exposes_livez_readyz_and_health_version) {
     fs::remove_all(dataDir);
 }
 
+// T34: in remote-fed server mode there is no local MT5 handshake, so readiness
+// must be driven by the arrival of real closed candles. The service has to be
+// honestly not-ready before any data exists (a load balancer must not route to
+// a backend that has nothing to serve), and it has to become ready once a
+// genuine closed candle has been accepted and persisted. It must never report
+// ready on the strength of a merely attempted or rejected upload.
+TEST_CASE(astra_server_readiness_follows_real_candle_ingestion) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool bound = false;
+    for (int i = 0; i < 60 && !bound; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) bound = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(bound);
+
+    HttpRequest readyProbe;
+    readyProbe.host = "127.0.0.1";
+    readyProbe.port = port;
+    readyProbe.path = "/api/v1/readyz";
+    readyProbe.connectTimeoutMillis = 1000;
+    readyProbe.readTimeoutMillis = 2000;
+
+    // Before any data: not ready, and it says so with a 503.
+    const HttpResponse before = httpGet(readyProbe);
+    CHECK_EQ(before.statusCode, 503);
+    CHECK(contains(before.body, "\"ready\":false"));
+
+    // A rejected upload must NOT make the service ready: no candle, no data.
+    const std::string misaligned =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":1792045801,\"open\":2653.1,\"high\":2655.2,"
+        "\"low\":2651.8,\"close\":2654.05,\"tick_volume\":210,\"spread\":12,"
+        "\"real_volume\":0}]}";
+    const HttpResponse rejected = postIngest(port, "s3cret-tok", misaligned);
+    CHECK_EQ(rejected.statusCode, 200);
+    CHECK(contains(rejected.body, "\"ingested\":0"));
+    CHECK_EQ(httpGet(readyProbe).statusCode, 503);
+
+    // A genuine aligned closed candle flips readiness.
+    const std::string body =
+        "{\"source_id\":\"sender-1\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\","
+        "\"candles\":[{\"time\":1792045800,\"open\":2653.1,\"high\":2655.2,"
+        "\"low\":2651.8,\"close\":2654.05,\"tick_volume\":210,\"spread\":12,"
+        "\"real_volume\":0}]}";
+    const HttpResponse stored = postIngest(port, "s3cret-tok", body);
+    CHECK_EQ(stored.statusCode, 200);
+    CHECK(contains(stored.body, "\"state\":\"stored_new\""));
+
+    const HttpResponse after = httpGet(readyProbe);
+    CHECK_EQ(after.statusCode, 200);
+    CHECK(contains(after.body, "\"ready\":true"));
+    CHECK(contains(after.body, "\"version\":\"v1\""));
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
 // T33 item 3: the ingestion surface is rate-limited and bounds the batch size.
 // A hostile or buggy sender must not be able to loop the parser or the store.
 TEST_CASE(astra_server_rate_limits_ingest_and_caps_batch) {
