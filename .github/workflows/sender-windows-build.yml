@@ -55,17 +55,18 @@ jobs:
       - name: Build installer (elevating, machine-wide)
         working-directory: windows-sender
         shell: pwsh
-        env:
-          ASTRA_SENDER_TOKEN: ${{ secrets.ASTRA_SENDER_TOKEN }}
-          INPUT_TOKEN: ${{ github.event.inputs.sender_token }}
-          INPUT_EMBED: ${{ github.event.inputs.embed }}
         run: |
-          # Resolve the token: prefer the explicit dispatch input, else a repo
-          # secret if one exists. Keep it in an env var and write only to a
-          # file; never echo it. `Remove-Item Env:` narrows its lifetime.
-          $tok = $env:INPUT_TOKEN
-          if (-not $tok) { $tok = $env:ASTRA_SENDER_TOKEN }
-          $embed = ($env:INPUT_EMBED -eq "1")
+          # Read the optional token from the event payload on disk. Passing it
+          # through the `env:` block would print it: GitHub echoes a step's env
+          # vars into the log. Reading $GITHUB_EVENT_PATH keeps it out of both
+          # the echoed script and the env dump. Never print $tok.
+          $evt = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+          $tok = ""
+          $embed = $false
+          if ($evt.PSObject.Properties.Name -contains "inputs" -and $evt.inputs) {
+            if ($evt.inputs.sender_token) { $tok = [string]$evt.inputs.sender_token }
+            $embed = ([string]$evt.inputs.embed -eq "1")
+          }
 
           @{
             backend_url = "https://astra-server-production.up.railway.app"
@@ -77,7 +78,6 @@ jobs:
             catchup_max_bars = 200
             request_timeout_seconds = 30
           } | ConvertTo-Json | Set-Content -Encoding utf8 .\installer\config.json
-          Remove-Item Env:INPUT_TOKEN, Env:ASTRA_SENDER_TOKEN -ErrorAction SilentlyContinue
 
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $args = @()
