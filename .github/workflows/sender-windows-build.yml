@@ -84,7 +84,12 @@ jobs:
           if ($tok -and $embed) {
             Write-Host "single installer: embedding config (token hidden)"
             $args += "/DEmbedConfig=1"
-            $args += '/FAstraSenderSetup-0.4.4-Configured'
+            # Derive the name from the single version source so it cannot drift
+            # from the version the app reports.
+            $ver = (Select-String -Path .\astra_sender\__init__.py `
+                     -Pattern '__version__ = "([^"]+)"').Matches[0].Groups[1].Value
+            Write-Host "installer version: $ver"
+            $args += "/FAstraSenderSetup-$ver-Configured"
           } else {
             Write-Host "generic installer (config read from beside the setup)"
           }
