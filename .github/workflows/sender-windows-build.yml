@@ -123,6 +123,19 @@ jobs:
           if (-not (Test-Path $app)) { throw "app was not installed under Program Files" }
           Write-Host "app installed: $app"
 
+          # Confirm the uninstaller the owner is told to use actually exists, and
+          # record its exact path/name so the documented instructions match.
+          $unins = Get-ChildItem (Split-Path $app) -Filter 'unins*.exe' -ErrorAction SilentlyContinue
+          if (-not $unins) { throw "no uninstaller found next to $app" }
+          $reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+                                  'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' `
+                                  -ErrorAction SilentlyContinue |
+                  Where-Object { $_.DisplayName -like '*ASTRA*' }
+          if (-not $reg) { throw "no uninstall registry entry (Add/Remove Programs) found" }
+          foreach ($r in $reg) {
+            Write-Host "add/remove entry: DisplayName='$($r.DisplayName)' UninstallString='$($r.UninstallString)' QuietUninstallString='$($r.QuietUninstallString)'"
+          }
+
           # The frozen app must start and find its provisioned config. Run the
           # self-check, which loads config + ledger and exits non-zero on error.
           $env:ASTRA_SENDER_NO_DIALOG = "1"
