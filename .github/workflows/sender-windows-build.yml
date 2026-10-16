@@ -203,13 +203,20 @@ jobs:
           $d = Start-Process -FilePath .\dist\AstraSender.exe `
                              -ArgumentList "--diag-mt5" -PassThru -Wait
           Write-Host "Frozen app --diag-mt5 exit code: $($d.ExitCode)"
-          # The report lands beside the config the app resolves, which is
-          # %PROGRAMDATA%\AstraSender for the per-machine install.
-          $diag = Join-Path $env:PROGRAMDATA 'AstraSender\mt5_diag.txt'
-          if (-not (Test-Path $diag)) {
-            Write-Error "--diag-mt5 produced no report at $diag"
+          # The report is written beside whichever config the app resolves:
+          # %PROGRAMDATA%\AstraSender when the configured installer has run,
+          # otherwise the per-user %LOCALAPPDATA%\AstraSender. Accept either so
+          # this check tests the diagnostic, not the install path.
+          $candidates = @(
+            (Join-Path $env:PROGRAMDATA 'AstraSender\mt5_diag.txt'),
+            (Join-Path $env:LOCALAPPDATA 'AstraSender\mt5_diag.txt')
+          )
+          $diag = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $diag) {
+            Write-Error "--diag-mt5 produced no report in any of: $($candidates -join ', ')"
             exit 1
           }
+          Write-Host "mt5_diag.txt written to: $diag"
           Write-Host "--- mt5_diag.txt (first lines) ---"
           Get-Content $diag -TotalCount 6 | Write-Host
           if (-not (Select-String -Path $diag -Pattern "ASTRA Sender - MT5 diagnostic" -Quiet)) {
