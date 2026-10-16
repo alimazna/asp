@@ -57,6 +57,19 @@ jobs:
       - name: Assert the bundle carries no secret
         run: node scripts/secret-scan.js dist
 
+      # Fail with an actionable message rather than letting wrangler emit a
+      # generic error several steps later when the repository secrets are unset.
+      - name: Preflight — Cloudflare credentials present
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "::error title=Cloudflare secrets missing::Add CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit) and CLOUDFLARE_ACCOUNT_ID under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "Cloudflare credentials present (values not printed)"
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
