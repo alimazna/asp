@@ -94,3 +94,44 @@ Base URL: `https://work-1-pfmzzojsozqrxzue.prod-runtime.all-hands.dev/`
 - The token is exposed in chat logs. **Rotate `ASTRA_SENDER_TOKEN`** after
   confirming the install; rotating invalidates the delivered `config.json`.
 - `readyz` stays 503 until real MT5 candles arrive from the sender.
+
+## 7. Addendum — single self-contained installer (owner: "one link, install and run")
+
+Owner asked for one download that installs and runs immediately, with no edits.
+
+- `astra_sender.iss` gained `/DEmbedConfig=1`, which compiles a `config.json`
+  from the build directory into the setup, producing one self-contained
+  installer. The default stays external so a public build carries no secret.
+- The workflow gained `workflow_dispatch` inputs `sender_token` / `embed`. The
+  token is read from `$GITHUB_EVENT_PATH` on disk: putting it in the step's
+  `env:` block made GitHub echo it into the log, so the first attempt was
+  deleted and the read path changed. Confirmed 0 occurrences afterwards.
+- The run that produced the artifact was deleted, so its artifact is not
+  retained on GitHub. The credential-bearing installer is served only from the
+  ephemeral work host.
+
+### Silent-install verification (Windows runner, real install)
+
+The workflow now installs the configured setup with
+`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` and asserts the result:
+
+| Assertion | Observed |
+|---|---|
+| `%PROGRAMDATA%\AstraSender\config.json` exists | yes |
+| provisioned token non-empty | `token_len=64` |
+| backend URL / sender id | `https://astra-server-production.up.railway.app`, `win10-desk-01` |
+| nine timeframes provisioned | `M1,M5,M15,M30,H1,H4,D1,W1,MN1` |
+| app installed | `C:\Program Files\AstraSender\AstraSender.exe` |
+| installed app `--selfcheck` | exit code `0` |
+| token in run log | 0 occurrences |
+
+This check found and fixed a real defect: Inno had defaulted to 32-bit mode, so
+the app installed under `Program Files (x86)`. `ArchitecturesInstallIn64BitMode`
+was restored to make the path deterministic.
+
+### Delivered artifact
+
+`AstraSenderSetup-0.4.2-Configured.exe` (26,342,797 B), served at
+`https://work-1-pfmzzojsozqrxzue.prod-runtime.all-hands.dev/`, with
+`START_HERE_AR.md`. The generic installer remains public on the
+`sender-v0.4.2` release; the configured one is deliberately not published.
