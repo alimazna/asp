@@ -27,14 +27,11 @@ requests or executes orders and never transmits MT5 account passwords.
 
 ## Quick start (owner's Windows PC)
 
-1. Install **Python 3.10+** (the standard Windows installer) and the
-   MetaTrader5 package:
+1. Have the **MetaTrader 5 desktop terminal** installed and logged in on this
+   PC. No Python and no `pip install` are needed: the release `.exe` bundles
+   the MetaTrader5 package, so you only need MT5 itself.
 
-   ```bat
-   py -m pip install MetaTrader5
-   ```
-
-2. Get the executable.
+2. Download the executable and run it.
 
    > **Do not use `sender-v0.3.0`.** That build crashes on launch with
    > `ImportError: attempted relative import with no known parent package`,
