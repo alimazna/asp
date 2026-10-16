@@ -157,6 +157,16 @@ In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN
 environment variable for wrangler to work.
 ```
 
+CI now fails earlier, at a dedicated preflight step, with an actionable message
+(run `38877693932`), which is direct evidence that the repository secrets are
+unset:
+
+```
+deploy  Run unit tests                              # pass 24
+deploy  Assert the bundle carries no secret         secret gate passed: 6 file(s) scanned
+deploy  Preflight — Cloudflare credentials present  ::error title=Cloudflare secrets missing
+```
+
 Diagnosis, in order:
 
 1. No `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or `CF_*` variable exists
@@ -193,6 +203,16 @@ Repository → Settings → Secrets and variables → Actions → add:
 
 then re-run the `Deploy static frontend to Cloudflare Pages` workflow. The gate
 steps (unit tests, build, secret scan) already pass.
+
+Alternatively, deploy once from a shell without touching repository settings:
+
+```bash
+CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... ./astra-frontend/scripts/deploy-pages.sh
+```
+
+That script runs the unit tests, builds with the production `BACKEND_BASE`, runs
+the secret gate, and only then calls `wrangler pages deploy`. It refuses to run
+when either variable is empty.
 
 ## 7. Costs and limits
 
