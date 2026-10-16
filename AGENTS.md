@@ -101,3 +101,22 @@ hardcode a timeframe as untrusted.
   the exact purge command.
 - Railway SSH needs interactive account auth, so the project token cannot open
   a shell in the container; use the admin HTTP routes instead.
+
+## Windows sender: MT5 attach (v0.4.6+)
+
+- `MetaTrader5.initialize()` defaults to a **60000 ms** IPC timeout. Always pass
+  an explicit `timeout=` (the sender uses `mt5_timeout_ms`, default 15000), or a
+  dead terminal blocks for a minute and looks like a hang.
+- MT5 takes the terminal path as the **first positional** argument; it is not
+  accepted as a keyword. `Mt5Client.initialize(path, timeout_ms)` handles this.
+- A blank `mt5_path` is correct for the common case: the package attaches to the
+  already-running terminal. A path is only needed for broker terminals installed
+  under a suffixed folder (e.g. `MetaTrader 5 IC Markets (SC)`).
+- **`-10005 IPC timeout` almost always means a privilege mismatch** between the
+  sender and `terminal64.exe`. Both must run elevated, or neither. The terminal
+  looks healthy either way, so it is easy to misdiagnose.
+- `SenderConfig.from_dict()` reads only known keys and silently drops the rest.
+  A hand-edited config key the dataclass does not declare is ignored with no
+  warning - check the dataclass before telling a user to edit JSON.
+- The diagnostic runs the attach on a daemon thread with a bounded deadline so it
+  cannot hang. Keep it that way; it is the only support channel on the owners PC.
