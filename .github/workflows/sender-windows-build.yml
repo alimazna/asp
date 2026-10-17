@@ -296,6 +296,42 @@ jobs:
           }
           Write-Host "unconfigured exe opened the settings window (not a dead end)"
 
+      - name: Keep token-bearing installers out of CI outputs
+        # Runs BEFORE the upload and the release so a configured build can never
+        # leave CI. THIS REPOSITORY IS PUBLIC: a release asset is world-readable,
+        # and the configured installer carries the ingestion token compiled in
+        # (Inno compression is not encryption - innoextract recovers it), so
+        # anyone could extract it and POST candles to the backend.
+        #
+        # `embed == '1'` is an explicit run that verifies provisioning works; its
+        # configured installer is deleted here rather than distributed. The owner
+        # does not need one: an upgrade reuses the config already in
+        # %PROGRAMDATA%\AstraSender\config.json. Any OTHER build that produces a
+        # configured installer is the v0.4.6 defect (a build whose inputs did not
+        # say what it produced) and fails loudly.
+        shell: pwsh
+        run: |
+          $made = Get-ChildItem windows-sender/installer/dist -Filter '*Configured*' `
+                    -ErrorAction SilentlyContinue
+          if (-not $made) {
+            Write-Host "only the token-less installer was produced"
+            exit 0
+          }
+          if ('${{ github.event.inputs.embed }}' -ne '1') {
+            Write-Error ("$($made.Name) carries the ingestion token but this run did " +
+                         "not opt into an embed build; refusing to distribute it")
+            exit 1
+          }
+          Write-Host ("removing $($made.Name): provisioning was verified, but a " +
+                      "token-bearing installer must not be distributed from a " +
+                      "public repository")
+          Remove-Item $made.FullName -Force
+          if (Get-ChildItem windows-sender/installer/dist -Filter '*Configured*' `
+                -ErrorAction SilentlyContinue) {
+            Write-Error "failed to remove the configured installer"
+            exit 1
+          }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -305,31 +341,11 @@ jobs:
             windows-sender/installer/dist/AstraSenderSetup-*.exe
           if-no-files-found: error
 
-      - name: Refuse to publish a token-bearing installer
-        # Runs BEFORE the upload, so a configured build can never reach a public
-        # release asset even if the build inputs change later. THIS REPOSITORY IS
-        # PUBLIC: a release asset is world-readable, and the configured installer
-        # carries the ingestion token compiled in, which anyone could extract and
-        # use to POST candles to the backend. Deliver configured builds privately.
-        if: startsWith(github.ref, 'refs/tags/sender-')
-        shell: pwsh
-        run: |
-          $leaked = Get-ChildItem windows-sender/installer/dist -Filter '*Configured*' `
-                      -ErrorAction SilentlyContinue
-          if ($leaked) {
-            Write-Error ("refusing to publish: $($leaked.Name) carries the ingestion " +
-                         "token and this repository is public")
-            exit 1
-          }
-          Write-Host "release contains only the token-less installer"
-
       - name: Attach to GitHub Release (on tag push)
         # A tag push has no `inputs`, so only the token-less installer is built
         # here. That is deliberate: the owner's existing provisioned config in
         # %PROGRAMDATA% is reused by an upgrade, so the token-less setup installs
-        # with no edits and no new secret exposure. (Publishing a token-less
-        # setup to a user who has NO config is the "not configured" dead end that
-        # motivated the configured build - keep delivering those privately.)
+        # with no edits and no new secret exposure.
         if: startsWith(github.ref, 'refs/tags/sender-')
         uses: softprops/action-gh-release@v2
         with:
