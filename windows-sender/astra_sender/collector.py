@@ -26,32 +26,52 @@ from typing import Any, Dict, List, Optional
 
 
 # The real bridge module lives at <repo>/bridge/mt5_python. Under PyInstaller
-# frozen apps the module is copied beside the app; under source tree we reach it
-# through PYTHONPATH or a sibling directory.
-_MT5_CLIENT_NAMES = ("mt5_client", "astra_sender.mt5_client")
+# frozen apps the module is copied to the bundle root; under source tree we reach
+# it through PYTHONPATH or a sibling directory.
+_BRIDGE_MODULE_NAME = "mt5_client"
+_MT5_CLIENT_NAMES = (_BRIDGE_MODULE_NAME, f"astra_sender.{_BRIDGE_MODULE_NAME}")
 _BRIDGE_HINTS = [
     os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "bridge",
                                   "mt5_python")),
     os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..",
                                   "bridge", "mt5_python")),
+    # PyInstaller extracts the bundle here; the bridge modules are bundled flat
+    # at its root. sys.path normally already contains it, but naming it makes the
+    # frozen case explicit rather than relying on the bootloader's default.
+    getattr(sys, "_MEIPASS", ""),
 ]
+_BRIDGE_HINTS = [hint for hint in _BRIDGE_HINTS if hint]
 
 
 def _load_mt5_client():
-    """Load and return the mt5_client module (real bridge code, stdlib-only)."""
+    """Load and return the mt5_client module (real bridge code, stdlib-only).
+
+    The bridge is a flat module pair (``mt5_client.py`` imports
+    ``from schemas import TIMEFRAMES``), so the directory holding it must be on
+    ``sys.path``. Under the source tree that directory is
+    ``bridge/mt5_python``; in a frozen build the modules sit at the bundle root,
+    which is already on ``sys.path``.
+
+    Import failures are recorded rather than silently skipped: swallowing them
+    turned a packaging fault into a bare "MT5 UNAVAILABLE" with no cause, which
+    is exactly the confusion this loader must not create.
+    """
+    errors = []
     for name in _MT5_CLIENT_NAMES:
         try:
             return importlib.import_module(name)
-        except ImportError:
-            continue
+        except ImportError as exc:
+            errors.append(f"{name}: {exc}")
     for hint in _BRIDGE_HINTS:
         if hint not in sys.path:
             sys.path.insert(0, hint)
         try:
-            return importlib.import_module("mt5_client")
-        except ImportError:
-            continue
-    raise ImportError("cannot locate bridge/mt5_python/mt5_client.py")
+            return importlib.import_module(_BRIDGE_MODULE_NAME)
+        except ImportError as exc:
+            errors.append(f"{_BRIDGE_MODULE_NAME} (via {hint}): {exc}")
+    raise ImportError(
+        "cannot locate bridge/mt5_python/mt5_client.py; tried: "
+        + "; ".join(errors))
 
 
 @dataclass

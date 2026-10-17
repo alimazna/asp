@@ -11,6 +11,10 @@ on:
         description: "Set to 1 with sender_token to produce the self-contained installer."
         required: false
         default: "0"
+      deliver_draft:
+        description: "Set to 1 with embed=1 to deliver the configured installer to a PRIVATE draft release (never public)."
+        required: false
+        default: "0"
   push:
     tags:
       - "sender-*"
@@ -197,8 +201,30 @@ jobs:
               Write-Error "MetaTrader5 is not bundled in the exe"
               exit 1
             }
+            # The bridge must actually LOAD, not merely be present. A build that
+            # shipped mt5_client.py/schemas.py inside the astra_sender package
+            # passed every other check here and still reported MT5 UNAVAILABLE at
+            # runtime, because `from schemas import TIMEFRAMES` failed once
+            # frozen. This assertion is what would have caught it.
+            if (-not (Select-String -Path .\selfcheck.txt -Pattern "bridge mt5_client: loaded" -Quiet)) {
+              Write-Error "the frozen app could not load the MT5 bridge (mt5_client/schemas)"
+              exit 1
+            }
           } else {
             Write-Error "selfcheck.txt not produced"
+            exit 1
+          }
+
+          # Prove the guard can fail: with the bridge forced unimportable the
+          # self-check must exit non-zero. Without this the assertion above is
+          # only trusted, never tested.
+          $env:ASTRA_SENDER_TEST_BREAK_BRIDGE = "1"
+          $b = Start-Process -FilePath ".\dist\AstraSender.exe" `
+                              -ArgumentList "--selfcheck" -PassThru -Wait
+          Remove-Item Env:\ASTRA_SENDER_TEST_BREAK_BRIDGE
+          Write-Host "broken-bridge self-check exit code: $($b.ExitCode) (expected non-zero)"
+          if ($b.ExitCode -eq 0) {
+            Write-Error "the bridge self-check did not fail on a broken bridge"
             exit 1
           }
 
@@ -274,6 +300,42 @@ jobs:
           }
           Write-Host "unconfigured exe opened the settings window (not a dead end)"
 
+      - name: Keep token-bearing installers out of public CI outputs
+        # Runs BEFORE the upload and the release. THIS REPOSITORY IS PUBLIC: a
+        # release asset is world-readable, and the configured installer carries
+        # the ingestion token compiled in (Inno compression is not encryption -
+        # innoextract recovers it), so anyone could extract it and POST candles.
+        #
+        # Three outcomes, decided by what is on disk rather than by what the
+        # inputs claim (a v0.4.6 build leaked precisely because its inputs did
+        # not say what it produced):
+        #   no configured installer      -> nothing to do
+        #   embed=1 AND deliver_draft=1  -> move it out of the artifact path; a
+        #                                   later step attaches it to a DRAFT
+        #                                   release, which anonymous users get
+        #                                   404 on
+        #   anything else                -> fail loudly
+        shell: pwsh
+        run: |
+          $made = Get-ChildItem windows-sender/installer/dist -Filter '*Configured*' `
+                    -ErrorAction SilentlyContinue
+          if (-not $made) {
+            Write-Host "only the token-less installer was produced"
+            exit 0
+          }
+          $embed   = ('${{ github.event.inputs.embed }}' -eq '1')
+          $deliver = ('${{ github.event.inputs.deliver_draft }}' -eq '1')
+          if (-not ($embed -and $deliver)) {
+            Write-Error ("$($made.Name) carries the ingestion token but this run did " +
+                         "not opt into embed=1 + deliver_draft=1; refusing to " +
+                         "distribute it")
+            exit 1
+          }
+          New-Item -ItemType Directory -Force windows-sender/private-delivery | Out-Null
+          Move-Item $made.FullName windows-sender/private-delivery/ -Force
+          Write-Host ("staged $($made.Name) for private draft delivery; it is " +
+                      "removed from the artifact path")
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -283,14 +345,38 @@ jobs:
             windows-sender/installer/dist/AstraSenderSetup-*.exe
           if-no-files-found: error
 
+      - name: Deliver the configured installer to a PRIVATE draft release
+        # A draft release is invisible to anonymous users (verified: the asset
+        # URL returns 404 and the release is absent from the public list), so the
+        # owner can download a fully-provisioned installer without the token ever
+        # becoming world-readable. Never change --draft here.
+        if: github.event.inputs.embed == '1' && github.event.inputs.deliver_draft == '1'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $staged = Get-ChildItem windows-sender/private-delivery -Filter '*.exe' `
+                      -ErrorAction SilentlyContinue
+          if (-not $staged) { Write-Error "no staged installer to deliver"; exit 1 }
+          $tag = "sender-private-configured"
+          # Replace any earlier draft so exactly one private package exists.
+          if (gh release view $tag --repo ${{ github.repository }} 2>$null) {
+            gh release delete $tag --repo ${{ github.repository }} --yes --cleanup-tag
+          }
+          gh release create $tag --repo ${{ github.repository }} --draft `
+            --title "ASTRA Sender (configured, private)" `
+            --notes "Private: contains config.json with the ingestion token. Do not publish." `
+            $staged.FullName
+          Write-Host "delivered $($staged.Name) to private draft '$tag'"
+
       - name: Attach to GitHub Release (on tag push)
-        # A tag push has no `inputs`, so a token-less installer would be built
-        # and published. That is exactly how the owner received a setup that
-        # could not connect: install, launch, "not configured". Only attach the
-        # configured installer, and only when a token was actually available.
+        # A tag push has no `inputs`, so only the token-less installer is built
+        # here. That is deliberate: the owner's existing provisioned config in
+        # %PROGRAMDATA% is reused by an upgrade, so the token-less setup installs
+        # with no edits and no new secret exposure.
         if: startsWith(github.ref, 'refs/tags/sender-')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            windows-sender/installer/dist/AstraSenderSetup-*-Configured.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
           fail_on_unmatched_files: true

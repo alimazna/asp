@@ -20,6 +20,7 @@ Exit codes:
     4  mt5.initialize() returned False, or timed out (terminal not reachable)
     5  no gold symbol is available from the broker
     6  the terminal is reachable but returns no usable closed candles
+    7  the sender's MT5 bridge module could not be loaded (a packaging fault)
 """
 
 from __future__ import annotations
@@ -52,24 +53,58 @@ def _is_admin() -> bool:
         return False
 
 
-def _terminal_elevated_hint() -> str:
-    """Explain the privilege-level rule for the MT5 IPC handshake.
+def _load_win_elevation():
+    """Import the privilege helper, frozen or from source, or return None.
 
-    MT5 exposes no "is the terminal elevated" flag, so we report our own level
-    and state the rule the user must satisfy: this program and terminal64.exe
-    must run at the SAME level. If one is elevated and the other is not, the
-    handshake fails (typically -10005 IPC timeout) while the terminal still
-    looks perfectly healthy.
+    The module ships at the bundle root (diag_mt5 imports it as a top-level
+    module) and also lives inside the astra_sender package for source runs, so
+    both names are tried. A failure to import must not break the diagnostic.
     """
-    ours = "ADMINISTRATOR (elevated)" if _is_admin() else "normal (not elevated)"
-    return (
-        "\nPRIVILEGE LEVEL CHECK (the most common cause of this failure)\n"
-        f"  This diagnostic is running as: {ours}\n"
-        "  MetaTrader 5 must run at the SAME level.\n"
-        "  If this says 'normal', open MetaTrader 5 normally (NOT as Administrator).\n"
-        "  If this says 'ADMINISTRATOR', open MetaTrader 5 as Administrator too.\n"
-        "  A mismatch fails the handshake while the terminal still looks fine.\n"
-    )
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import win_elevation
+        return win_elevation
+    except Exception:
+        pass
+    try:
+        from astra_sender import win_elevation as pkg_win_elevation
+        return pkg_win_elevation
+    except Exception:
+        return None
+
+
+def _terminal_elevation_hint() -> str:
+    """Compare this process's privilege level with the running MT5 terminal.
+
+    MT5 exposes no "is the terminal elevated" flag, so the terminal's level is
+    read from its process token. Reporting both levels turns "MT5 UNAVAILABLE"
+    into a checkable fact instead of a guess; when the level cannot be read the
+    line says so rather than assuming.
+    """
+    win_elevation = _load_win_elevation()
+    if win_elevation is None:
+        return ""
+    ours = "ADMINISTRATOR (elevated)" if win_elevation.is_elevated() else "normal (not elevated)"
+    theirs = win_elevation.terminal_elevation()
+    if theirs is None:
+        terminal_line = "not running, or its privilege level could not be read"
+    else:
+        terminal_line = "ADMINISTRATOR (elevated)" if theirs else "normal (not elevated)"
+    lines = [
+        "\nPRIVILEGE LEVEL CHECK (the most common cause of this failure)",
+        f"  ASTRA diagnostic running as: {ours}",
+        f"  MetaTrader 5 terminal is:    {terminal_line}",
+    ]
+    mismatch = win_elevation.describe_mismatch()
+    if mismatch:
+        lines.append("")
+        lines.append(f"  {mismatch}")
+    else:
+        lines.append("  Both are at the same level, or the terminal level is unknown.")
+        lines.append("  If they differ, start them at the SAME level: normally")
+        lines.append("  launch MetaTrader 5 normally (NOT as Administrator) and")
+        lines.append("  launch ASTRA Sender normally too.")
+    return "\n".join(lines)
 
 
 def _run_with_deadline(func, timeout_ms: int):
@@ -153,6 +188,25 @@ def main() -> int:
     _line("MetaTrader5 import:", "OK")
     _line("MetaTrader5 version:", getattr(mt5, "__version__", "unknown"))
 
+    # 1b. Can the SENDER's bridge module load? The GUI reads candles through
+    # mt5_client.py, not through MetaTrader5 directly. If the bridge cannot
+    # import, the GUI reports MT5 UNAVAILABLE even though this diagnostic's own
+    # MetaTrader5 calls would all succeed — the exact contradiction where a
+    # standalone script works but the packaged app does not. Check it explicitly.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import importlib
+        bridge = importlib.import_module("mt5_client")
+        _line("sender bridge:", f"OK ({os.path.basename(bridge.__file__)})")
+    except Exception as exc:
+        _line("sender bridge:", f"FAILED ({type(exc).__name__}: {exc})")
+        print("\nThe sender's MT5 bridge module (mt5_client.py) could not be loaded.")
+        print("This is a PACKAGING fault, not a terminal fault: the MetaTrader5")
+        print("package itself imported fine just above. The GUI reads candles")
+        print("through this bridge, so it would report MT5 UNAVAILABLE while a")
+        print("standalone Python script on the same PC works. Reinstall the app.")
+        return 7
+
     # 2. Can we attach to the running terminal? Bounded so it cannot hang.
     print(f"\nAttaching to the terminal (timeout {_INIT_TIMEOUT_MS} ms)...")
     done, outcome, elapsed = _run_with_deadline(
@@ -162,7 +216,7 @@ def main() -> int:
         _line("mt5.initialize():", f"TIMED OUT after {elapsed:.1f}s")
         print("\nThe MT5 IPC handshake did not complete. This is NOT a slow PC;")
         print("it means the terminal never answered. Most likely causes:")
-        print(_terminal_elevated_hint())
+        print(_terminal_elevation_hint())
         print("  1. No MetaTrader 5 terminal is running.")
         print("  2. More than one MT5 terminal is installed or running, and the")
         print("     wrong one (or none) is the attach target.")
@@ -175,7 +229,7 @@ def main() -> int:
 
     if isinstance(outcome, BaseException):
         _line("mt5.initialize():", f"EXCEPTION ({type(outcome).__name__}: {outcome})")
-        print(_terminal_elevated_hint())
+        print(_terminal_elevation_hint())
         return 3
 
     if not outcome:
@@ -187,7 +241,7 @@ def main() -> int:
         # The raw code is the single most useful line for remote support.
         _line("mt5.last_error():", err)
         _report_last_error(err)
-        print(_terminal_elevated_hint())
+        print(_terminal_elevation_hint())
         print("Other checks, in order:")
         print("  1. The MT5 desktop terminal is OPEN (not just installed).")
         print("  2. You are LOGGED IN to an account (the title bar shows a login).")

@@ -17,23 +17,34 @@ block_cipher = None
 
 # Bundle the real bridge module (mt5_client.py, schemas.py) so symbol
 # discovery and closed-bar semantics are the exact production code.
+#
+# These MUST land at the bundle root, not under astra_sender/. The bridge is a
+# flat module pair: mt5_client.py does `from schemas import TIMEFRAMES`, and the
+# loader in collector.py imports them as top-level modules. Under the source tree
+# bridge/mt5_python is a flat directory on sys.path, so that works. Shipping them
+# inside the package instead produced a frozen app where `astra_sender.mt5_client`
+# raised `ModuleNotFoundError: No module named 'schemas'`, the loader swallowed
+# it, and the GUI reported MT5 UNAVAILABLE while the MT5 package was fine.
 BRIDGE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(SPECPATH)), "bridge", "mt5_python")
 )
-_bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "astra_sender"),
-                  (os.path.join(BRIDGE_DIR, "schemas.py"), "astra_sender")]
+_bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "."),
+                  (os.path.join(BRIDGE_DIR, "schemas.py"), ".")]
 
 # The MT5 diagnostic is a top-level module (imported by `--diag-mt5`), so it
 # must ship as data too; PyInstaller only follows imports from the entry point.
 # SPECPATH is the spec's own directory (windows-sender/), which is where
-# diag_mt5.py lives.
-_diag_module = [(os.path.join(os.path.abspath(SPECPATH), "diag_mt5.py"), ".")]
+# diag_mt5.py lives. win_elevation.py ships beside it because diag_mt5 imports
+# it as a top-level module and is itself only shipped as data (never scanned).
+_diag_module = [(os.path.join(os.path.abspath(SPECPATH), "diag_mt5.py"), "."),
+                (os.path.join(os.path.abspath(SPECPATH), "astra_sender",
+                              "win_elevation.py"), ".")]
 
 # mt5_client is shipped as a *data* file (so its source is the exact production
 # bridge code), which means PyInstaller never scans it and would miss its
 # `import MetaTrader5`. MetaTrader5 is only installable on Windows, so it is
 # listed here rather than imported at build time.
-_hidden = ["sqlite3"]
+_hidden = ["sqlite3", "astra_sender.win_elevation"]
 if os.name == "nt":
     _hidden += ["MetaTrader5", "numpy"]
 

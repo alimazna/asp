@@ -120,3 +120,49 @@ hardcode a timeframe as untrusted.
   warning - check the dataclass before telling a user to edit JSON.
 - The diagnostic runs the attach on a daemon thread with a bounded deadline so it
   cannot hang. Keep it that way; it is the only support channel on the owners PC.
+
+## Windows sender: frozen bridge packaging (v0.4.7+)
+
+- **The bridge must be bundled flat at the PyInstaller bundle root**, never
+  inside the `astra_sender` package. `bridge/mt5_python/mt5_client.py` does
+  `from schemas import TIMEFRAMES`, so `schemas.py` has to sit on `sys.path`.
+  In `astra_sender.spec` the `datas` destination is `"."` for both files.
+- Shipping them as `astra_sender.mt5_client` was the **real** cause of the
+  "MT5 UNAVAILABLE but my Python script works" report: the module was found, then
+  `from schemas import TIMEFRAMES` raised `ModuleNotFoundError`, and the loader
+  swallowed it. Reproduced by building a onefile exe with the old layout.
+- `_load_mt5_client()` must **never** swallow an ImportError silently. It now
+  collects every attempt into the raised message. A bare "cannot locate" sent the
+  owner chasing the terminal when the fault was packaging.
+- `--selfcheck` imports `ClosedCandleCollector` (the package) but that does *not*
+  load the separately-bundled bridge. It now calls `_load_mt5_client()` and exits
+  1 on failure. `ASTRA_SENDER_TEST_BREAK_BRIDGE=1` forces that failure so CI
+  proves the guard fires instead of trusting it.
+- `--diag-mt5` used `MetaTrader5` directly, so it exited 0 while the GUI reported
+  UNAVAILABLE - the exact contradiction users report. It now checks the bridge
+  first and returns **7** on a packaging fault, before touching the terminal.
+- Version strings must have one source: `astra_sender/__init__.py.__version__`.
+  `__main__.py` had a second literal (`VERSION = "0.4.4"`) that drifted; it now
+  imports the package value.
+
+## Security: never publish a token-bearing installer
+
+The repository is **public**, so any GitHub Release asset is world-readable. The
+`-Configured` installer has the ingestion token compiled into it (innoextract /
+7-Zip recover it trivially - Inno compression is not encryption), so publishing
+one leaks a working credential to anyone. `AstraSenderSetup-0.4.6-Configured.exe`
+was public from 2026-10-16 until it was deleted on 2026-10-17; **that token must
+be treated as compromised and rotated.**
+
+Rules:
+- Release assets may contain only the token-less installer. The workflow has a
+  guard step that fails if a `*Configured*` file is present, and it runs before
+  the upload.
+- A token-less installer is not a dead end for an existing user: an upgrade
+  reuses the config already provisioned in
+  `%PROGRAMDATA%\AstraSender\config.json` (`_looks_configured` gates this). Only a
+  first-time user with no config needs a provisioned build, and those are
+  delivered privately.
+- The `[Run]` entry in `astra_sender.iss` must keep `runasoriginaluser`. Setup
+  elevates, and MT5's IPC handshake fails when the sender and `terminal64.exe`
+  run at different integrity levels, which surfaces as "MT5 UNAVAILABLE".
