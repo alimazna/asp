@@ -34,14 +34,17 @@ _bridge_module = [(os.path.join(BRIDGE_DIR, "mt5_client.py"), "."),
 # The MT5 diagnostic is a top-level module (imported by `--diag-mt5`), so it
 # must ship as data too; PyInstaller only follows imports from the entry point.
 # SPECPATH is the spec's own directory (windows-sender/), which is where
-# diag_mt5.py lives.
-_diag_module = [(os.path.join(os.path.abspath(SPECPATH), "diag_mt5.py"), ".")]
+# diag_mt5.py lives. win_elevation.py ships beside it because diag_mt5 imports
+# it as a top-level module and is itself only shipped as data (never scanned).
+_diag_module = [(os.path.join(os.path.abspath(SPECPATH), "diag_mt5.py"), "."),
+                (os.path.join(os.path.abspath(SPECPATH), "astra_sender",
+                              "win_elevation.py"), ".")]
 
 # mt5_client is shipped as a *data* file (so its source is the exact production
 # bridge code), which means PyInstaller never scans it and would miss its
 # `import MetaTrader5`. MetaTrader5 is only installable on Windows, so it is
 # listed here rather than imported at build time.
-_hidden = ["sqlite3"]
+_hidden = ["sqlite3", "astra_sender.win_elevation"]
 if os.name == "nt":
     _hidden += ["MetaTrader5", "numpy"]
 

@@ -305,14 +305,34 @@ jobs:
             windows-sender/installer/dist/AstraSenderSetup-*.exe
           if-no-files-found: error
 
+      - name: Refuse to publish a token-bearing installer
+        # Runs BEFORE the upload, so a configured build can never reach a public
+        # release asset even if the build inputs change later. THIS REPOSITORY IS
+        # PUBLIC: a release asset is world-readable, and the configured installer
+        # carries the ingestion token compiled in, which anyone could extract and
+        # use to POST candles to the backend. Deliver configured builds privately.
+        if: startsWith(github.ref, 'refs/tags/sender-')
+        shell: pwsh
+        run: |
+          $leaked = Get-ChildItem windows-sender/installer/dist -Filter '*Configured*' `
+                      -ErrorAction SilentlyContinue
+          if ($leaked) {
+            Write-Error ("refusing to publish: $($leaked.Name) carries the ingestion " +
+                         "token and this repository is public")
+            exit 1
+          }
+          Write-Host "release contains only the token-less installer"
+
       - name: Attach to GitHub Release (on tag push)
-        # A tag push has no `inputs`, so a token-less installer would be built
-        # and published. That is exactly how the owner received a setup that
-        # could not connect: install, launch, "not configured". Only attach the
-        # configured installer, and only when a token was actually available.
+        # A tag push has no `inputs`, so only the token-less installer is built
+        # here. That is deliberate: the owner's existing provisioned config in
+        # %PROGRAMDATA% is reused by an upgrade, so the token-less setup installs
+        # with no edits and no new secret exposure. (Publishing a token-less
+        # setup to a user who has NO config is the "not configured" dead end that
+        # motivated the configured build - keep delivering those privately.)
         if: startsWith(github.ref, 'refs/tags/sender-')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            windows-sender/installer/dist/AstraSenderSetup-*-Configured.exe
+            windows-sender/installer/dist/AstraSenderSetup-*.exe
           fail_on_unmatched_files: true

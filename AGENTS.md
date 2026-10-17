@@ -144,3 +144,25 @@ hardcode a timeframe as untrusted.
 - Version strings must have one source: `astra_sender/__init__.py.__version__`.
   `__main__.py` had a second literal (`VERSION = "0.4.4"`) that drifted; it now
   imports the package value.
+
+## Security: never publish a token-bearing installer
+
+The repository is **public**, so any GitHub Release asset is world-readable. The
+`-Configured` installer has the ingestion token compiled into it (innoextract /
+7-Zip recover it trivially - Inno compression is not encryption), so publishing
+one leaks a working credential to anyone. `AstraSenderSetup-0.4.6-Configured.exe`
+was public from 2026-10-16 until it was deleted on 2026-10-17; **that token must
+be treated as compromised and rotated.**
+
+Rules:
+- Release assets may contain only the token-less installer. The workflow has a
+  guard step that fails if a `*Configured*` file is present, and it runs before
+  the upload.
+- A token-less installer is not a dead end for an existing user: an upgrade
+  reuses the config already provisioned in
+  `%PROGRAMDATA%\AstraSender\config.json` (`_looks_configured` gates this). Only a
+  first-time user with no config needs a provisioned build, and those are
+  delivered privately.
+- The `[Run]` entry in `astra_sender.iss` must keep `runasoriginaluser`. Setup
+  elevates, and MT5's IPC handshake fails when the sender and `terminal64.exe`
+  run at different integrity levels, which surfaces as "MT5 UNAVAILABLE".
