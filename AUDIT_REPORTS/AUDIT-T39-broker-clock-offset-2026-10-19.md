@@ -62,11 +62,26 @@ rather than an exotic timezone) is ignored rather than trusted.
 | C++ suite (`ctest` in `build-verify`) | **26/26 passed** |
 | `IngestContractTests` (incl. new broker-offset test) | passed |
 | Sender suite (`python -m unittest discover -s tests`) | **81/81 passed** |
-| Live ingest, all nine timeframes, real server + SQLite | accepted=1 dup=0 rejected=0 for each |
-| Replay of the same nine candles | deduplicated, no second row |
-| Genuinely future-dated bar | still rejected |
-| Persistence | nine timeframes read back via `/api/v1/candles` and the SQLite file |
-| Windows CI run `39234412922` | success; installer `AstraSenderSetup-0.4.8.exe` (26 376 277 bytes); frozen app `--selfcheck` exit 0, `bridge mt5_client: loaded` |
+| Live ingest, all nine timeframes, real server + SQLite | each `stored_new`, 0 rejected |
+| Replay of the same nine candles | each `already_stored`, 0 accepted (deduped) |
+| Persistence | all nine read back via `/api/v1/candles` and present in `candles.sqlite` |
+| Restart durability | server restarted; M1/H4/MN1 still readable |
+| Genuinely future-dated bar (broker frame +2h) | rejected: `candle open_time is in the future` |
+| Windows CI run `39235307853` | success; installer `AstraSenderSetup-0.4.8.exe`; frozen app `--selfcheck` exit 0, `bridge mt5_client: loaded` |
+
+The strongest single check is the controlled A/B, which isolates the offset as
+the cause rather than a coincidence:
+
+```
+WITHOUT offset: HTTP 200 accepted=0 rejected=1
+   reason: candle rejected: candle open_time is in the future   <- the owner's symptom
+WITH offset:    HTTP 200 accepted=1 rejected=0
+ABSURD offset:  HTTP 200 accepted=0 rejected=1                  <- +30h ignored, not trusted
+NO AUTH:        HTTP 401 (correctly refused)
+```
+
+The same candle bytes are rejected without the offset and accepted with it, so
+the field — not any other change — is what recovers the intraday timeframes.
 
 The two new sender tests were verified **not vacuous**: reverting the fix makes both
 fail with the owner's exact error (`candle open time is far in the future`), and
