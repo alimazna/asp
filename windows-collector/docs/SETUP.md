@@ -16,13 +16,26 @@ executable.
 
 ## 2. Install
 
-1. Copy `ASTRA-Collector.exe` anywhere convenient, for example
-   `C:\Users\<you>\ASTRA-Collector\`.
-2. Run it. The window opens. No console appears.
+1. Download `ASTRA-Collector.exe` from the release page:
+   <https://github.com/alimazna/asp/releases/tag/collector-v1.0.0>
+   (or copy it from the `ASTRA-Collector-windows` GitHub Actions artifact).
+2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
+   If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
+   the same folder; it is a one-click launcher.
+3. Double-click `ASTRA-Collector.exe`. The window opens. No console appears.
+
+Optional: verify the download before running it. In PowerShell:
+
+```powershell
+Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
+```
+
+The expected value for v1.0.0 is
+`84ea172961abfa0c23640b35e86b0c504ab7c85781101e864cea421b5098bd0f`.
 
 Windows SmartScreen may warn about an unsigned application the first time. The
-build is unsigned; choose "More info" then "Run anyway" only if you obtained the
-file from the expected location and can verify its SHA-256.
+build is unsigned; choose "More info" then "Run anyway" only after the hash
+matches.
 
 ## 3. Configure
 
