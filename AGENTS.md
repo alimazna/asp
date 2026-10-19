@@ -96,6 +96,11 @@ hardcode a timeframe as untrusted.
   Production currently holds **zero** candles, so `/api/v1/candles` returns
   `503` and `readyz` returns `503` — the honest pre-data state. Genuine MT5
   data must arrive from the Windows sender.
+- **2026-10-19:** the deployed container still runs the pre-`f92075e` ingest
+  guard (see below). The broker-clock fix is merged on
+  `fix/sender-bridge-packaging` but **not deployed**, because no Railway
+  credential exists in the agent environment. The owner's "only 4 timeframes"
+  symptom persists until `railway up` runs with a token.
 - Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
   `scripts/quarantine_admin.py list --all` flags misaligned rows and prints
   the exact purge command.
@@ -166,3 +171,25 @@ Rules:
 - The `[Run]` entry in `astra_sender.iss` must keep `runasoriginaluser`. Setup
   elevates, and MT5's IPC handshake fails when the sender and `terminal64.exe`
   run at different integrity levels, which surfaces as "MT5 UNAVAILABLE".
+
+## Bar timestamps are broker time, not UTC (v0.4.8+)
+
+- MT5 stamps bar open times in **broker server time**. This broker is UTC+3, so
+  a bar that opened at 09:00 UTC carries the stamp `12:00`. Treating that stamp
+  as UTC makes the newest intraday bars look up to three hours future-dated.
+- The failure mode is sneaky: the future guard drops exactly the timeframes whose
+  newest closed bar opens within the offset window (M1..H1), while H4/D1/W1/MN1
+  open far enough back to pass. The owner sees "only 4 timeframes arrive" and
+  nothing looks broken. **Suspect this before any transport or auth theory.**
+- The fix is symmetric and lives on both sides:
+  - sender: `Collector.clock_offset_seconds` measures (broker - UTC) from the
+    newest M1 bar and the collector validates against that frame;
+  - wire: the ingest body carries `clock_offset_seconds` (optional, additive);
+  - server: `parseClockOffset` clamps to |offset| <= 18h and both the per-candle
+    guard and the runtime closure/freshness check run in broker time.
+- Clamp the offset; never trust it blindly. An implausible offset means a stale
+  feed, not an exotic timezone, and accepting it would mask exactly the staleness
+  this system must never hide. A genuinely future bar must still be rejected.
+- Deploying the sender alone is **not** enough — the server-side guard is the
+  half that rejected the bars. Ship both, or the symptom persists.
+
