@@ -83,8 +83,15 @@ class ServerClient:
     # -- ingestion ----------------------------------------------------------
 
     def ingest_candles(self, source_id: str, symbol: str,
-                       timeframe: str, candles: List[Dict[str, Any]]) -> Dict[str, Any]:
+                       timeframe: str, candles: List[Dict[str, Any]],
+                       clock_offset_seconds: int = 0) -> Dict[str, Any]:
         """Send a batch; returns the parsed ack envelope.
+
+        ``clock_offset_seconds`` is the measured (broker server time - UTC).
+        MT5 stamps bar open times in broker server time, so the server must
+        evaluate its "future" guard in the same frame or it rejects the newest
+        intraday bars. The field is additive and optional: a server that does
+        not know it ignores it and falls back to raw UTC.
 
         Raises ProtocolError on transport/API failure. The caller must treat
         ANY exception as "uncertain" and keep the batch pending.
@@ -94,6 +101,7 @@ class ServerClient:
             "source_id": source_id,
             "symbol": symbol,
             "timeframe": timeframe,
+            "clock_offset_seconds": int(clock_offset_seconds or 0),
             "candles": candles,
         }
         return self._request(INGEST_PATH, "POST", body)

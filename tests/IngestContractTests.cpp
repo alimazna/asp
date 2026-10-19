@@ -19,7 +19,9 @@
 #include "foundation/HttpClient.h"
 
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -153,12 +155,15 @@ TEST_CASE(equals_form_cli_args_are_honored_and_bad_timeframe_is_rejected) {
 
     if (healthy) {
         // 1. A supported timeframe with two genuinely closed, aligned candles.
+        //    The stamps must land on the M15 grid: the ingest route rejects a
+        //    bar whose open time is not a multiple of its timeframe duration,
+        //    so an off-grid fixture can never be stored.
         const std::string good =
             "{\"source_id\":\"test-src\",\"symbol\":\"XAUUSD\","
             "\"timeframe\":\"M15\",\"candles\":["
-            "{\"time\":1792065000,\"open\":1901,\"high\":1911,\"low\":1899,"
+            "{\"time\":1792064700,\"open\":1901,\"high\":1911,\"low\":1899,"
             "\"close\":1906,\"tick_volume\":500},"
-            "{\"time\":1792065900,\"open\":1906,\"high\":1912.5,\"low\":1904.5,"
+            "{\"time\":1792065600,\"open\":1906,\"high\":1912.5,\"low\":1904.5,"
             "\"close\":1910,\"tick_volume\":412}]}";
         const HttpResponse first = postIngest(port, good);
         CHECK(first.is2xx());
@@ -195,6 +200,139 @@ TEST_CASE(equals_form_cli_args_are_honored_and_bad_timeframe_is_rejected) {
                         "/api/v1/candles?tf=M7&limit=100"});
         // An unknown timeframe has no series, so this must not report data.
         CHECK(!(m7.is2xx() && m7.body.find("\"count\":2") != std::string::npos));
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
+// INGEST-0002 - bars from a non-UTC broker must be accepted in the broker's own
+// clock frame.
+//
+// MT5 stamps bar open times in broker server time, commonly UTC+2/+3. The
+// ingest route compared those stamps against a raw UTC clock, so a UTC+3
+// broker's newest M1..H1 bars looked ~3h future-dated and were rejected while
+// only H4/D1/W1/MN1 survived. The sender now measures (broker - UTC) and sends
+// it as `clock_offset_seconds`; this test proves the server honours it and
+// still refuses genuinely future data and implausible offsets.
+TEST_CASE(broker_clock_offset_is_honored_for_intraday_bars) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    fs::path exe;
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) {
+            exe = candidate;
+            break;
+        }
+    }
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-offset-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t offset = 3 * 3600;   // a UTC+3 broker
+
+        // Newest CLOSED M15 bar in broker time, aligned to its grid.
+        const std::int64_t brokerNow = now + offset;
+        const std::int64_t openM15 = (brokerNow / 900) * 900 - 900;
+
+        // 1. The intraday bar that used to be dropped must now be stored. The
+        //    stamp is ~3h ahead of UTC, so raw-UTC validation rejects it.
+        const std::string withOffset =
+            "{\"source_id\":\"offset-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"time\":" +
+            std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse ok = postIngest(port, withOffset);
+        CHECK(ok.is2xx());
+        CHECK(ok.body.find("\"state\":\"stored_new\"") != std::string::npos);
+
+        // 2. Replaying it must dedupe rather than insert again.
+        const HttpResponse replay = postIngest(port, withOffset);
+        CHECK(replay.is2xx());
+        CHECK(replay.body.find("\"state\":\"already_stored\"") !=
+              std::string::npos);
+
+        // 3. A genuinely future bar must still be refused: the offset is a
+        //    clock correction, not a licence to accept fabricated data.
+        const std::int64_t future = (brokerNow / 900) * 900 + 900 * 10;
+        const std::string tooFar =
+            "{\"source_id\":\"offset-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"time\":" +
+            std::to_string(future) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse futureResp = postIngest(port, tooFar);
+        CHECK(futureResp.is2xx());
+        CHECK(futureResp.body.find("\"state\":\"rejected\"") != std::string::npos);
+
+        // 4. An implausible offset (100h) must be ignored, not trusted: a value
+        //    outside any real timezone means a stale feed, and honouring it
+        //    would mask exactly the staleness the system must report.
+        const std::string absurd =
+            "{\"source_id\":\"offset-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":360000,"
+            "\"candles\":[{\"time\":" + std::to_string(now + 100 * 3600) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse absurdResp = postIngest(port, absurd);
+        CHECK(absurdResp.is2xx());
+        CHECK(absurdResp.body.find("\"state\":\"rejected\"") != std::string::npos);
+
+        // 5. The M15 series must be readable, proving the bar was persisted
+        //    and not merely acknowledged.
+        const HttpResponse candles = httpGet(
+            HttpRequest{std::string("127.0.0.1"), port,
+                        "/api/v1/candles?tf=M15&limit=100"});
+        CHECK(candles.is2xx());
+        CHECK(candles.body.find("\"count\":1") != std::string::npos);
     }
 
     ::kill(-pid, SIGTERM);

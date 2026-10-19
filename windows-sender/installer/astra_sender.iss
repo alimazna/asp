@@ -14,7 +14,7 @@
 ; without embedding the credential in the setup binary itself.
 
 #define AppName "ASTRA Sender"
-#define AppVersion "0.4.6"
+#define AppVersion "0.4.8"
 #define AppPublisher "ASTRA"
 #define AppExeName "AstraSender.exe"
 
@@ -75,5 +75,14 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; \
     Tasks: desktopicon
 
 [Run]
+; `runasoriginaluser` is essential, not cosmetic. Setup elevates (it writes to
+; Program Files and ProgramData), so without this flag the postinstall launch
+; would start the sender ELEVATED. MetaTrader5's IPC handshake requires the
+; sender and terminal64.exe to run at the SAME integrity level; an elevated
+; sender cannot attach to a normally-launched terminal and initialize() returns
+; False, which the GUI reports as "MT5 UNAVAILABLE" even though the terminal is
+; perfectly healthy. The flag makes setup start the app with the pre-UAC
+; (non-elevated) credentials, matching how the terminal and the owner's own
+; Python scripts run.
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; \
-    Flags: nowait postinstall skipifsilent
+    Flags: nowait postinstall skipifsilent runasoriginaluser

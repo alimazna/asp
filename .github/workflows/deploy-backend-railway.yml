@@ -1,0 +1,107 @@
+name: Deploy backend to Railway
+
+# Manual, one-click deploy of the C++ astra_server to the existing Railway
+# service. Railway has no GitHub repo connected, so nothing deploys on push;
+# this workflow is the auditable path that replaces a hand-run `railway up`.
+#
+# It is deliberately workflow_dispatch-only: every run replaces the running
+# container, and the mission budget forbids burning the Railway trial on
+# incidental pushes.
+#
+# Required repository secret (Settings -> Secrets and variables -> Actions):
+#   RAILWAY_TOKEN          - a Railway *project* token for the astra-server
+#                            project. Never commit it; it is only read here.
+#
+# The project/environment IDs are not secrets (they identify, they do not
+# authorize) and are supplied as repository variables so the link file this
+# workflow writes cannot drift from the deployed project. Defaults match the
+# linked project recorded in AGENTS.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type deploy to replace the running astra-server container."
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two deploys race for the same service.
+  group: railway-astra-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse to run without an explicit confirmation
+        if: github.event.inputs.confirm != 'deploy'
+        run: |
+          echo "::error title=Not confirmed::Re-run with confirm=deploy to replace the running container."
+          exit 1
+
+      - name: Fail with an actionable message if the token is missing
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error title=Railway secret missing::Add RAILWAY_TOKEN (a Railway project token for astra-server) under Settings -> Secrets and variables -> Actions, then re-run."
+            exit 1
+          fi
+
+      - name: Link the project
+        env:
+          PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID || 'bd2e8b02-9d95-4159-9891-c4d4f6914092' }}
+          ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID || 'dc17b0a6-4e5a-47ea-bfb7-7f8e9404f8d5' }}
+        run: |
+          # `railway up` needs a linked project. The real link file is
+          # gitignored (it is per-clone state), so write it here from the
+          # variables above rather than committing it.
+          mkdir -p .railway
+          printf '{\n  "projectId": "%s",\n  "environmentId": "%s"\n}\n' \
+            "$PROJECT_ID" "$ENVIRONMENT_ID" > .railway/config.json
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_NO_TELEMETRY: "1"
+        # --ci makes the command non-interactive and exit non-zero on failure.
+        # The Dockerfile at the repo root builds astra_server; railway.toml
+        # pins the healthcheck to /api/v1/livez.
+        run: railway up --service astra-server --environment production --ci
+
+      - name: Verify the public health endpoint
+        run: |
+          # A 200 from the platform is not proof the app runs; probe the app.
+          # Retry: the new container needs a moment to take the healthcheck.
+          url="https://astra-server-production.up.railway.app/api/v1/livez"
+          for i in $(seq 1 30); do
+            body=$(curl -fsS --max-time 10 "$url" || true)
+            if echo "$body" | grep -q '"live":true'; then
+              echo "livez OK: $body"
+              exit 0
+            fi
+            echo "attempt $i: not live yet"
+            sleep 10
+          done
+          echo "::error title=Health check failed::$url did not report live:true"
+          exit 1
+
+      - name: Confirm the broker-clock fix is live
+        run: |
+          # The fix is observable without data: /api/v1/health reports
+          # "no state observed" for intraday timeframes while the old guard
+          # silently discarded them. This step only records the state; a
+          # timeframe legitimately has no bar until a sender uploads one, so it
+          # must not fail the deploy.
+          curl -fsS --max-time 15 \
+            https://astra-server-production.up.railway.app/api/v1/health \
+            || echo "health endpoint did not answer (non-fatal)"

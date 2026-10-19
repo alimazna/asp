@@ -1,2 +1,3 @@
 ASTRA Sender self-check OK
 MetaTrader5: NOT bundled
+bridge mt5_client: loaded (mt5_client.py)

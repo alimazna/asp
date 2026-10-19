@@ -74,6 +74,25 @@ std::vector<std::string> splitComma(const std::string& in) {
     return out;
 }
 
+// Largest |broker - UTC| accepted as a genuine timezone offset. Real brokers
+// sit within a few hours of UTC; the extreme real timezone is UTC+14. A larger
+// value means a stale feed rather than an exotic clock, and accepting it would
+// mask exactly the staleness this system must never hide.
+constexpr std::int64_t kMaxClockOffsetSeconds = 18 * 3600;
+
+// Read the optional broker clock offset from an ingest body, clamped to a
+// plausible timezone band. Absent or unparseable values mean "unknown", which
+// degrades to the previous raw-UTC behaviour rather than guessing.
+std::int64_t parseClockOffset(const JsonValue& root) {
+    const JsonValue& value = root["clock_offset_seconds"];
+    if (!value.isNumber()) return 0;
+    std::int64_t offset = value.asInt64();
+    if (offset > kMaxClockOffsetSeconds || offset < -kMaxClockOffsetSeconds) {
+        return 0;
+    }
+    return offset;
+}
+
 // Percent-decode a URL query value (also turns '+' into a space). The sync
 // route takes a source identity from the query string, and identities may
 // legitimately contain characters a client has to escape.
@@ -116,8 +135,15 @@ int parsePort(const std::string& text, int fallback) {
 }
 
 // Parse one candle object from a JSON value.
+//
+// `clockOffsetSeconds` is the broker clock offset the sender measured
+// (broker server time - UTC). MT5 stamps bar open times in broker server time,
+// commonly UTC+2/+3, so the "future" guard has to be evaluated in that same
+// frame. Without it every intraday bar from a non-UTC broker looked ~3h
+// future-dated and was dropped, which is why only H4/D1/W1/MN1 were stored.
 bool parseCandle(const JsonValue& candle, StoredCandle& out,
-                 std::string& error) {
+                 std::string& error,
+                 std::int64_t clockOffsetSeconds = 0) {
     if (!candle.isObject()) {
         error = "candle is not an object";
         return false;
@@ -143,10 +169,13 @@ bool parseCandle(const JsonValue& candle, StoredCandle& out,
     out.openTimeUtc = time.asInt64();
 
     // Closed candles are historical: an open time far in the future means the
-    // record is malformed or fabricated. A few minutes of slack tolerates
-    // legitimate clock skew between the sending machine and this server.
+    // record is malformed or fabricated. The comparison uses the sender's
+    // broker clock, because MT5 stamps bars in broker server time; a few
+    // minutes of slack tolerates ordinary clock skew between the sender and
+    // this server.
     const int64_t kFutureSkewSlackSeconds = 300;
-    const int64_t nowUtc = static_cast<int64_t>(std::time(nullptr));
+    const int64_t nowUtc =
+        static_cast<int64_t>(std::time(nullptr)) + clockOffsetSeconds;
     if (out.openTimeUtc > nowUtc + kFutureSkewSlackSeconds) {
         error = "candle open_time is in the future";
         return false;
@@ -387,6 +416,12 @@ int main(int argc, char** argv) {
                     std::to_string(apiConfig.maxCandlesPerBatch));
         }
         std::int64_t now = Timestamp::now().epochMillis() / 1000;
+        // The sender measures (broker server time - UTC). Bars are stamped in
+        // broker time, so both the per-candle validation below and the runtime's
+        // closure/freshness checks must run in that frame; otherwise a UTC+3
+        // broker's newest intraday bars look future-dated and are discarded.
+        const std::int64_t clockOffsetSeconds = parseClockOffset(root);
+        const std::int64_t brokerNow = now + clockOffsetSeconds;
 
         std::vector<StoredCandle> candles;
         std::vector<std::string> rejections;
@@ -397,7 +432,7 @@ int main(int argc, char** argv) {
             c.timeframe = timeframe;
             c.receivedAtUtc = now;
             std::string candleError;
-            if (!parseCandle(item, c, candleError)) {
+            if (!parseCandle(item, c, candleError, clockOffsetSeconds)) {
                 rejections.push_back("candle rejected: " + candleError);
                 continue;
             }
@@ -440,9 +475,13 @@ int main(int argc, char** argv) {
                     bridgeCandle, tf, symbol, source, Timestamp::now()));
             }
             // Only genuinely new closed bars advance the pipeline; the
-            // runtime deduplicates by open time.
+            // runtime deduplicates by open time. `brokerNow` is used for the
+            // closure/freshness comparisons because bar open times are stamped
+            // in broker server time; `receivedAt` keeps the real UTC receipt
+            // time, which is metadata about this host, not about the bar.
             runtime.ingestExternalBars(source, symbol, tf, bars,
-                                       Timestamp::now());
+                                       Timestamp::fromEpochMillis(
+                                           brokerNow * 1000));
         }
 
         // Build the ack envelope.

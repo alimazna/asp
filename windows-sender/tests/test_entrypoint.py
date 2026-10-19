@@ -162,5 +162,40 @@ class InteractiveFirstRunTest(unittest.TestCase):
                           "the interactive path should finish cleanly")
 
 
+class SelfCheckBridgeTest(unittest.TestCase):
+    """`--selfcheck` must prove the bridge loads, not just that the package does.
+
+    Importing ClosedCandleCollector only imports the *package*; the bridge is a
+    separately-bundled flat module pair. A build that shipped it inside the
+    package passed every earlier smoke check and still reported MT5 UNAVAILABLE
+    at runtime. The self-check now loads the bridge through the production loader
+    and must fail loudly when it cannot.
+    """
+
+    def test_selfcheck_reports_bridge_loaded_and_exits_zero(self):
+        env = dict(os.environ)
+        env["ASTRA_SENDER_NO_DIALOG"] = "1"
+        result = subprocess.run(
+            [sys.executable, _MAIN, "--selfcheck"],
+            capture_output=True, text=True, timeout=120, env=env, cwd=_PKG_DIR)
+        self.assertEqual(result.returncode, 0,
+                         f"self-check failed: {result.stdout}\n{result.stderr}")
+        self.assertIn("bridge mt5_client: loaded", result.stdout)
+
+    def test_selfcheck_fails_when_the_bridge_cannot_be_loaded(self):
+        """Break the loader; the self-check must exit non-zero and say why."""
+        env = dict(os.environ)
+        env["ASTRA_SENDER_NO_DIALOG"] = "1"
+        env["ASTRA_SENDER_TEST_BREAK_BRIDGE"] = "1"
+        result = subprocess.run(
+            [sys.executable, _MAIN, "--selfcheck"],
+            capture_output=True, text=True, timeout=120, env=env, cwd=_PKG_DIR)
+        self.assertEqual(result.returncode, 1,
+                         f"a broken bridge must fail the self-check: {result.stdout}")
+        self.assertIn("bridge mt5_client: FAILED", result.stdout)
+        self.assertIn("No module named", result.stdout,
+                      "the failure must name the underlying import error")
+
+
 if __name__ == "__main__":
     unittest.main()

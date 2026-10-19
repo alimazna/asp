@@ -26,32 +26,52 @@ from typing import Any, Dict, List, Optional
 
 
 # The real bridge module lives at <repo>/bridge/mt5_python. Under PyInstaller
-# frozen apps the module is copied beside the app; under source tree we reach it
-# through PYTHONPATH or a sibling directory.
-_MT5_CLIENT_NAMES = ("mt5_client", "astra_sender.mt5_client")
+# frozen apps the module is copied to the bundle root; under source tree we reach
+# it through PYTHONPATH or a sibling directory.
+_BRIDGE_MODULE_NAME = "mt5_client"
+_MT5_CLIENT_NAMES = (_BRIDGE_MODULE_NAME, f"astra_sender.{_BRIDGE_MODULE_NAME}")
 _BRIDGE_HINTS = [
     os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "bridge",
                                   "mt5_python")),
     os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..",
                                   "bridge", "mt5_python")),
+    # PyInstaller extracts the bundle here; the bridge modules are bundled flat
+    # at its root. sys.path normally already contains it, but naming it makes the
+    # frozen case explicit rather than relying on the bootloader's default.
+    getattr(sys, "_MEIPASS", ""),
 ]
+_BRIDGE_HINTS = [hint for hint in _BRIDGE_HINTS if hint]
 
 
 def _load_mt5_client():
-    """Load and return the mt5_client module (real bridge code, stdlib-only)."""
+    """Load and return the mt5_client module (real bridge code, stdlib-only).
+
+    The bridge is a flat module pair (``mt5_client.py`` imports
+    ``from schemas import TIMEFRAMES``), so the directory holding it must be on
+    ``sys.path``. Under the source tree that directory is
+    ``bridge/mt5_python``; in a frozen build the modules sit at the bundle root,
+    which is already on ``sys.path``.
+
+    Import failures are recorded rather than silently skipped: swallowing them
+    turned a packaging fault into a bare "MT5 UNAVAILABLE" with no cause, which
+    is exactly the confusion this loader must not create.
+    """
+    errors = []
     for name in _MT5_CLIENT_NAMES:
         try:
             return importlib.import_module(name)
-        except ImportError:
-            continue
+        except ImportError as exc:
+            errors.append(f"{name}: {exc}")
     for hint in _BRIDGE_HINTS:
         if hint not in sys.path:
             sys.path.insert(0, hint)
         try:
-            return importlib.import_module("mt5_client")
-        except ImportError:
-            continue
-    raise ImportError("cannot locate bridge/mt5_python/mt5_client.py")
+            return importlib.import_module(_BRIDGE_MODULE_NAME)
+        except ImportError as exc:
+            errors.append(f"{_BRIDGE_MODULE_NAME} (via {hint}): {exc}")
+    raise ImportError(
+        "cannot locate bridge/mt5_python/mt5_client.py; tried: "
+        + "; ".join(errors))
 
 
 @dataclass
@@ -117,6 +137,19 @@ class ClosedCandleCollector:
     @property
     def server(self) -> str:
         return self._server
+
+    @property
+    def clock_offset_seconds(self) -> int:
+        """Measured (broker server time - UTC) in seconds, 0 when unknown.
+
+        MT5 stamps bar open times in the broker's server time, which is commonly
+        UTC+2/+3. Every timestamp comparison in this process and on the server
+        has to happen in that frame, otherwise the newest intraday bars look
+        future-dated and are dropped.
+        """
+        if self._client is None:
+            return 0
+        return int(getattr(self._client, "clock_offset_seconds", 0) or 0)
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -187,7 +220,7 @@ class ClosedCandleCollector:
             spread=int(newest.get("spread", 0)),
             real_volume=int(newest.get("real_volume", 0)),
         )
-        validation_error = self._validate(candle)
+        validation_error = self._validate(candle, self.clock_offset_seconds)
         if validation_error:
             return {"ok": False, "error_code": "MARKET_DATA_INVALID",
                     "message": validation_error}
@@ -218,13 +251,21 @@ class ClosedCandleCollector:
                 spread=int(raw.get("spread", 0)),
                 real_volume=int(raw.get("real_volume", 0)),
             )
-            if self._validate(candle) is None:
+            if self._validate(candle, self.clock_offset_seconds) is None:
                 validated.append(candle)
         return {"ok": True, "candles": validated}
 
     @staticmethod
-    def _validate(candle: ClosedCandle) -> Optional[str]:
-        """Validate OHLC relationships and timestamps (mirrors the server)."""
+    def _validate(candle: ClosedCandle,
+                  clock_offset_seconds: int = 0) -> Optional[str]:
+        """Validate OHLC relationships and timestamps (mirrors the server).
+
+        ``clock_offset_seconds`` is the measured broker offset. MT5 stamps bar
+        open times in broker server time, so the "far in the future" guard has
+        to be evaluated in that same frame. Comparing a UTC+3 broker's newest
+        M1 bar against a raw UTC clock made every intraday bar look ~3h
+        future-dated, so M1..H1 were dropped and only H4/D1/W1/MN1 survived.
+        """
         if not (candle.open > 0 and candle.high > 0 and candle.low > 0
                 and candle.close > 0):
             return "non-positive OHLC values"
@@ -236,7 +277,7 @@ class ClosedCandleCollector:
             return "negative volume/spread"
         if candle.time <= 0:
             return "non-positive candle open time"
-        now = int(time.time())
+        now = int(time.time()) + int(clock_offset_seconds or 0)
         if candle.time > now + 3600:
             return "candle open time is far in the future"
         return None

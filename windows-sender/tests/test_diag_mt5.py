@@ -66,6 +66,33 @@ class DiagMt5Test(unittest.TestCase):
             import diag_mt5
             self.assertEqual(diag_mt5.main(), 2)
 
+    def test_unloadable_bridge_is_reported_as_a_packaging_fault(self):
+        """Exit 7 when the sender's own bridge cannot import.
+
+        This is the case that was invisible before: MetaTrader5 imports fine, so
+        the diagnostic's direct calls all succeed, but the GUI reads through
+        mt5_client.py and reports UNAVAILABLE. The diagnostic must blame the
+        packaging, not the terminal.
+        """
+        fake = _fake_mt5()
+        sys.modules.pop("diag_mt5", None)
+        sys.modules.pop("mt5_client", None)
+        with mock.patch.dict(sys.modules, {"MetaTrader5": fake,
+                                           "mt5_client": None}):
+            import diag_mt5
+            self.assertEqual(diag_mt5.main(), 7)
+
+    def test_bridge_is_checked_before_attaching_to_the_terminal(self):
+        """A bridge fault must be reported without touching the terminal."""
+        fake = _fake_mt5()
+        sys.modules.pop("diag_mt5", None)
+        sys.modules.pop("mt5_client", None)
+        with mock.patch.dict(sys.modules, {"MetaTrader5": fake,
+                                           "mt5_client": None}):
+            import diag_mt5
+            diag_mt5.main()
+        fake.initialize.assert_not_called()
+
     def test_failed_initialize_returns_nonzero(self):
         fake = _fake_mt5(initialize_ok=False)
         self.assertEqual(self._run(fake), 4)

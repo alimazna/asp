@@ -43,7 +43,10 @@ def _module_path_dirs() -> None:
             sys.path.insert(0, candidate)
 
 
-VERSION = "0.4.4"
+# Single source of truth: astra_sender/__init__.py. A duplicated literal here
+# drifted (it still said 0.4.4 while the package said 0.4.6), so `--version`
+# disagreed with the installer. Import it rather than restate it.
+from . import __version__ as VERSION
 
 # Pre-filled into the first-run config template so the user only pastes a token.
 DEFAULT_BACKEND_URL = "https://astra-server-production.up.railway.app"
@@ -185,6 +188,16 @@ def _run_mt5_diagnostic() -> int:
     return code
 
 
+def _write_selfcheck_report(lines) -> None:
+    """Write the self-check result where CI can read it (windowed exe has no stdout)."""
+    report = os.path.join(os.getcwd(), "selfcheck.txt")
+    try:
+        with open(report, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
+
+
 def _main_impl() -> int:
     _module_path_dirs()
 
@@ -235,14 +248,36 @@ def _main_impl() -> int:
             lines.append("MetaTrader5: NOT bundled")
         else:
             lines.append("MetaTrader5: bundled")
+
+        # Actually load the bridge through the production loader. Importing
+        # ClosedCandleCollector only proves the *package* imports; it does not
+        # touch the separately-bundled flat bridge modules. A build that shipped
+        # them under astra_sender/ passed every earlier check and still reported
+        # MT5 UNAVAILABLE at runtime, because `from schemas import TIMEFRAMES`
+        # failed once the module was frozen. Exercise it here so a packaging
+        # fault fails CI instead of reaching the owner.
+        try:
+            from .collector import _load_mt5_client
+            if os.environ.get("ASTRA_SENDER_TEST_BREAK_BRIDGE"):
+                # Test-only: force the failure path so CI proves the guard
+                # actually fails the build, rather than trusting that it would.
+                import astra_sender.collector as _cm
+                _cm._BRIDGE_MODULE_NAME = "definitely_not_a_module"
+                _cm._MT5_CLIENT_NAMES = ("definitely_not_a_module",)
+                _cm._BRIDGE_HINTS = ["/nonexistent/bridge/dir"]
+                sys.modules.pop("mt5_client", None)
+                sys.modules.pop("schemas", None)
+            bridge = _load_mt5_client()
+            lines.append(f"bridge mt5_client: loaded ({os.path.basename(bridge.__file__)})")
+        except Exception as exc:  # noqa: BLE001 - the message is the finding
+            lines.append(f"bridge mt5_client: FAILED ({exc})")
+            _say("\n".join(lines))
+            _write_selfcheck_report(lines)
+            return 1
+
         _say("\n".join(lines))
         # A windowed exe has no stdout, so write the result where CI can read it.
-        report = os.path.join(os.getcwd(), "selfcheck.txt")
-        try:
-            with open(report, "w", encoding="utf-8") as fh:
-                fh.write("\n".join(lines) + "\n")
-        except OSError:
-            pass
+        _write_selfcheck_report(lines)
         return 0
 
     from .config import SenderConfig, default_config_path, app_data_dir

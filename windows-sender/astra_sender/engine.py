@@ -197,13 +197,23 @@ class SyncEngine:
             return ("sender is missing its MT5 bridge module; reinstall the app "
                     f"({message})")
         if code == "MT5_TERMINAL_UNAVAILABLE":
-            return ("MetaTrader5 is not reachable. Run the MT5 diagnostic button "
+            hint = ("MetaTrader5 is not reachable. Run the MT5 diagnostic button "
                     "for the exact error code. Usual causes: the terminal is not "
                     "running or not logged in; Algo Trading is off; ASTRA Sender "
                     "and terminal64.exe run at DIFFERENT privilege levels (elevate "
                     "both or neither); or a suffixed broker terminal needs its "
                     "path set in Settings. "
                     f"({message})")
+            # When the privilege levels can actually be compared, say so instead
+            # of listing it as one possibility among five.
+            try:
+                from . import win_elevation
+                mismatch = win_elevation.describe_mismatch()
+            except Exception:
+                mismatch = ""
+            if mismatch:
+                hint = f"{mismatch} ({message})"
+            return hint
         if code == "MT5_SYMBOL_UNRESOLVED":
             return ("no XAUUSD/GOLD symbol is visible in MT5. Add the gold symbol "
                     f"to Market Watch in the terminal. ({message})")
@@ -417,7 +427,9 @@ class SyncEngine:
     def _send_batch(self, source: str, symbol: str, timeframe: str,
                     batch: List[Dict[str, Any]], identity: str) -> None:
         try:
-            response = self._client.ingest_candles(source, symbol, timeframe, batch)
+            response = self._client.ingest_candles(
+                source, symbol, timeframe, batch,
+                clock_offset_seconds=self._collector.clock_offset_seconds)
         except ProtocolError as exc:
             # Uncertain delivery: keep pending, do not mark failed.
             with self._status_mutex:
