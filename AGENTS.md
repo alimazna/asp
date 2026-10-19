@@ -93,14 +93,17 @@ hardcode a timeframe as untrusted.
   (`4605ca78-b54a-4688-934d-45b37f54a7a8`) mounted at `/opt/astra/data`.
 - Frontend: `https://astra-dia.pages.dev` (Cloudflare Pages project `astra`).
 - All five synthetic deployment-verification rows were purged on 2026-10-16.
-  Production currently holds **zero** candles, so `/api/v1/candles` returns
-  `503` and `readyz` returns `503` — the honest pre-data state. Genuine MT5
-  data must arrive from the Windows sender.
+  Production now holds the owner's **real** MT5 data for the multi-hour
+  timeframes (H4/D1/W1/MN1); the intraday timeframes are empty because the
+  pre-`f92075e` guard rejected them (see the broker-clock section below).
+  `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
+  for a backend with no bridge and partial timeframe coverage.
 - **2026-10-19:** the deployed container still runs the pre-`f92075e` ingest
-  guard (see below). The broker-clock fix is merged on
-  `fix/sender-bridge-packaging` but **not deployed**, because no Railway
-  credential exists in the agent environment. The owner's "only 4 timeframes"
-  symptom persists until `railway up` runs with a token.
+  guard (see below). The broker-clock fix is merged to `main` (`5afe44d`,
+  PR #15) but **not deployed**, because no Railway credential exists in the
+  agent environment. The owner's "only 4 timeframes" symptom persists until
+  `Deploy backend to Railway` runs (needs a `RAILWAY_TOKEN` secret) or
+  `railway up` runs with a token.
 - Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
   `scripts/quarantine_admin.py list --all` flags misaligned rows and prints
   the exact purge command.
