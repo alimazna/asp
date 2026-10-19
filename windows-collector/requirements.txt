@@ -1,0 +1,15 @@
+# ASTRA Collector runtime dependencies.
+#
+# The application itself uses only the Python standard library: sqlite3 for the
+# local candle store and delivery ledger, urllib for HTTPS, and tkinter for the
+# window. There is nothing to install in order to run it from source on a
+# normal Python 3.9+ build.
+#
+# MetaTrader5 is intentionally NOT listed. It is provided by the MetaTrader 5
+# terminal's own Python integration and must match the installed terminal. The
+# collector imports it at runtime and reports a clear error if it is absent.
+# See docs/SETUP.md.
+
+# --- development and packaging only (not required to run from source) --------
+# pyinstaller>=6.0      # builds dist/ASTRA-Collector.exe
+# pytest>=7.0           # optional test runner; the suite also runs on unittest
