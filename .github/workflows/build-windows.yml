@@ -78,8 +78,15 @@ jobs:
           if-no-files-found: error
 
       # ---------------------------------------------------------------- 2/5
+      - name: Install SQLite3 for the backend host
+        # The runner image ships no sqlite3 development files, so
+        # find_package(SQLite3 REQUIRED) fails at configure time. vcpkg is
+        # pre-installed on windows-latest and cached across runs; the Linux/Docker
+        # build gets the same library from libsqlite3-dev.
+        run: vcpkg install sqlite3:x64-windows
+
       - name: Configure C++ backend host
-        run: cmake -B build -A x64
+        run: cmake -B build -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
         working-directory: .
 
       - name: Build backend Release
