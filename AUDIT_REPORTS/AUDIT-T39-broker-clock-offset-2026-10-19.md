@@ -1,8 +1,9 @@
 # AUDIT-T39 — "Only 4 timeframes arrive": broker clock vs UTC (2026-10-19)
 
 - **Owner report:** "it works and sends data, but only 4 timeframes..."
-- **Repo HEAD:** `f92075e` (branch `fix/sender-bridge-packaging`)
-- **Status:** fix implemented and tested; server deployment BLOCKED (no credential)
+- **Repo HEAD at writing:** `5afe44d` (fix merged to `main` via PR #15)
+- **Status:** fix implemented, tested, and merged; **server deployment BLOCKED**
+  (no Railway credential — see §5)
 
 ## 1. Symptom on the live deployment
 
@@ -96,6 +97,35 @@ the fixture, `257a6a1`, PR #10) and was corrected to `1792064700/5600/6500`.
 
 ## 5. Deployment status
 
+### 5a. Live corroboration — H1 empty while H4 carries data
+
+Re-checked on 2026-10-19 against the still-unreleased backend, the owner's own
+data confirms the offset mechanism rather than merely being consistent with it:
+
+```
+M1  HTTP 503  no candle data available for M1
+M15 HTTP 503  no candle data available for M15
+H1  HTTP 503  no candle data available for H1
+H4  HTTP 200  bar time=1792382400 (2026-10-19T04:00:00Z)
+```
+
+The H4 row is the diagnostic tell. Its open time is `04:00:00Z`, which is exactly
+a four-hour boundary **in UTC**. The broker stamps H4 bars on the same 4-hour grid
+shifted by +3h (i.e. 22:00, 02:00, 06:00, 10:00, 14:00, 18:00 UTC), so a bar the
+broker opened at 07:00 UTC+3 (= 04:00Z) lands on `04:00Z` and passes the raw-UTC
+check. An H1 bar opened at 07:00 UTC+3 (= 04:00Z) is the bar *currently forming*
+in UTC terms, and the newest fully **closed** H1 bar the broker offers opens at
+03:00Z — two hours ahead of the server's `now`, beyond the 300 s slack. So H1 is
+always empty while H4 is sometimes populated.
+
+That asymmetry — **H1 empty, H4 populated** — is the signature of a
+broker-offset bug, not of a transport, auth, or subscription failure. A dropped
+connection or a missing symbol would empty *all* timeframes at once; it would not
+spare exactly the ones whose newest closed bar happens to fall more than the
+offset behind the wall clock.
+
+### 5b. Deployment
+
 - **Sender:** rebuilt and published as an artifact by CI (v0.4.8). The installer
   preserves an existing `%PROGRAMDATA%\AstraSender\config.json` on upgrade
   (`onlyifdoesntexist`), so the owner's already-provisioned token is reused and the
@@ -107,7 +137,15 @@ the fixture, `257a6a1`, PR #10) and was corrected to `1792064700/5600/6500`.
   in `AUDIT-RAILWAY-DEPLOY-ATTEMPT-2026-10-15.md`; `railway up` reports
   "Not signed in."
 
-  Command to run once a token is available:
+  A one-click, confirmed workflow now exists for this
+  (`.github/workflows/deploy-backend-railway.yml`). It was dispatched on `main`
+  (run [39238449411](https://github.com/alimazna/asp/actions/runs/39238449411)) to
+  prove the wiring: it stops at the credential gate with
+  `::error Add RAILWAY_TOKEN (a Railway project token for astra-server) under
+  Settings -> Secrets and variables -> Actions, then re-run.` and deploys nothing.
+  Adding that one secret is the entire remaining blocker for the server half.
+
+  The equivalent hand-run command, if preferred:
 
   ```
   RAILWAY_TOKEN=<token> railway up \
