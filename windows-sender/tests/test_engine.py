@@ -212,6 +212,40 @@ class EngineTest(EngineTearDownMixin, unittest.TestCase):
         self.engine = engine
         return engine
 
+    def test_broker_offset_is_transmitted_so_intraday_bars_are_acked(self):
+        """The measured broker offset must reach the server.
+
+        MT5 stamps bars in broker server time. Without the offset in the body
+        the server compares those stamps against raw UTC, rejects the newest
+        M1..H1 bars as future-dated, and the sender never acknowledges them —
+        which is exactly the "only 4 timeframes arrive" fault. This asserts the
+        wire contract, not just the collector's internal check.
+        """
+        os.environ["FAKE_MT5_LAST_TIME"] = str(int(time.time()) + 3 * 3600)
+        engine = self._make_engine()
+        # Enable all nine supported timeframes: the default test config only
+        # exercises M15, which would hide a per-timeframe regression.
+        self.config.timeframes = ["M1", "M5", "M15", "M30", "H1", "H4", "D1",
+                                  "W1", "MN1"]
+        engine._sync_once()
+
+        self.assertGreaterEqual(len(FakeAstraServer.requests), 1)
+        for body in FakeAstraServer.requests:
+            self.assertEqual(body.get("clock_offset_seconds"), 3 * 3600,
+                             "broker offset missing from the ingest body")
+
+        # Every supported timeframe must have been accepted, not just the
+        # multi-hour ones whose open time sits far enough behind the broker
+        # clock to survive a raw-UTC comparison.
+        ledger = DeliveryLedger(self.config.ledger_path)
+        for timeframe in ["M1", "M5", "M15", "M30", "H1", "H4", "D1",
+                          "W1", "MN1"]:
+            self.assertIsNotNone(
+                ledger.latest_acknowledged("s1", "XAUUSD", timeframe),
+                f"{timeframe} was never acknowledged by the server")
+        ledger.close()
+        self.engine.stop()
+
     def test_first_run_sends_latest_closed_candle_and_acks(self):
         engine = self._make_engine()
         t = latest_fake_candle_time()

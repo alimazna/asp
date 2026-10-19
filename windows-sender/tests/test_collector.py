@@ -73,6 +73,48 @@ class CollectorTest(unittest.TestCase):
         module = _load_mt5_client()
         self.assertTrue(callable(getattr(module, "Mt5Client", None)))
 
+    def test_broker_server_time_feed_yields_all_nine_timeframes(self):
+        """A non-UTC broker must not cost the intraday timeframes.
+
+        MT5 stamps bar open times in broker server time, commonly UTC+2/+3. The
+        collector's "far in the future" guard compared those stamps against a
+        raw UTC clock, so a UTC+3 broker's newest M1..H1 bars looked ~3h
+        future-dated: they were dropped and only H4/D1/W1/MN1 were ever sent.
+        The guard must be evaluated against the measured broker clock.
+        """
+        os.environ["FAKE_MT5_LAST_TIME"] = str(int(time.time()) + 3 * 3600)
+        collector = ClosedCandleCollector("XAUUSD")
+        self.assertTrue(collector.start().ok)
+
+        # The broker offset must actually be measured, or the fix is inert.
+        self.assertEqual(collector.clock_offset_seconds, 3 * 3600)
+
+        for timeframe in ["M1", "M5", "M15", "M30", "H1", "H4", "D1",
+                          "W1", "MN1"]:
+            result = collector.read_latest_closed(timeframe)
+            self.assertTrue(result["ok"],
+                            f"{timeframe} dropped on a UTC+3 feed: {result}")
+        collector.stop()
+
+    def test_far_future_bar_is_still_rejected(self):
+        """The offset corrects the clock; it must not accept fabricated data."""
+        os.environ["FAKE_MT5_LAST_TIME"] = str(int(time.time()) + 3 * 3600)
+        collector = ClosedCandleCollector("XAUUSD")
+        self.assertTrue(collector.start().ok)
+        offset = collector.clock_offset_seconds
+
+        from astra_sender.collector import ClosedCandle
+        # Ten days beyond the broker clock is not a timezone.
+        ahead = int(time.time()) + offset + 10 * 24 * 3600
+        candle = ClosedCandle(symbol="XAUUSD", timeframe="M15", time=ahead,
+                              open=2000.0, high=2001.0, low=1999.0,
+                              close=2000.5, tick_volume=1, spread=0,
+                              real_volume=0)
+        self.assertIsNotNone(
+            collector._validate(candle, offset),
+            "a far-future bar must still be rejected")
+        collector.stop()
+
 
 class BridgePackagingTest(unittest.TestCase):
     """Pin the packaging fault that made the frozen app report MT5 UNAVAILABLE.

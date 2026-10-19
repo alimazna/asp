@@ -427,7 +427,9 @@ class SyncEngine:
     def _send_batch(self, source: str, symbol: str, timeframe: str,
                     batch: List[Dict[str, Any]], identity: str) -> None:
         try:
-            response = self._client.ingest_candles(source, symbol, timeframe, batch)
+            response = self._client.ingest_candles(
+                source, symbol, timeframe, batch,
+                clock_offset_seconds=self._collector.clock_offset_seconds)
         except ProtocolError as exc:
             # Uncertain delivery: keep pending, do not mark failed.
             with self._status_mutex:

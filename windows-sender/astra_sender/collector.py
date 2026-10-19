@@ -138,6 +138,19 @@ class ClosedCandleCollector:
     def server(self) -> str:
         return self._server
 
+    @property
+    def clock_offset_seconds(self) -> int:
+        """Measured (broker server time - UTC) in seconds, 0 when unknown.
+
+        MT5 stamps bar open times in the broker's server time, which is commonly
+        UTC+2/+3. Every timestamp comparison in this process and on the server
+        has to happen in that frame, otherwise the newest intraday bars look
+        future-dated and are dropped.
+        """
+        if self._client is None:
+            return 0
+        return int(getattr(self._client, "clock_offset_seconds", 0) or 0)
+
     # -- lifecycle ----------------------------------------------------------
 
     def start(self) -> CollectorStartup:
@@ -207,7 +220,7 @@ class ClosedCandleCollector:
             spread=int(newest.get("spread", 0)),
             real_volume=int(newest.get("real_volume", 0)),
         )
-        validation_error = self._validate(candle)
+        validation_error = self._validate(candle, self.clock_offset_seconds)
         if validation_error:
             return {"ok": False, "error_code": "MARKET_DATA_INVALID",
                     "message": validation_error}
@@ -238,13 +251,21 @@ class ClosedCandleCollector:
                 spread=int(raw.get("spread", 0)),
                 real_volume=int(raw.get("real_volume", 0)),
             )
-            if self._validate(candle) is None:
+            if self._validate(candle, self.clock_offset_seconds) is None:
                 validated.append(candle)
         return {"ok": True, "candles": validated}
 
     @staticmethod
-    def _validate(candle: ClosedCandle) -> Optional[str]:
-        """Validate OHLC relationships and timestamps (mirrors the server)."""
+    def _validate(candle: ClosedCandle,
+                  clock_offset_seconds: int = 0) -> Optional[str]:
+        """Validate OHLC relationships and timestamps (mirrors the server).
+
+        ``clock_offset_seconds`` is the measured broker offset. MT5 stamps bar
+        open times in broker server time, so the "far in the future" guard has
+        to be evaluated in that same frame. Comparing a UTC+3 broker's newest
+        M1 bar against a raw UTC clock made every intraday bar look ~3h
+        future-dated, so M1..H1 were dropped and only H4/D1/W1/MN1 survived.
+        """
         if not (candle.open > 0 and candle.high > 0 and candle.low > 0
                 and candle.close > 0):
             return "non-positive OHLC values"
@@ -256,7 +277,7 @@ class ClosedCandleCollector:
             return "negative volume/spread"
         if candle.time <= 0:
             return "non-positive candle open time"
-        now = int(time.time())
+        now = int(time.time()) + int(clock_offset_seconds or 0)
         if candle.time > now + 3600:
             return "candle open time is far in the future"
         return None
