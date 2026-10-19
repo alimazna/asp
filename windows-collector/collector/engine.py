@@ -28,9 +28,18 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from . import planner as planning
 from .config import CollectorConfig
-from .identity import CandleKey, TIMEFRAMES
+from .identity import (
+    CandleKey,
+    IRREGULAR_TIMEFRAMES,
+    TIMEFRAMES,
+    timeframe_rank,
+)
 from .ledger import DeliveryLedger
-from .mt5_reader import MT5Unavailable, Mt5Reader, drop_forming_candle
+from .mt5_reader import (
+    MT5Unavailable,
+    Mt5Reader,
+    drop_forming_candle,
+)
 from .receiver import IngestOutcome, ReceiverClient, ReceiverError
 from .store import CandleStore, StoredCandle, validate_candle
 
@@ -209,9 +218,19 @@ class SyncEngine:
         # 1. Read and store the newest closed candle per timeframe. A fault on
         #    one timeframe (e.g. a thin stream with no history yet) must not
         #    stop the other eight from syncing, so each is isolated.
+        #    The newest stored open time is read *before* capturing, so the
+        #    W1/MN1 repair below can still see the window that capturing is
+        #    about to close over.
+        previous_newest: Dict[str, Optional[int]] = {
+            tf: self._store.latest_open_time(self._symbol(), tf)
+            for tf in self._config.timeframes
+        }
+        newest_closed: Dict[str, int] = {}
         for timeframe in self._config.timeframes:
             try:
-                self._capture_timeframe(timeframe)
+                latest = self._capture_timeframe(timeframe)
+                if latest is not None:
+                    newest_closed[timeframe] = latest
             except MT5Unavailable as exc:
                 self._set_error(exc.code, f"{timeframe}: {exc.message}")
 
@@ -234,6 +253,11 @@ class SyncEngine:
 
         # 5. Fill local gaps from MT5 where the broker still has the bars.
         self._fill_gaps(plan)
+        # 5b. W1/MN1 have no fixed bar length, so they are excluded from
+        #     arithmetic gap detection above. Repair them against the source's
+        #     own bar grid instead, or a weekly bar missed during downtime would
+        #     be lost silently.
+        self._repair_irregular_streams(plan, newest_closed, previous_newest)
 
         # 6. Deliver, in order.
         self._deliver(plan)
@@ -265,7 +289,7 @@ class SyncEngine:
             self._status.broker = self._reader.broker
             self._status.clock_offset_seconds = self._reader.clock_offset_seconds()
 
-    def _capture_timeframe(self, timeframe: str) -> None:
+    def _capture_timeframe(self, timeframe: str) -> Optional[int]:
         assert self._reader is not None
         now = int(time.time())
         offset = self._reader.clock_offset_seconds()
@@ -273,17 +297,17 @@ class SyncEngine:
             candles = self._reader.read_closed(timeframe, 2)
         except MT5Unavailable as exc:
             self._set_error(exc.code, f"{timeframe}: {exc.message}")
-            return
+            return None
         candles = drop_forming_candle(candles, timeframe, now, offset)
         if not candles:
-            return
+            return None
         newest = candles[-1]
         reason = validate_candle(
             newest.symbol, timeframe, newest.open_time_utc, newest.open,
             newest.high, newest.low, newest.close, now, offset)
         if reason:
             self._set_error("MARKET_DATA_INVALID", f"{timeframe}: {reason}")
-            return
+            return None
         stored = StoredCandle(
             uid=CandleStore.make_uid(newest.symbol, timeframe,
                                      newest.open_time_utc),
@@ -303,6 +327,7 @@ class SyncEngine:
             }
             self._status.stored_count_per_timeframe[timeframe] = \
                 self._store.count(newest.symbol, timeframe)
+        return newest.open_time_utc
 
     def _receiver_open_times(self) -> Dict[tuple, List[int]]:
         """What the receiver holds, per stream. Empty on failure (the local
@@ -475,45 +500,64 @@ class SyncEngine:
             if step is None:
                 continue
             wanted = (gap_end - gap_start) // step + 1
-            # read_closed returns the newest N closed bars, so N must reach
-            # back past gap_start, not merely cover the width of the gap.
             newest = self._store.latest_open_time(symbol, timeframe)
             if newest is None:
                 continue
-            depth = max(0, (newest - gap_start) // step) + wanted + 5
-            depth = min(depth, self._config.catchup_bar_limit)
-            try:
-                candles = self._reader.read_closed(timeframe, depth)
-            except MT5Unavailable as exc:
-                unresolved.append(
-                    f"{symbol} {timeframe}: cannot fill gap from "
-                    f"{gap_start} to {gap_end} ({exc.message})")
+            # Reach back past gap_start, not merely across the width of the gap,
+            # because read_closed returns the newest N bars. Bounded by
+            # catchup_max_bars so a very long outage cannot turn into one
+            # unbounded read, and walked in catchup_bar_limit pages so memory
+            # stays flat: each page is stored and released before the next.
+            reach = (newest - gap_start) // step + wanted + 5
+            reach = min(reach, self._config.catchup_max_bars)
+            if reach <= 0:
                 continue
-            filled = 0
+            chunk = max(1, self._config.catchup_bar_limit)
             now = int(time.time())
             offset = self._reader.clock_offset_seconds()
-            to_store: List[StoredCandle] = []
-            for candle in candles:
-                if candle.open_time_utc < gap_start or candle.open_time_utc > gap_end:
+            destination = self._status.destination
+            filled = 0
+            # Walk backwards from the newest bar, so each page is older than
+            # the last. Within a page the bars are oldest-first, which is the
+            # order the store and the queue want.
+            offset_bars = 0
+            while offset_bars < reach:
+                want = min(chunk, reach - offset_bars)
+                try:
+                    page = self._reader.read_closed(timeframe, want,
+                                                    skip=offset_bars)
+                except MT5Unavailable as exc:
+                    unresolved.append(
+                        f"{symbol} {timeframe}: cannot fill gap from "
+                        f"{gap_start} to {gap_end} ({exc.message})")
+                    break
+                offset_bars += want
+                if not page:
+                    break
+                to_store: List[StoredCandle] = []
+                for candle in page:
+                    if (candle.open_time_utc < gap_start
+                            or candle.open_time_utc > gap_end):
+                        continue
+                    reason = validate_candle(
+                        candle.symbol, timeframe, candle.open_time_utc,
+                        candle.open, candle.high, candle.low, candle.close,
+                        now, offset)
+                    if reason:
+                        continue
+                    to_store.append(StoredCandle(
+                        uid=CandleStore.make_uid(symbol, timeframe,
+                                                 candle.open_time_utc),
+                        symbol=symbol, timeframe=timeframe,
+                        open_time_utc=candle.open_time_utc, open=candle.open,
+                        high=candle.high, low=candle.low, close=candle.close,
+                        tick_volume=candle.tick_volume, spread=candle.spread,
+                        real_volume=candle.real_volume, source=candle.broker,
+                        stored_at=now))
+                    filled += 1
+                if not to_store:
                     continue
-                reason = validate_candle(
-                    candle.symbol, timeframe, candle.open_time_utc, candle.open,
-                    candle.high, candle.low, candle.close, now, offset)
-                if reason:
-                    continue
-                to_store.append(StoredCandle(
-                    uid=CandleStore.make_uid(symbol, timeframe,
-                                             candle.open_time_utc),
-                    symbol=symbol, timeframe=timeframe,
-                    open_time_utc=candle.open_time_utc, open=candle.open,
-                    high=candle.high, low=candle.low, close=candle.close,
-                    tick_volume=candle.tick_volume, spread=candle.spread,
-                    real_volume=candle.real_volume, source=candle.broker,
-                    stored_at=now))
-                filled += 1
-            if to_store:
                 self._store.put_many(to_store)
-                destination = self._status.destination
                 for stored in to_store:
                     # Only queue what the receiver has not confirmed. A gap-fill
                     # re-reads a window that may overlap already-delivered
@@ -533,6 +577,83 @@ class SyncEngine:
                 self._status.local_gaps = unresolved[:20]
         if plan.queue:
             plan.queue.sort(key=lambda k: k.sort_key())
+
+    def _repair_irregular_streams(
+            self, plan: planning.DeliveryPlan,
+            newest_closed: Dict[str, int],
+            previous_newest: Dict[str, Optional[int]]) -> None:
+        """Re-read W1/MN1 from the source's own grid, so a missed bar is not lost.
+
+        Arithmetic gap detection is skipped for these two timeframes because a
+        weekly or monthly bar has no fixed length, so a missing one cannot be
+        told apart from a market holiday by arithmetic alone. But skipping the
+        *repair* would lose the bar silently, which is worse. Instead the
+        source is asked which bars exist in the window since the last stored
+        bar, and any bar it reports that is not stored locally is persisted.
+
+        ``previous_newest`` is the newest stored open time from *before* this
+        pass captured a bar, which is what makes the missed window visible:
+        capturing stores the newest bar first, so reading the watermark
+        afterwards would show no window at all.
+
+        Only open times the source itself reports are ever used, so no bar is
+        invented and a holiday simply does not appear.
+        """
+        assert self._reader is not None
+        added: List[str] = []
+        for symbol, timeframe in sorted(
+                {(s.symbol, s.timeframe) for s in plan.streams},
+                key=lambda k: (k[0], timeframe_rank(k[1]))):
+            if timeframe not in IRREGULAR_TIMEFRAMES:
+                continue
+            newest = newest_closed.get(timeframe)
+            if newest is None:
+                continue
+            previous = previous_newest.get(timeframe)
+            if previous is None or newest <= previous:
+                continue
+            try:
+                window = self._reader.read_closed(timeframe, 400)
+            except MT5Unavailable as exc:
+                plan.notes.append(
+                    f"{symbol} {timeframe}: cannot check for missed bars "
+                    f"({exc.message})")
+                continue
+            now = int(time.time())
+            offset = self._reader.clock_offset_seconds()
+            destination = self._status.destination
+            to_store: List[StoredCandle] = []
+            for candle in window:
+                if not previous < candle.open_time_utc <= newest:
+                    continue
+                reason = validate_candle(
+                    candle.symbol, timeframe, candle.open_time_utc,
+                    candle.open, candle.high, candle.low, candle.close,
+                    now, offset)
+                if reason:
+                    continue
+                to_store.append(StoredCandle(
+                    uid=CandleStore.make_uid(symbol, timeframe,
+                                             candle.open_time_utc),
+                    symbol=symbol, timeframe=timeframe,
+                    open_time_utc=candle.open_time_utc, open=candle.open,
+                    high=candle.high, low=candle.low, close=candle.close,
+                    tick_volume=candle.tick_volume, spread=candle.spread,
+                    real_volume=candle.real_volume, source=candle.broker,
+                    stored_at=now))
+            if not to_store:
+                continue
+            self._store.put_many(to_store)
+            for stored in to_store:
+                added.append(stored.uid)
+                if self._ledger.is_acknowledged(destination, stored.key):
+                    continue
+                plan.queue.append(stored.key)
+        if added:
+            plan.queue.sort(key=lambda k: k.sort_key())
+            plan.notes.append(
+                f"recovered {len(added)} weekly/monthly candle(s) from the "
+                f"source grid")
 
     def _deliver(self, plan: planning.DeliveryPlan) -> None:
         """Send the plan, in order, in bounded batches.

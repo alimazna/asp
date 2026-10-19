@@ -29,6 +29,10 @@ CONFIG_FILE_NAME = "config.json"
 TOKEN_FILE_NAME = "token"
 STORE_FILE_NAME = "candles.sqlite"
 LEDGER_FILE_NAME = "deliveries.sqlite"
+#: Smallest catch-up window that can repair a real outage. Below this a gap is
+#: silently left unfilled, so the value is both rejected in validation and
+#: raised to on load.
+MIN_CATCHUP_MAX_BARS = 1000
 
 
 def app_data_dir() -> str:
@@ -75,12 +79,21 @@ class CollectorConfig:
     # downstream engine has a decision-grade feature window immediately,
     # instead of waiting for dozens of live candles.
     prime_history_bars: int = 300
-    catchup_max_bars: int = 500
-    catchup_bar_limit: int = 5000
+    #: How far back a catch-up pass will reach to repair a gap, per stream.
+    #: This is what sets the downtime the collector survives without losing
+    #: M1 candles: at one M1 bar per minute, 100000 bars is about 69 days.
+    #: The binding limit in practice is the broker's own M1 retention, not
+    #: this number.
+    catchup_max_bars: int = 100000
+    #: Hard ceiling on a single MT5 read. A long outage is repaired over
+    #: several reads of this size rather than one very large allocation.
+    catchup_bar_limit: int = 20000
     #: Hard bound on how far back the planner will ever look, per stream. This
     #: is what stops a first run from uploading months of history: only the
     #: newest ``max_plan_bars`` candles of a stream are ever candidates for
-    #: delivery. Older captured candles stay local and are never sent.
+    #: delivery. Older captured candles stay local and are never sent. It does
+    #: not limit outage repair: gap detection needs only the bars on each side
+    #: of the hole, which are always inside this window.
     max_plan_bars: int = 2000
 
     poll_interval_seconds: int = 30
@@ -115,6 +128,15 @@ class CollectorConfig:
             problems.append("prime_history_bars must be between 0 and 10000.")
         if self.catchup_max_bars < 0:
             problems.append("catchup_max_bars must not be negative.")
+        elif self.catchup_max_bars < MIN_CATCHUP_MAX_BARS:
+            # A small catch-up window silently drops candles after any outage
+            # longer than the window: the gap is never repaired and the loss is
+            # invisible. Refuse it rather than let it look like success.
+            problems.append(
+                f"catchup_max_bars is {self.catchup_max_bars}, which is too "
+                f"small to repair a gap of more than a few hours of M1 "
+                f"candles. Use at least {MIN_CATCHUP_MAX_BARS}; the default is "
+                f"100000.")
         if self.catchup_bar_limit <= 0:
             problems.append("catchup_bar_limit must be positive.")
         if self.max_plan_bars <= 0:
@@ -167,7 +189,20 @@ class CollectorConfig:
             data.get("request_timeout_seconds", config.request_timeout_seconds))
         config.allow_insecure_http = bool(
             data.get("allow_insecure_http", config.allow_insecure_http))
+        config._raise_bounds_to_safe_floor()
         return config
+
+    def _raise_bounds_to_safe_floor(self) -> None:
+        """Lift pre-existing, too-small catch-up bounds to a safe minimum.
+
+        An installation written before the catch-up bounds were widened carries
+        values (for example ``catchup_max_bars=500``) that would lose candles
+        after a long shutdown. Loading them as-is and then refusing to start
+        would strand the app on a stale file, so they are raised to the floor
+        instead. Bounds are only ever widened here, never narrowed.
+        """
+        if self.catchup_max_bars < MIN_CATCHUP_MAX_BARS:
+            self.catchup_max_bars = MIN_CATCHUP_MAX_BARS
 
     @classmethod
     def load(cls, path: str) -> "CollectorConfig":

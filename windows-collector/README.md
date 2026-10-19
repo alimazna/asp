@@ -29,7 +29,11 @@ never places, modifies, or cancels an order.
    rejected. Acknowledged candles are never re-sent.
 4. **Gap-based first run and catch-up.** On first contact the receiver is asked
    what it holds; the difference is computed and exactly the missing candles are
-   sent, in chronological order.
+   sent, in chronological order. After a shutdown the collector re-reads the
+   candles it missed and repairs the hole, walked back in bounded pages. With the
+   default limits this covers about 69 days of M1 downtime, or years of M5 and
+   above; the real ceiling is the broker's own history depth. See
+   `docs/PROTOCOL.md` for the table.
 5. **Safe destination changes.** Confirmations are tracked *per destination*. A
    new receiver has confirmed nothing, so it receives everything it lacks. The
    app warns before this happens and never silently treats a new endpoint as

@@ -55,8 +55,8 @@ class EngineHarness:
             symbol=symbol,
             timeframes=list(timeframes or TIMEFRAMES),
             prime_history_bars=0,          # explicit per test
-            catchup_max_bars=500,
-            catchup_bar_limit=5000,
+            catchup_max_bars=100000,
+            catchup_bar_limit=20000,
             poll_interval_seconds=30,
             request_timeout_seconds=10,
             allow_insecure_http=True)      # the double listens on plain HTTP
@@ -443,6 +443,180 @@ class NineTimeframeTest(unittest.TestCase):
         self.h.receiver.state.requests = []
         self.h.engine.sync_once()
         self.assertEqual(self.h.sent_uids(), [])
+
+
+class OutageCatchUpTest(unittest.TestCase):
+    """A long shutdown must not silently lose M1 candles.
+
+    The original limits repaired only about three days of M1 before the read
+    cap truncated the gap, and the loss was invisible: the plan reported
+    success while thousands of candles were never delivered.
+    """
+
+    def _outage(self, down_minutes, config_tweak=None, timeframe="M1"):
+        step = TIMEFRAME_SECONDS[timeframe]
+        bars_down = int(down_minutes * 60 / step)
+        directory = tempfile.mkdtemp(prefix="astra_outage_")
+        terminal = FakeMt5Terminal(
+            symbol="XAUUSD",
+            total_bars=300 + bars_down + 80,
+            last_time=int(time.time()))
+        receiver = FakeReceiver(token="t")
+        config = CollectorConfig(
+            backend_url=receiver.url, sender_id="s", symbol="XAUUSD",
+            timeframes=[timeframe], prime_history_bars=300,
+            allow_insecure_http=True)
+        if config_tweak:
+            config_tweak(config)
+        store = CandleStore(os.path.join(directory, "c.sqlite"))
+        ledger = DeliveryLedger(os.path.join(directory, "d.sqlite"))
+        client = ReceiverClient(receiver.url, "t", timeout_seconds=10)
+
+        SyncEngine(config, store, ledger, client,
+                   reader=FakeReader(terminal)).sync_once()
+        before = max(int(c["open_time_utc"])
+                     for c in receiver.state.stored.values())
+
+        # A restart: the wall clock and the broker clock both move forward and
+        # the reader is rebuilt, so the broker offset is measured afresh.
+        shift = down_minutes * 60
+        terminal.last_time += shift
+        terminal.clock_offset_seconds += shift
+        receiver.state.requests = []
+        SyncEngine(config, store, ledger, client,
+                   reader=FakeReader(terminal)).sync_once()
+
+        delivered = {int(c["open_time_utc"])
+                     for c in receiver.state.stored.values()}
+        newest_closed = (terminal.last_time
+                         - (terminal.last_time % step) - step)
+        expected = list(range(before + step, newest_closed + step, step))
+        missing = [t for t in expected if t not in delivered]
+        store.close(); ledger.close(); receiver.stop()
+        return expected, missing
+
+    def test_a_week_of_downtime_loses_no_m1_candle(self):
+        expected, missing = self._outage(7 * 24 * 60)
+        self.assertEqual(missing, [],
+                         f"lost {len(missing)} of {len(expected)} candles")
+
+    def test_a_month_of_downtime_loses_no_m1_candle(self):
+        expected, missing = self._outage(30 * 24 * 60)
+        self.assertEqual(missing, [],
+                         f"lost {len(missing)} of {len(expected)} candles")
+
+    def test_every_timeframe_survives_a_day_of_downtime(self):
+        """Including W1 and MN1, which have no fixed bar length.
+
+        These two are excluded from arithmetic gap detection, so without a
+        source-grid repair a weekly bar missed during downtime was lost with no
+        warning at all.
+        """
+        for timeframe in TIMEFRAMES:
+            with self.subTest(timeframe=timeframe):
+                expected, missing = self._outage(
+                    24 * 60, timeframe=timeframe)
+                self.assertEqual(
+                    missing, [],
+                    f"{timeframe}: lost {len(missing)} of {len(expected)}")
+
+    def test_a_weekly_bar_missed_during_downtime_is_recovered(self):
+        expected, missing = self._outage(30 * 24 * 60, timeframe="W1")
+        self.assertTrue(expected, "the scenario must span at least one week")
+        self.assertEqual(missing, [],
+                         f"lost {len(missing)} of {len(expected)} weekly bars")
+
+    def test_a_monthly_bar_missed_during_downtime_is_recovered(self):
+        expected, missing = self._outage(400 * 24 * 60, timeframe="MN1")
+        self.assertEqual(missing, [],
+                         f"lost {len(missing)} of {len(expected)} monthly bars")
+
+    def test_catch_up_is_chunked_not_one_unbounded_read(self):
+        """The repair walks back in bounded pages."""
+        reads = []
+
+        directory = tempfile.mkdtemp(prefix="astra_chunk_")
+        terminal = FakeMt5Terminal(symbol="XAUUSD", total_bars=300 + 3000 + 80,
+                                   last_time=int(time.time()))
+        receiver = FakeReceiver(token="t")
+        config = CollectorConfig(
+            backend_url=receiver.url, sender_id="s", symbol="XAUUSD",
+            timeframes=["M1"], prime_history_bars=300,
+            catchup_bar_limit=500, catchup_max_bars=100000,
+            max_plan_bars=100000, allow_insecure_http=True)
+        store = CandleStore(os.path.join(directory, "c.sqlite"))
+        ledger = DeliveryLedger(os.path.join(directory, "d.sqlite"))
+        client = ReceiverClient(receiver.url, "t", timeout_seconds=10)
+
+        class CountingReader(FakeReader):
+            def read_closed(self, timeframe, count, skip=0):
+                reads.append((count, skip))
+                return super().read_closed(timeframe, count, skip)
+
+        SyncEngine(config, store, ledger, client,
+                   reader=CountingReader(terminal)).sync_once()
+        shift = 2000 * 60
+        terminal.last_time += shift
+        terminal.clock_offset_seconds += shift
+        reads.clear()
+        SyncEngine(config, store, ledger, client,
+                   reader=CountingReader(terminal)).sync_once()
+
+        catch_up_reads = [(c, s) for c, s in reads if c > 2]
+        self.assertGreater(len(catch_up_reads), 1,
+                           "a 2000-bar repair should take several bounded reads")
+        for count, _ in catch_up_reads:
+            self.assertLessEqual(count, 500,
+                                 "no single read may exceed the chunk size")
+        store.close(); ledger.close(); receiver.stop()
+
+    def test_a_config_that_cannot_repair_a_gap_is_rejected(self):
+        config = CollectorConfig(
+            backend_url="https://example.invalid", sender_id="s",
+            catchup_max_bars=100)
+        problems = config.validate()
+        self.assertTrue(
+            any("catchup_max_bars" in p for p in problems),
+            f"a tiny catch-up window must be refused, got {problems}")
+
+    def test_a_pre_existing_small_config_is_widened_not_rejected(self):
+        """A file written before the bounds were widened must still start.
+
+        Refusing it would strand an existing installation on a stale config.
+        """
+        old = {
+            "backend_url": "https://example.invalid", "sender_id": "s",
+            "symbol": "XAUUSD", "timeframes": ["M1"],
+            "prime_history_bars": 300, "catchup_max_bars": 500,
+            "catchup_bar_limit": 5000, "max_plan_bars": 2000,
+            "poll_interval_seconds": 30, "request_timeout_seconds": 30,
+            "allow_insecure_http": False,
+        }
+        config = CollectorConfig.from_dict(old)
+        self.assertGreaterEqual(config.catchup_max_bars, 1000)
+        self.assertEqual(config.validate(), [])
+
+    def test_loading_never_narrows_a_bound(self):
+        generous = {
+            "backend_url": "https://example.invalid", "sender_id": "s",
+            "catchup_max_bars": 500000, "max_plan_bars": 500000,
+        }
+        config = CollectorConfig.from_dict(generous)
+        self.assertEqual(config.catchup_max_bars, 500000)
+        self.assertEqual(config.max_plan_bars, 500000)
+
+    def test_a_small_plan_window_still_repairs_a_long_outage(self):
+        """``max_plan_bars`` bounds the planner window, not outage repair.
+
+        A hole is bounded by the candles on either side of it, and nothing is
+        stored inside the hole, so those neighbours are adjacent in the stored
+        list however small the planner window is.
+        """
+        expected, missing = self._outage(
+            30 * 24 * 60,
+            lambda c: setattr(c, "max_plan_bars", 2000))
+        self.assertEqual(missing, [],
+                         f"lost {len(missing)} of {len(expected)} candles")
 
 
 if __name__ == "__main__":

@@ -165,10 +165,13 @@ class Mt5Reader:
 
     # -- reads --------------------------------------------------------------
 
-    def read_closed(self, timeframe: str, count: int) -> List[RawCandle]:
+    def read_closed(self, timeframe: str, count: int,
+                    skip: int = 0) -> List[RawCandle]:
         """Newest ``count`` *closed* candles, oldest-first.
 
-        ``start_pos=1`` skips the forming bar at index 0.
+        ``start_pos=1`` skips the forming bar at index 0. ``skip`` reads an
+        older page: it starts ``skip`` closed bars further back, which lets a
+        long catch-up be walked in bounded chunks instead of one huge read.
         """
         if self._mt5 is None:
             raise MT5Unavailable("MT5_NOT_CONNECTED", "terminal not connected")
@@ -180,7 +183,8 @@ class Mt5Reader:
         mt5_timeframe = MT5_TIMEFRAMES[timeframe]
         try:
             rates = self._mt5.copy_rates_from_pos(
-                self._resolved_symbol, mt5_timeframe, 1, int(count))
+                self._resolved_symbol, mt5_timeframe, 1 + int(skip),
+                int(count))
         except Exception as exc:
             raise MT5Unavailable("MT5_READ_FAILED", str(exc)) from None
         if rates is None:

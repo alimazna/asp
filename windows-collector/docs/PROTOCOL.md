@@ -110,6 +110,36 @@ exactly once logically.
 - Chronological order within a batch.
 - Plain HTTP is refused unless explicitly enabled for local development.
 
+## How much downtime the collector survives
+
+After a restart the collector notices the candles it missed and re-reads them
+from the terminal, as long as the broker still serves those bars. The default
+limits allow this much downtime with no M1 candle lost:
+
+| Timeframe | Downtime absorbed with defaults |
+| --- | --- |
+| M1 | about 69 days (100000 bars) |
+| M5 | about 347 days |
+| M15 | far beyond a year |
+
+W1 and MN1 have no fixed bar length, so they are not checked arithmetically:
+a missing weekly bar cannot be told from a market holiday. Instead the source
+is asked which bars exist since the last stored one, and every bar it reports
+that is missing locally is persisted. Only open times the source itself reports
+are used, so no bar is invented and a holiday simply does not appear.
+
+In practice the real limit is the broker's own M1 history depth, which is often
+only a few months. When the broker no longer serves a missing bar, the gap is
+reported in the window and in the event log; it is never silently ignored.
+
+The relevant settings are `catchup_max_bars` (how far back a repair reaches)
+and `catchup_bar_limit` (the largest single terminal read; a long repair is
+walked in pages of this size, so memory stays flat no matter how long the
+outage was). `max_plan_bars` bounds how far back the planner will deliver, but
+does not limit repair: a hole is bounded by the candles on either side of it,
+and nothing is stored inside it, so those neighbours stay adjacent whatever the
+planner window is.
+
 ## What the receiver must not do
 
 - Never require the collector to open an inbound port.

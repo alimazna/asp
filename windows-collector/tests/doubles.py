@@ -298,14 +298,15 @@ class FakeReader:
             self._offset = self.terminal.clock_offset_seconds
         return self._offset
 
-    def read_closed(self, timeframe: str, count: int):
+    def read_closed(self, timeframe: str, count: int, skip: int = 0):
         from collector.mt5_reader import MT5Unavailable
         if not self._resolved:
             raise MT5Unavailable("MT5_NOT_CONNECTED", "not connected")
         if not self.terminal.available:
             raise MT5Unavailable("MT5_TERMINAL_UNAVAILABLE", "fake terminal down")
         raw = self.terminal.copy_rates_from_pos(
-            self._resolved, MT5_TIMEFRAME_VALUES[timeframe], 1, int(count))
+            self._resolved, MT5_TIMEFRAME_VALUES[timeframe], 1 + int(skip),
+            int(count))
         if raw is None:
             raise MT5Unavailable("MT5_READ_FAILED", "fake read failed")
         from collector.mt5_reader import RawCandle
