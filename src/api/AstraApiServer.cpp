@@ -572,6 +572,11 @@ ApiResponse AstraApiServer::handleRequest(
         std::string tf = "M15";
         int limit = 500;
         // Parse ?tf=...&limit=... from the query string (form-encoded keys).
+        // `timeframe` is accepted as an alias for `tf`: the documented wire
+        // contract uses `tf`, but the response field, the ingestion request and
+        // the MT5 bridge all spell it `timeframe`, so a caller can reasonably
+        // send either. Without the alias such a caller silently received M15 —
+        // a wrong answer with no error.
         std::istringstream qs(query);
         std::string pair;
         while (std::getline(qs, pair, '&')) {
@@ -579,7 +584,7 @@ ApiResponse AstraApiServer::handleRequest(
             if (eq == std::string::npos) continue;
             const std::string key = pair.substr(0, eq);
             const std::string value = pair.substr(eq + 1);
-            if (key == "tf") tf = value;
+            if (key == "tf" || key == "timeframe") tf = value;
             else if (key == "limit") {
                 try {
                     limit = std::stoi(value);

@@ -289,6 +289,38 @@ RuntimeCycleReport AuraRuntime::tick(Timestamp now) {
     return report;
 }
 
+// Seed the analysis bus with persisted closed history. See the header for why
+// this exists: the bus is in-memory, the store is durable, and the multi-
+// timeframe gate needs three closed bars per stream before it will evaluate.
+void AuraRuntime::seedHistory(Timeframe timeframe, const std::vector<Bar>& bars,
+                              const std::string& symbol, Timestamp now) {
+    if (bars.empty()) return;
+    const std::string key = toString(timeframe);
+    // Only publish bars strictly newer than whatever is already on the bus, and
+    // only in ascending order, so a seed never rewinds or duplicates a stream.
+    std::int64_t lastOpen = lastPublishedBarOpenSec_[key];
+    for (const Bar& bar : bars) {
+        if (bar.openTimeSec <= lastOpen) continue;
+        const std::uint64_t seq = dataBus_.publish(bar, "candle-store", now);
+        lastPublishedBarOpenSec_[key] = bar.openTimeSec;
+        lastOpen = bar.openTimeSec;
+        timeframeStore_.updateFromClosedBar(bar, seq);
+    }
+    const std::string sym = symbol.empty() ? "XAUUSD" : symbol;
+    pipeline_->setSymbol(sym);
+}
+
+// Evaluate the objective implied by the history on the bus. Reuses the exact
+// causal decision path the ingest route uses, so seeding cannot produce a
+// decision the live path would not.
+void AuraRuntime::evaluateFromHistory(Timestamp now, RuntimeCycleReport& report) {
+    if (!pipeline_) return;
+    const Timeframe op = pipeline_->config().operationalTimeframe;
+    const std::vector<Bar> history = dataBus_.recent(op, pipeline_->config().historyBars);
+    if (history.empty()) return;
+    runDecisionCycle(history.back(), now, report);
+}
+
 RuntimeCycleReport AuraRuntime::ingestExternalBars(
     const std::string& source, const std::string& symbol, Timeframe timeframe,
     const std::vector<Bar>& bars, Timestamp now) {
@@ -299,7 +331,6 @@ RuntimeCycleReport AuraRuntime::ingestExternalBars(
         report.issues.push_back("no bars in external ingestion batch");
         return report;
     }
-
     // Validate every bar (defense in depth; the sender already validates).
     // Per-bar validation mirrors the bridge-fed tick path.
     BarFinalizer finalizer;

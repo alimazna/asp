@@ -94,6 +94,22 @@ public:
         const std::string& source, const std::string& symbol, Timeframe timeframe,
         const std::vector<Bar>& bars, Timestamp now);
 
+    // Seed the analysis bus with persisted closed history. The durable candle
+    // store survives deployments; the in-memory bus does not. Without this the
+    // engine restarts with an empty bus and cannot reach the multi-timeframe
+    // trigger minimum (three closed bars per stream) until enough live candles
+    // accumulate, so a freshly deployed backend serves no decision for hours.
+    // `bars` must be ascending, already closed, and already validated. This
+    // publishes history only; it never fabricates a decision.
+    void seedHistory(Timeframe timeframe, const std::vector<Bar>& bars,
+                     const std::string& symbol, Timestamp now);
+
+    // Evaluate the current objective from the history already on the bus. Called
+    // once after seedHistory so a restart serves the objective implied by
+    // persisted data instead of waiting for the next live candle. Runs the same
+    // causal pipeline as the ingest path and honours the same gates.
+    void evaluateFromHistory(Timestamp now, RuntimeCycleReport& report);
+
     void stop();
 
     // Atomic so the API thread can read them while the startup thread finalizes.
