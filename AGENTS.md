@@ -93,17 +93,23 @@ hardcode a timeframe as untrusted.
   (`4605ca78-b54a-4688-934d-45b37f54a7a8`) mounted at `/opt/astra/data`.
 - Frontend: `https://astra-dia.pages.dev` (Cloudflare Pages project `astra`).
 - All five synthetic deployment-verification rows were purged on 2026-10-16.
-  Production now holds the owner's **real** MT5 data for the multi-hour
-  timeframes (H4/D1/W1/MN1); the intraday timeframes are empty because the
-  pre-`f92075e` guard rejected them (see the broker-clock section below).
-  `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
-  for a backend with no bridge and partial timeframe coverage.
-- **2026-10-19:** the deployed container still runs the pre-`f92075e` ingest
-  guard (see below). The broker-clock fix is merged to `main` (`5afe44d`,
-  PR #15) but **not deployed**, because no Railway credential exists in the
-  agent environment. The owner's "only 4 timeframes" symptom persists until
-  `Deploy backend to Railway` runs (needs a `RAILWAY_TOKEN` secret) or
-  `railway up` runs with a token.
+- **2026-10-26 (verified live):** the deployed container now runs the
+  post-`f92075e` ingest guard. `/api/v1/health` reports all **nine** timeframes
+  with a closed bar, so the owner's "only 4 timeframes" symptom is resolved in
+  production. The store still holds only the candles the sender actually pushed
+  (M1/M5/M15/M30/D1/W1/MN1 had a single closed bar; H1 nine; H4 four) — the
+  system never fabricates coverage.
+- **2026-10-26 (open gap):** the deployed container does **not** yet run the
+  analysis-bus rehydration from `606aa74`, so `/api/v1/analysis/latest` still
+  reports `mtf_core_gate_passed:false` with
+  `block_reasons:["multi-timeframe core gate: M15 and H4 streams unavailable"]`
+  even though both streams are present in the durable store. The gate needs
+  three closed bars on each of M15 and H4; the in-memory bus starts empty on
+  every container start and is only fed by live ingestion. Until the rehydration
+  commit is deployed, a fresh container serves no objective until live candles
+  accumulate on their own. Deploying it needs a `RAILWAY_TOKEN` secret.
+- `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
+  for a backend with no bridge.
 - Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
   `scripts/quarantine_admin.py list --all` flags misaligned rows and prints
   the exact purge command.

@@ -272,6 +272,11 @@ TEST_CASE(restart_rehydrates_analysis_history_so_the_core_gate_passes) {
         }
     }
 
+    // There is no MT5 terminal on this host, so the bridge handshake resolved no
+    // symbol. The analysis must still name the instrument the persisted candles
+    // actually belong to instead of reporting an empty symbol for real data.
+    CHECK(analysis.body.find("\"symbol\":\"XAUUSD\"") != std::string::npos);
+
     stopServer(pid2);
     fs::remove_all(tmp, ec);
 #endif

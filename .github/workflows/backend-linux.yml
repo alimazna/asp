@@ -1,0 +1,58 @@
+name: Backend - Linux build and tests
+
+# The C++ backend is what Railway runs. Nothing else in CI compiles or tests it:
+# the Windows workflows only exercise the Windows host, and the Railway workflow
+# only ships a container. A change to src/ could therefore break the Linux build
+# or the API contract with every check still green, so this workflow is the
+# Linux gate.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - "Dockerfile"
+      - ".github/workflows/backend-linux.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - "Dockerfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build libsqlite3-dev
+
+      - name: Configure
+        run: cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-linux -j"$(nproc)"
+
+      - name: Test
+        working-directory: build-linux
+        run: ctest --output-on-failure -j"$(nproc)"
+
+      # The container is what actually deploys, so build it too: a Dockerfile
+      # that no longer matches the source must fail here, not on Railway.
+      - name: Build the deployment container
+        run: docker build -t astra-server:ci .

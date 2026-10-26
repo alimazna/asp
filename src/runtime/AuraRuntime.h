@@ -157,7 +157,17 @@ public:
         return pipeline_ != nullptr ? pipeline_->lastDecisionContext()
                                     : DecisionContext{};
     }
-    std::string resolvedSymbol() const { return startupReport().resolvedSymbol; }
+    // The symbol the engine is actually working on. Prefer the bridge
+    // handshake (authoritative when a terminal is attached), then the symbol the
+    // decision pipeline was seeded with. On a backend with no MT5 terminal the
+    // handshake is empty, yet the durable store still holds real candles for a
+    // known instrument, so the pipeline symbol is the honest answer; returning
+    // "" there reported an empty instrument for data that is genuinely XAUUSD.
+    std::string resolvedSymbol() const {
+        const std::string& handshake = startupReport().resolvedSymbol;
+        if (!handshake.empty()) return handshake;
+        return pipeline_ != nullptr ? pipeline_->symbol() : std::string();
+    }
     bool mt5Ready() const noexcept { return startupReport().mt5Ready; }
     bool bridgeHandshakeOk() const noexcept { return startupReport().handshakeOk; }
     StartupStage startupStage() const noexcept { return startupReport().stage; }
