@@ -3,11 +3,13 @@
 Owner-facing instructions. Written so the application can be started normally,
 without a command prompt and without installing a development toolchain.
 
-> **Use 1.0.3 or later.** Releases 1.0.0 and 1.0.2 could not deliver a single
+> **Use 1.0.4 or later.** Releases 1.0.0 and 1.0.2 could not deliver a single
 > candle: they omitted `source_id`, sent the bar open time under the wrong field
 > name, and dropped the measured clock offset. The server rejected every batch
 > (HTTP 400), or accepted it with `ingested: 0` and every candle in `rejected`.
-> 1.0.3 fixes all three and is verified against the real server binary.
+> 1.0.3 fixed all three. 1.0.4 adds a first-run setup window that tests your
+> connection before it saves it, a separate **Connect to MT5** button, and a
+> copyable description of the receiving side.
 
 ## 1. Requirements
 
@@ -23,8 +25,8 @@ executable.
 ## 2. Install
 
 1. Download `ASTRA-Collector.exe` — direct link:
-   <https://github.com/alimazna/asp/releases/download/collector-v1.0.3/ASTRA-Collector.exe>
-   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.3>
+   <https://github.com/alimazna/asp/releases/download/collector-v1.0.4/ASTRA-Collector.exe>
+   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.4>
 2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
    If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
    the same folder; it is a one-click launcher.
@@ -39,7 +41,7 @@ Optional: verify the download before running it. In PowerShell:
 Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 ```
 
-For the 1.0.3 release the expected SHA256 is:
+For the 1.0.4 release the expected SHA256 is:
 
 ```
 0DE3724E63D91A8FEBDA4F2F748FBD3EBAE0B05AB17725D5CD7A9715859C5925
@@ -70,23 +72,45 @@ fails the reason is written to
 
 ## 3. Configure
 
-Fill in the three fields at the top of the window:
+On the very first run — when no destination and no token have been saved — a
+setup window opens automatically. It asks for four values and **tests them
+before it saves anything**:
 
 | Field | Meaning |
 | --- | --- |
 | Receiver URL | The HTTPS endpoint that will receive the candles, including the API version, e.g. `https://your-backend.up.railway.app/api/v1` |
 | Symbol | The instrument, e.g. `XAUUSD`. See symbol discovery below. |
-| Sender id | A name for this computer, e.g. `desk-pc`. Identifies the sender in the receiver's records. |
+| Sender id | A name for this computer, e.g. `desk-pc`. A sensible default is filled in. |
 | Token | The access token for the receiver. |
 
-Then press **Save settings**.
+Press **Test and save**. The app checks the receiver twice: first that the URL
+answers, then that the token is accepted. If either fails it explains what went
+wrong and saves nothing, so a mistyped token is caught here instead of looking
+like a silent failure later.
+
+To change any of these later, press **Run setup again**.
 
 The token is stored in a separate file with owner-only permissions, not in the
 configuration file and never in the source. Press **Reveal token** only if you
-need to read it back; the window warns you first.
+need to read it back; the window warns you first. You can paste with the right
+mouse button if you prefer not to use Ctrl+V.
 
 **Test connection** checks both the MetaTrader terminal and the receiver and
 reports what each one said, using real responses.
+
+### Connecting to MetaTrader
+
+The app does not connect to your terminal on its own. Press **Connect to MT5**
+when you want to. The button reports one of three real states:
+
+| Shown | Meaning |
+| --- | --- |
+| connected (symbol @ broker) | The terminal answered and served a closed bar. |
+| reachable, no closed bar | The terminal answered but had no closed bar to give. Check that the symbol is in Market Watch and that its history has downloaded. |
+| not connected | The terminal is not running, not logged in, or the symbol was not found. The message says which. |
+
+Press the button again at any time to re-check the live terminal. It becomes
+**Check MT5** once connected.
 
 ## 4. Symbol discovery
 
@@ -178,3 +202,22 @@ Windows runner and uploads it as the artifact `ASTRA-Collector-windows`.
 - It never places orders. There is no trading code in this application.
 - Tokens never appear in the event log. Error text from the receiver is bounded
   and stripped of anything resembling a credential before it is shown.
+
+## 11. Telling someone else how to receive your data
+
+At the bottom of the window there is a **Receiver setup text** panel. Press
+**Show setup text** to read it, **Copy setup text** to put it on the clipboard,
+or **Save as file...** to write it to a file.
+
+The text is a complete description of the receiving side: every endpoint, every
+field, the exact failure each missing field causes, the deduplication rule, and
+the response shape. It is generated from the same values the app actually uses,
+so it cannot drift from what the app sends.
+
+Send it to whoever is building your receiving service — a developer, or another
+AI agent — and they can build a compatible receiver from that text alone,
+without knowing this project.
+
+The text contains no token and no secret. It is safe to paste into a message.
+The receiver URL and sender id appear in it, which is intentional: the reader
+needs them to configure their side.
