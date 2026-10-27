@@ -38,6 +38,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -229,6 +230,17 @@ bool parseCandle(const JsonValue& candle, StoredCandle& out,
     return true;
 }
 
+// A persistence failure detail can carry the raw sqlite3 message (table names,
+// file paths, "attempt to write a readonly database"). That is useful in the
+// server log and an information leak in a client response, so log the detail
+// and return only a generic, stable message to the caller.
+ApiResponse storeFailureResponse(const std::string& context,
+                                 const std::string& detail) {
+    std::cerr << "  ERROR: " << context << ": " << detail << std::endl;
+    return errorResponse(500, "store_failure",
+                         "persistence failed; the server log has the detail");
+}
+
 }  // namespace
 }  // namespace aura
 
@@ -316,6 +328,29 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    // The three credential sets are separate privileges by design: a sender
+    // credential must not open the admin or private read surface, and the admin
+    // credential must not open the private read surface. If the operator reuses
+    // one value across sets that separation silently collapses, so refuse to
+    // start rather than serve with a weaker model than the docs promise.
+    {
+        std::vector<std::string> all = tokens;
+        all.insert(all.end(), adminTokens.begin(), adminTokens.end());
+        const std::vector<std::string> clientTokens =
+            splitComma(envOr("ASTRA_CLIENT_TOKEN", ""));
+        all.insert(all.end(), clientTokens.begin(), clientTokens.end());
+        std::set<std::string> seen;
+        for (const auto& t : all) {
+            if (!t.empty() && !seen.insert(t).second) {
+                std::cerr << "FATAL: a credential value is reused across "
+                             "sender/admin/client. Use three distinct tokens so "
+                             "the separation of powers holds."
+                          << std::endl;
+                return 2;
+            }
+        }
+    }
+
     std::error_code fsError;
     std::filesystem::create_directories(dataDir, fsError);
     if (fsError) {
@@ -387,6 +422,8 @@ int main(int argc, char** argv) {
         parseIntEnv("ASTRA_SYNC_RATE_PER_MIN", 240);
     apiConfig.maxCandlesPerBatch = static_cast<std::size_t>(
         parseIntEnv("ASTRA_MAX_CANDLES_PER_BATCH", 500));
+    apiConfig.maxConcurrentConnections =
+        parseIntEnv("ASTRA_MAX_CONCURRENT_CONNECTIONS", 256);
 
     AstraApiServer server(&facade, apiConfig);
 
@@ -463,8 +500,7 @@ int main(int argc, char** argv) {
         std::vector<CandleInsertResult> results;
         std::string storeError;
         if (!store.insertBatch(candles, results, storeError)) {
-            return errorResponse(500, "store_failure",
-                                 "persistence failed: " + storeError);
+            return storeFailureResponse("candle ingest persistence", storeError);
         }
 
         // Feed accepted candles into the runtime analysis path. The timeframe
@@ -679,8 +715,7 @@ int main(int argc, char** argv) {
         std::string deleteError;
         if (!store.deleteCandle(source, symbol, timeframe, openTime.asInt64(),
                                 deleted, deleteError)) {
-            return errorResponse(500, "store_failure",
-                                 "purge failed: " + deleteError);
+            return storeFailureResponse("admin candle purge", deleteError);
         }
         std::vector<ApiField> fields;
         fields.push_back({"source_id", jsonString(source), true});
@@ -922,8 +957,7 @@ int main(int argc, char** argv) {
         std::vector<NewsInsertResult> results;
         std::string storeError;
         if (!newsStore.insertArticles(articles, results, storeError)) {
-            return errorResponse(500, "store_failure",
-                                 "news persistence failed: " + storeError);
+            return storeFailureResponse("news ingest persistence", storeError);
         }
         return NewsApi::ingestAck(static_cast<int>(articles.size()), results);
     };

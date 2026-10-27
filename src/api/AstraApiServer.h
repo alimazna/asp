@@ -55,6 +55,13 @@ struct AstraApiServerConfig {
     // Largest accepted ingestion batch. A sender paginates; the server refuses
     // an unbounded batch rather than parse it. Enforced in the ingest handler.
     std::size_t maxCandlesPerBatch = 500;
+    // Hard cap on concurrent connection-handler threads. Each connection is
+    // served on its own thread, so without a cap a client that opens many
+    // sockets (or dribbles headers) parks unbounded threads. Excess connections
+    // over the cap are refused with 503 rather than queued, so a flood cannot
+    // exhaust the process. <= 0 disables the cap (tests that drive many
+    // sequential connections).
+    int maxConcurrentConnections = 256;
 };
 
 class AstraApiServer {
@@ -116,6 +123,9 @@ private:
     bool authorize(const std::string& authorizationHeader) const;
     bool authorizeAdmin(const std::string& authorizationHeader) const;
     bool authorizeClient(const std::string& authorizationHeader) const;
+    // Per-route throttle for failed authentication. Returns true while the
+    // route is under its unauthenticated-probe budget (the route's own limit).
+    bool unauthAllowed(const std::string& route, int limitPerMinute);
     bool originAllowed(const std::string& origin) const;
 
     // Fixed-window, per-credential rate limit. Returns true when the request is

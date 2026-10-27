@@ -196,3 +196,64 @@ exposed to an untrusted network, switch all three to a constant-time compare
 - No review of `astra-frontend/` (out of scope) or of the Windows sender EXE.
 - No claim that the three tokens are strong; strength is the operator's
   responsibility (`.env.example` only requires that they differ).
+
+---
+
+# Addendum — Agent D backend-hardening security review (2026-10-27)
+
+Owner: Agent D (Security review, backend-hardening round). This section is
+append-only and does not modify the review above. Full write-up, with per-finding
+severity/reproduction/fix/regression test, is in
+`docs/ayzr/backend-hardening/SECURITY_FINDINGS.md`; the machine-checkable
+evidence is `tests/AyzrSecurityTests.cpp` (19 cases, in-process real
+`AstraApiServer`).
+
+## What was re-verified (still holds)
+
+The three-way credential separation is intact and was re-proved end to end:
+
+- sender → ingest/sync/news-ingest only; client → private read only; admin →
+  admin candle surface only; every cross-role attempt 401 with the handler never
+  running (asserted by a handler counter, not just a status code);
+- missing, empty, malformed and prefix/suffix credential variants fail closed on
+  every protected route;
+- an unset admin or client token list disables its surface (401), never serves it;
+- no sender token → the process refuses to start (exit 2);
+- request-size (413), rate-limit (429) and CORS (403) are enforced *before* the
+  handler;
+- error bodies stay flat (`{error,code,message}`) and a leak assertion rejects
+  any credential, source filename, `sqlite3`, `std::`, `/workspace`, `/tmp/`;
+- no configured credential appears in the server log (sentinel check) and none
+  is hardcoded in the tree.
+
+## New findings (all OPEN; fixes belong to source files owned by other agents)
+
+| ID | Severity | Summary | Owner file |
+|----|----------|---------|-----------|
+| F-D-1 | MEDIUM | Rate-limit key is the raw `Authorization` header, so whitespace variants of the same credential get a fresh bucket — the limit is evadable by a valid token holder. | `src/api/AstraApiServer.cpp` |
+| F-D-2 | MEDIUM | Failed authentication is never throttled (auth check precedes the limiter), so bearer tokens can be brute-forced at line rate. | `src/api/AstraApiServer.cpp` |
+| F-D-8 | LOW-MED | Store **write** failures echo the raw `sqlite3_errmsg` string into the 500 body (verified: `"persistence failed: insert failed: attempt to write a readonly database"`). The generic `code` is fine; the `message` should be sanitised and the detail logged. | `src/api/AstraServerMain.cpp` + stores |
+| F-D-3 | LOW | `/api/v1/admin/candles` returns 405 for a wrong method *before* authenticating, disclosing the privileged route/method set to an unauthenticated caller. | `src/api/AstraApiServer.cpp` |
+| F-D-5 | MEDIUM | One detached thread is spawned per connection with no cap and no whole-header deadline, so dribbled headers park threads unboundedly (verified: 700 connections → 700 threads, no auth required). | `src/api/AstraApiServer.cpp` |
+| F-D-6 | LOW | No startup guard that the three credential values differ; identical values silently collapse the separation of powers (verified with `SHARED` opening ingest + admin + private read). | `src/api/AstraServerMain.cpp` |
+| F-D-4 | LOW | Token compare is not constant-time (carried from F-P-1, unchanged). | `src/api/AstraApiServer.cpp` |
+| F-D-7 | INFO | `--sender-token ""` is treated as configured (starts, then 401s) whereas the env path refuses to start. | `src/api/AstraServerMain.cpp` |
+
+## Regression tests
+
+`tests/AyzrSecurityTests.cpp` ships 19 cases. The cross-role denial, fail-closed
+and error-hygiene cases assert the current secure behaviour and always run. The
+open findings each have a regression test that asserts the *secure* expectation
+and is skipped unless `AYZR_SECURITY_ENFORCE_FIXES=1` is set; with that set the
+suite fails on exactly the four gated cases (F-D-1, F-D-2, F-D-3, F-D-8), which
+is the intended signal until the owning source files are fixed. F-D-5/F-D-6/F-D-7
+are recorded with reproductions but have no cheap in-suite case (a 700-connection
+exhaustion probe would itself be a load test; F-D-6/F-D-7 are startup refusals in
+a file Agent D does not own).
+
+## Not claimed
+
+Nothing here changes a route contract, a decision path, or the frozen v1 read
+surface. `GET /api/v1/candles` remaining unauthenticated is the existing frozen
+contract, not a new finding. No live LLM7 call was made (mock provider
+throughout); no deployment, no push.
