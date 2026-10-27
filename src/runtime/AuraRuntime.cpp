@@ -308,6 +308,13 @@ void AuraRuntime::seedHistory(Timeframe timeframe, const std::vector<Bar>& bars,
     }
     const std::string sym = symbol.empty() ? "XAUUSD" : symbol;
     pipeline_->setSymbol(sym);
+    // Publishing bars must refresh the health view, exactly as the ingest and
+    // tick paths do. Seeding only the bus left /health reporting STARTING with
+    // observed_at -1 on a remote-fed backend (no tick thread on Railway), so the
+    // operator saw "no state observed" for every timeframe while /analysis/latest
+    // simultaneously reported the gate open on the same seeded data.
+    health_.observeTimeframes(timeframeStore_, now);
+    health_.refreshCache(now);
 }
 
 // Evaluate the objective implied by the history on the bus. Reuses the exact

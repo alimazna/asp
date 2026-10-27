@@ -61,8 +61,21 @@ void HealthMonitor::observeTimeframes(const TimeframeStateStore& store,
         } else if (!isDecisionGrade(state.quality)) {
             serviceState = ServiceState::DEGRADED;
         }
-        observeService(EntityId(name), name, serviceState, state.quality,
-                       state.hasClosedBar ? "closed bar present" : "no closed bar",
+        // The detail is rendered into `degraded_reasons` verbatim, so it must
+        // state the fault, not the observation. "closed bar present" reads as a
+        // healthy note while sitting in the list of things that are wrong, which
+        // is how a stale timeframe appeared to be fine: the real cause is the
+        // quality gate below it (STALE/UNKNOWN), never the presence of a bar.
+        std::string detail;
+        if (!state.hasClosedBar) {
+            detail = "no closed bar";
+        } else if (!isDecisionGrade(state.quality)) {
+            detail = "closed bar present but not decision-grade (" +
+                     std::string(toString(state.quality)) + ")";
+        } else {
+            detail = "closed bar present";
+        }
+        observeService(EntityId(name), name, serviceState, state.quality, detail,
                        now);
     }
 }

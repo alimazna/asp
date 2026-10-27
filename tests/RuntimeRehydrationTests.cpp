@@ -277,6 +277,28 @@ TEST_CASE(restart_rehydrates_analysis_history_so_the_core_gate_passes) {
     // actually belong to instead of reporting an empty symbol for real data.
     CHECK(analysis.body.find("\"symbol\":\"XAUUSD\"") != std::string::npos);
 
+    // /health must reflect the rehydrated data too, not stay at its startup
+    // default. This backend has no tick thread, so seeding is the only thing
+    // that can publish a health observation; before the fix /health reported
+    // observed_at -1 with "no state observed" for every timeframe while
+    // /analysis/latest reported the gate open on the same data.
+    const HttpResponse health = getPath(port2, "/api/v1/health");
+    CHECK(health.is2xx());
+    CHECK(health.body.find("\"observed_at\":-1") == std::string::npos);
+    // The seeded streams must carry a real observation. Timeframes that were
+    // never ingested may honestly report "no state observed"; M15 and H4 were
+    // rehydrated and must not.
+    CHECK(health.body.find("timeframe-M15: no state observed") ==
+          std::string::npos);
+    CHECK(health.body.find("timeframe-H4: no state observed") ==
+          std::string::npos);
+    // The reason text must name the actual fault. A bare "closed bar present"
+    // is a positive note and must never appear as a degraded reason; the
+    // seeded bars are present but their quality is UNKNOWN (no live tick), so
+    // the honest reason says so.
+    CHECK(health.body.find("closed bar present\"") == std::string::npos);
+    CHECK(health.body.find("not decision-grade") != std::string::npos);
+
     stopServer(pid2);
     fs::remove_all(tmp, ec);
 #endif
