@@ -181,6 +181,15 @@ jobs:
           ls -l "$exe"
           echo "exe=$exe" >> "$GITHUB_OUTPUT"
 
+      - name: Hash the executable
+        id: hash
+        working-directory: .
+        # Printed here so the release body can carry the digest. The owner
+        # should not have to open a build log to check a download.
+        run: |
+          digest=$(sha256sum "${{ steps.locate.outputs.exe }}" | cut -d' ' -f1)
+          echo "sha256=${digest^^}" >> "$GITHUB_OUTPUT"
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -209,8 +218,13 @@ jobs:
             Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
             ```
 
-            The SHA256 is printed in the build log of this release's workflow
-            run. Windows SmartScreen may warn about an unsigned application;
+            For this release the expected SHA256 is:
+
+            ```
+            ${{ steps.hash.outputs.sha256 }}
+            ```
+
+            Windows SmartScreen may warn about an unsigned application;
             choose "More info" then "Run anyway" only after the hash matches.
 
             Setup instructions: `windows-collector/docs/SETUP.md` in the
