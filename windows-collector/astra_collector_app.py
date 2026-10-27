@@ -157,7 +157,12 @@ def _selfcheck() -> int:
         status = "selfcheck failed"
 
     report = "\n".join([status] + lines) + "\n"
-    sys.stderr.write(report)
+    # Informational output goes to stdout, where a caller and CI expect it.
+    # A windowed exe has no stdout, so the file is the durable copy; on failure
+    # stderr is written too, so a console run shows it immediately.
+    _write(report)
+    if failures:
+        _write(report, stream="stderr")
     _write_report(report)
     return 4 if failures else 0
 

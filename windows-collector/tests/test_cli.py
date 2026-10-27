@@ -190,14 +190,23 @@ class EntryPointRoutingTest(unittest.TestCase):
             "the entry point must reach the CLI, which persists the change")
 
     def test_selfcheck_imports_every_runtime_module(self):
-        # tkinter is deliberately absent in the Linux CI image, so selfcheck
-        # reports it as the one missing component rather than crashing.
+        # The result must reach stdout, where a console run and CI read it, and
+        # must also be written to selfcheck.txt for a windowed exe that has no
+        # stdout at all. The Linux CI image has no tkinter, so it appears as the
+        # one missing component; the status line is checked either way so this
+        # test does not depend on which host runs it.
         result = self._run_entry("--selfcheck")
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("selfcheck", result.stdout,
+                      "selfcheck must report on stdout, not only on stderr")
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "selfcheck.txt")),
+            "selfcheck must also write a durable report for a windowed build")
         if result.returncode == 0:
             self.assertIn("import cleanly", result.stdout)
         else:
-            self.assertNotIn("Traceback", result.stderr)
-            self.assertIn("selfcheck failed", result.stderr)
+            self.assertEqual(result.returncode, 4)
+            self.assertIn("FAIL", result.stdout)
 
     def test_windowed_mode_does_not_hang(self):
         """A windowed exe has no stdout; arguments must still return.
