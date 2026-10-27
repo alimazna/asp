@@ -73,10 +73,14 @@ LlmRequest oneShot() {
     return request;
 }
 
-// The exact body LLM7 returns when the daily budget is spent.
+// The exact body LLM7 returns when the daily budget is spent. Captured from a
+// live probe on 2026-10-27 (HTTP 429, `retry-after: 66401` header):
+//   {"error":{"message":"Daily token quota exceeded. Retry after 66401
+//    seconds.","type":"insufficient_quota","param":null,
+//    "code":"quota_exceeded","retry_after":66401}}
 const char* kQuotaBody =
-    R"({"error":{"message":"You exceeded your current quota","type":"insufficient_quota"},)"
-    R"("retry_after":68400})";
+    R"({"error":{"message":"Daily token quota exceeded. Retry after 66401 seconds.",)"
+    R"("type":"insufficient_quota","param":null,"code":"quota_exceeded","retry_after":66401}})";
 
 // A plain burst rate limit: 429 but retryable in seconds.
 const char* kRateLimitBody =
@@ -114,13 +118,13 @@ NewsPromptContext context() {
 
 TEST_CASE(Quota_429WithInsufficientQuotaIsQuotaExhausted) {
     auto transport = std::make_shared<ScriptedTransport>();
-    transport->responses.push_back(httpStatus(429, kQuotaBody, "68400"));
+    transport->responses.push_back(httpStatus(429, kQuotaBody, "66401"));
     Llm7Provider provider = makeProvider(transport);
     const LlmResult r = provider.complete(oneShot());
     CHECK(r.outcome == LlmOutcome::QuotaExhausted);
     CHECK(r.quotaExhausted());
     CHECK(!r.retryable());
-    CHECK_EQ(r.retryAfterSeconds, 68400);
+    CHECK_EQ(r.retryAfterSeconds, 66401);
     CHECK(std::string(r.category()) == "quota_exhausted");
 }
 
@@ -150,7 +154,7 @@ TEST_CASE(Quota_RetryAfterParsesHeaderAndBody) {
     // Integer header wins.
     CHECK_EQ(Llm7Provider::parseRetryAfterSeconds("120", ""), 120);
     // Body `retry_after` used when the header is absent.
-    CHECK_EQ(Llm7Provider::parseRetryAfterSeconds("", kQuotaBody), 68400);
+    CHECK_EQ(Llm7Provider::parseRetryAfterSeconds("", kQuotaBody), 66401);
     // Nested under error{}.
     CHECK_EQ(Llm7Provider::parseRetryAfterSeconds(
                  "", R"({"error":{"retry_after":42}})"),
