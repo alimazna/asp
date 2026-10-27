@@ -100,14 +100,28 @@ hardcode a timeframe as untrusted.
   (M1/M5/M15/M30/D1/W1/MN1 had a single closed bar; H1 nine; H4 four) — the
   system never fabricates coverage.
 - **2026-10-26 (open gap):** the deployed container does **not** yet run the
-  analysis-bus rehydration from `606aa74`, so `/api/v1/analysis/latest` still
-  reports `mtf_core_gate_passed:false` with
+  analysis-bus rehydration from `606aa74` **nor the two honesty fixes that
+  followed it** (`0ee0817` symbol reporting, `cd586bd` health publication), so
+  `/api/v1/analysis/latest` still reports `mtf_core_gate_passed:false` with
   `block_reasons:["multi-timeframe core gate: M15 and H4 streams unavailable"]`
   even though both streams are present in the durable store. The gate needs
   three closed bars on each of M15 and H4; the in-memory bus starts empty on
   every container start and is only fed by live ingestion. Until the rehydration
   commit is deployed, a fresh container serves no objective until live candles
-  accumulate on their own. Deploying it needs a `RAILWAY_TOKEN` secret.
+  accumulate on their own.
+- **Deploy blocker (confirmed 2026-10-26 by dispatching the workflow):** all
+  three deploy workflows stop at their credential preflight. The Railway run
+  fails at "Fail with an actionable message if the token is missing"
+  (`RAILWAY_TOKEN` absent); the Cloudflare runs fail at "Preflight — Cloudflare
+  credentials present" (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` absent).
+  No token exists in the agent environment and there is no `~/.railway`, so a
+  deploy cannot be performed from here. Owner must add the three repository
+  secrets, then re-run the workflows on `feat/standalone-collector`.
+- **Local verification of the un-deployed fixes (2026-10-26):** fresh ingest
+  into an empty data dir, then restart with no new ingestion, yields
+  `analysis.symbol:"XAUUSD"`, `mtf_core_gate_passed:true`, and a `/health` that
+  reports `observed_at` as a real timestamp with fault-accurate per-timeframe
+  reasons. Asserted by `RuntimeRehydrationTests`; 27/27 CTest pass.
 - `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
   for a backend with no bridge.
 - Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
