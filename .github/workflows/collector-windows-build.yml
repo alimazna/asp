@@ -151,6 +151,11 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/collector-v')
     runs-on: ubuntu-latest
+    # This job never checks out the repository, so the workflow-level
+    # `working-directory: windows-collector` points at a path that does not
+    # exist here and bash fails to start ("No such file or directory"). The
+    # only run step below sets its own working-directory, which is
+    # unambiguous, rather than relying on job-level override semantics.
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -159,6 +164,7 @@ jobs:
 
       - name: Locate the executable
         id: locate
+        working-directory: .
         # The artifact keeps the path relative to the uploaded file's parent,
         # but that layout has changed between upload-artifact versions. Search
         # for the exe instead of assuming a directory, so a layout change fails
