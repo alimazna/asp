@@ -37,10 +37,18 @@ std::string NewsApi::articleJson(const NewsArticle& a, bool includeBody) {
     fields.push_back(stringField("source", a.source));
     fields.push_back(stringField("url", a.url));
     fields.push_back(stringField("category", a.category));
-    fields.push_back(intField("published_at", a.publishedAtUtc));
-    const std::string iso = isoUtcSeconds(a.publishedAtUtc);
-    fields.push_back(iso.empty() ? rawField("published_at_iso", "null")
-                                 : stringField("published_at_iso", iso));
+    // An absent publish time is unknown, not epoch 0. Emitting 0 (and the
+    // derived 1970-01-01 ISO string) would present a fabricated reading the
+    // client renders as a real date; null is the honest representation.
+    if (a.publishedAtUtc > 0) {
+        fields.push_back(intField("published_at", a.publishedAtUtc));
+        const std::string iso = isoUtcSeconds(a.publishedAtUtc);
+        fields.push_back(iso.empty() ? rawField("published_at_iso", "null")
+                                     : stringField("published_at_iso", iso));
+    } else {
+        fields.push_back(rawField("published_at", "null"));
+        fields.push_back(rawField("published_at_iso", "null"));
+    }
     fields.push_back(intField("collected_at", a.collectedAtUtc));
     fields.push_back(stringField("gold_relevance", a.goldRelevance));
     fields.push_back(boolField("body_available", a.bodyAvailable));
@@ -95,7 +103,10 @@ std::string NewsApi::analysisJson(const NewsAnalysis& a) {
     fields.push_back(stringField("model_id", a.modelId));
     fields.push_back(intField("analyzed_at", a.analyzedAtUtc));
     fields.push_back(stringField("timeframe_context", a.timeframeContext));
-    fields.push_back(intField("candle_as_of", a.candleAsOfUtc));
+    // As with published_at: no candle evidence means the data version is
+    // unknown, so it is null rather than a fabricated epoch 0.
+    fields.push_back(a.candleAsOfUtc > 0 ? intField("candle_as_of", a.candleAsOfUtc)
+                                         : rawField("candle_as_of", "null"));
     fields.push_back(stringField("astra_signal_ref", a.astraSignalRef));
     return jsonObject(fields);
 }
