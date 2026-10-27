@@ -157,11 +157,23 @@ jobs:
           name: ASTRA-Collector-windows
           path: dist
 
-      - name: Verify the executable is present
+      - name: Locate the executable
+        id: locate
+        # The artifact keeps the path relative to the uploaded file's parent,
+        # but that layout has changed between upload-artifact versions. Search
+        # for the exe instead of assuming a directory, so a layout change fails
+        # the build here with a listing rather than in the release step.
         run: |
-          test -f dist/ASTRA-Collector.exe || {
-            echo "the artifact did not contain ASTRA-Collector.exe"; exit 1; }
-          ls -l dist/ASTRA-Collector.exe
+          find . -name 'ASTRA-Collector.exe' -type f -print
+          exe=$(find . -name 'ASTRA-Collector.exe' -type f -print -quit)
+          if [ -z "$exe" ]; then
+            echo "the artifact did not contain ASTRA-Collector.exe"
+            echo "--- artifact contents ---"
+            find . -type f | head -50
+            exit 1
+          fi
+          ls -l "$exe"
+          echo "exe=$exe" >> "$GITHUB_OUTPUT"
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
@@ -170,7 +182,7 @@ jobs:
           # credential: the receiver URL and token are settings the owner
           # enters, and the token lives in a separate owner-only file. Nothing
           # secret can be extracted from this binary.
-          files: dist/ASTRA-Collector.exe
+          files: ${{ steps.locate.outputs.exe }}
           name: "ASTRA Collector ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
           draft: false
