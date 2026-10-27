@@ -103,10 +103,14 @@ public:
     //   GET  /api/v1/news/analyze?id=...     -> newsAnalyzeHandler(query)
     //   GET  /api/v1/news/quota              -> newsQuotaHandler()
     //   GET  /api/v1/history                 -> historyHandler(query)
+    //   GET  /api/v1/activity?limit&kind     -> activityHandler(query)
+    //   GET  /api/v1/providers               -> providersHandler()
     std::function<ApiResponse(const std::string&)> newsListHandler;
     std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
     std::function<ApiResponse()> newsQuotaHandler;
     std::function<ApiResponse(const std::string&)> historyHandler;
+    std::function<ApiResponse(const std::string&)> activityHandler;
+    std::function<ApiResponse()> providersHandler;
     //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
     std::function<ApiResponse(const std::string&)> newsIngestHandler;
 

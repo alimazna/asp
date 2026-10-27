@@ -127,8 +127,12 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     NewsAnalysis& a = parsed.analysis;
     a.articleId = article.articleId;
     a.analyzedAtUtc = nowUtc;
-    a.providerId = provider_->providerId();
-    a.modelId = provider_->modelId();
+    // Attribute the analysis to the provider that actually answered, not to the
+    // chain's primary. With failover configured those differ whenever an earlier
+    // provider was skipped, and the record must name the real one.
+    a.providerId = result.provider.empty() ? provider_->providerId()
+                                           : result.provider;
+    a.modelId = result.model.empty() ? provider_->modelId() : result.model;
     a.timeframeContext = context.timeframeContext;
     return a;
 }

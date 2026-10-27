@@ -113,6 +113,10 @@ int Llm7Provider::parseRetryAfterSeconds(const std::string& retryAfterHeader,
 
 LlmResult Llm7Provider::complete(const LlmRequest& request) {
     LlmResult result;
+    // Attribution is set once here so every return path reports the same
+    // honest identity, including the early "no credential" return.
+    result.provider = config_.providerLabel;
+    result.model = request.model.empty() ? config_.model : request.model;
 
     if (config_.apiToken.empty()) {
         // No credential configured: report an auth failure so the caller emits

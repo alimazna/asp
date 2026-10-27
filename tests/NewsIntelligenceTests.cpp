@@ -530,6 +530,36 @@ TEST_CASE(news_parser_drops_nonpositive_levels) {
     CHECK_EQ(parsed.analysis.takeProfit, 2680.0);
 }
 
+// --- Parser: AI-assigned gold relevance is validated, never invented ------
+TEST_CASE(news_parser_keeps_valid_gold_relevance) {
+    for (const char* v : {"high", "medium", "low", "none"}) {
+        const std::string text =
+            std::string(R"({"summary_ar":"س","direction":"no_trade",)")
+            + R"("gold_relevance":")" + v + R"("})";
+        const ParsedAnalysis p = parseAnalysisResponse(text);
+        CHECK(p.valid);
+        CHECK_EQ(p.analysis.goldRelevance, std::string(v));
+    }
+}
+
+TEST_CASE(news_parser_rejects_unknown_gold_relevance_value) {
+    // An out-of-vocabulary value must fail loudly rather than be coerced.
+    CHECK(!parseAnalysisResponse(
+               R"({"summary_ar":"س","direction":"no_trade","gold_relevance":"maybe"})")
+               .valid);
+    CHECK(!parseAnalysisResponse(
+               R"({"summary_ar":"س","direction":"no_trade","gold_relevance":"HIGH"})")
+               .valid);
+}
+
+TEST_CASE(news_parser_absent_gold_relevance_stays_unknown) {
+    // The model never asserted a relevance; the parser must not invent one.
+    const ParsedAnalysis p = parseAnalysisResponse(
+        R"({"summary_ar":"س","direction":"no_trade"})");
+    CHECK(p.valid);
+    CHECK_EQ(p.analysis.goldRelevance, std::string("unknown"));
+}
+
 // --- Parser: oversized model output is rejected, not persisted -------------
 TEST_CASE(news_parser_rejects_oversized_fields) {
     // A 70 KB summary exceeds the 64 KB cap.

@@ -160,8 +160,35 @@ run.
 - Launcher icons and splash mark are the generated assets from Agent D
   (`assets/android-res/**`), installed into `android/app/src/main/res/**`.
 
-## 8. Out of scope / not done
+## 8. Notification delivery: deliberately not implemented
+
+The owner asked for per-article notifications with a live countdown of
+"remaining validity". This is not implemented, on purpose, for two independent
+reasons that are worth recording rather than quietly skipping:
+
+1. **No validity window exists to count down.** The backend has no
+   `valid_until` / `expires_at` field anywhere in `news_articles`,
+   `news_analyses` or the candle store. A countdown would therefore have to
+   invent a duration (say 24h) and present that invention as a real property of
+   the article. That is exactly the fabrication the project rules forbid, so the
+   honest move is to not ship a countdown until a validity window is a real,
+   persisted, backend-defined value.
+2. **It would widen the permission surface.** A real Android notification needs
+   `POST_NOTIFICATIONS` (and `SCHEDULE_EXACT_ALARM` for an exact countdown),
+   which breaks the "INTERNET only, read-only client" constraint the app was
+   accepted under. Widening permissions is a decision for the owner, not a
+   side effect of adding a feature.
+
+If the owner wants this later, the correct order is: define and persist a
+validity window in the backend first, then expose it on the news envelope, then
+request the notification permissions explicitly.
+
+## 9. Out of scope / not done
 
 - No order execution, no write path, no ingestion, no admin route.
 - No backend, `astra-frontend/` or Windows-sender changes.
-- Not deployed; no store submission. The APK is a debug build.
+- Not deployed; no store submission.
+- Debug APK is the artifact used for testing. A release build is reproducible
+  (`flutter build apk --release`) but is signed with the debug keystore until the
+  owner supplies `android/key.properties` and a keystore; that signing config is
+  the only thing standing between this tree and a distributable release.

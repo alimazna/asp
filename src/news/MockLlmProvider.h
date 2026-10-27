@@ -109,7 +109,7 @@ public:
                R"("market_implications_ar":["ضعف الدولار يدعم الذهب"],)"
                R"("supporting_evidence_ar":["H4 اتجاه صاعد"],)"
                R"("opposing_evidence_ar":["زخم M15 ضعيف"],)"
-               R"("gold_impact_ar":"إيجابي على المدى القصير",)"
+               R"("gold_impact_ar":"إيجابي على المدى القصير","gold_relevance":"high",)"
                R"("direction":"bullish","entry":2650.5,"stop_loss":2640.0,)"
                R"("take_profit":2680.0,"astra_agreement":"agree",)"
                R"("invalidating_conditions_ar":"إغلاق M15 دون 2640",)"

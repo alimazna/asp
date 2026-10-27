@@ -87,6 +87,7 @@ class NewsAnalysis {
     required this.supportingEvidenceAr,
     required this.opposingEvidenceAr,
     required this.goldImpactAr,
+    required this.aiGoldRelevance,
     required this.direction,
     required this.entry,
     required this.stopLoss,
@@ -111,6 +112,11 @@ class NewsAnalysis {
   final List<String> supportingEvidenceAr;
   final List<String> opposingEvidenceAr;
   final String goldImpactAr;
+
+  /// The model's own judgement of how much this article moves gold
+  /// (`high|medium|low|none|unknown`). Distinct from the feed's routing tag on
+  /// [NewsArticle.goldRelevance]; `unknown` means the model did not assert one.
+  final String aiGoldRelevance;
   final String direction;
   final double? entry;
   final double? stopLoss;
@@ -145,6 +151,7 @@ class NewsAnalysis {
       supportingEvidenceAr: _strList(j['supporting_evidence_ar']),
       opposingEvidenceAr: _strList(j['opposing_evidence_ar']),
       goldImpactAr: _s(j['gold_impact_ar']),
+      aiGoldRelevance: _s(j['ai_gold_relevance'], 'unknown'),
       direction: _s(j['direction'], 'no_trade'),
       entry: _d(levels['entry']),
       stopLoss: _d(levels['stop_loss']),

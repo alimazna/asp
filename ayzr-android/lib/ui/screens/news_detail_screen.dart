@@ -203,6 +203,31 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       cards.add(_bulletCard(
           Ar.opposingEvidence, Icons.cancel_outlined, an.opposingEvidenceAr));
     }
+    // The model's own classification. Rendered even when it is "unknown", so
+    // an unanswered field is visible as unanswered rather than silently absent.
+    cards.add(SectionCard(
+      title: Ar.aiGoldRelevance,
+      icon: Icons.auto_awesome_outlined,
+      children: [
+        Text(
+          _relLabel(an.aiGoldRelevance),
+          style: const TextStyle(
+            color: AyzrColors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          Ar.aiGoldRelevanceHint,
+          style: TextStyle(
+            color: AyzrColors.textMuted,
+            fontSize: 11.5,
+            height: 1.5,
+          ),
+        ),
+      ],
+    ));
     if (an.goldImpactAr.isNotEmpty) {
       cards.add(SectionCard(
         title: Ar.goldImpact,
@@ -287,3 +312,13 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
             .toIso8601String());
   }
 }
+
+/// Arabic label for the model's gold-relevance value. An unrecognised value is
+/// shown as its raw form rather than mapped to a friendlier-but-wrong label.
+String _relLabel(String v) => switch (v) {
+      'high' => Ar.relHigh,
+      'medium' => Ar.relMedium,
+      'low' => Ar.relLow,
+      'none' => Ar.relNone,
+      _ => Ar.relUnknown,
+    };

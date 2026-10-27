@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'test_helpers.dart';
 
 void main() {
+  _aiGoldTests();
+
   group('AnalysisLatest parsing', () {
     test('parses the uncalibrated v1 shape and keeps nulls null', () {
       final a = AnalysisLatest.fromJson(
@@ -162,6 +164,50 @@ void main() {
       final q = LlmQuota.fromJson({'category': 'ok'});
       expect(q.isOk, isTrue);
       expect(q.quotaExhausted, isFalse);
+    });
+  });
+}
+
+// --- AI gold-impact classification ------------------------------------------
+
+void _aiGoldTests() {
+  group('NewsAnalysis.aiGoldRelevance', () {
+    test('parses the AI classification when the backend asserts one', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+        'ai_gold_relevance': 'high',
+      });
+      expect(a.aiGoldRelevance, 'high');
+    });
+
+    test('an absent field is "unknown", never a guessed relevance', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+      });
+      expect(a.aiGoldRelevance, 'unknown');
+    });
+
+    test('the AI value is independent of the feed routing tag', () {
+      final detail = NewsDetail.fromJson({
+        'article': {
+          'article_id': 'x',
+          'headline': 'h',
+          'gold_relevance': 'medium', // feed's routing tag
+        },
+        'has_analysis': true,
+        'analysis': {
+          'article_id': 'x',
+          'status': 'ok',
+          'direction': 'no_trade',
+          'ai_gold_relevance': 'none', // the model's own judgement
+        },
+      });
+      expect(detail.article.goldRelevance, 'medium');
+      expect(detail.analysis!.aiGoldRelevance, 'none');
     });
   });
 }

@@ -12,6 +12,8 @@
 //   ASTRA_HOST          (bind host; default 0.0.0.0)
 //   ASTRA_ALLOWED_ORIGINS (comma-separated browser origins for CORS)
 
+#include "activity/ActivityLog.h"
+#include "api/ActivityApi.h"
 #include "api/AstraApiServer.h"
 #include "api/BackendFacade.h"
 #include "api/AnalysisApi.h"
@@ -23,6 +25,8 @@
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "news/Llm7Provider.h"
+#include "news/FailoverLlmProvider.h"
+#include "news/GeminiProvider.h"
 #include "news/MockLlmProvider.h"
 #include "news/NewsAnalysisService.h"
 #include "news/NewsStore.h"
@@ -636,6 +640,44 @@ int main(int argc, char** argv) {
     };
 
     // Candle chart route from the persisted store.
+    // Durable activity log: records what the backend actually did so the owner
+    // can see, side by side, which news reads, candle reads and AI calls
+    // succeeded and what they returned. A failure to open it only costs
+    // visibility, never correctness, so it degrades to a no-op.
+    ActivityLog activityLog;
+    {
+        std::string activityError;
+        if (!activityLog.open(dataDir + "/activity.sqlite", activityError)) {
+            std::cerr << "  WARN: activity log unavailable: " << activityError
+                      << std::endl;
+        } else {
+            std::cout << "  activity log: " << dataDir << "/activity.sqlite"
+                      << std::endl;
+        }
+    }
+    // Bounded, secret-free recorder. A log write failure is swallowed by
+    // design: the operation it describes has already been decided on its own
+    // merits, and an audit trail is not worth failing a request over.
+    auto recordActivity = [&activityLog](const std::string& kind,
+                                         const std::string& outcome,
+                                         const std::string& reason,
+                                         const std::string& source,
+                                         const std::string& detail,
+                                         int itemCount, int durationMs) {
+        if (!activityLog.isOpen()) return;
+        ActivityEntry e;
+        e.atUtc = static_cast<std::int64_t>(std::time(nullptr));
+        e.kind = kind;
+        e.outcome = outcome;
+        e.reason = reason;
+        e.source = source;
+        e.detail = detail;
+        e.itemCount = itemCount;
+        e.durationMs = durationMs;
+        std::string ignore;
+        activityLog.record(e, ignore);
+    };
+
     server.candlesHandler = [&](const std::string& tf, int limit) -> ApiResponse {
         if (limit < 1 || limit > 1000) limit = 500;
         std::vector<StoredCandle> candles;
@@ -651,6 +693,8 @@ int main(int argc, char** argv) {
             }
         }
         if (candles.empty()) {
+            recordActivity("candle_read", "empty", "no_data", "store",
+                           "timeframe=" + tf + " (no stored candles)", 0, -1);
             return errorResponse(503, "dependency_unavailable",
                                  "no candle data available for " + tf);
         }
@@ -679,6 +723,11 @@ int main(int argc, char** argv) {
         dataFields.push_back(
             {"newest_closed_time",
              jsonInteger(candles.back().openTimeUtc), true});
+        recordActivity("candle_read", "ok", "", "store",
+                       "timeframe=" + tf + " bars=" +
+                           std::to_string(candles.size()) + " newest=" +
+                           std::to_string(candles.back().openTimeUtc),
+                       static_cast<int>(candles.size()), -1);
         return ApiResponse{200, "application/json",
                            envelope(jsonObject(dataFields)), true};
     };
@@ -777,25 +826,111 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Provider selection is configuration-only: `ASTRA_LLM_PROVIDER=mock` runs
-    // the deterministic in-process provider (tests, offline dev); anything else
-    // uses the LLM7 OpenAI-compatible adapter. The token is read from the
-    // environment and never logged or serialized.
-    const std::string providerKind = envOr("ASTRA_LLM_PROVIDER", "llm7");
+
+    // Several AI credentials are configured, and only one needs to work for
+    // analysis to proceed. Each provider is built independently from the
+    // environment, and the ones with a credential form an ordered failover
+    // chain: a provider that is missing, out of quota, or rejecting its key is
+    // skipped in favour of the next. Credentials are read from the environment
+    // and are never logged or serialized. `ASTRA_LLM_PROVIDER=mock` still
+    // selects the deterministic offline provider used by tests.
+    const std::string providerKind = envOr("ASTRA_LLM_PROVIDER", "auto");
+    std::shared_ptr<IOutboundHttpClient> outboundHttp =
+        makeDefaultOutboundHttpClient();
+
+    // LLM7 (OpenAI-compatible chat completions).
     Llm7Config llm7Config;
     llm7Config.baseUrl = envOr("LLM7_BASE_URL", "https://api.llm7.io/v1");
     llm7Config.model = envOr("LLM7_MODEL", "nemotron-3-nano:30b");
     llm7Config.apiToken = envOr("LLM7_API_TOKEN", "");
+    llm7Config.providerLabel = "llm7";
     llm7Config.connectTimeoutMillis = parseIntEnv("LLM7_CONNECT_TIMEOUT_MS", 5000);
     llm7Config.readTimeoutMillis = parseIntEnv("LLM7_READ_TIMEOUT_MS", 45000);
-    std::shared_ptr<IOutboundHttpClient> outboundHttp =
-        makeDefaultOutboundHttpClient();
     Llm7Provider llm7Provider(llm7Config, outboundHttp);
+
+    // z.ai GLM (OpenAI-compatible).
+    Llm7Config zaiConfig;
+    zaiConfig.baseUrl = envOr("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4");
+    zaiConfig.model = envOr("ZAI_MODEL", "glm-4.5-flash");
+    zaiConfig.apiToken = envOr("ZAI_API_KEY", "");
+    zaiConfig.providerLabel = "zai";
+    zaiConfig.readTimeoutMillis = parseIntEnv("ZAI_READ_TIMEOUT_MS", 45000);
+    Llm7Provider zaiProvider(zaiConfig, outboundHttp);
+
+    // Mistral (OpenAI-compatible).
+    Llm7Config mistralConfig;
+    mistralConfig.baseUrl = envOr("MISTRAL_BASE_URL", "https://api.mistral.ai/v1");
+    mistralConfig.model = envOr("MISTRAL_MODEL", "open-mistral-nemo");
+    mistralConfig.apiToken = envOr("MISTRAL_API_KEY", "");
+    mistralConfig.providerLabel = "mistral";
+    mistralConfig.readTimeoutMillis = parseIntEnv("MISTRAL_READ_TIMEOUT_MS", 45000);
+    Llm7Provider mistralProvider(mistralConfig, outboundHttp);
+
+    // Gemini (native generateContent shape, not OpenAI-compatible).
+    GeminiConfig geminiConfig;
+    geminiConfig.baseUrl = envOr(
+        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta");
+    geminiConfig.model = envOr("GEMINI_MODEL", "gemini-flash-lite-latest");
+    geminiConfig.apiKey = envOr("GEMINI_API_KEY", "");
+    geminiConfig.providerLabel = "gemini";
+    geminiConfig.readTimeoutMillis = parseIntEnv("GEMINI_READ_TIMEOUT_MS", 45000);
+    GeminiProvider geminiProvider(geminiConfig, outboundHttp);
+
     MockLlmProvider mockProvider(MockLlmProvider::modeFromString(
         envOr("ASTRA_MOCK_LLM_MODE", "valid")));
-    ILlmProvider* llmProvider =
-        (providerKind == "mock") ? static_cast<ILlmProvider*>(&mockProvider)
-                                 : static_cast<ILlmProvider*>(&llm7Provider);
+
+    // Build the chain in the configured order, including only providers that
+    // actually have a credential. A provider with no key would fail on every
+    // call, so it is omitted rather than placed at the head as dead weight.
+    std::vector<FailoverEntry> chain;
+    auto addProvider = [&chain](const std::string& name, const std::string& token,
+                                ILlmProvider* provider) {
+        if (token.empty()) return;
+        chain.push_back(FailoverEntry{provider, name});
+    };
+    std::istringstream orderStream(
+        envOr("ASTRA_LLM_ORDER", "gemini,zai,mistral,llm7"));
+    std::string orderName;
+    while (std::getline(orderStream, orderName, ',')) {
+        if (orderName == "gemini") {
+            addProvider("gemini", geminiConfig.apiKey, &geminiProvider);
+        } else if (orderName == "zai") {
+            addProvider("zai", zaiConfig.apiToken, &zaiProvider);
+        } else if (orderName == "mistral") {
+            addProvider("mistral", mistralConfig.apiToken, &mistralProvider);
+        } else if (orderName == "llm7") {
+            addProvider("llm7", llm7Config.apiToken, &llm7Provider);
+        }
+    }
+    FailoverLlmProvider failoverProvider(std::move(chain));
+
+    // `ASTRA_LLM_PROVIDER` keeps its original meaning: naming a provider pins
+    // the pipeline to exactly that one, so an operator can reproduce or isolate
+    // a single provider. Only `auto` (the default) builds the multi-provider
+    // failover chain. Pinning must not silently become a chain, or a test that
+    // points one provider at a dead port would be rescued by the others.
+    ILlmProvider* llmProvider = nullptr;
+    const bool autoMode = (providerKind == "auto" || providerKind.empty());
+    if (providerKind == "mock") {
+        llmProvider = &mockProvider;
+    } else if (providerKind == "gemini") {
+        llmProvider = &geminiProvider;
+    } else if (providerKind == "zai") {
+        llmProvider = &zaiProvider;
+    } else if (providerKind == "mistral") {
+        llmProvider = &mistralProvider;
+    } else if (providerKind == "llm7") {
+        llmProvider = &llm7Provider;
+    } else if (autoMode && !failoverProvider.stats().empty()) {
+        llmProvider = &failoverProvider;
+    } else {
+        // Auto with no credential anywhere: fall back to the LLM7 adapter so the
+        // pipeline reports an honest auth failure instead of crashing.
+        llmProvider = &llm7Provider;
+    }
+    std::cout << "  llm mode: " << providerKind << ", chain size "
+              << failoverProvider.stats().size() << ", active "
+              << llmProvider->providerId() << std::endl;
     // Daily-quota monitor: distinguishes a spent daily budget (pause until the
     // reset window) from a temporary rate limit (bounded retry). The fallback
     // cooldown is used only when the provider omits a reset time.
@@ -850,6 +985,13 @@ int main(int argc, char** argv) {
             statuses.push_back(newsStore.getAnalysis(a.articleId, an) ? an.status
                                                                       : "none");
         }
+        recordActivity("news_read", articles.empty() ? "empty" : "ok", "",
+                       "store",
+                       "listed " + std::to_string(articles.size()) +
+                           " articles (gold_only=" + (goldOnly ? "true" : "false")
+                           + ", category=" + (category.empty() ? "all" : category)
+                           + ")",
+                       static_cast<int>(articles.size()), -1);
         return NewsApi::list(articles, statuses);
     };
 
@@ -876,9 +1018,30 @@ int main(int argc, char** argv) {
         // backend payload, never a paraphrase.
         ctx.astraSummary = facade.latestAnalysis().body;
 
+        const std::int64_t analyzeStartMs = Timestamp::now().epochMillis();
         NewsAnalysis analysis =
             newsService.analyze(article, ctx, Timestamp::now().epochMillis() / 1000);
         analysis.candleAsOfUtc = store.latestOpenTimeAnySource("XAUUSD", "M15");
+        const int analyzeMs =
+            static_cast<int>(Timestamp::now().epochMillis() - analyzeStartMs);
+        // Record the real AI outcome: which provider answered, whether a valid
+        // proposal came back, and how long it took. A failure is logged as a
+        // failure, never smoothed into a success.
+        {
+            const std::string provider =
+                analysis.providerId.empty() ? "none" : analysis.providerId;
+            std::string outcome = "ok";
+            if (analysis.status == "unavailable") outcome = "unavailable";
+            else if (analysis.status == "insufficient_data") outcome = "empty";
+            else if (analysis.status == "invalid_model_output") outcome = "rejected";
+            recordActivity("llm_analyze", outcome, analysis.statusReason,
+                           provider,
+                           "article=" + article.articleId +
+                               " status=" + analysis.status +
+                               " direction=" + analysis.proposedDirection +
+                               " model=" + analysis.modelId,
+                           1, analyzeMs);
+        }
         std::string saveError;
         if (!newsStore.saveAnalysis(analysis, saveError)) {
             // Persisting the analysis is best-effort: the response still carries
@@ -911,7 +1074,38 @@ int main(int argc, char** argv) {
             NewsArticle art;
             if (newsStore.getArticle(a.articleId, art)) articles.push_back(art);
         }
+        recordActivity("history_read",
+                       analyses.empty() ? "empty" : "ok", "", "store",
+                       "returned " + std::to_string(analyses.size()) +
+                           " persisted analyses",
+                       static_cast<int>(analyses.size()), -1);
         return NewsApi::history(analyses, articles);
+    };
+
+    // GET /api/v1/activity — the durable record of what the backend did. The app
+    // shows this so a successful news read, candle read or AI call is visible
+    // rather than merely claimed.
+    server.activityHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 200;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 200; }
+        }
+        if (limit < 1 || limit > 1000) limit = 200;
+        const std::string kind = queryParam(query, "kind");
+        const std::vector<ActivityEntry> entries = activityLog.recent(limit, kind);
+        // A 24-hour tally: a rolling window is more useful than an all-time
+        // total, which only ever grows.
+        const std::int64_t since =
+            static_cast<std::int64_t>(std::time(nullptr)) - 24 * 3600;
+        return ActivityApi::list(entries, activityLog.tally(since));
+    };
+
+    // GET /api/v1/providers — which AI credentials are configured and how each
+    // has performed. Secret-free: only labels and counts, never key material.
+    server.providersHandler = [&]() -> ApiResponse {
+        return ActivityApi::providers(failoverProvider.stats(),
+                                      failoverProvider.lastSuccessProvider());
     };
 
     server.newsIngestHandler = [&](const std::string& body) -> ApiResponse {
@@ -957,8 +1151,22 @@ int main(int argc, char** argv) {
         std::vector<NewsInsertResult> results;
         std::string storeError;
         if (!newsStore.insertArticles(articles, results, storeError)) {
+            recordActivity("news_ingest", "error", "persist_failed", "sender",
+                           "store rejected the batch: " + storeError,
+                           static_cast<int>(articles.size()), -1);
             return storeFailureResponse("news ingest persistence", storeError);
         }
+        int stored = 0, dupes = 0, rejected = 0;
+        for (const auto& r : results) {
+            if (r.state == "stored_new") ++stored;
+            else if (r.state == "rejected") ++rejected;
+            else ++dupes;
+        }
+        recordActivity("news_ingest", stored > 0 ? "ok" : "empty", "", "sender",
+                       "stored=" + std::to_string(stored) + " duplicates=" +
+                           std::to_string(dupes) + " rejected=" +
+                           std::to_string(rejected),
+                       static_cast<int>(articles.size()), -1);
         return NewsApi::ingestAck(static_cast<int>(articles.size()), results);
     };
 

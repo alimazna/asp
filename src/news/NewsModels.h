@@ -67,6 +67,12 @@ struct NewsAnalysis {
     bool hasTarget = false;
     double takeProfit = 0.0;
     std::string invalidatingConditionsAr;
+    // AI-assigned gold relevance, distinct from the feed's routing tag. The
+    // feed tag says which query found the article; this is the model's own
+    // judgement of whether the news actually moves gold. Empty means the model
+    // did not classify it, and the UI must not present an unclassified article
+    // as gold-relevant.
+    std::string goldRelevance = "unknown";   // high | medium | low | none
     std::string astraAgreement = "unknown";   // agree | disagree | unknown
     std::string disagreementNoteAr;
     std::vector<std::string> limitationsAr;

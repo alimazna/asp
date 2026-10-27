@@ -5,6 +5,7 @@ import '../data/api_client.dart';
 import '../data/api_result.dart';
 import '../data/models/analysis.dart';
 import '../data/models/health.dart';
+import '../data/models/activity.dart';
 import '../data/models/news.dart';
 import 'settings_store.dart';
 
@@ -60,6 +61,8 @@ class AppState extends ChangeNotifier {
   Section<List<NewsListItem>> news = const Section<List<NewsListItem>>();
   Section<List<HistoryEntry>> history = const Section<List<HistoryEntry>>();
   Section<LlmQuota> quota = const Section<LlmQuota>();
+  Section<ActivityPage> activity = const Section<ActivityPage>();
+  Section<ProviderPage> providers = const Section<ProviderPage>();
 
   bool goldOnly = false;
 
@@ -154,6 +157,33 @@ class AppState extends ChangeNotifier {
     quota = r.isSuccess
         ? Section<LlmQuota>.ready(r.value!)
         : const Section<LlmQuota>.empty();
+    notifyListeners();
+  }
+
+  /// Loads the durable activity log — what the backend actually did.
+  Future<void> loadActivity({String kind = ''}) async {
+    activity = activity.loading();
+    notifyListeners();
+    final r = await _client.activity(kind: kind);
+    if (!r.isSuccess) {
+      activity = Section<ActivityPage>.failed(r.failure!);
+    } else {
+      final page = r.value!;
+      activity = page.entries.isEmpty
+          ? const Section<ActivityPage>.empty()
+          : Section<ActivityPage>.ready(page);
+    }
+    notifyListeners();
+  }
+
+  /// Loads the AI provider chain status. Like the quota snapshot, a failure
+  /// here is not an error state: an unknown provider status must not be shown
+  /// as working or broken.
+  Future<void> loadProviders() async {
+    final r = await _client.providers();
+    providers = r.isSuccess
+        ? Section<ProviderPage>.ready(r.value!)
+        : const Section<ProviderPage>.empty();
     notifyListeners();
   }
 

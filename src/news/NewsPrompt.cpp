@@ -32,7 +32,7 @@ NewsPrompt buildNewsPrompt(const NewsPromptContext& context) {
         "{\"summary_ar\":string, \"facts\":[{\"text\":string, "
         "\"kind\":\"fact|forecast|commentary|unverified\"}], "
         "\"market_implications_ar\":[string], \"supporting_evidence_ar\":[string], "
-        "\"opposing_evidence_ar\":[string], \"gold_impact_ar\":string, "
+        "\"opposing_evidence_ar\":[string], \"gold_impact_ar\":string, \"gold_relevance\":\"high|medium|low|none\", "
         "\"direction\":\"bullish|bearish|sideways|no_trade\", "
         "\"entry\":number?, \"stop_loss\":number?, \"take_profit\":number?, "
         "\"astra_agreement\":\"agree|disagree|unknown\", "

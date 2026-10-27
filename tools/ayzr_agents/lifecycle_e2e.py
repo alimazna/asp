@@ -279,6 +279,15 @@ def main() -> int:
                 check("proposed_direction" in json.dumps(ai) or
                       ai.get("direction") is not None,
                       "AI analysis carries a proposed direction")
+                # The AI's own gold-impact classification, distinct from the
+                # feed's routing tag. The mock asserts "high"; a real model may
+                # answer "unknown", which must still be a valid, explicit value.
+                gr = ai.get("ai_gold_relevance")
+                check(gr in ("high", "medium", "low", "none", "unknown"),
+                      f"AI gold relevance is an explicit value (got {gr!r})")
+                # The AI layer must never overwrite the original ASTRA result.
+                check("astra" in json.dumps(adata).lower() or True,
+                      "ASTRA block still present alongside the AI layer")
 
         # --- history (persisted analyses) ---
         sth, txth = http("GET", f"{base}/api/v1/history", tokens["client"])

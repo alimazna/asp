@@ -40,6 +40,12 @@ struct LlmResult {
     int httpStatus = 0;
     std::string content;   // assistant text when outcome == Ok
     std::string error;     // safe, non-secret diagnostic
+    // Which provider actually produced this result, e.g. "gemini". A failover
+    // chain sets it per call so an analysis is attributed to the model that
+    // really answered, not to whichever provider happened to be configured
+    // first. Empty means "the adapter did not report one".
+    std::string provider;
+    std::string model;
     // Parsed from the `Retry-After` header or the provider's `retry_after` body
     // field. -1 means "not provided / unknown" — never invent a reset time.
     int retryAfterSeconds = -1;

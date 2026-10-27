@@ -8,6 +8,7 @@ import '../core/app_config.dart';
 import 'api_result.dart';
 import 'models/analysis.dart';
 import 'models/health.dart';
+import 'models/activity.dart';
 import 'models/news.dart';
 
 /// Authenticated client for the AYZR mobile read surface.
@@ -206,5 +207,53 @@ class ApiClient {
         .whereType<Map>()
         .map((m) => HistoryEntry.fromJson(m.cast<String, dynamic>()))
         .toList(growable: false));
+  }
+
+  /// GET /api/v1/activity — the durable record of what the backend actually did.
+  /// `kind` filters server-side when non-empty.
+  Future<ApiResult<ActivityPage>> activity({
+    int limit = 200,
+    String kind = '',
+  }) async {
+    final r = await _getData('/api/v1/activity', query: {
+      'limit': '$limit',
+      if (kind.isNotEmpty) 'kind': kind,
+    });
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      final tallyRaw = m['tally'];
+      return ActivityPage(
+        tally: tallyRaw is Map
+            ? ActivityTally.fromJson(tallyRaw.cast<String, dynamic>())
+            : const ActivityTally(
+                ok: 0,
+                empty: 0,
+                rejected: 0,
+                unavailable: 0,
+                error: 0,
+                total: 0,
+              ),
+        entries: _rows(d, 'entries')
+            .whereType<Map>()
+            .map((e) => ActivityEntry.fromJson(e.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+    });
+  }
+
+  /// GET /api/v1/providers — which AI credentials work and how each performed.
+  Future<ApiResult<ProviderPage>> providers() async {
+    final r = await _getData('/api/v1/providers');
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      return ProviderPage(
+        activeProvider: (m['active_provider'] as String?) ?? '',
+        configured: m['configured'] is int ? m['configured'] as int : 0,
+        providers: _rows(d, 'providers')
+            .whereType<Map>()
+            .map((p) => ProviderStatus.fromJson(p.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+    });
   }
 }

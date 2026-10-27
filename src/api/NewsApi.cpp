@@ -81,6 +81,7 @@ std::string NewsApi::analysisJson(const NewsAnalysis& a) {
     fields.push_back(rawField("opposing_evidence_ar",
                               stringArray(a.opposingEvidenceAr)));
     fields.push_back(stringField("gold_impact_ar", a.goldImpactAr));
+    fields.push_back(stringField("ai_gold_relevance", a.goldRelevance));
     fields.push_back(stringField("direction", a.proposedDirection));
 
     // Levels: each is independently optional. An absent level is null, never 0,

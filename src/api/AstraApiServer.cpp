@@ -736,7 +736,8 @@ ApiResponse AstraApiServer::handleRequest(
     // runs, and the routes are disabled (401) when no client token is configured
     // rather than being served unauthenticated.
     if (path == "/api/v1/news" || path == "/api/v1/news/analyze" ||
-        path == "/api/v1/news/quota" || path == "/api/v1/history") {
+        path == "/api/v1/news/quota" || path == "/api/v1/history" ||
+        path == "/api/v1/activity" || path == "/api/v1/providers") {
         if (method == "OPTIONS") {
             return ApiResponse{204, "application/json", "", true, ""};
         }
@@ -776,6 +777,16 @@ ApiResponse AstraApiServer::handleRequest(
             if (newsQuotaHandler) return newsQuotaHandler();
             return errorResponse(503, "dependency_unavailable",
                                  "news quota handler not configured");
+        }
+        if (path == "/api/v1/activity") {
+            if (activityHandler) return activityHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "activity handler not configured");
+        }
+        if (path == "/api/v1/providers") {
+            if (providersHandler) return providersHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "providers handler not configured");
         }
         if (historyHandler) return historyHandler(query);
         return errorResponse(503, "dependency_unavailable",

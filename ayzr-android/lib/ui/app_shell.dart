@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '../core/strings_ar.dart';
 import '../core/theme.dart';
 import '../state/app_state.dart';
+import 'screens/activity_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
@@ -75,6 +76,18 @@ class _AppShellState extends State<AppShell> {
             appBar: AppBar(
               title: Text(_titles[_index]),
               actions: [
+                IconButton(
+                  tooltip: Ar.activityTitle,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text(Ar.activityTitle)),
+                        body: ActivityScreen(state: widget.state),
+                      ),
+                    ),
+                  ),
+                ),
                 IconButton(
                   tooltip: Ar.settings,
                   icon: const Icon(Icons.settings_outlined),

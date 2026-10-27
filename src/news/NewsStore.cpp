@@ -40,6 +40,7 @@ constexpr char kSchema[] =
     "  supporting_ar   TEXT NOT NULL DEFAULT '[]',"
     "  opposing_ar     TEXT NOT NULL DEFAULT '[]',"
     "  gold_impact_ar  TEXT NOT NULL DEFAULT '',"
+    "  gold_relevance  TEXT NOT NULL DEFAULT 'unknown',"
     "  direction       TEXT NOT NULL DEFAULT 'no_trade',"
     "  has_entry       INTEGER NOT NULL DEFAULT 0,"
     "  entry           REAL NOT NULL DEFAULT 0,"
@@ -169,7 +170,48 @@ bool NewsStore::open(const std::string& path, std::string& error) {
     char* walMsg = nullptr;
     sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &walMsg);
     if (walMsg != nullptr) sqlite3_free(walMsg);
+
+    // Additive migration: a database created before gold_relevance existed
+    // gains the column here. ADD COLUMN is safe and non-destructive; the
+    // existence probe makes it idempotent so restart is a no-op. Existing rows
+    // read back as 'unknown', which is the honest value: they were never
+    // classified.
+    if (!hasColumn("news_analyses", "gold_relevance")) {
+        char* migMsg = nullptr;
+        if (sqlite3_exec(db_,
+                         "ALTER TABLE news_analyses ADD COLUMN "
+                         "gold_relevance TEXT NOT NULL DEFAULT 'unknown';",
+                         nullptr, nullptr, &migMsg) != SQLITE_OK) {
+            error = std::string("cannot migrate news store: ") +
+                    (migMsg != nullptr ? migMsg : "unknown");
+            if (migMsg != nullptr) sqlite3_free(migMsg);
+            sqlite3_close(db_);
+            db_ = nullptr;
+            return false;
+        }
+    }
     return true;
+}
+
+// True when `table` already has `column`. Used to make additive migrations
+// idempotent across restarts.
+bool NewsStore::hasColumn(const std::string& table,
+                          const std::string& column) const {
+    const std::string sql = "PRAGMA table_info(" + table + ");";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    bool found = false;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char* name = sqlite3_column_text(stmt, 1);
+        if (name != nullptr && column == reinterpret_cast<const char*>(name)) {
+            found = true;
+            break;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return found;
 }
 
 bool NewsStore::insertArticles(const std::vector<NewsArticle>& articles,
@@ -314,9 +356,9 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
         "  direction, has_entry, entry, has_stop, stop_loss, has_target,"
         "  take_profit, invalidating_ar, astra_agreement, disagreement_ar,"
         "  limitations_ar, provider_id, model_id, analyzed_at, timeframe_ctx,"
-        "  candle_as_of, astra_signal)"
+        "  candle_as_of, astra_signal, gold_relevance)"
         " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,"
-        "         ?18,?19,?20,?21,?22,?23,?24,?25,?26)"
+        "         ?18,?19,?20,?21,?22,?23,?24,?25,?26,?27)"
         " ON CONFLICT(article_id) DO UPDATE SET"
         "  status=excluded.status, status_reason=excluded.status_reason,"
         "  summary_ar=excluded.summary_ar, facts_json=excluded.facts_json,"
@@ -332,7 +374,8 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
         "  limitations_ar=excluded.limitations_ar, provider_id=excluded.provider_id,"
         "  model_id=excluded.model_id, analyzed_at=excluded.analyzed_at,"
         "  timeframe_ctx=excluded.timeframe_ctx, candle_as_of=excluded.candle_as_of,"
-        "  astra_signal=excluded.astra_signal;";
+        "  astra_signal=excluded.astra_signal,"
+        "  gold_relevance=excluded.gold_relevance;";
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         error = std::string("prepare analysis failed: ") + sqlite3_errmsg(db_);
         return false;
@@ -370,6 +413,7 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
     sqlite3_bind_text(stmt, 24, a.timeframeContext.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(stmt, 25, a.candleAsOfUtc);
     sqlite3_bind_text(stmt, 26, a.astraSignalRef.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 27, a.goldRelevance.c_str(), -1, SQLITE_TRANSIENT);
     const int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (rc != SQLITE_DONE) {
@@ -486,6 +530,7 @@ NewsAnalysis readAnalysisRow(sqlite3_stmt* stmt) {
     a.timeframeContext = columnText(stmt, 23);
     a.candleAsOfUtc = sqlite3_column_int64(stmt, 24);
     a.astraSignalRef = columnText(stmt, 25);
+    a.goldRelevance = columnText(stmt, 26);
     return a;
 }
 
@@ -495,7 +540,7 @@ const char* kAnalysisColumns =
     " has_entry, entry, has_stop, stop_loss, has_target, take_profit,"
     " invalidating_ar, astra_agreement, disagreement_ar, limitations_ar,"
     " provider_id, model_id, analyzed_at, timeframe_ctx, candle_as_of,"
-    " astra_signal";
+    " astra_signal, gold_relevance";
 }  // namespace
 
 bool NewsStore::getAnalysis(const std::string& articleId, NewsAnalysis& out) const {

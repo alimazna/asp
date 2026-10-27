@@ -43,6 +43,9 @@ public:
     // Persist a validated analysis (upsert by article_id).
     bool saveAnalysis(const NewsAnalysis& analysis, std::string& error);
 
+    // True when `table` already has `column`; makes migrations idempotent.
+    bool hasColumn(const std::string& table, const std::string& column) const;
+
     // Most recent articles, newest published first. `category` filters when
     // non-empty; `goldOnly` keeps only gold-relevant rows.
     std::vector<NewsArticle> recentArticles(int limit,

@@ -18,6 +18,10 @@ struct Llm7Config {
     std::string baseUrl = "https://api.llm7.io/v1";
     std::string model = "nemotron-3-nano:30b";
     std::string apiToken;   // never logged, never serialized
+    // Reported by providerId() and stamped onto each analysis. It exists so an
+    // OpenAI-compatible endpoint other than LLM7 (z.ai, Mistral, OpenRouter...)
+    // is attributed honestly instead of every call being labelled "llm7".
+    std::string providerLabel = "llm7";
     int connectTimeoutMillis = 5000;
     int readTimeoutMillis = 45000;
     // Optional extra knobs kept explicit so a provider swap stays config-only.
@@ -29,7 +33,7 @@ public:
     Llm7Provider(Llm7Config config,
                  std::shared_ptr<IOutboundHttpClient> http);
 
-    std::string providerId() const override { return "llm7"; }
+    std::string providerId() const override { return config_.providerLabel; }
     std::string modelId() const override { return config_.model; }
 
     LlmResult complete(const LlmRequest& request) override;

@@ -83,6 +83,15 @@ class Ar {
   static const supportingEvidence = 'أدلة مؤيدة';
   static const opposingEvidence = 'أدلة معارضة';
   static const goldImpact = 'التأثير على الذهب';
+  static const aiGoldRelevance = 'تصنيف الذكاء الاصطناعي لتأثير الخبر على الذهب';
+  static const aiGoldRelevanceHint =
+      'تقييم النموذج لمدى قدرة هذا الخبر على تحريك سعر الذهب فعلياً، '
+      'وهو مستقل عن تصنيف مصدر الأخبار.';
+  static const relHigh = 'مرتفع';
+  static const relMedium = 'متوسط';
+  static const relLow = 'منخفض';
+  static const relNone = 'لا تأثير';
+  static const relUnknown = 'غير محدَّد';
   static const invalidation = 'شروط الإبطال';
   static const limitations = 'القيود';
   static const astraAgreement = 'توافق مع تحليل ASTRA';
@@ -107,6 +116,42 @@ class Ar {
   static const historyTitle = 'السجل';
   static const historyEmpty = 'لا يوجد سجل تحليلات بعد';
   static const headline = 'العنوان';
+
+  // Activity log — the durable record of what the backend did.
+  static const activityTitle = 'سجل النشاط';
+  static const activityEmpty = 'لا يوجد نشاط مسجَّل بعد';
+  static const activitySubtitle = 'ما نفّذه الخادم فعلياً، من الأحدث';
+  static const activitySummary = 'ملخّص آخر ٢٤ ساعة';
+  static const activityTotal = 'الإجمالي';
+  static const outcomeOk = 'نجح';
+  static const outcomeEmpty = 'لا نتائج';
+  static const outcomeRejected = 'مرفوض';
+  static const outcomeUnavailable = 'غير متاح';
+  static const outcomeError = 'خطأ';
+  static const kindNewsRead = 'قراءة الأخبار';
+  static const kindCandleRead = 'قراءة الشموع';
+  static const kindLlmAnalyze = 'تحليل ذكاء اصطناعي';
+  static const kindNewsIngest = 'استلام أخبار';
+  static const kindHistoryRead = 'قراءة السجل';
+  static const filterAll = 'الكل';
+  static const durationLabel = 'المدة';
+  static const itemsLabel = 'العناصر';
+  static const sourceLabel = 'المصدر';
+
+  // AI provider chain status
+  static const providersTitle = 'مزوّدو الذكاء الاصطناعي';
+  static const providersSubtitle = 'أي مفاتيح التحليل تعمل فعلاً';
+  static const activeProvider = 'المزوّد النشط';
+  static const providerAttempts = 'المحاولات';
+  static const providerSuccesses = 'الناجحة';
+  static const providerFailures = 'الفاشلة';
+  static const providerSkippedQuota = 'متخطّى (حصة منتهية)';
+  static const providerWorking = 'يعمل';
+  static const providerFailed = 'فاشل';
+  static const providerUntried = 'لم يُجرَّب';
+  static const providerNone = 'لا يوجد مزوّد مُهيّأ';
+  static const providerNoneHint =
+      'لم يُضبط أي مفتاح ذكاء اصطناعي على الخادم، لذا لا يمكن توليد تحليل إخباري.';
 
   // Settings / config
   static const settings = 'الإعدادات';

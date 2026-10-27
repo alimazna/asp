@@ -22,6 +22,11 @@ bool isAllowedKind(const std::string& k) {
            k == "unverified";
 }
 
+bool isAllowedGoldRelevance(const std::string& v) {
+    return v == "high" || v == "medium" || v == "low" || v == "none" ||
+           v == "unknown";
+}
+
 bool isAllowedAgreement(const std::string& a) {
     return a == "agree" || a == "disagree" || a == "unknown";
 }
@@ -133,6 +138,15 @@ ParsedAnalysis parseAnalysisResponse(const std::string& text) {
         return result;
     }
 
+    // Optional: the model's own gold-relevance judgement. Unknown/absent is
+    // preserved as "unknown" rather than defaulted to a relevance the model
+    // never asserted.
+    a.goldRelevance = root["gold_relevance"].asString();
+    if (a.goldRelevance.empty()) a.goldRelevance = "unknown";
+    if (!isAllowedGoldRelevance(a.goldRelevance)) {
+        result.error = "invalid gold_relevance: '" + a.goldRelevance + "'";
+        return result;
+    }
     // Optional free-text fields.
     a.goldImpactAr = root["gold_impact_ar"].asString();
     a.invalidatingConditionsAr = root["invalidating_conditions_ar"].asString();

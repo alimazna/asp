@@ -62,7 +62,26 @@ dedup; `published_at`, `collected_at`, `body_available`, `gold_relevance`.
 
 `news_analyses` — PK `article_id` (upsert = supersede, so history keeps the latest
 validated result per article); status, Arabic summary/facts/implications,
-direction, optional levels, ASTRA agreement, provider/model ids, timestamps.
+direction, optional levels, ASTRA agreement, provider/model ids, timestamps,
+and `gold_relevance`.
+
+### Two independent gold-relevance signals
+
+`news_articles.gold_relevance` is the **feed's routing tag** — a coarse label the
+ingest path attaches to route a story into a category. It answers "which bucket
+did the sender put this in".
+
+`news_analyses.gold_relevance` is the **model's own judgement** of how much the
+article actually moves gold, chosen from `high | medium | low | none`. It answers
+"does this news have a real transmission channel into the gold price". It is
+exposed on the analysis envelope as `ai_gold_relevance` so a client cannot
+confuse the two.
+
+The model's value is validated against that closed vocabulary and rejected if it
+is out of range (`NewsAnalysisParser::isAllowedGoldRelevance`). When the model
+does not answer the field, it is stored as `unknown` — never defaulted to a
+relevance the model never asserted. `unknown` is a first-class value that the
+UI renders as "غير محدَّد", not as "medium".
 
 Candle identity (existing, unchanged): `(source_id, symbol, timeframe, open_time)`.
 
