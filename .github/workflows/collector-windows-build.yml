@@ -130,6 +130,13 @@ jobs:
             Write-Error "selfcheck reported missing components (see above)"
             exit 1
           }
+          # A positive assertion, not only the absence of FAIL: an exe that
+          # silently dropped MetaTrader5 would still pass every check above and
+          # then be unable to read a single candle on the owner's PC.
+          if (-not (Select-String -Path $report -Pattern "ok   MetaTrader5" -Quiet)) {
+            Write-Error "MetaTrader5 is not importable in the frozen exe"
+            exit 1
+          }
           Write-Host "frozen app --selfcheck passed (all runtime modules import)"
 
       - name: Upload the executable

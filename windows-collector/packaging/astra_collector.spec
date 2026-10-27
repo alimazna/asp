@@ -52,7 +52,11 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        "numpy", "pandas", "matplotlib", "scipy", "PIL",
+        # numpy is deliberately NOT excluded: MetaTrader5 depends on it, and
+        # excluding it while bundling MT5 produces an exe whose MetaTrader5
+        # import fails with "numpy._core.multiarray failed to import". The
+        # sender spec leaves it out of its excludes for the same reason.
+        "pandas", "matplotlib", "scipy", "PIL",
         "pytest", "setuptools", "pip",
     ],
     win_no_prefer_redirects=False,
