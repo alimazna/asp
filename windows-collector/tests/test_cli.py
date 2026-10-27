@@ -8,10 +8,12 @@ terminal and the receiving endpoint replaced by test doubles.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -146,6 +148,56 @@ class CliEndToEndTest(unittest.TestCase):
         result = self._run("--status", "--json", "--allow-insecure-http")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("destination", result.stdout)
+
+
+class EntryPointRoutingTest(unittest.TestCase):
+    """The frozen app's entry point must dispatch on argv.
+
+    The packaged executable is what the owner runs. It previously always
+    opened the window and ignored every argument, so `--version`,
+    `--show-config`, and the CI smoke checks were silently no-ops: the process
+    would hang on a window instead of printing and exiting. These pin the
+    dispatch, using the same module the spec freezes.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="astra-entry-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.env = dict(os.environ)
+        self.env["ASTRA_COLLECTOR_DIR"] = self.tmp
+
+    def _run_entry(self, *args):
+        return subprocess.run(
+            [sys.executable, str(Path(ROOT) / "astra_collector_app.py"), *args],
+            cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=120)
+
+    def test_version_argument_prints_and_exits(self):
+        result = self._run_entry("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("astra-collector", result.stdout,
+                      "an argument must not open the window")
+
+    def test_show_config_argument_prints_config(self):
+        result = self._run_entry("--show-config")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("backend_url", result.stdout)
+
+    def test_set_destination_argument_saves(self):
+        result = self._run_entry("--set-destination", "https://example.test")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "config.json")),
+            "the entry point must reach the CLI, which persists the change")
+
+    def test_selfcheck_imports_every_runtime_module(self):
+        # tkinter is deliberately absent in the Linux CI image, so selfcheck
+        # reports it as the one missing component rather than crashing.
+        result = self._run_entry("--selfcheck")
+        if result.returncode == 0:
+            self.assertIn("import cleanly", result.stdout)
+        else:
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertIn("selfcheck failed", result.stderr)
 
 
 if __name__ == "__main__":

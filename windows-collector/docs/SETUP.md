@@ -17,12 +17,14 @@ executable.
 ## 2. Install
 
 1. Download `ASTRA-Collector.exe` from the release page:
-   <https://github.com/alimazna/asp/releases/tag/collector-v1.0.0>
-   (or copy it from the `ASTRA-Collector-windows` GitHub Actions artifact).
+   <https://github.com/alimazna/asp/releases/tag/collector-v1.0.2>
 2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
    If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
    the same folder; it is a one-click launcher.
 3. Double-click `ASTRA-Collector.exe`. The window opens. No console appears.
+
+The executable is self-contained: the MetaTrader5 package is bundled inside it,
+so there is nothing else to install.
 
 Optional: verify the download before running it. In PowerShell:
 
@@ -30,12 +32,31 @@ Optional: verify the download before running it. In PowerShell:
 Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 ```
 
-The expected value for v1.0.0 is
-`84ea172961abfa0c23640b35e86b0c504ab7c85781101e864cea421b5098bd0f`.
+The expected value is printed in the build log of the workflow run that
+produced this release. Compare the two before running the file.
 
 Windows SmartScreen may warn about an unsigned application the first time. The
 build is unsigned; choose "More info" then "Run anyway" only after the hash
 matches.
+
+### Command-line use (optional)
+
+The same executable accepts arguments, which is useful for diagnosis:
+
+| Command | Effect |
+| --- | --- |
+| `ASTRA-Collector.exe` | Opens the window (normal use). |
+| `ASTRA-Collector.exe --version` | Prints the version and exits. |
+| `ASTRA-Collector.exe --show-config` | Prints the effective settings, no token. |
+| `ASTRA-Collector.exe --status` | Prints the current status and exits. |
+| `ASTRA-Collector.exe --once` | Runs one synchronization pass and exits. |
+| `ASTRA-Collector.exe --set-destination <url>` | Saves a new receiver URL. |
+| `ASTRA-Collector.exe --selfcheck` | Imports every runtime module and exits. |
+
+Run these from `cmd.exe` or PowerShell in the folder that holds the
+executable. A windowed build has no console output of its own, so if startup
+fails the reason is written to
+`%LOCALAPPDATA%\AstraCollector\startup-error.log`.
 
 ## 3. Configure
 
@@ -43,7 +64,7 @@ Fill in the three fields at the top of the window:
 
 | Field | Meaning |
 | --- | --- |
-| Receiver URL | The HTTPS endpoint that will receive the candles, e.g. `https://example.com` |
+| Receiver URL | The HTTPS endpoint that will receive the candles, including the API version, e.g. `https://your-backend.up.railway.app/api/v1` |
 | Symbol | The instrument, e.g. `XAUUSD`. See symbol discovery below. |
 | Sender id | A name for this computer, e.g. `desk-pc`. Identifies the sender in the receiver's records. |
 | Token | The access token for the receiver. |
