@@ -32,18 +32,26 @@ Liveness. No authentication required.
 
 What the receiver currently holds for one stream. Used for gap detection.
 
+The deployed ASTRA server answers with `bars`, where the open time is under
+`time`:
+
 ```json
 {
   "data": {
-    "candles": [ { "uid": "...", "open_time_utc": 1792432800, "...": "..." } ],
-    "open_times": [ 1792379700, 1792378800 ]
+    "bars": [ { "time": 1792432800, "open": 2000.0, "high": 2001.0,
+                "low": 1999.0, "close": 2000.5,
+                "tick_volume": 120, "spread": 20, "real_volume": 0 } ],
+    "timeframe": "M15", "symbol": "XAUUSD", "count": 1,
+    "closed_only": true, "newest_closed_time": 1792432800
   }
 }
 ```
 
-`open_times` is preferred and should be the complete, sorted list of open times
-the receiver holds for that stream. If it is absent, the collector reads the
-`candles` array instead. Both are scoped to the requested symbol and timeframe.
+The collector also accepts a summary form, `open_times`, and a generic
+`candles` array, so it is not welded to one receiver build. `bars` is what the
+ASTRA server emits and is what production actually returns.
+
+All forms are scoped to the requested symbol and timeframe.
 
 If the receiver holds nothing for the stream, return `200` with an empty list.
 Do not return `404` for a stream that is merely empty.
@@ -85,13 +93,30 @@ Response:
 }
 ```
 
-The collector records a candle as acknowledged **only** when the receiver names
-its exact `uid` in `accepted` or `duplicates`. An HTTP 200 with an empty or
-unnamed response confirms nothing, and the candle stays pending for retry.
+The deployed ASTRA server names each candle by its own `identity` string:
 
-`accepted` means newly persisted. `duplicates` means already persisted — this is
-what makes a lost-response retry safe. Return one or the other for every candle
-in the request, and put anything you refused in `rejected` with a reason.
+```json
+{
+  "data": {
+    "received": 1792432800,
+    "accepted":   [ { "identity": "symbol=XAUUSD&timeframe=M15&open_time=1792432800", "state": "stored_new" } ],
+    "duplicates": [ { "identity": "symbol=XAUUSD&timeframe=M15&open_time=1792432740", "state": "already_stored" } ],
+    "rejected":   [ { "identity": "symbol=XAUUSD&timeframe=M15&open_time=1792432680", "state": "rejected", "reason": "invalid ohlc" } ]
+  }
+}
+```
+
+The collector records a candle as acknowledged **only** when the receiver names
+it in `accepted` or `duplicates`, either by the sender's `uid` (echoed back) or
+by the `identity` string above. The identity is parsed back into
+symbol/timeframe/open_time and matched against the batch, so both dialects
+confirm correctly. An HTTP 200 with an empty or unnamed response confirms
+nothing, and the candle stays pending for retry.
+
+`accepted`/`stored_new` means newly persisted. `duplicates`/`already_stored`
+means already persisted — this is what makes a lost-response retry safe. Return
+one or the other for every candle in the request, and put anything you refused
+in `rejected` with a reason.
 
 ## Idempotency
 

@@ -152,19 +152,26 @@ class ReceiverClient:
                           timeframe: str) -> List[int]:
         """The receiver's authoritative open times for one stream.
 
-        Falls back to the plain candle list when the receiver does not expose a
-        per-stream summary. An empty result is reported as empty, never guessed.
+        The ASTRA server answers ``/candles`` with ``data.bars[]`` where each bar
+        carries ``time`` (the open time in epoch seconds). A summary form
+        (``open_times``) and a generic ``candles`` list are also accepted so the
+        client is not welded to one receiver build. An empty result is reported
+        as empty, never guessed.
         """
         response = self._request(CANDLES_PATH, params={
             "symbol": symbol, "timeframe": timeframe, "limit": "100000"})
         data = response.get("data", response)
-        if isinstance(data, dict) and isinstance(data.get("open_times"), list):
+        if not isinstance(data, dict):
+            return []
+        if isinstance(data.get("open_times"), list):
             return sorted({int(t) for t in data["open_times"]})
-        candles = data.get("candles") if isinstance(data, dict) else data
-        if not isinstance(candles, list):
+        bars = data.get("bars")
+        if bars is None:
+            bars = data.get("candles")
+        if not isinstance(bars, list):
             return []
         times = []
-        for candle in candles:
+        for candle in bars:
             if not isinstance(candle, dict):
                 continue
             if candle.get("symbol") not in (None, symbol):
@@ -190,29 +197,59 @@ class ReceiverClient:
             INGEST_PATH, method="POST",
             body=json.dumps(payload).encode("utf-8"))
         data = response.get("data", response)
+        # The receiver may name a candle by our uid (echoed back) or by its own
+        # identity string (symbol/timeframe/open_time). Both are acceptable
+        # proof, but the ledger is keyed on our uid, so the receiver's form is
+        # translated here rather than trusted verbatim.
+        by_uid = {c.uid: c for c in candles}
+        by_key = {(c.symbol, c.timeframe, int(c.open_time_utc)): c
+                  for c in candles}
         confirmed: List[str] = []
         rejected: Dict[str, str] = {}
         seen: set = set()
 
+        def resolve(entry: Dict[str, Any]) -> str:
+            """Map an ack entry back to our uid. "" when it names nothing we sent."""
+            named = entry.get("uid")
+            if named and named in by_uid:
+                return named
+            identity = entry.get("identity")
+            if identity:
+                # "symbol=XAUUSD&timeframe=M15&open_time=1792905300"
+                parts = {}
+                for pair in str(identity).split("&"):
+                    if "=" in pair:
+                        key, _, value = pair.partition("=")
+                        parts[key.strip()] = value.strip()
+                try:
+                    key = (parts.get("symbol", ""), parts.get("timeframe", ""),
+                           int(parts.get("open_time", "")))
+                except ValueError:
+                    key = None
+                if key in by_key:
+                    return by_key[key].uid
+            if named:
+                return named
+            return ""
+
         for entry in data.get("accepted", []) or []:
             if not isinstance(entry, dict):
                 continue
-            uid = entry.get("uid") or entry.get("identity") or ""
-            state = entry.get("state", "")
-            if uid and state in CONFIRMED_STATES:
+            uid = resolve(entry)
+            if uid and entry.get("state", "") in CONFIRMED_STATES:
                 confirmed.append(uid)
                 seen.add(uid)
         for entry in data.get("duplicates", []) or []:
             if not isinstance(entry, dict):
                 continue
-            uid = entry.get("uid") or entry.get("identity") or ""
+            uid = resolve(entry)
             if uid:
                 confirmed.append(uid)
                 seen.add(uid)
         for entry in data.get("rejected", []) or []:
             if not isinstance(entry, dict):
                 continue
-            uid = entry.get("uid") or entry.get("identity") or ""
+            uid = resolve(entry)
             if uid:
                 rejected[uid] = str(entry.get("reason") or "rejected")
                 seen.add(uid)

@@ -194,10 +194,27 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
             if timeframe:
                 candles = [c for c in candles
                            if c.get("timeframe") == timeframe]
+            # Mirror the real ASTRA server exactly: `data.bars[]` with the open
+            # time under `time`. The double previously answered with
+            # `candles`/`open_times`, which is the collector's own dialect — a
+            # receiver the real server has never emitted. Tests written against
+            # that passed while reconciliation silently found nothing in
+            # production, so the dialect is now the server's.
+            bars = [{
+                "time": int(c["open_time_utc"]),
+                "open": c["open"], "high": c["high"],
+                "low": c["low"], "close": c["close"],
+                "tick_volume": c.get("tick_volume", 0),
+                "spread": c.get("spread", 0),
+                "real_volume": c.get("real_volume", 0),
+            } for c in candles]
             self._reply(200, {"data": {
-                "candles": candles,
-                "open_times": sorted({int(c["open_time_utc"])
-                                      for c in candles})}})
+                "bars": bars,
+                "timeframe": timeframe,
+                "symbol": symbol,
+                "count": len(bars),
+                "closed_only": True,
+                "newest_closed_time": bars[-1]["time"] if bars else 0}})
             return
         self._reply(404, {"error": "true", "code": "not_found"})
 
@@ -233,11 +250,20 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
                 if candle.get("open_time_utc", 0) <= 0:
                     rejected.append({"uid": uid, "reason": "bad open time"})
                     continue
+                # The real server names a candle by its own identity string,
+                # never by the sender's uid. The double mirrors that, so a
+                # client that only understands echoed uids fails here instead
+                # of in production.
+                identity = ("symbol=%s&timeframe=%s&open_time=%d"
+                            % (candle.get("symbol", ""),
+                               candle.get("timeframe", ""),
+                               int(candle.get("open_time_utc", 0))))
                 if uid in self.state.stored:
-                    duplicates.append({"uid": uid, "state": "already_stored"})
+                    duplicates.append({"identity": identity,
+                                       "state": "already_stored"})
                     continue
                 self.state.stored[uid] = candle
-                accepted.append({"uid": uid, "state": "stored_new"})
+                accepted.append({"identity": identity, "state": "stored_new"})
 
         if self.state.commit_then_fail:
             # Data is committed but the response is lost: the classic

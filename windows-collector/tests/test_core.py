@@ -417,5 +417,63 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(summary["destination"], "dest")
 
 
+class ReceiverWireContractTest(unittest.TestCase):
+    """The client must understand the bytes the real server actually sends.
+
+    These pin the two formats that differ between the sender's own vocabulary
+    and the deployed ASTRA server's:
+
+      * ingest acks name a candle by ``identity`` (a symbol/timeframe/open_time
+        string), not by the sender's ``uid``;
+      * ``/candles`` answers with ``data.bars[]`` where the open time is under
+        ``time``, not ``data.candles[]``/``data.open_times[]``.
+
+    Both were once wrong, and the bug was invisible because the test double
+    spoke the sender's dialect. These tests use the server's dialect directly.
+    """
+
+    def _client_and_server(self):
+        from tests.doubles import FakeReceiver
+        server = FakeReceiver(token="t")
+        return server, server.state
+
+    def test_ingest_ack_by_server_identity_is_understood(self):
+        from collector.receiver import ReceiverClient
+        from collector.store import StoredCandle
+        server, state = self._client_and_server()
+        try:
+            client = ReceiverClient(server.url, token="t")
+            candle = StoredCandle(
+                uid="XAUUSD:M15:1792905300@abc", symbol="XAUUSD",
+                timeframe="M15", open_time_utc=1792905300,
+                open=1.0, high=2.0, low=0.5, close=1.5,
+                tick_volume=1, spread=1, real_volume=0, source="B",
+                stored_at=0)
+            outcome = client.ingest("XAUUSD", "M15", [candle])
+            self.assertEqual(outcome.confirmed, [candle.uid],
+                             "an ack naming the candle by server identity must "
+                             "still confirm the sender's uid")
+            self.assertEqual(outcome.unconfirmed, [])
+            self.assertTrue(outcome.ok)
+        finally:
+            server.stop()
+
+    def test_reconciliation_reads_server_bars_format(self):
+        from collector.receiver import ReceiverClient
+        server, state = self._client_and_server()
+        try:
+            with state.lock:
+                state.stored["u1"] = {
+                    "uid": "u1", "symbol": "XAUUSD", "timeframe": "M15",
+                    "open_time_utc": 1792905300, "open": 1.0, "high": 2.0,
+                    "low": 0.5, "close": 1.5}
+            client = ReceiverClient(server.url, token="t")
+            self.assertEqual(client.remote_open_times("XAUUSD", "M15"),
+                             [1792905300],
+                             "reconciliation must read data.bars[].time")
+        finally:
+            server.stop()
+
+
 if __name__ == "__main__":
     unittest.main()
