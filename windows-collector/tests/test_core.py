@@ -589,8 +589,11 @@ class TokenVerificationTest(unittest.TestCase):
 
     def test_health_is_unauthenticated_like_the_real_server(self):
         # A divergence here would let a client that never sends a token pass in
-        # tests and fail in production.
-        self.assertTrue(ReceiverClient(self.url, token="").health())
+        # tests and fail in production. Assert the response parses, not merely
+        # that it is truthy: an empty body would still be a dict.
+        body = ReceiverClient(self.url, token="").health()
+        self.assertIsInstance(body, dict)
+        self.assertTrue(body, "health returned an empty body with no token")
 
     def test_error_never_contains_the_token(self):
         secret = "super-secret-value"
@@ -717,6 +720,47 @@ class RealServerContractTest(unittest.TestCase):
                          "nothing may be acknowledged for a rejected batch")
         self.assertEqual(len(outcome.unconfirmed), 1,
                          "the candle must stay pending for a safe retry")
+
+
+    def test_real_server_rejects_a_wrong_token_and_echoes_nothing(self):
+        """The route the setup dialog uses to prove a credential.
+
+        Only the real binary proves the route exists, requires the token, and
+        answers in the shape the client parses. A double could agree with a
+        wrong client.
+        """
+        from collector.receiver import ReceiverClient, ReceiverError
+        base = f"http://127.0.0.1:{self.port}/api/v1"
+        secret = "wrong-token-value-that-must-not-appear"
+
+        # /health stays open, which is exactly why it cannot prove a token.
+        self.assertTrue(ReceiverClient(base, token="").health())
+
+        with self.assertRaises(ReceiverError) as caught:
+            ReceiverClient(base, token=secret).verify_token()
+        self.assertEqual(caught.exception.code, "AUTH_REJECTED")
+        self.assertNotIn(secret, str(caught.exception))
+
+        # And the real token is accepted, so the check is not rejecting all.
+        ReceiverClient(base, token=self.token).verify_token()
+
+    def test_real_server_verification_stores_nothing(self):
+        import sqlite3
+        from collector.receiver import ReceiverClient
+        ReceiverClient(
+            f"http://127.0.0.1:{self.port}/api/v1",
+            token=self.token).verify_token()
+        db = os.path.join(self.data_dir, "candles.sqlite")
+        if not os.path.exists(db):
+            return
+        con = sqlite3.connect(db)
+        try:
+            rows = con.execute("SELECT COUNT(*) FROM candles").fetchone()[0]
+        except sqlite3.Error:
+            rows = 0
+        finally:
+            con.close()
+        self.assertEqual(rows, 0, "proving a token must not store a candle")
 
 
 if __name__ == "__main__":
