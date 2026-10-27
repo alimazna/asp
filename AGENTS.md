@@ -248,6 +248,32 @@ who is not the author used it. Both are worth preserving as rules.
   `collector-windows-build.yml` does not install tkinter. Test the pure helpers,
   and drive the real window under `xvfb-run` locally instead.
 
+## A state change the user cannot see is not a state change (v1.0.5+)
+
+Two more faults, both found by driving the real window rather than reading it.
+Neither is visible in a diff, which is why they survived review.
+
+- **Failure rendered as the idle text.** `_on_probe_fail` set the state to
+  `DISCONNECTED`, whose label is "Terminal: not connected" — exactly what was
+  shown *before* the click. The owner pressed **Connect to MT5**, the button
+  greyed, then everything returned to how it looked before, with no reason
+  given. A failure must produce text the user did not already have. It now sets
+  `FAILED` and carries the reader's own message.
+- **A colour map silently has no default for a new state.** Adding `FAILED` was
+  not enough: `CONNECTED`, `CONNECTING`, `NO_DATA` and `DISCONNECTED` were
+  absent too, so every one of them fell through to the neutral grey — a
+  *successful* connection looked the same as a stopped one. When adding a state,
+  add it to `STATE_COLOURS` as well as the text map, and assert the colour is
+  not the fallback.
+- **Keep the mapping out of the widget code.** It now lives in
+  `display.probe_text`, a pure function, so the rule "an unknown state never
+  reads as connected" is a unit test that runs on Linux CI with no display.
+- **Cancel `after()` timers from a `<Destroy>` binding.** Closing the main window
+  while the setup dialog was open left a pending timer that fired against the
+  destroyed widget and printed `invalid command name "..._drain"` into the
+  owner's log. `_close` alone is not enough: the *parent* can be destroyed
+  first, so the binding is what makes it hold in both directions.
+
 ## The collector's wire contract must be tested against the real server
 
 The collector shipped twice (v1.0.0, v1.0.2) unable to deliver **a single
