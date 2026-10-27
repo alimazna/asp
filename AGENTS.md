@@ -217,6 +217,36 @@ successful `PyInstaller` exit code:
   and failed in CI (tkinter present, so stdout was empty). Assert the contract
   that holds on both hosts.
 
+## The collector's wire contract must be tested against the real server
+
+The collector shipped twice (v1.0.0, v1.0.2) unable to deliver **a single
+candle**, while its own suite reported 99 passing tests. Three independent
+wire-contract bugs, each invisible to the test double:
+
+1. **No `source_id`.** The server validates the batch envelope before reading
+   any candle and answers `HTTP 400 missing_fields`. The double never required
+   the field, so the client never sent it.
+2. **The open time was sent as `open_time_utc`.** `parseCandle` reads `time`.
+   The server accepts the batch (HTTP 200) and returns every candle in its
+   `rejected` array with `ingested: 0` — a *silent* failure, the worst kind,
+   because a sender that only checks the status code reads it as success and a
+   sender that requires a named ack reads it as "nothing confirmed" forever.
+3. **No `clock_offset_seconds`.** Same broker-time trap as the sender (below),
+   but the collector measured the offset and then dropped it before sending, so
+   every intraday bar from a UTC+2/+3 broker was rejected as future-dated.
+
+The lesson is not "be careful"; it is that **a hand-written test double is a
+second implementation of the contract, and it will drift.** A double that is
+more permissive than the server converts real production failures into green
+tests. The double now enforces the same envelope check, reads `time`, and
+applies the broker-frame future guard, and `tests/test_core.py::RealServerContractTest`
+drives the actual C++ `astra_server` binary (skipped when no build is present).
+When you change an endpoint, extend that class — do not only extend the double.
+
+Corollary: a passing `HTTP 200` is not delivery. The only proof is a per-candle
+ack naming the candle (`stored_new` / `already_stored`). The collector is
+already built that way; the tests now prove it against the real server.
+
 ## Security: never publish a token-bearing installer
 
 The repository is **public**, so any GitHub Release asset is world-readable. The
