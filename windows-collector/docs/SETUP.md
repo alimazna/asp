@@ -16,15 +16,16 @@ executable.
 
 ## 2. Install
 
-1. Download `ASTRA-Collector.exe` from the release page:
-   <https://github.com/alimazna/asp/releases/tag/collector-v1.0.2>
+1. Download `ASTRA-Collector.exe` — direct link:
+   <https://github.com/alimazna/asp/releases/download/collector-v1.0.2/ASTRA-Collector.exe>
+   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.2>
 2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
    If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
    the same folder; it is a one-click launcher.
 3. Double-click `ASTRA-Collector.exe`. The window opens. No console appears.
 
-The executable is self-contained: the MetaTrader5 package is bundled inside it,
-so there is nothing else to install.
+The executable is self-contained: the MetaTrader5 package and its numpy backend
+are bundled inside it, so there is nothing else to install.
 
 Optional: verify the download before running it. In PowerShell:
 
@@ -32,8 +33,11 @@ Optional: verify the download before running it. In PowerShell:
 Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 ```
 
-The expected value is printed in the build log of the workflow run that
-produced this release. Compare the two before running the file.
+For the 1.0.2 release the expected SHA256 is:
+
+```
+84C076FD42F173E712DC15F29D08E31F09AFB3EBE1F990D73DB82859828D9CA4
+```
 
 Windows SmartScreen may warn about an unsigned application the first time. The
 build is unsigned; choose "More info" then "Run anyway" only after the hash
