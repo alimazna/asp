@@ -3,6 +3,12 @@
 Owner-facing instructions. Written so the application can be started normally,
 without a command prompt and without installing a development toolchain.
 
+> **Use 1.0.3 or later.** Releases 1.0.0 and 1.0.2 could not deliver a single
+> candle: they omitted `source_id`, sent the bar open time under the wrong field
+> name, and dropped the measured clock offset. The server rejected every batch
+> (HTTP 400), or accepted it with `ingested: 0` and every candle in `rejected`.
+> 1.0.3 fixes all three and is verified against the real server binary.
+
 ## 1. Requirements
 
 - Windows 10 or later.
@@ -17,8 +23,8 @@ executable.
 ## 2. Install
 
 1. Download `ASTRA-Collector.exe` — direct link:
-   <https://github.com/alimazna/asp/releases/download/collector-v1.0.2/ASTRA-Collector.exe>
-   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.2>
+   <https://github.com/alimazna/asp/releases/download/collector-v1.0.3/ASTRA-Collector.exe>
+   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.3>
 2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
    If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
    the same folder; it is a one-click launcher.
@@ -33,10 +39,10 @@ Optional: verify the download before running it. In PowerShell:
 Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 ```
 
-For the 1.0.2 release the expected SHA256 is:
+For the 1.0.3 release the expected SHA256 is:
 
 ```
-84C076FD42F173E712DC15F29D08E31F09AFB3EBE1F990D73DB82859828D9CA4
+0DE3724E63D91A8FEBDA4F2F748FBD3EBAE0B05AB17725D5CD7A9715859C5925
 ```
 
 Windows SmartScreen may warn about an unsigned application the first time. The
