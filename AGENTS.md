@@ -222,6 +222,28 @@ Rules:
   fully exhausted (`insufficient_quota`, `retry_after` ~19 h) — the account has
   a $0 balance. The adapter classifies 429 as retryable/bounded and the API
   degrades to `unavailable`; reliable production analysis needs a paid balance.
+- A **429 is two opposite conditions** and must not be conflated. `LlmQuotaMonitor`
+  (`src/news/LlmQuotaMonitor.*`) refines the 429: a body with a quota marker
+  (`insufficient_quota`/`quota_exceeded`/`daily token quota`) is `quota_exhausted`
+  (**not retryable** — the service opens a cooldown and withholds provider calls);
+  any other 429 is `rate_limited` (retryable, bounded). The reset comes from the
+  `Retry-After` header or the body `retry_after`; when absent it cools down via
+  `LLM7_QUOTA_FALLBACK_COOLDOWN_S` but reports `retry_after_seconds: null` — it
+  **never invents a countdown**. `GET /api/v1/news/quota` (client token) exposes
+  a secret-free snapshot; the Android app shows an Arabic `QuotaBanner`.
+- **Live 429 shape (2026-10-27):** `retry-after: 66401` header plus body
+  `{"error":{"message":"Daily token quota exceeded. Retry after 66401 seconds.","type":"insufficient_quota","param":null,"code":"quota_exceeded","retry_after":66401}}`.
+  The classifier matches it exactly; the test fixture is grounded in this probe.
+- `ASTRA_MOCK_LLM_MODE` (`ASTRA_LLM_PROVIDER=mock`) selects a mock failure mode
+  (`valid`/`malformed`/`empty`/`timeout`/`rate_limited`/`quota_exhausted`/
+  `auth_failure`/`malformed_then_valid`) so the full HTTP path can be
+  failure-injected **without spending real quota**. Unknown value → `valid`.
+- **`CandleStore::recent()` returned the OLDEST `limit` rows**, not the newest,
+  despite its name. With 6667 real M15 rows and `limit=500`, the candles route
+  published `newest_closed_time` ~98 days stale as the "newest closed candle".
+  Fixed to select the newest N in an inner `DESC` query then re-sort `ASC`, with
+  the quarantine predicate kept inside the inner query so `LIMIT` sees a clean
+  series (agent-b, verified independently by the principal).
 - News routes are client-token gated: `/api/v1/news`, `/api/v1/news/analyze?id=`,
   `/api/v1/history` (note: **not** `/news/history`). Ingest is sender-token
   gated: `/api/v1/news/ingest`. Candle read is `/api/v1/candles?tf=...&limit=...`
