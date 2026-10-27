@@ -123,23 +123,33 @@ class CliEndToEndTest(unittest.TestCase):
     def test_05_second_pass_never_resends_an_older_candle(self):
         """A repeat pass may only add genuinely newer candles.
 
-        A minute boundary can roll over between passes, which legitimately
-        produces one new closed M1 bar. What must never happen is an older
-        candle being re-delivered, so the invariant is checked on timestamps
-        rather than on a raw count.
+        The invariant is per timeframe, not across all of them. Each timeframe
+        has its own grid and its own newest closed bar, so an M5 bar that closes
+        during the gap between the two passes is legitimately newer than the
+        previous M5 bar while still being older than the newest M1 bar. A single
+        cross-timeframe maximum compares two different grids and reports that
+        correct delivery as a re-send, which is how this test flaked on Windows
+        (a slower job widens the gap and makes the M1 bar outrun the M5 one).
         """
         before = dict(self.receiver.state.stored)
-        newest_before = max(int(c["open_time_utc"]) for c in before.values())
+        newest_before: dict = {}
+        for candle in before.values():
+            scope = (candle.get("symbol"), candle.get("timeframe"))
+            newest_before[scope] = max(newest_before.get(scope, 0),
+                                       int(candle["open_time_utc"]))
         self.receiver.state.requests = []
         result = self._run("--once", "--json", "--allow-insecure-http")
         self.assertEqual(result.returncode, 0, result.stderr)
         added = {uid: c for uid, c in self.receiver.state.stored.items()
                  if uid not in before}
         for uid, candle in added.items():
+            scope = (candle.get("symbol"), candle.get("timeframe"))
+            previous = newest_before.get(scope, 0)
             self.assertGreater(
-                int(candle["open_time_utc"]), newest_before,
-                f"{uid} is older than the previous newest candle; a repeat "
-                f"pass must never re-deliver an already-acknowledged candle")
+                int(candle["open_time_utc"]), previous,
+                f"{uid} is not newer than the previous newest {scope[1]} candle; "
+                f"a repeat pass must never re-deliver an already-acknowledged "
+                f"candle")
         for uid in before:
             self.assertIn(uid, self.receiver.state.stored,
                           "an existing record must not be removed")
