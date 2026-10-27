@@ -237,8 +237,25 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
         with self.state.lock:
             self.state.requests.append(body)
 
+        # The real server validates the batch envelope before it reads a single
+        # candle and answers HTTP 400 when source_id/symbol/timeframe is absent.
+        # The double used to skip this check, which is how the collector shipped
+        # without sending source_id at all while every test passed.
+        for field in ("source_id", "symbol", "timeframe"):
+            if not body.get(field):
+                self._reply(400, {"error": "true", "code": "missing_fields",
+                                  "message": ("source_id, symbol and timeframe "
+                                              "are required")})
+                return
+
         if self.state.delay_seconds:
             time.sleep(self.state.delay_seconds)
+
+        # The real server evaluates its future guard in the sender's broker
+        # frame. Reproduce that here, or a collector that forgets to send the
+        # offset still looks correct against this double.
+        offset = int(body.get("clock_offset_seconds", 0) or 0)
+        broker_now = int(time.time()) + offset
 
         accepted, duplicates, rejected = [], [], []
         with self.state.lock:
@@ -247,8 +264,31 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
                 if not uid:
                     rejected.append({"uid": "", "reason": "missing uid"})
                     continue
-                if candle.get("open_time_utc", 0) <= 0:
-                    rejected.append({"uid": uid, "reason": "bad open time"})
+                # The real server reads the open time from `time`. Accepting
+                # `open_time_utc` here hid a payload the receiver rejects
+                # wholesale with HTTP 200 and `ingested: 0`.
+                if "time" not in candle:
+                    rejected.append({"uid": uid, "state": "rejected",
+                                     "reason": ("candle rejected: candle 'time' "
+                                                "missing or not numeric")})
+                    continue
+                try:
+                    open_time = int(candle["time"])
+                except (TypeError, ValueError):
+                    rejected.append({"uid": uid, "state": "rejected",
+                                     "reason": ("candle rejected: candle 'time' "
+                                                "missing or not numeric")})
+                    continue
+                if open_time <= 0:
+                    rejected.append({"uid": uid, "state": "rejected",
+                                     "reason": ("candle rejected: candle "
+                                                "open_time must be a positive "
+                                                "epoch timestamp")})
+                    continue
+                if open_time > broker_now + 300:
+                    rejected.append({"uid": uid, "state": "rejected",
+                                     "reason": ("candle rejected: candle "
+                                                "open_time is in the future")})
                     continue
                 # The real server names a candle by its own identity string,
                 # never by the sender's uid. The double mirrors that, so a
@@ -256,13 +296,18 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
                 # of in production.
                 identity = ("symbol=%s&timeframe=%s&open_time=%d"
                             % (candle.get("symbol", ""),
-                               candle.get("timeframe", ""),
-                               int(candle.get("open_time_utc", 0))))
+                               candle.get("timeframe", ""), open_time))
                 if uid in self.state.stored:
                     duplicates.append({"identity": identity,
                                        "state": "already_stored"})
                     continue
-                self.state.stored[uid] = candle
+                # Store the row the way the real server does: the open time
+                # lives in its own column (`open_time_utc`), and only the GET
+                # handler renders it as `time`. Keeping the wire key here would
+                # make the double's storage a shape the real server never has.
+                row = dict(candle)
+                row["open_time_utc"] = open_time
+                self.state.stored[uid] = row
                 accepted.append({"identity": identity, "state": "stored_new"})
 
         if self.state.commit_then_fail:

@@ -8,9 +8,12 @@ which are external boundaries.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -449,7 +452,8 @@ class ReceiverWireContractTest(unittest.TestCase):
                 open=1.0, high=2.0, low=0.5, close=1.5,
                 tick_volume=1, spread=1, real_volume=0, source="B",
                 stored_at=0)
-            outcome = client.ingest("XAUUSD", "M15", [candle])
+            outcome = client.ingest("XAUUSD", "M15", [candle],
+                                    source_id="win10-desk-01")
             self.assertEqual(outcome.confirmed, [candle.uid],
                              "an ack naming the candle by server identity must "
                              "still confirm the sender's uid")
@@ -473,6 +477,124 @@ class ReceiverWireContractTest(unittest.TestCase):
                              "reconciliation must read data.bars[].time")
         finally:
             server.stop()
+
+
+class RealServerContractTest(unittest.TestCase):
+    """Deliver to the actual C++ ``astra_server`` binary, not a double.
+
+    Every wire-contract bug the collector shipped with was invisible to the
+    double, which accepted `open_time_utc`, never required `source_id`, and
+    ignored `clock_offset_seconds`. The double now mirrors the server, but only
+    the server itself can prove the two agree. Skipped when no built binary is
+    present (a developer machine), so the suite stays runnable everywhere.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        candidates = [
+            os.path.join(os.path.dirname(root), "build-linux", "astra_server"),
+            os.path.join(os.path.dirname(root), "build", "astra_server"),
+        ]
+        cls.binary = next((p for p in candidates if os.path.isfile(p)), None)
+        if cls.binary is None:
+            raise unittest.SkipTest("no built astra_server binary")
+
+    def setUp(self):
+        import socket
+        self.token = "contract-probe-token"
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            self.port = probe.getsockname()[1]
+        self.data_dir = tempfile.mkdtemp(prefix="astra-contract-")
+        env = dict(os.environ)
+        env.update({"ASTRA_SENDER_TOKEN": self.token,
+                    "ASTRA_DATA_DIR": self.data_dir,
+                    "ASTRA_HOST": "127.0.0.1", "PORT": str(self.port)})
+        self.process = subprocess.Popen(
+            [self.binary], env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            try:
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{self.port}/api/v1/health",
+                        timeout=1):
+                    return
+            except Exception:
+                time.sleep(0.25)
+        self.process.terminate()
+        self.fail("astra_server did not become healthy")
+
+    def tearDown(self):
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+
+    def _client(self):
+        from collector.receiver import ReceiverClient
+        return ReceiverClient(f"http://127.0.0.1:{self.port}/api/v1",
+                              token=self.token)
+
+    @staticmethod
+    def _candle(open_time):
+        from collector.store import StoredCandle
+        return StoredCandle(
+            uid=f"XAUUSD:M5:{open_time}@probe", symbol="XAUUSD",
+            timeframe="M5", open_time_utc=open_time,
+            open=2650.10, high=2652.30, low=2649.80, close=2651.70,
+            tick_volume=120, spread=20, real_volume=0, source="MT5",
+            stored_at=0)
+
+    def test_real_server_accepts_the_collector_payload(self):
+        """The payload the engine sends must be stored, not silently rejected.
+
+        A rejected candle still returns HTTP 200, so the assertion is on
+        `confirmed`, not on the transport succeeding.
+        """
+        now = int(time.time())
+        open_time = (now // 300) * 300 - 600
+        outcome = self._client().ingest(
+            "XAUUSD", "M5", [self._candle(open_time)],
+            source_id="contract-probe", clock_offset_seconds=0)
+        self.assertTrue(outcome.ok, f"not confirmed: {outcome}")
+        self.assertEqual(outcome.confirmed, [f"XAUUSD:M5:{open_time}@probe"])
+
+    def test_real_server_is_idempotent_for_the_same_candle(self):
+        """A resend must be acknowledged as already stored, not duplicated."""
+        now = int(time.time())
+        open_time = (now // 300) * 300 - 900
+        client = self._client()
+        first = client.ingest("XAUUSD", "M5", [self._candle(open_time)],
+                              source_id="contract-probe")
+        second = client.ingest("XAUUSD", "M5", [self._candle(open_time)],
+                               source_id="contract-probe")
+        self.assertTrue(first.ok)
+        self.assertTrue(second.ok, "a duplicate must still be acknowledged")
+        self.assertEqual(second.unconfirmed, [])
+
+    def test_real_server_rejects_a_broker_time_candle_without_the_offset(self):
+        """This is the bug that made every intraday bar from a UTC+3 broker
+        look future-dated. Proves the offset is required, not decorative.
+
+        The server rejects such a candle during validation, before it reads the
+        candle's identity, so the rejection carries a reason but no identity.
+        The collector therefore classifies it as *unconfirmed*, not rejected:
+        it is never acknowledged. That is the safe outcome, and this asserts it
+        rather than asserting a reason string the response does not carry.
+        """
+        now = int(time.time())
+        open_time = ((now + 10800) // 300) * 300
+        outcome = self._client().ingest(
+            "XAUUSD", "M5", [self._candle(open_time)],
+            source_id="contract-probe", clock_offset_seconds=0)
+        self.assertFalse(outcome.ok, "a future-dated bar must never confirm")
+        self.assertEqual(outcome.confirmed, [],
+                         "nothing may be acknowledged for a rejected batch")
+        self.assertEqual(len(outcome.unconfirmed), 1,
+                         "the candle must stay pending for a safe retry")
 
 
 if __name__ == "__main__":

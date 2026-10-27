@@ -184,13 +184,30 @@ class ReceiverClient:
         return sorted(set(times))
 
     def ingest(self, symbol: str, timeframe: str,
-               candles: Sequence[StoredCandle]) -> IngestOutcome:
-        """Deliver candles. Only explicitly named, persisted candles confirm."""
+               candles: Sequence[StoredCandle],
+               source_id: str = "",
+               clock_offset_seconds: int = 0) -> IngestOutcome:
+        """Deliver candles. Only explicitly named, persisted candles confirm.
+
+        `source_id` and `clock_offset_seconds` are both required by the ASTRA
+        server and were both missing here:
+
+          * Without `source_id` the server answers HTTP 400 `missing_fields`
+            before it looks at a single candle.
+          * Without `clock_offset_seconds` the server evaluates its "future"
+            guard in UTC, so every bar a non-UTC broker stamps (the common
+            UTC+2/+3 case) is rejected as future-dated. The sender has always
+            measured this offset; the collector measured it too and then did not
+            send it.
+        """
         if not candles:
             return IngestOutcome([], {}, [])
         payload = {
+            "schema_version": "1.0",
+            "source_id": source_id,
             "symbol": symbol,
             "timeframe": timeframe,
+            "clock_offset_seconds": int(clock_offset_seconds or 0),
             "candles": [c.to_payload() for c in candles],
         }
         response = self._request(

@@ -57,12 +57,18 @@ class StoredCandle:
 
     def to_payload(self) -> Dict[str, Any]:
         """Wire form. The unique id travels with the candle so the receiver can
-        verify identity without recomputing it."""
+        verify identity without recomputing it.
+
+        The open time is sent as `time`, which is the key the ASTRA server reads
+        (`parseCandle`). `open_time_utc` is the collector's internal name and is
+        NOT understood by the receiver: sending it yields a 200 whose `rejected`
+        array names every candle, so the collector never confirms a delivery.
+        """
         return {
             "uid": self.uid,
             "symbol": self.symbol,
             "timeframe": self.timeframe,
-            "open_time_utc": self.open_time_utc,
+            "time": self.open_time_utc,
             "open": self.open,
             "high": self.high,
             "low": self.low,

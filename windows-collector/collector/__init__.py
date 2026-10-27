@@ -9,6 +9,6 @@ This package is standalone: it does not import from the ASTRA backend, and the
 receiving endpoint is a setting rather than a compiled-in constant.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 __all__ = ["__version__"]

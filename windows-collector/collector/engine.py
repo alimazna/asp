@@ -688,7 +688,10 @@ class SyncEngine:
             for key in keys:
                 self._ledger.record_attempt(destination, key)
             try:
-                outcome = self._client.ingest(symbol, timeframe, candles)
+                outcome = self._client.ingest(
+                    symbol, timeframe, candles,
+                    source_id=self._config.sender_id,
+                    clock_offset_seconds=self._reader.clock_offset_seconds())
             except ReceiverError as exc:
                 # Uncertain delivery: keep every candle pending and surface the
                 # failure. Nothing is marked acknowledged.
