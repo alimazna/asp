@@ -53,6 +53,7 @@ different values**: they guard disjoint capabilities (write / destructive / read
 | `LLM7_MODEL` | `nemotron-3-nano:30b` (default) |
 | `ASTRA_LLM_PROVIDER` | `llm7` (prod) or `mock` (tests) |
 | `LLM7_CONNECT_TIMEOUT_MS`, `LLM7_READ_TIMEOUT_MS`, `LLM7_MAX_ATTEMPTS` | bounded timeouts/retries |
+| `LLM7_QUOTA_FALLBACK_COOLDOWN_S` | cooldown seconds used when a 429 quota response omits a reset time (default 3600) |
 
 ### Cloudflare database
 Not required. No Cloudflare database is used (see `CLOUDFLARE_DATABASE.md`). The

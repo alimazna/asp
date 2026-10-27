@@ -133,8 +133,53 @@ fails, the status stays `invalid_model_output` — never a coerced recommendatio
 |---|---|---|---|
 | `/api/v1/news` | GET | client | list, newest first; `?category=`, `?gold_only=`, `?limit=` |
 | `/api/v1/news/analyze?id=` | GET | client | article + latest analysis; 400 missing id, 404 unknown id |
+| `/api/v1/news/quota` | GET | client | AI provider availability snapshot (secret-free) |
 | `/api/v1/history` | GET | client | persisted analyses, newest first; `?limit=` |
 | `/api/v1/news/ingest` | POST | **sender** | write path; per-article outcomes |
+
+### Daily-quota monitoring (`GET /api/v1/news/quota`)
+
+LLM7 returns **HTTP 429 for two opposite conditions**, and conflating them is a
+real defect: a *temporary* burst limit clears in seconds, while a *spent daily
+budget* will not clear until the provider's window resets. Treating the second as
+retryable makes the backend hammer a provider that cannot answer; treating the
+first as permanent makes the app look broken for a few seconds.
+
+`LlmQuotaMonitor` (`src/news/LlmQuotaMonitor.*`) records each provider outcome
+and exposes a secret-free snapshot:
+
+- A **429 whose body carries a quota marker** (`insufficient_quota`,
+  `quota_exceeded`, `daily token quota`, `exceeded your current quota`) is
+  `quota_exhausted`: **not retryable**, and the service opens a cooldown and
+  withholds provider calls until the reset window.
+- Any **other 429** is `rate_limited`: still retryable, bounded by the existing
+  attempt cap.
+- The reset time is parsed from the `Retry-After` header (integer seconds) or the
+  body's `retry_after` field. When neither is present the monitor still cools
+  down (conservative fallback, `LLM7_QUOTA_FALLBACK_COOLDOWN_S`, default 3600)
+  but reports `retry_after_seconds: null` — it **never invents a countdown**.
+
+The response shape (`data.quota`):
+
+```json
+{"category":"quota_exhausted","retry_after_seconds":66282,
+ "last_change_at":1793122517,"last_success_at":0,
+ "cooling_down":true,"cooldown_until":1793188799,
+ "quota_exhausted":true,"rate_limited":false}
+```
+
+The Android app calls this alongside the news feed and shows an Arabic banner
+(`QuotaBanner`) that distinguishes "paused until the quota renews" from
+"provider busy, retry shortly". A failed quota read leaves the banner hidden —
+an unknown quota is never shown as exhausted.
+
+**Live evidence (2026-10-27):** the real token returned
+`HTTP 429`, `retry-after: 66401`, and body
+`{"error":{"message":"Daily token quota exceeded. Retry after 66401 seconds.","type":"insufficient_quota","param":null,"code":"quota_exceeded","retry_after":66401}}`.
+The classifier matched it exactly (test fixture grounded in this probe), and the
+end-to-end server returned `status:"unavailable"` with the Arabic pause message
+and opened the cooldown; a second request answered in ~25 ms **without** calling
+the provider.
 
 **Credential separation is deliberate and tested:**
 
