@@ -217,9 +217,11 @@ Rules:
   turn (system + user + the invalid assistant reply + a corrective user message
   with a concrete example). An inline restatement in a single user message does
   NOT work; the assistant+user turn sequence does.
-- The LLM7 free tier **rate-limits aggressively** (HTTP 429 within seconds).
-  Classified as retryable/bounded; the app keeps serving cached news + market
-  data. Reliable production analysis needs a paid balance or a lower call rate.
+- The LLM7 free tier **rate-limits aggressively** (HTTP 429 within seconds),
+  and a real-token probe on 2026-10-27 confirmed the daily free budget can be
+  fully exhausted (`insufficient_quota`, `retry_after` ~19 h) — the account has
+  a $0 balance. The adapter classifies 429 as retryable/bounded and the API
+  degrades to `unavailable`; reliable production analysis needs a paid balance.
 - News routes are client-token gated: `/api/v1/news`, `/api/v1/news/analyze?id=`,
   `/api/v1/history` (note: **not** `/news/history`). Ingest is sender-token
   gated: `/api/v1/news/ingest`. Candle read is `/api/v1/candles?tf=...&limit=...`

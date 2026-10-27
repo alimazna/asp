@@ -55,18 +55,35 @@ Lifecycle checks against the same server:
 
 ## 4. Live LLM7 findings (real provider, real token)
 
-- Endpoint `https://api.llm7.io/v1` reachable; `nemotron-3-nano:30b` present in
-  the models list; response shape is OpenAI-compatible.
-- **First-pass schema adherence is poor**: the model returned *valid JSON that
-  violates the schema* (top-level keys folded into a `facts` element), giving
-  `invalid_model_output: invalid direction: ''`.
-- **The free tier rate-limits aggressively** (HTTP 429 within seconds of
-  repeated calls). This blocked a clean repeated live recovery measurement. The
-  adapter classifies 429 as retryable/bounded, and the app degrades to
-  `unavailable` while still serving cached news + market data.
-- Consequence: the conversational repair turn is the **primary** path to a valid
-  live analysis, not an edge case. A paid balance (or a much lower call rate) is
-  required for reliable production analysis.
+Verified 2026-10-27 with a real `LLM7_API_TOKEN` against `https://api.llm7.io/v1`:
+
+- `GET /v1/models` returns 67 models and includes `nemotron-3-nano:30b`
+  (and `default`). The token authenticates correctly.
+- `POST /v1/chat/completions` for `nemotron-3-nano:30b` returns
+  **HTTP 429 `insufficient_quota`**: `"Daily token quota exceeded. Retry after
+  60 seconds."`, and on the final probe `"Retry after 69686 seconds."` (~19 h).
+  The free tier's daily token budget was exhausted by the session's test calls.
+- Earlier in the session (before the quota was spent) the same model returned a
+  **200 with valid JSON that violated the schema**: top-level keys folded into a
+  `facts` element, giving `invalid_model_output: invalid direction: ''`. This is
+  the reason the service now makes a bounded conversational repair turn.
+- The adapter classifies 429 as retryable/bounded and the API returns a clean
+  `status: "unavailable"` with an Arabic `limitations_ar` line and an empty
+  summary — it never fabricates a summary, facts, or a direction. `direction`
+  stays `no_trade`.
+
+Observed live degrade (exact API output, quota-exhausted path):
+
+```json
+{"status":"unavailable",
+ "status_reason":"provider unavailable: provider returned HTTP 429: {\"error\":{\"message\":\"Daily token quota exceeded. Retry after 60 seconds.\",\"type\":\"insufficient_quota\",\"code\":\"quota_exceeded\"}}",
+ "summary_ar":"", "facts":[], "direction":"no_trade",
+ "provider_id":"llm7", "model_id":"nemotron-3-nano:30b"}
+```
+
+Consequence: the conversational repair turn is the **primary** path to a valid
+live analysis, not an edge case. Reliable production analysis needs a paid
+balance (the account reports a $0 balance) or a much lower call rate.
 
 ## 5. APK
 

@@ -117,6 +117,13 @@ fails, the status stays `invalid_model_output` — never a coerced recommendatio
   classifies 429 as `RateLimited` (retryable, bounded backoff) and the app keeps
   serving cached news + market data. A paid balance or a lower call rate is
   required for reliable production analysis.
+- A real-token probe on 2026-10-27 confirmed `GET /v1/models` returns 67 models
+  (including `nemotron-3-nano:30b`) and the token authenticates, but
+  `POST /v1/chat/completions` returned **HTTP 429 `insufficient_quota`**
+  ("Daily token quota exceeded"), finally with `retry_after: 69686` (~19 h). The
+  account has a **$0 balance**; the free daily budget was spent by the session's
+  test calls. The API degraded cleanly to `status:"unavailable"` with an Arabic
+  `limitations_ar` line — no fabricated summary, facts, or direction.
 - The model's first-pass schema adherence is **poor**; the repair turn is
   therefore the primary path to a valid analysis, not an edge case.
 
