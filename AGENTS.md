@@ -117,6 +117,13 @@ hardcode a timeframe as untrusted.
   No token exists in the agent environment and there is no `~/.railway`, so a
   deploy cannot be performed from here. Owner must add the three repository
   secrets, then re-run the workflows on `feat/standalone-collector`.
+- **Re-verified live 2026-10-27:** the deployed container still serves
+  `analysis.symbol:""` and `mtf_core_gate_passed:false` with
+  `block_reasons:["multi-timeframe core gate: M15 and H4 streams unavailable"]`,
+  and `/api/v1/ready` returns 404 (the route is `/readyz`). The rehydration
+  commits `606aa74`, `0ee0817`, `cd586bd` are all present on
+  `feat/standalone-collector`, so the remaining work is a deploy, not a code
+  change. Still blocked on `RAILWAY_TOKEN`.
 - **Local verification of the un-deployed fixes (2026-10-26):** fresh ingest
   into an empty data dir, then restart with no new ingestion, yields
   `analysis.symbol:"XAUUSD"`, `mtf_core_gate_passed:true`, and a `/health` that
