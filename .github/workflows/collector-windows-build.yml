@@ -122,6 +122,11 @@ jobs:
             Write-Error "selfcheck did not write $report"
             exit 1
           }
+          # A non-zero selfcheck must name what failed, not just fail.
+          if (Select-String -Path $report -Pattern "FAIL" -Quiet) {
+            Write-Error "selfcheck reported missing components (see above)"
+            exit 1
+          }
 
       - name: Upload the executable
         uses: actions/upload-artifact@v4
