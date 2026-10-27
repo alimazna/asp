@@ -84,11 +84,22 @@ jobs:
           ASTRA_COLLECTOR_NO_DIALOG: "1"
         run: |
           # A windowed-subsystem exe does not set $LASTEXITCODE; read the real
-          # exit code through Start-Process.
-          $p = Start-Process -FilePath ".\dist\ASTRA-Collector.exe" `
-                              -ArgumentList "--version" -PassThru -Wait
-          if ($p.ExitCode -ne 0) {
-            Write-Error "--version failed with $($p.ExitCode)"
+          # exit code through Start-Process. Every run is bounded: an exe that
+          # pops a blocking message box would otherwise hang the job until it
+          # times out, which is exactly what happened once already.
+          function Invoke-Frozen($exe, $arg, $seconds) {
+            $p = Start-Process -FilePath $exe -ArgumentList $arg -PassThru
+            if (-not $p.WaitForExit($seconds * 1000)) {
+              Stop-Process -Id $p.Id -Force
+              Write-Error "$arg did not exit within ${seconds}s (a blocking dialog?)"
+              exit 1
+            }
+            return $p.ExitCode
+          }
+
+          $code = Invoke-Frozen ".\dist\ASTRA-Collector.exe" "--version" 60
+          if ($code -ne 0) {
+            Write-Error "--version failed with $code"
             exit 1
           }
           Write-Host "frozen app --version passed"
@@ -96,13 +107,21 @@ jobs:
           # --version returns before the collector package is imported, so it
           # cannot catch a missing module or a broken relative import.
           # --selfcheck imports every runtime module and must exit 0.
-          $s = Start-Process -FilePath ".\dist\ASTRA-Collector.exe" `
-                              -ArgumentList "--selfcheck" -PassThru -Wait
-          if ($s.ExitCode -ne 0) {
-            Write-Error "--selfcheck failed with $($s.ExitCode)"
+          $code = Invoke-Frozen ".\dist\ASTRA-Collector.exe" "--selfcheck" 120
+          if ($code -ne 0) {
+            Write-Error "--selfcheck failed with $code"
             exit 1
           }
           Write-Host "frozen app --selfcheck passed (all runtime modules import)"
+
+          # The result must also be on disk: a windowed exe has no stdout.
+          $report = Join-Path $env:LOCALAPPDATA "AstraCollector\selfcheck.txt"
+          if (Test-Path $report) {
+            Get-Content $report | Write-Host
+          } else {
+            Write-Error "selfcheck did not write $report"
+            exit 1
+          }
 
       - name: Upload the executable
         uses: actions/upload-artifact@v4

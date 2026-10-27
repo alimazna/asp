@@ -199,6 +199,40 @@ class EntryPointRoutingTest(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             self.assertIn("selfcheck failed", result.stderr)
 
+    def test_windowed_mode_does_not_hang(self):
+        """A windowed exe has no stdout; arguments must still return.
+
+        PyInstaller windowed builds set sys.stdout and sys.stderr to None. A
+        run that writes to them, or that raises, pops a native message box
+        that waits for a click forever - which is what hung the CI smoke run
+        for 25 minutes instead of printing the version. This runs the entry
+        point with both streams set to None and a hard timeout: a hang fails
+        the test instead of stalling the suite.
+        """
+        wrapper = (
+            "import sys, runpy\n"
+            "sys.stdout = None\n"
+            "sys.stderr = None\n"
+            "sys.argv = ['ASTRA-Collector.exe', '--version']\n"
+            f"sys.path.insert(0, {ROOT!r})\n"
+            "try:\n"
+            "    runpy.run_path('astra_collector_app.py', run_name='__main__')\n"
+            "except SystemExit as exc:\n"
+            "    raise SystemExit(exc.code or 0)\n"
+        )
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", wrapper], cwd=ROOT, env=self.env,
+                capture_output=True, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            self.fail("the entry point hung with stdout/stderr set to None; a "
+                      "windowed exe would show a blocking message box here")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Output is discarded, but the run must leave evidence on disk.
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "console.log")),
+            "a windowed run must route output to a log, not to None")
+
 
 if __name__ == "__main__":
     unittest.main()
