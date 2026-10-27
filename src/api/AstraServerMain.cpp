@@ -15,11 +15,17 @@
 #include "api/AstraApiServer.h"
 #include "api/BackendFacade.h"
 #include "api/AnalysisApi.h"
+#include "api/NewsApi.h"
 #include "api/ProbabilityApi.h"
 #include "data/BarNormalizer.h"
 #include "foundation/Json.h"
+#include "foundation/OutboundHttpClient.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
+#include "news/Llm7Provider.h"
+#include "news/MockLlmProvider.h"
+#include "news/NewsAnalysisService.h"
+#include "news/NewsStore.h"
 #include "persistence/CandleStore.h"
 #include "runtime/AuraRuntime.h"
 #include "telegram/TelegramGateway.h"
@@ -31,6 +37,7 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -365,6 +372,10 @@ int main(int argc, char** argv) {
     apiConfig.port = static_cast<std::uint16_t>(port);
     apiConfig.senderTokens = tokens;
     apiConfig.adminTokens = adminTokens;
+    // Read-only client credential for the private AYZR mobile surface. Absent by
+    // default, which disables the news/history routes (401) rather than exposing
+    // them unauthenticated.
+    apiConfig.clientTokens = splitComma(envOr("ASTRA_CLIENT_TOKEN", ""));
     apiConfig.allowedOrigins = cliOrigins.empty()
                                    ? splitComma(envOr("ASTRA_ALLOWED_ORIGINS", ""))
                                    : cliOrigins;
@@ -711,6 +722,196 @@ int main(int argc, char** argv) {
         fields.push_back({"rows", jsonArray(elements), true});
         return ApiResponse{200, "application/json",
                            envelope(jsonObject(fields)), true};
+    };
+
+    // ---------------------------------------------------------------------
+    // AYZR news intelligence (additive). A durable news store plus a
+    // provider-neutral LLM adapter. The analysis layer is READ-ONLY with
+    // respect to ASTRA: it reads candles and the existing analysis, and never
+    // modifies a decision.
+    // ---------------------------------------------------------------------
+    NewsStore newsStore;
+    {
+        std::string newsError;
+        if (!newsStore.open(dataDir + "/news.sqlite", newsError)) {
+            std::cerr << "  WARN: news store unavailable: " << newsError
+                      << std::endl;
+        } else {
+            std::cout << "  news store: " << dataDir << "/news.sqlite"
+                      << std::endl;
+        }
+    }
+
+    // Provider selection is configuration-only: `ASTRA_LLM_PROVIDER=mock` runs
+    // the deterministic in-process provider (tests, offline dev); anything else
+    // uses the LLM7 OpenAI-compatible adapter. The token is read from the
+    // environment and never logged or serialized.
+    const std::string providerKind = envOr("ASTRA_LLM_PROVIDER", "llm7");
+    Llm7Config llm7Config;
+    llm7Config.baseUrl = envOr("LLM7_BASE_URL", "https://api.llm7.io/v1");
+    llm7Config.model = envOr("LLM7_MODEL", "nemotron-3-nano:30b");
+    llm7Config.apiToken = envOr("LLM7_API_TOKEN", "");
+    llm7Config.connectTimeoutMillis = parseIntEnv("LLM7_CONNECT_TIMEOUT_MS", 5000);
+    llm7Config.readTimeoutMillis = parseIntEnv("LLM7_READ_TIMEOUT_MS", 45000);
+    std::shared_ptr<IOutboundHttpClient> outboundHttp =
+        makeDefaultOutboundHttpClient();
+    Llm7Provider llm7Provider(llm7Config, outboundHttp);
+    MockLlmProvider mockProvider(MockLlmProvider::Mode::Valid);
+    ILlmProvider* llmProvider =
+        (providerKind == "mock") ? static_cast<ILlmProvider*>(&mockProvider)
+                                 : static_cast<ILlmProvider*>(&llm7Provider);
+    NewsAnalysisService newsService(llmProvider, parseIntEnv("LLM7_MAX_ATTEMPTS", 2));
+    std::cout << "  llm provider: " << llmProvider->providerId() << " ("
+              << llmProvider->modelId() << ")" << std::endl;
+
+    // Query-string helper for the news routes.
+    auto queryParam = [](const std::string& query,
+                         const std::string& key) -> std::string {
+        std::istringstream qs(query);
+        std::string pair;
+        while (std::getline(qs, pair, '&')) {
+            const std::size_t eq = pair.find('=');
+            if (eq == std::string::npos) continue;
+            if (pair.substr(0, eq) == key) return urlDecode(pair.substr(eq + 1));
+        }
+        return std::string();
+    };
+    // Real, closed candles only (store.recent already applies the alignment
+    // quarantine). Empty when a timeframe has no trustworthy data.
+    auto candleSummary = [&](const std::string& tf, int n) -> std::string {
+        const std::vector<StoredCandle> rows = store.recent("XAUUSD", tf, n);
+        if (rows.empty()) return std::string();
+        std::ostringstream out;
+        out << tf << " (" << rows.size() << " closed bars):";
+        for (const auto& c : rows) {
+            out << "\n  t=" << c.openTimeUtc << " O=" << c.open << " H=" << c.high
+                << " L=" << c.low << " C=" << c.close;
+        }
+        return out.str();
+    };
+
+    server.newsListHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 500) limit = 50;
+        const std::string category = queryParam(query, "category");
+        const std::string goldRaw = queryParam(query, "gold_only");
+        const bool goldOnly = (goldRaw == "true" || goldRaw == "1");
+        const std::vector<NewsArticle> articles =
+            newsStore.recentArticles(limit, category, goldOnly);
+        std::vector<std::string> statuses;
+        statuses.reserve(articles.size());
+        for (const auto& a : articles) {
+            NewsAnalysis an;
+            statuses.push_back(newsStore.getAnalysis(a.articleId, an) ? an.status
+                                                                      : "none");
+        }
+        return NewsApi::list(articles, statuses);
+    };
+
+    server.newsAnalyzeHandler = [&](const std::string& query) -> ApiResponse {
+        const std::string id = queryParam(query, "id");
+        if (id.empty()) {
+            return errorResponse(400, "missing_id",
+                                 "news analyze requires ?id=<article_id>");
+        }
+        NewsArticle article;
+        if (!newsStore.getArticle(id, article)) {
+            return errorResponse(404, "not_found",
+                                 "no stored article with that id");
+        }
+        NewsPromptContext ctx;
+        ctx.headline = article.headline;
+        ctx.source = article.source;
+        ctx.bodyText = article.bodyText;
+        ctx.bodyAvailable = article.bodyAvailable;
+        ctx.publishedAtIso = isoUtcSeconds(article.publishedAtUtc);
+        ctx.timeframeContext = "M15,H4";
+        ctx.candleSummary = candleSummary("M15", 30) + candleSummary("H4", 20);
+        // The existing ASTRA analysis, verbatim and read-only. This is the real
+        // backend payload, never a paraphrase.
+        ctx.astraSummary = facade.latestAnalysis().body;
+
+        NewsAnalysis analysis =
+            newsService.analyze(article, ctx, Timestamp::now().epochMillis() / 1000);
+        analysis.candleAsOfUtc = store.latestOpenTimeAnySource("XAUUSD", "M15");
+        std::string saveError;
+        if (!newsStore.saveAnalysis(analysis, saveError)) {
+            // Persisting the analysis is best-effort: the response still carries
+            // the validated result, and the failure is visible in the logs.
+            std::cerr << "  WARN: cannot persist analysis: " << saveError
+                      << std::endl;
+        }
+        return NewsApi::detail(article, &analysis, true);
+    };
+
+    server.historyHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 500) limit = 50;
+        const std::vector<NewsAnalysis> analyses = newsStore.recentAnalyses(limit);
+        std::vector<NewsArticle> articles;
+        articles.reserve(analyses.size());
+        for (const auto& a : analyses) {
+            NewsArticle art;
+            if (newsStore.getArticle(a.articleId, art)) articles.push_back(art);
+        }
+        return NewsApi::history(analyses, articles);
+    };
+
+    server.newsIngestHandler = [&](const std::string& body) -> ApiResponse {
+        JsonValue root;
+        std::string parseError;
+        if (!JsonValue::parse(body, root, parseError)) {
+            return errorResponse(400, "malformed_json",
+                                 "cannot parse news body: " + parseError);
+        }
+        const JsonValue& arr = root["articles"];
+        if (!arr.isArray()) {
+            return errorResponse(400, "missing_articles",
+                                 "articles must be an array");
+        }
+        if (arr.items().size() > 200) {
+            return errorResponse(413, "batch_too_large",
+                                 "articles array exceeds 200 entries");
+        }
+        const std::int64_t now = Timestamp::now().epochMillis() / 1000;
+        std::vector<NewsArticle> articles;
+        for (const auto& item : arr.items()) {
+            NewsArticle a;
+            a.headline = item["headline"].asString();
+            a.source = item["source"].asString();
+            if (a.headline.empty() || a.source.empty()) {
+                return errorResponse(400, "missing_fields",
+                                     "each article requires headline and source");
+            }
+            a.url = item["url"].asString();
+            a.category = item["category"].asString();
+            if (a.category.empty()) a.category = "other";
+            a.publishedAtUtc = item["published_at"].asInt64();
+            a.bodyText = item["body"].asString();
+            a.bodyAvailable = !a.bodyText.empty();
+            a.language = item["language"].asString();
+            a.goldRelevance = item["gold_relevance"].asString();
+            if (a.goldRelevance.empty()) a.goldRelevance = "unknown";
+            a.collectedAtUtc = now;
+            a.dedupKey = newsDedupKey(a.headline);
+            a.articleId = deriveArticleId(a.source, a.url, a.headline);
+            articles.push_back(std::move(a));
+        }
+        std::vector<NewsInsertResult> results;
+        std::string storeError;
+        if (!newsStore.insertArticles(articles, results, storeError)) {
+            return errorResponse(500, "store_failure",
+                                 "news persistence failed: " + storeError);
+        }
+        return NewsApi::ingestAck(static_cast<int>(articles.size()), results);
     };
 
     std::string apiError;

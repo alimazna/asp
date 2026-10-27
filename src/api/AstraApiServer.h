@@ -39,6 +39,11 @@ struct AstraApiServerConfig {
     // Deliberately separate from senderTokens so a leaked ingestion credential
     // cannot purge stored data.
     std::vector<std::string> adminTokens;
+    // Read-only client bearer tokens accepted for the private AYZR mobile read
+    // surface (news + mobile-specific views). Separate from senderTokens so a
+    // leaked read credential cannot write candles. When empty the mobile routes
+    // are disabled rather than served unauthenticated.
+    std::vector<std::string> clientTokens;
     // Allowed browser origins for CORS (exact match, no trailing slash).
     std::vector<std::string> allowedOrigins;
 
@@ -85,6 +90,17 @@ public:
     // so it too requires the admin credential.
     std::function<ApiResponse(const std::string&, int)> adminListHandler;
 
+    // Private mobile read surface (AYZR). Requires the client credential
+    // (config_.clientTokens). Each receives the raw query string.
+    //   GET  /api/v1/news                    -> newsListHandler(query)
+    //   GET  /api/v1/news/analyze?id=...     -> newsAnalyzeHandler(query)
+    //   GET  /api/v1/history                 -> historyHandler(query)
+    std::function<ApiResponse(const std::string&)> newsListHandler;
+    std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
+    std::function<ApiResponse(const std::string&)> historyHandler;
+    //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
+    std::function<ApiResponse(const std::string&)> newsIngestHandler;
+
 private:
     void acceptLoop();
     void handleConnection(std::intptr_t conn);
@@ -97,6 +113,7 @@ private:
     // CORS / auth helpers.
     bool authorize(const std::string& authorizationHeader) const;
     bool authorizeAdmin(const std::string& authorizationHeader) const;
+    bool authorizeClient(const std::string& authorizationHeader) const;
     bool originAllowed(const std::string& origin) const;
 
     // Fixed-window, per-credential rate limit. Returns true when the request is

@@ -57,8 +57,10 @@ const char* reasonPhrase(int status) {
     switch (status) {
         case 200: return "OK";
         case 201: return "Created";
+        case 204: return "No Content";
         case 400: return "Bad Request";
         case 401: return "Unauthorized";
+        case 403: return "Forbidden";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
         case 413: return "Payload Too Large";
@@ -418,6 +420,21 @@ bool AstraApiServer::authorizeAdmin(const std::string& authorizationHeader) cons
     return false;
 }
 
+bool AstraApiServer::authorizeClient(const std::string& authorizationHeader) const {
+    // Read-only client credential for the private mobile surface. Kept separate
+    // from the sender token so a leaked read credential cannot write candles.
+    if (authorizationHeader.empty() || config_.clientTokens.empty()) return false;
+    constexpr const char* kBearer = "Bearer ";
+    const std::string trimmed = trim(authorizationHeader);
+    if (trimmed.rfind(kBearer, 0) != 0) return false;
+    const std::string presented = trim(trimmed.substr(6));
+    if (presented.empty()) return false;
+    for (const auto& token : config_.clientTokens) {
+        if (presented == token) return true;
+    }
+    return false;
+}
+
 bool AstraApiServer::originAllowed(const std::string& origin) const {
     if (origin.empty()) return true;   // non-browser requests need no CORS
     for (const auto& allowed : config_.allowedOrigins) {
@@ -590,6 +607,77 @@ ApiResponse AstraApiServer::handleRequest(
         if (candlesHandler) return candlesHandler(tf, limit);
         return errorResponse(503, "dependency_unavailable",
                              "candles handler not configured");
+    }
+
+    // News ingest is a WRITE surface. It is guarded by the sender (data-provider)
+    // credential, NOT the client token: the client token is read-only and is
+    // embedded in the Android app, so it must never authorize a write.
+    if (path == "/api/v1/news/ingest") {
+        if (method == "OPTIONS") {
+            return ApiResponse{204, "application/json", "", true, ""};
+        }
+        if (!authorize(authHeader)) {
+            return errorResponse(401, "unauthorized",
+                                 "a valid sender bearer token is required");
+        }
+        if (!rateAllow("news_ingest", authHeader, config_.ingestRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "news ingest rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
+        if (method != "POST") {
+            return errorResponse(405, "method_not_allowed",
+                                 "news ingest requires POST");
+        }
+        if (body.empty()) {
+            return errorResponse(400, "malformed_request",
+                                 "news ingest requires a JSON body");
+        }
+        if (newsIngestHandler) return newsIngestHandler(body);
+        return errorResponse(503, "dependency_unavailable",
+                             "news ingest handler not configured");
+    }
+
+    // Private AYZR mobile read surface. Every route here requires the client
+    // credential: it exposes news, AI analysis and history that are not part of
+    // the public frozen contract. The credential is checked before any handler
+    // runs, and the routes are disabled (401) when no client token is configured
+    // rather than being served unauthenticated.
+    if (path == "/api/v1/news" || path == "/api/v1/news/analyze" ||
+        path == "/api/v1/history") {
+        if (method == "OPTIONS") {
+            return ApiResponse{204, "application/json", "", true, ""};
+        }
+        if (!authorizeClient(authHeader)) {
+            return errorResponse(401, "unauthorized",
+                                 "a valid client bearer token is required");
+        }
+        if (!rateAllow("client", authHeader, config_.syncRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "client rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
+        if (method != "GET") {
+            return errorResponse(405, "method_not_allowed",
+                                 "news routes require GET");
+        }
+        if (path == "/api/v1/news") {
+            if (newsListHandler) return newsListHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "news list handler not configured");
+        }
+        if (path == "/api/v1/news/analyze") {
+            if (newsAnalyzeHandler) return newsAnalyzeHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "news analyze handler not configured");
+        }
+        if (historyHandler) return historyHandler(query);
+        return errorResponse(503, "dependency_unavailable",
+                             "history handler not configured");
     }
 
     // Everything else is the frozen read surface served by the facade.

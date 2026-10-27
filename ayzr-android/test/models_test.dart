@@ -1,0 +1,118 @@
+import 'package:ayzr_app/data/models/analysis.dart';
+import 'package:ayzr_app/data/models/news.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'test_helpers.dart';
+
+void main() {
+  group('AnalysisLatest parsing', () {
+    test('parses the uncalibrated v1 shape and keeps nulls null', () {
+      final a = AnalysisLatest.fromJson(
+          Map<String, dynamic>.from(analysisUncalibrated));
+
+      expect(a.symbol, 'XAUUSD');
+      expect(a.timestamp, '2026-10-16T09:00:00Z');
+      expect(a.signal.direction, 'NONE');
+      expect(a.signal.score, closeTo(0.512, 1e-9));
+      // RULE C: probability must stay null when not calibrated.
+      expect(a.signal.probability, isNull);
+      expect(a.signal.probabilityCalibrated, isFalse);
+      expect(a.context.mtfAgreement, isNull);
+      expect(a.levels.entry, isNull);
+      expect(a.levels.hasAnyValue, isFalse);
+      expect(a.meta.dataFreshnessSec, isNull);
+      expect(a.meta.degraded, isTrue);
+    });
+
+    test('parses the calibrated shape with a real probability', () {
+      final a = AnalysisLatest.fromJson(
+          Map<String, dynamic>.from(analysisCalibrated));
+
+      expect(a.signal.probabilityCalibrated, isTrue);
+      expect(a.signal.probability, closeTo(0.61, 1e-9));
+      expect(a.context.mtfAgreement, closeTo(0.8, 1e-9));
+      expect(a.levels.entry, closeTo(2650.5, 1e-9));
+      expect(a.levels.rewardRisk, closeTo(2.33, 1e-9));
+      expect(a.levels.hasAnyValue, isTrue);
+      expect(a.meta.coverageTier, 'medium');
+      expect(a.meta.degraded, isFalse);
+    });
+
+    test('a missing context object degrades to UNKNOWN, never fabricated', () {
+      final a = AnalysisLatest.fromJson({
+        'symbol': 'XAUUSD',
+        'signal': <String, dynamic>{},
+      });
+      expect(a.context.regime, 'UNKNOWN');
+      expect(a.context.h4Bias, 'UNKNOWN');
+      expect(a.signal.direction, 'UNKNOWN');
+      expect(a.signal.probability, isNull);
+      expect(a.levels.hasAnyValue, isFalse);
+    });
+
+    test('probability is never read from score (RULE C)', () {
+      final a = AnalysisLatest.fromJson({
+        'signal': {
+          'direction': 'UP',
+          'score': 0.9,
+          'probability_calibrated': false,
+          'probability': null,
+        },
+      });
+      expect(a.signal.probability, isNull);
+      expect(a.signal.score, closeTo(0.9, 1e-9));
+    });
+  });
+
+  group('News models', () {
+    test('parses a news list item with its analysis status', () {
+      final items = (newsList['news']! as List)
+          .map((e) => NewsListItem.fromJson(
+              Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+      expect(items, hasLength(2));
+      expect(items.first.article.headline, 'الذهب يرتفع مع تراجع الدولار');
+      expect(items.first.isAnalyzed, isTrue);
+      expect(items[1].isAnalyzed, isFalse);
+      expect(items.first.article.publishedAtIso, '2026-10-16T08:00:00Z');
+    });
+
+    test('parses a detail with analysis and gates on status', () {
+      final d = NewsDetail.fromJson(Map<String, dynamic>.from(newsDetail));
+      expect(d.hasAnalysis, isTrue);
+      expect(d.analysis, isNotNull);
+      expect(d.analysis!.isOk, isTrue);
+      expect(d.analysis!.summaryAr, 'تراجع الدولار يدعم الذهب.');
+      expect(d.analysis!.facts, hasLength(1));
+      expect(d.analysis!.entry, closeTo(2650.0, 1e-9));
+      expect(d.analysis!.limitationsAr, hasLength(1));
+    });
+
+    test('detail without analysis reports hasAnalysis false', () {
+      final d = NewsDetail.fromJson(
+          Map<String, dynamic>.from(newsDetailNoAnalysis));
+      expect(d.hasAnalysis, isFalse);
+      expect(d.analysis, isNull);
+    });
+
+    test('a non-ok analysis status is not isOk (no proposal shown)', () {
+      final an = NewsAnalysis.fromJson({
+        'status': 'insufficient_data',
+        'status_reason': 'evidence contradictory',
+      });
+      expect(an.isOk, isFalse);
+      expect(an.statusReason, 'evidence contradictory');
+    });
+
+    test('parses a history entry joined with its article', () {
+      final entries = (historyList['history']! as List)
+          .map((e) =>
+              HistoryEntry.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      expect(entries, hasLength(1));
+      expect(entries.first.source, 'Reuters');
+      expect(entries.first.analysis.direction, 'bullish');
+    });
+  });
+}

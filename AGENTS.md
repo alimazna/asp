@@ -196,3 +196,31 @@ Rules:
 - Deploying the sender alone is **not** enough — the server-side guard is the
   half that rejected the bars. Ship both, or the symptom persists.
 
+
+## AYZR mobile + news intelligence (2026-10-27)
+
+- `ayzr-android/` is a **separate** Flutter app (package `com.ayzr.ayzr_app`,
+  Arabic-only, RTL). It is NOT the `astra-frontend/` SPA; do not reuse or read
+  that frontend. Build: `cd ayzr-android && flutter build apk --debug`.
+- The Android SDK lives at `/workspace/tools/android-sdk` (platform 34,
+  build-tools 34.0.0, **ndk 27.0.12077973**). `android/app/build.gradle` pins
+  `ndkVersion = "27.0.12077973"`: `shared_preferences_android` requires it and
+  Flutter's default (23.1.7779620) raises a build warning. NDK releases are
+  backward compatible, so pin the highest required version.
+- Outbound LLM7 HTTP needs **libcurl**: `apt-get install libcurl4-openssl-dev`,
+  then reconfigure cmake. Without it the news pipeline honestly reports
+  `unavailable` ("outbound HTTP transport not compiled"). The build finds the
+  header at `/usr/include/x86_64-linux-gnu/curl/`.
+- `nemotron-3-nano:30b` on the LLM7 free tier has **no JSON mode** and returns
+  *valid JSON that violates the schema* on the first turn (it folds top-level
+  keys into a `facts` element). The service makes **one** conversational repair
+  turn (system + user + the invalid assistant reply + a corrective user message
+  with a concrete example). An inline restatement in a single user message does
+  NOT work; the assistant+user turn sequence does.
+- The LLM7 free tier **rate-limits aggressively** (HTTP 429 within seconds).
+  Classified as retryable/bounded; the app keeps serving cached news + market
+  data. Reliable production analysis needs a paid balance or a lower call rate.
+- News routes are client-token gated: `/api/v1/news`, `/api/v1/news/analyze?id=`,
+  `/api/v1/history` (note: **not** `/news/history`). Ingest is sender-token
+  gated: `/api/v1/news/ingest`. Candle read is `/api/v1/candles?tf=...&limit=...`
+  and returns a `bars` array (the route ignores `symbol`, defaults `tf=M15`).

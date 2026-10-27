@@ -1,0 +1,22 @@
+{
+  "agent-a-backend": {
+    "id": "cddc487e-bd1c-4afb-b613-ae77473cb0b6",
+    "status": "created"
+  },
+  "agent-b-android": {
+    "id": "36cbf0a9-0a91-427f-be51-15c5043e4a09",
+    "status": "created"
+  },
+  "agent-c-ai-news": {
+    "id": "6671f638-bc54-4607-b561-20cc680f85f3",
+    "status": "created"
+  },
+  "agent-d-visual": {
+    "id": "dc9cdb51-d19e-4716-bb8a-7b8a2ef828a7",
+    "status": "created"
+  },
+  "agent-e-testing": {
+    "id": "38af1b2d-3d68-4910-9bda-7c3db2ad73fc",
+    "status": "created"
+  }
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AYZR launch screen: navy backdrop with the centred brand mark. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background"/>
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/ayzr_splash_mark"/>
+    </item>
+</layer-list>
