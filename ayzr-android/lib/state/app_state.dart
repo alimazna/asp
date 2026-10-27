@@ -115,14 +115,9 @@ class AppState extends ChangeNotifier {
     if (goldOnly != null) this.goldOnly = goldOnly;
     news = news.loading();
     notifyListeners();
-    // Refresh the quota snapshot alongside the feed so the banner reflects the
-    // same moment as the data. Both run concurrently.
-    final results = await Future.wait([
-      _client.news(goldOnly: this.goldOnly),
-      _client.quota(),
-    ]);
-    final r = results[0] as ApiResult<List<NewsListItem>>;
-    final q = results[1] as ApiResult<LlmQuota>;
+    // The feed is the point of this screen, so it is loaded first and on its
+    // own: a failure of the quota snapshot must not withhold the news list.
+    final r = await _client.news(goldOnly: this.goldOnly);
     if (!r.isSuccess) {
       news = Section<List<NewsListItem>>.failed(r.failure!);
     } else {
@@ -131,10 +126,9 @@ class AppState extends ChangeNotifier {
           ? const Section<List<NewsListItem>>.empty()
           : Section<List<NewsListItem>>.ready(items);
     }
-    quota = q.isSuccess
-        ? Section<LlmQuota>.ready(q.value!)
-        : const Section<LlmQuota>.empty();
     notifyListeners();
+    // The quota banner is secondary and must never block or fail the feed.
+    await loadQuota();
   }
 
   Future<void> loadHistory() async {

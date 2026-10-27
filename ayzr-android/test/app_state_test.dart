@@ -127,5 +127,34 @@ void main() {
       await state.loadHealth();
       expect(state.isDegraded, isTrue);
     });
+
+    // Regression: a payload the parser cannot read must surface as a failed
+    // section, not throw out of `map` and leave the screen on "loading"
+    // forever. Observed on-device when the server returned `{news:[...]}` and
+    // the client cast it to a bare List.
+    test('an unparseable news row yields a failed section, not a hang',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news': (_) => enveloped({
+              'news': [
+                {'article': 'not-an-object', 'analysis_status': 'ok'},
+              ],
+            }),
+      }));
+      await state.loadNews();
+      expect(state.news.phase, LoadPhase.error);
+    });
+
+    test('a quota failure does not withhold the news list', () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news': (_) => enveloped(newsList),
+        '/api/v1/news/quota': (_) =>
+            errorBody('dependency_unavailable', 'quota backend down', 503),
+      }));
+      await state.loadNews();
+      expect(state.news.phase, LoadPhase.ready);
+      expect(state.news.data, hasLength(2));
+      expect(state.quota.phase, LoadPhase.empty);
+    });
   });
 }

@@ -53,6 +53,11 @@ class ApiResult<T> {
   bool get isSuccess => failure == null;
 
   /// Transforms a successful payload while preserving any failure unchanged.
+  ///
+  /// A throw inside [transform] is converted into a `server` failure rather than
+  /// propagating. Call sites `await` this inside `Future.wait`, so an escaping
+  /// exception would abort the whole load and leave the section stuck on its
+  /// "loading" state forever, with no error shown.
   ApiResult<R> map<R>(R Function(T value) transform) {
     final v = value;
     if (failure != null || v == null) {
@@ -62,6 +67,13 @@ class ApiResult<T> {
             message: 'empty response',
           ));
     }
-    return ApiResult<R>.success(transform(v));
+    try {
+      return ApiResult<R>.success(transform(v));
+    } catch (e) {
+      return ApiResult<R>.failure(ApiFailure(
+        kind: ApiFailureKind.server,
+        message: 'malformed payload: $e',
+      ));
+    }
   }
 }
