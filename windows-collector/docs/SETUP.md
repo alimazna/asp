@@ -47,7 +47,7 @@ Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 For the 1.0.6 release the expected SHA256 is:
 
 ```
-C6C6650E8956035E9A738231E40768D1FF2D25FC01778BD7D45E4BA477B1729E
+BE64A3185563FC773279E250C0353DBDEC8AFA08F04B0C0856A037864B1DB1E4
 ```
 
 Windows SmartScreen may warn about an unsigned application the first time. The
