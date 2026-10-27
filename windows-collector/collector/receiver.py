@@ -33,6 +33,9 @@ from .store import StoredCandle
 HEALTH_PATH = "/health"
 CANDLES_PATH = "/candles"
 INGEST_PATH = "/candles/ingest"
+#: Authenticated read route. Used to prove a credential is accepted without
+#: delivering anything, because ``/health`` is deliberately unauthenticated.
+SYNC_PATH = "/sync/latest"
 
 # Per-candle states a receiver may report. "stored_new" and "already_stored"
 # both mean "persisted"; anything else is not a confirmation.
@@ -147,6 +150,18 @@ class ReceiverClient:
 
     def health(self) -> Dict[str, Any]:
         return self._request(HEALTH_PATH)
+
+    def verify_token(self) -> None:
+        """Prove the stored credential is accepted, without sending a candle.
+
+        ``/health`` is unauthenticated by design, so a 200 from it says nothing
+        about the token. This calls an authenticated read route instead: a
+        wrong or missing token raises ``AUTH_REJECTED`` here rather than being
+        discovered on the first delivery, when a failure looks like silence.
+
+        Nothing is written, so this is safe to call at any time.
+        """
+        self._request(SYNC_PATH)
 
     def remote_open_times(self, symbol: str,
                           timeframe: str) -> List[int]:

@@ -19,6 +19,7 @@ from tkinter import messagebox, ttk
 from typing import Optional
 
 from . import __version__
+from .brief import build_receiver_brief
 from .config import (
     CollectorConfig,
     default_config_path,
@@ -39,6 +40,54 @@ from .store import CandleStore
 REFRESH_MS = 1000
 
 
+def add_clipboard_menu(widget: tk.Misc) -> None:
+    """Give every entry under ``widget`` a right-click Cut/Copy/Paste menu.
+
+    tkinter ships without one on Windows, and the token has to be pasted from a
+    message the owner received, so a user who does not know Ctrl+V has no way to
+    enter it. Bound recursively so it covers the whole window.
+    """
+    menu = tk.Menu(widget, tearoff=0)
+    menu.add_command(label="Cut",
+                     command=lambda: _clip_apply(widget, "cut"))
+    menu.add_command(label="Copy",
+                     command=lambda: _clip_apply(widget, "copy"))
+    menu.add_command(label="Paste",
+                     command=lambda: _clip_apply(widget, "paste"))
+    menu.add_separator()
+    menu.add_command(label="Select all",
+                     command=lambda: _clip_apply(widget, "select"))
+
+    def attach(node: tk.Misc) -> None:
+        if isinstance(node, (ttk.Entry, tk.Entry)):
+            node.bind("<Button-3>",
+                      lambda event, m=menu: m.tk_popup(event.x_root,
+                                                       event.y_root))
+        for child in node.winfo_children():
+            attach(child)
+
+    attach(widget)
+
+
+def _clip_apply(widget: tk.Misc, action: str) -> None:
+    """Apply one clipboard action to the focused entry, if any."""
+    target = widget.focus_get()
+    if not isinstance(target, (ttk.Entry, tk.Entry)):
+        return
+    try:
+        if action == "cut":
+            target.event_generate("<<Cut>>")
+        elif action == "copy":
+            target.event_generate("<<Copy>>")
+        elif action == "paste":
+            target.event_generate("<<Paste>>")
+        else:
+            target.select_range(0, "end")
+            target.icursor("end")
+    except tk.TclError:
+        pass
+
+
 class CollectorApp:
     """Tk window driving a ``SyncEngine`` on a background thread."""
 
@@ -51,14 +100,27 @@ class CollectorApp:
         self.engine: Optional[SyncEngine] = None
         self.events: "queue.Queue[tuple]" = queue.Queue()
         self._closing = False
+        #: Standalone MT5 probe. Held open between clicks so the connection can
+        #: be tested without starting a delivery run.
+        self.probe: Optional[Mt5Reader] = None
+        self.probe_state = "DISCONNECTED"
+        self.probe_detail = ""
+        self._probing = False
 
         root.title(f"ASTRA Collector {__version__}")
-        root.geometry("980x680")
-        root.minsize(820, 600)
+        # Tall enough for the full layout at rest; the brief panel grows the
+        # window rather than being clipped out of reach.
+        root.geometry("980x820")
+        root.minsize(880, 700)
         self._build()
         self._load_into_form()
         self._drain_events()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+        # First run: no destination and no token means nothing can be sent yet,
+        # so open the setup dialog rather than leaving a window that looks
+        # ready but silently cannot deliver.
+        if not self._is_configured():
+            self.root.after(200, self.on_setup_wizard)
 
     # ---------------------------------------------------------------- layout
 
@@ -115,16 +177,24 @@ class CollectorApp:
 
         controls = ttk.Frame(outer)
         controls.pack(fill="x", pady=(0, 8))
+        self.connect_button = ttk.Button(controls, text="Connect to MT5",
+                                         command=self.on_connect_mt5)
+        self.connect_button.pack(side="left")
         self.start_button = ttk.Button(controls, text="Start", command=self.on_start)
-        self.start_button.pack(side="left")
+        self.start_button.pack(side="left", padx=6)
         self.pause_button = ttk.Button(controls, text="Pause", command=self.on_pause,
                                        state="disabled")
-        self.pause_button.pack(side="left", padx=6)
+        self.pause_button.pack(side="left")
         self.stop_button = ttk.Button(controls, text="Stop", command=self.on_stop,
                                       state="disabled")
-        self.stop_button.pack(side="left")
+        self.stop_button.pack(side="left", padx=6)
         ttk.Button(controls, text="Open data folder",
                    command=self.on_open_folder).pack(side="left", padx=6)
+
+        # Connection state for the standalone MT5 probe, separate from the
+        # running engine's own MT5 state.
+        self.probe_label = ttk.Label(controls, text="Terminal: not checked")
+        self.probe_label.pack(side="right")
 
         table_frame = ttk.LabelFrame(outer, text="Timeframes", padding=6)
         table_frame.pack(fill="both", expand=True, pady=(0, 8))
@@ -162,6 +232,252 @@ class CollectorApp:
         self.error_text = tk.Text(error_frame, height=6, wrap="word",
                                   state="disabled")
         self.error_text.pack(fill="both", expand=True)
+
+        # A ready-to-send description of the receiving side. The owner can hand
+        # it to a developer or another agent, who can build a compatible
+        # receiver from it without knowing the protocol. Collapsed by default so
+        # it does not crowd the window during normal use.
+        brief_frame = ttk.LabelFrame(outer, text="Receiver setup text", padding=6)
+        brief_frame.pack(fill="x", pady=(8, 0))
+        brief_bar = ttk.Frame(brief_frame)
+        brief_bar.pack(fill="x")
+        self.brief_button = ttk.Button(brief_bar, text="Show setup text",
+                                       command=self.on_toggle_brief)
+        self.brief_button.pack(side="left")
+        ttk.Button(brief_bar, text="Copy setup text",
+                   command=self.on_copy_brief).pack(side="left", padx=6)
+        ttk.Button(brief_bar, text="Save as file...",
+                   command=self.on_save_brief).pack(side="left")
+        self.brief_hint = ttk.Label(
+            brief_bar,
+            text="Send this to whoever builds your receiving service.")
+        self.brief_hint.pack(side="right")
+
+        self.brief_holder = ttk.Frame(brief_frame)
+        self.brief_text = tk.Text(self.brief_holder, height=14, wrap="word",
+                                  state="disabled")
+        brief_scroll = ttk.Scrollbar(self.brief_holder, orient="vertical",
+                                     command=self.brief_text.yview)
+        self.brief_text.configure(yscrollcommand=brief_scroll.set)
+        self.brief_text.pack(side="left", fill="both", expand=True)
+        brief_scroll.pack(side="right", fill="y")
+        self._brief_shown = False
+
+        # Re-runnable setup, for changing the destination or the token later.
+        setup_row = ttk.Frame(outer)
+        setup_row.pack(fill="x", pady=(8, 0))
+        ttk.Button(setup_row, text="Run setup again",
+                   command=self.on_setup_wizard).pack(side="left")
+        ttk.Label(setup_row, text="Use this to change the receiver URL, "
+                                  "symbol, or token.").pack(side="left", padx=8)
+        add_clipboard_menu(self.root)
+
+    # ---------------------------------------------------------------- setup
+
+    def _is_configured(self) -> bool:
+        """True when a destination and a token both exist.
+
+        Either one missing means nothing can be delivered, so the app is not
+        configured. Both are checked because a saved URL with no token still
+        fails on the first send.
+        """
+        return bool(self.config.backend_url.strip()) and bool(load_token())
+
+    def on_setup_wizard(self) -> None:
+        """First-run dialog. Verifies before it accepts, so a wrong token is
+        caught here rather than discovered later as silence."""
+        SetupDialog(self, self.root)
+
+    def on_connect_mt5(self) -> None:
+        """Connect to the running terminal on demand.
+
+        The probe is kept open on success so a second click re-checks the
+        connection instead of reconnecting blindly. Failure is reported with
+        the reader's own message, never a generic one.
+        """
+        if self._probing:
+            return
+        if self.probe is not None:
+            # Already connected: re-read to confirm the terminal is still there.
+            self._check_probe()
+            return
+        self._probing = True
+        self.connect_button.configure(state="disabled", text="Connecting...")
+        self.probe_state = "CONNECTING"
+        self.probe_detail = ""
+        self._render_probe()
+        symbol = self.symbol_var.get().strip() or self.config.symbol
+
+        def work():
+            reader = Mt5Reader(symbol=symbol)
+            try:
+                reader.connect()
+                # Read one bar as well, so "connected" means the terminal
+                # actually served data, not merely that a handle opened.
+                candle = reader.read_latest_closed(TIMEFRAMES[0])
+                self.events.put(("probe_ok", (reader, candle)))
+            except Exception as exc:  # noqa: BLE001
+                self.events.put(("probe_fail",
+                                 str(getattr(exc, "message", exc))))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _check_probe(self) -> None:
+        """Re-read one bar from the open probe to confirm it is still live.
+
+        A raised error means the terminal is gone. ``None`` without an error
+        means the terminal answered but had no closed bar to give, which is a
+        different state and is reported as such rather than as a failure.
+        """
+        reader = self.probe
+        if reader is None:
+            return
+        self._probing = True
+        self.connect_button.configure(state="disabled", text="Checking...")
+
+        def work():
+            try:
+                candle = reader.read_latest_closed(TIMEFRAMES[0])
+                self.events.put(("probe_ok", (reader, candle)))
+            except Exception as exc:  # noqa: BLE001
+                self.events.put(("probe_fail",
+                                 str(getattr(exc, "message", exc))))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_probe_ok(self, payload) -> None:
+        reader, candle = payload
+        self.probe = reader
+        self._probing = False
+        self.connect_button.configure(state="normal", text="Check MT5")
+        if candle is None:
+            # The terminal answered but returned no closed bar. Reported as its
+            # own state: claiming "connected" here would overstate what is known.
+            self.probe_state = "NO_DATA"
+            self.probe_detail = "terminal reachable, no closed bar returned"
+            self._render_probe()
+            self._log("MT5 reachable but returned no closed M1 bar. Check that "
+                      "the symbol is selected in Market Watch and that history "
+                      "has been downloaded.")
+            return
+        self.probe_state = "CONNECTED"
+        self.probe_detail = (f"{reader.resolved_symbol} @ "
+                             f"{reader.broker or 'unknown broker'}")
+        self._render_probe()
+        self._log(
+            f"MT5 connected: {self.probe_detail}; broker UTC offset "
+            f"{reader.clock_offset_seconds()}s; last closed M1 "
+            f"{_fmt_time(candle.open_time_utc)} "
+            f"O {candle.open} H {candle.high} L {candle.low} C {candle.close}")
+
+    def _on_probe_fail(self, message: str) -> None:
+        self._probing = False
+        # A failed re-check invalidates the old handle: keeping it would let the
+        # window claim a connection the terminal no longer honours.
+        self.probe = None
+        self.probe_state = "DISCONNECTED"
+        self.probe_detail = message
+        self.connect_button.configure(state="normal", text="Connect to MT5")
+        self._render_probe()
+        self._log(f"MT5 not connected: {message}")
+
+    def _render_probe(self) -> None:
+        state = self.probe_state
+        text = {
+            "CONNECTED": f"Terminal: connected ({self.probe_detail})",
+            "CONNECTING": "Terminal: connecting...",
+            "NO_DATA": f"Terminal: reachable, no closed bar",
+            "DISCONNECTED": "Terminal: not connected",
+        }.get(state, "Terminal: not checked")
+        colour = {
+            "CONNECTED": _colour("CONNECTED"),
+            "CONNECTING": _colour("STARTING"),
+            "NO_DATA": _colour("STARTING"),
+            "DISCONNECTED": _colour("STOPPED"),
+        }.get(state, _colour("STOPPED"))
+        self.probe_label.configure(text=text, foreground=colour)
+
+    # ---------------------------------------------------------------- brief
+
+    def _current_brief(self) -> str:
+        # Use the offset the terminal actually reported when a probe has run,
+        # so the brief tells a receiver author the real number for this broker
+        # rather than a placeholder they would have to guess.
+        offset = 0
+        if self.probe is not None:
+            try:
+                offset = self.probe.clock_offset_seconds()
+            except Exception:  # noqa: BLE001
+                offset = 0
+        return build_receiver_brief(
+            self.url_var.get().strip() or self.config.backend_url,
+            self.sender_var.get().strip() or self.config.sender_id,
+            self.symbol_var.get().strip() or self.config.symbol,
+            clock_offset_seconds=offset,
+        )
+
+    def on_toggle_brief(self) -> None:
+        if self._brief_shown:
+            self.brief_holder.pack_forget()
+            self.brief_button.configure(text="Show setup text")
+            self._brief_shown = False
+            self._resize_for_brief(False)
+            return
+        text = self._current_brief()
+        self.brief_text.configure(state="normal")
+        self.brief_text.delete("1.0", "end")
+        self.brief_text.insert("1.0", text)
+        self.brief_text.configure(state="disabled")
+        self.brief_holder.pack(fill="both", expand=True, pady=(6, 0))
+        self.brief_button.configure(text="Hide setup text")
+        self._brief_shown = True
+        self._resize_for_brief(True)
+
+    def _resize_for_brief(self, growing: bool) -> None:
+        """Grow the window so the panel is not clipped out of reach.
+
+        Packed tkinter content has no scrollbar, so a panel taller than the
+        window is simply unreachable. The window is enlarged by the panel's own
+        requested height, capped to the screen so it can never be pushed off the
+        bottom on a small display.
+        """
+        self.root.update_idletasks()
+        needed = self.root.winfo_reqheight()
+        screen_h = self.root.winfo_screenheight()
+        target = min(needed + 8, screen_h - 80)
+        if growing:
+            self.root.geometry(f"{self.root.winfo_width()}x{target}")
+        else:
+            self.root.geometry(f"{self.root.winfo_width()}x{max(target, 700)}")
+
+    def on_copy_brief(self) -> None:
+        text = self._current_brief()
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.root.update_idletasks()
+        self._log(f"receiver setup text copied ({len(text)} characters)")
+        messagebox.showinfo(
+            "Copied",
+            "The receiver setup text is on the clipboard.\n\n"
+            "Paste it into a message to whoever builds your receiving "
+            "service. It contains no token and no secret.")
+
+    def on_save_brief(self) -> None:
+        from tkinter import filedialog
+        path = filedialog.asksaveasfilename(
+            title="Save receiver setup text",
+            defaultextension=".md",
+            initialfile="astra-receiver-setup.md",
+            filetypes=[("Markdown", "*.md"), ("Text", "*.txt")])
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(self._current_brief())
+        except OSError as exc:
+            messagebox.showerror("Could not save", str(exc))
+            return
+        self._log(f"receiver setup text saved to {path}")
 
     # ------------------------------------------------------------- form sync
 
@@ -248,6 +564,16 @@ class CollectorApp:
             except Exception as exc:  # noqa: BLE001
                 self.events.put(("log", f"receiver problem: "
                                         f"{getattr(exc, 'message', exc)}"))
+            else:
+                # /health is unauthenticated, so follow it with a route that
+                # does use the token. Otherwise "Test connection" would report
+                # success for a token the receiver will reject on first send.
+                try:
+                    client.verify_token()
+                    self.events.put(("log", "receiver token: accepted"))
+                except Exception as exc:  # noqa: BLE001
+                    self.events.put(("log", f"receiver token: "
+                                            f"{getattr(exc, 'message', exc)}"))
             finally:
                 reader.disconnect()
 
@@ -333,6 +659,10 @@ class CollectorApp:
                 kind, payload = self.events.get_nowait()
                 if kind == "log":
                     self._log(payload)
+                elif kind == "probe_ok":
+                    self._on_probe_ok(payload)
+                elif kind == "probe_fail":
+                    self._on_probe_fail(payload)
         except queue.Empty:
             pass
         self._refresh()
@@ -410,6 +740,8 @@ class CollectorApp:
             self.engine.stop()
         self._closing = True
         try:
+            if self.probe is not None:
+                self.probe.disconnect()
             if self.ledger is not None:
                 self.ledger.close()
             if self.store is not None:
@@ -417,6 +749,270 @@ class CollectorApp:
         except Exception:  # noqa: BLE001
             pass
         self.root.destroy()
+
+
+class SetupDialog:
+    """First-run configuration, and re-runnable from the form.
+
+    The point of the dialog is that it *verifies before it accepts*. A saved
+    URL and token that have never been tried produce a window that looks ready
+    and delivers nothing, which is the exact failure this project already hit
+    once. So the primary button tests the receiver and the token first, and
+    only then writes the files.
+    """
+
+    def __init__(self, app: CollectorApp, parent: tk.Misc):
+        self.app = app
+        self.done = False
+        self._closed = False
+        # Worker threads must not touch Tk widgets directly. Results are posted
+        # here and applied on the main thread by ``_drain``, the same pattern the
+        # main window uses. Calling ``after`` from a worker thread is not
+        # thread-safe and raises "main thread is not in main loop".
+        self.events: "queue.Queue[tuple]" = queue.Queue()
+        self.window = tk.Toplevel(parent)
+        self.window.title("ASTRA Collector setup")
+        self.window.geometry("620x460")
+        self.window.minsize(560, 420)
+        self.window.transient(parent)
+        self.window.grab_set()
+        self.window.protocol("WM_DELETE_WINDOW", self._close)
+
+        outer = ttk.Frame(self.window, padding=14)
+        outer.pack(fill="both", expand=True)
+
+        ttk.Label(outer, text="Connect this PC to your ASTRA receiver",
+                  font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(
+            outer,
+            text=("These four values come from whoever runs the receiving "
+                  "service. Nothing is saved until the connection test "
+                  "succeeds."),
+            wraplength=580, justify="left").pack(anchor="w", pady=(4, 12))
+
+        form = ttk.Frame(outer)
+        form.pack(fill="x")
+        form.columnconfigure(1, weight=1)
+
+        self.url_var = tk.StringVar(value=app.config.backend_url)
+        self.symbol_var = tk.StringVar(value=app.config.symbol or "XAUUSD")
+        self.sender_var = tk.StringVar(value=app.config.sender_id
+                                       or self._suggest_sender_id())
+        self.token_var = tk.StringVar(value=load_token())
+
+        self._row(form, 0, "Receiver URL", self.url_var,
+                  hint="Ends with /api/v1")
+        self._row(form, 1, "Symbol", self.symbol_var,
+                  hint="XAUUSD, or GOLD if that is your broker's name")
+        self._row(form, 2, "Sender id", self.sender_var,
+                  hint="A stable name for this PC, e.g. home-pc")
+        self._row(form, 3, "Token", self.token_var, secret=True,
+                  hint="Supplied by the receiver operator")
+
+        self.status = tk.Text(outer, height=7, wrap="word", state="disabled")
+        self.status.pack(fill="both", expand=True, pady=(12, 10))
+
+        buttons = ttk.Frame(outer)
+        buttons.pack(fill="x")
+        self.test_button = ttk.Button(buttons, text="Test and save",
+                                      command=self.on_test_and_save)
+        self.test_button.pack(side="right")
+        ttk.Button(buttons, text="Cancel",
+                   command=self.on_cancel).pack(side="right", padx=6)
+
+        self._note("Enter the values and press Test and save.")
+        self.url_var.trace_add("write", lambda *_: self._on_url_changed())
+        add_clipboard_menu(self.window)
+        self._drain()
+
+    # ------------------------------------------------------------------ queue
+
+    def _drain(self) -> None:
+        """Apply worker results on the main thread."""
+        if self._closed:
+            return
+        try:
+            while True:
+                kind, payload = self.events.get_nowait()
+                if kind == "fail":
+                    self._fail(payload)
+                elif kind == "fail_token":
+                    code, message = payload
+                    self._fail_token(code, message)
+                elif kind == "save":
+                    self._save(*payload)
+        except queue.Empty:
+            pass
+        try:
+            self.window.after(120, self._drain)
+        except tk.TclError:
+            pass
+
+    # ------------------------------------------------------------------ form
+
+    @staticmethod
+    def _suggest_sender_id() -> str:
+        """A default that is stable per PC and unlikely to collide."""
+        try:
+            import socket
+            name = socket.gethostname().strip().lower()
+        except Exception:  # noqa: BLE001
+            name = ""
+        cleaned = "".join(c if c.isalnum() or c == "-" else "-" for c in name)
+        cleaned = cleaned.strip("-")
+        return cleaned or "collector"
+
+    def _row(self, form, row: int, label: str, var: tk.StringVar,
+             secret: bool = False, hint: str = "") -> None:
+        ttk.Label(form, text=label).grid(row=row * 2, column=0, sticky="w",
+                                         pady=(8 if row else 0, 0))
+        entry = ttk.Entry(form, textvariable=var,
+                          show="•" if secret else "")
+        entry.grid(row=row * 2, column=1, sticky="ew", padx=6,
+                   pady=(8 if row else 0, 0))
+        if hint:
+            ttk.Label(form, text=hint, foreground="#5a6b7b").grid(
+                row=row * 2 + 1, column=1, sticky="w", padx=6)
+
+    def _on_url_changed(self) -> None:
+        """Warn early about the most common paste mistake.
+
+        A URL without the /api/v1 suffix is accepted by the entry field but
+        every request lands on the wrong path and fails with an unhelpful
+        error, so the missing suffix is called out as it is typed.
+        """
+        url = self.url_var.get().strip()
+        if url and not url.rstrip("/").endswith("/api/v1"):
+            self._note("Note: the URL usually ends with /api/v1. Add it if the "
+                       "receiver operator gave you a URL that already includes "
+                       "the version.")
+
+    # ----------------------------------------------------------------- state
+
+    def _note(self, message: str) -> None:
+        self.status.configure(state="normal")
+        self.status.delete("1.0", "end")
+        self.status.insert("1.0", message)
+        self.status.configure(state="disabled")
+
+    def _append(self, message: str) -> None:
+        self.status.configure(state="normal")
+        self.status.insert("end", message + "\n")
+        self.status.see("end")
+        self.status.configure(state="disabled")
+
+    # --------------------------------------------------------------- actions
+
+    def on_test_and_save(self) -> None:
+        url = self.url_var.get().strip()
+        symbol = self.symbol_var.get().strip()
+        sender = self.sender_var.get().strip()
+        token = self.token_var.get().strip()
+
+        # Stage the values so config.validate() checks the real thing, not the
+        # previously saved file.
+        probe_config = CollectorConfig.from_dict(self.app.config.to_dict())
+        probe_config.backend_url = url
+        probe_config.symbol = symbol or "XAUUSD"
+        probe_config.sender_id = sender
+        problems = probe_config.validate()
+        if not token:
+            problems.append("Token is empty.")
+        if problems:
+            self._note("Fix these first:\n- " + "\n- ".join(problems))
+            return
+
+        self.test_button.configure(state="disabled", text="Testing...")
+        self._note("Testing the receiver...\n")
+
+        def work():
+            client = ReceiverClient(
+                url, token,
+                timeout_seconds=probe_config.request_timeout_seconds)
+            # 1. Liveness. Proves the URL and the path are right.
+            try:
+                health = client.health()
+            except Exception as exc:  # noqa: BLE001
+                self.events.put(("fail",
+                                 f"Could not reach the receiver:\n"
+                                 f"{getattr(exc, 'message', exc)}"))
+                return
+            state = "ok"
+            if isinstance(health, dict):
+                data = health.get("data", health)
+                if isinstance(data, dict):
+                    state = str(data.get("status", "ok"))
+
+            # 2. Credential. /health does not use the token, so this is the step
+            # that actually proves the token works. Without it the dialog would
+            # save a token that fails on the first real send.
+            try:
+                client.verify_token()
+            except Exception as exc:  # noqa: BLE001
+                self.events.put(("fail_token",
+                                 (getattr(exc, "code", ""),
+                                  str(getattr(exc, "message", exc)))))
+                return
+
+            self.events.put(("save", (url, symbol, sender, token, state)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _fail(self, message: str) -> None:
+        self.test_button.configure(state="normal", text="Test and save")
+        self._note(message + "\n\nNothing was saved. Correct the value and try "
+                             "again.")
+
+    def _fail_token(self, code: str, message: str) -> None:
+        self.test_button.configure(state="normal", text="Test and save")
+        if code == "AUTH_REJECTED":
+            self._note(
+                "The receiver is reachable, but it rejected the token.\n\n"
+                "Check that the token matches the one the receiver operator "
+                "gave you, with no leading or trailing spaces and no line "
+                "break. Tokens are case-sensitive.\n\n"
+                "Nothing was saved.")
+        else:
+            self._note(
+                f"The receiver answered the liveness check but the token could "
+                f"not be verified:\n{message}\n\nNothing was saved.")
+
+    def _save(self, url: str, symbol: str, sender: str, token: str,
+              health_state: str) -> None:
+        app = self.app
+        app.config.backend_url = url
+        app.config.symbol = symbol or "XAUUSD"
+        app.config.sender_id = sender
+        try:
+            app.config.save(app.config_path)
+            save_token(token)
+        except OSError as exc:
+            self._fail(f"Could not write the settings files:\n{exc}")
+            return
+
+        # Both checks passed: the URL is right and the token is accepted.
+        self._append(f"Receiver reachable (status: {health_state}).")
+        self._append("Token accepted by the delivery endpoint.")
+        self._append("Settings saved. You can close this window.")
+        self.test_button.configure(state="normal", text="Test and save")
+        self.done = True
+
+        app._load_into_form()
+        app._log(f"setup saved (destination {app.config.destination_id()})")
+        # Leave the window up briefly so the outcome can be read, then close it
+        # from the main thread (this method already runs there).
+        self.window.after(1200, self._close)
+
+    def _close(self) -> None:
+        self._closed = True
+        try:
+            self.window.grab_release()
+            self.window.destroy()
+        except tk.TclError:
+            pass
+
+    def on_cancel(self) -> None:
+        self._close()
 
 
 def main() -> int:

@@ -60,25 +60,47 @@ Do not return `404` for a stream that is merely empty.
 
 Deliver a batch of candles from one stream.
 
+The batch envelope requires `source_id`, `symbol`, and `timeframe`. The ASTRA
+server validates the envelope **before** it reads any candle and answers
+`HTTP 400 {"code":"missing_fields"}` when one is absent, so a sender that omits
+`source_id` never reaches candle parsing at all.
+
 Request:
 
 ```json
 {
+  "schema_version": "1.0",
+  "source_id": "win10-desk-01",
   "symbol": "XAUUSD",
   "timeframe": "M15",
+  "clock_offset_seconds": 10800,
   "candles": [
     {
       "uid": "XAUUSD:M15:1792432800@2066ed6de246f92a",
       "symbol": "XAUUSD",
       "timeframe": "M15",
-      "open_time_utc": 1792432800,
+      "time": 1792432800,
       "open": 2000.0, "high": 2001.0, "low": 1999.0, "close": 2000.5,
       "tick_volume": 120, "spread": 20, "real_volume": 0,
-      "source": "BrokerName", "schema_version": 1
+      "source": "BrokerName"
     }
   ]
 }
 ```
+
+**The open time field is `time`.** It is the name the ASTRA server reads
+(`parseCandle` in `src/api/AstraServerMain.cpp`). Sending it as
+`open_time_utc` — the collector's own internal name — produces the worst kind
+of failure: `HTTP 200` with `ingested: 0` and every candle in `rejected`
+carrying `candle 'time' missing or not numeric`. A sender that only checks the
+status code reads that as success.
+
+**`clock_offset_seconds` is the broker's UTC offset.** MT5 stamps bar open
+times in broker server time, so a bar from a UTC+3 broker carries a stamp three
+hours ahead of UTC. The server evaluates its future-dating guard in the
+broker's frame using this value. Omit it and every intraday bar whose open time
+falls inside the offset window is rejected as future-dated, while D1/W1/MN1
+pass — the sender appears to work while M1..H1 never arrive.
 
 Response:
 

@@ -168,13 +168,28 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         path = self.path.split("?")[0]
         if path == "/health":
+            # Unauthenticated, matching the real ASTRA server: health is a
+            # liveness probe and the C++ server does not gate it. The double
+            # previously required a token here, which is a contract divergence —
+            # a client that sent no token would have passed against the double
+            # and failed against the real receiver.
             if not self.state.health_ok:
                 self._reply(503, {"error": "true", "code": "unavailable"})
                 return
+            self._reply(200, {"status": "ok"})
+            return
+        if path == "/sync/latest":
+            # Authenticated read route, used to verify a credential without
+            # writing anything. Mirrors the real server, which requires the
+            # sender bearer token here.
             if not self._authorized():
                 self._reply(401, {"error": "true", "code": "unauthorized"})
                 return
-            self._reply(200, {"status": "ok"})
+            with self.state.lock:
+                candles = sorted(self.state.stored.values(),
+                                 key=lambda c: c.get("time", 0))
+            latest = candles[-1] if candles else None
+            self._reply(200, {"status": "ok", "data": {"latest": latest}})
             return
         if path == "/candles":
             if not self._authorized():

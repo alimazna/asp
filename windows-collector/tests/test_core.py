@@ -45,6 +45,15 @@ from collector.store import (  # noqa: E402
     StoredCandle,
     validate_candle,
 )
+from collector.brief import build_receiver_brief  # noqa: E402
+from collector.receiver import (  # noqa: E402
+    HEALTH_PATH,
+    INGEST_PATH,
+    SYNC_PATH,
+    ReceiverClient,
+    ReceiverError,
+)
+from tests.doubles import FakeReceiver  # noqa: E402
 
 M15_STEP = 900
 H1_STEP = 3600
@@ -477,6 +486,119 @@ class ReceiverWireContractTest(unittest.TestCase):
                              "reconciliation must read data.bars[].time")
         finally:
             server.stop()
+
+
+class ReceiverBriefTest(unittest.TestCase):
+    """The copyable brief must describe the wire format the receiver expects.
+
+    A brief that named the wrong field would send whoever builds the receiving
+    side down the same dead end this project already hit once, so the field
+    names are asserted against the constants the client actually uses.
+    """
+
+    def _brief(self, **overrides):
+        kwargs = dict(base_url="https://example.test/api/v1",
+                      sender_id="test-pc", symbol="XAUUSD",
+                      clock_offset_seconds=0)
+        kwargs.update(overrides)
+        return build_receiver_brief(**kwargs)
+
+    def test_brief_uses_the_wire_field_name_time(self):
+        text = self._brief()
+        # The request example must carry the wire name.
+        self.assertIn('"time":', text)
+        # `open_time_utc` may appear, but only in the warning that tells a
+        # receiver author not to read it. What must never appear is it being
+        # used as the field in a request or response example.
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('"open_time_utc"'):
+                self.fail("brief shows open_time_utc as a wire field: " + line)
+        self.assertIn("not `open_time_utc`", text,
+                      "the trap must still be called out explicitly")
+
+    def test_brief_names_the_real_endpoints(self):
+        text = self._brief()
+        self.assertIn(INGEST_PATH, text)
+        self.assertIn(SYNC_PATH, text)
+        self.assertIn(HEALTH_PATH, text)
+
+    def test_brief_states_the_authentication_scheme(self):
+        self.assertIn("Bearer", self._brief())
+
+    def test_brief_covers_every_timeframe(self):
+        text = self._brief()
+        for timeframe in TIMEFRAMES:
+            self.assertIn(timeframe, text)
+
+    def test_brief_has_no_token_parameter(self):
+        # The brief is meant to be pasted into a chat, so it must not be able to
+        # carry a credential. The signature has no token parameter, which is the
+        # structural guarantee.
+        import inspect
+        params = inspect.signature(build_receiver_brief).parameters
+        self.assertNotIn("token", params)
+
+    def test_brief_reports_the_broker_clock_offset(self):
+        self.assertIn("10800", self._brief(clock_offset_seconds=10800))
+
+    def test_brief_uses_the_given_symbol_and_sender(self):
+        text = self._brief(symbol="GOLD", sender_id="workshop-pc")
+        self.assertIn("GOLD", text)
+        self.assertIn("workshop-pc", text)
+
+
+class TokenVerificationTest(unittest.TestCase):
+    """The setup dialog must prove the token before it saves it.
+
+    ``/health`` is unauthenticated on the real server, so a 200 from it says
+    nothing about the credential. These tests pin the behaviour that closes
+    that gap: a wrong token is rejected without writing anything, and a right
+    one is accepted.
+    """
+
+    def setUp(self):
+        self.receiver = FakeReceiver(token="right-token")
+        self.addCleanup(self.receiver.stop)
+        self.url = self.receiver.url
+
+    def test_wrong_token_is_rejected(self):
+        client = ReceiverClient(self.url, token="wrong-token")
+        self.assertTrue(client.health())          # the service is up...
+        with self.assertRaises(ReceiverError) as caught:
+            client.verify_token()                 # ...but the token is not
+        self.assertEqual(caught.exception.code, "AUTH_REJECTED")
+
+    def test_right_token_is_accepted(self):
+        client = ReceiverClient(self.url, token="right-token")
+        client.health()
+        client.verify_token()                     # must not raise
+
+    def test_missing_token_is_rejected(self):
+        client = ReceiverClient(self.url, token="")
+        with self.assertRaises(ReceiverError) as caught:
+            client.verify_token()
+        self.assertEqual(caught.exception.code, "AUTH_REJECTED")
+
+    def test_verification_writes_nothing(self):
+        client = ReceiverClient(self.url, token="right-token")
+        client.verify_token()
+        with self.receiver.state.lock:
+            self.assertEqual(len(self.receiver.state.stored), 0,
+                             "verifying a token must not store a candle")
+
+    def test_health_is_unauthenticated_like_the_real_server(self):
+        # A divergence here would let a client that never sends a token pass in
+        # tests and fail in production.
+        self.assertTrue(ReceiverClient(self.url, token="").health())
+
+    def test_error_never_contains_the_token(self):
+        secret = "super-secret-value"
+        client = ReceiverClient(self.url, token=secret)
+        with self.assertRaises(ReceiverError) as caught:
+            client.verify_token()
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertNotIn(secret, caught.exception.message)
 
 
 class RealServerContractTest(unittest.TestCase):
