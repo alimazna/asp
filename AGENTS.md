@@ -217,6 +217,37 @@ successful `PyInstaller` exit code:
   and failed in CI (tkinter present, so stdout was empty). Assert the contract
   that holds on both hosts.
 
+## Collector GUI: verify before saving, connect on demand (v1.0.4+)
+
+The owner-facing window had two design faults that only showed up when someone
+who is not the author used it. Both are worth preserving as rules.
+
+- **A "test" that tests the wrong thing is worse than no test.** The setup
+  button originally confirmed the URL via `/health`, which is unauthenticated on
+  the real server by design. It returned 200 for a wrong token, so the dialog
+  saved a configuration that could not deliver a single candle. The fix is
+  `ReceiverClient.verify_token()`, which calls the authenticated
+  `/api/v1/sync/latest`. Whenever a check is meant to prove a credential, it
+  must hit a route that requires that credential.
+- **The test double must not be more permissive than the server.** `FakeReceiver`
+  required a token on `/health` while the real server does not. A client that
+  never sent one would pass the double and fail in production. When the two
+  disagree, the double is wrong — check the C++ handler
+  (`src/api/AstraApiServer.cpp`) rather than assuming.
+- **Nothing connects on its own.** The MT5 connection is a separate button. A
+  probe that silently attaches on startup hides a misconfigured terminal and
+  makes the window's own status meaningless.
+- **Never call Tk's `after()` from a worker thread.** It raised "main thread is
+  not in main loop" under load. Worker results go through a `queue.Queue`
+  drained by `_drain_events` on the main thread. This is the pattern to follow
+  for any new background work.
+- **`/sync/latest` without `?source_id=` is an aggregate across senders and is
+  not delivery proof for any one sender.** The C++ handler says so in a comment.
+  Use it to prove a token; use the scoped form to reconcile a ledger.
+- GUI logic tests must not construct a window: the Linux CI job in
+  `collector-windows-build.yml` does not install tkinter. Test the pure helpers,
+  and drive the real window under `xvfb-run` locally instead.
+
 ## The collector's wire contract must be tested against the real server
 
 The collector shipped twice (v1.0.0, v1.0.2) unable to deliver **a single
