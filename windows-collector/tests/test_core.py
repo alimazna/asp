@@ -604,6 +604,70 @@ class TokenVerificationTest(unittest.TestCase):
         self.assertNotIn(secret, caught.exception.message)
 
 
+class DisplayStateTest(unittest.TestCase):
+    """The state-to-text and state-to-colour rules, with no toolkit import.
+
+    A failed MT5 connect used to render exactly like "not tried yet", so the
+    owner clicked the button and saw no change. These lock in that a failure
+    reads as a failure, and that an unknown state looks neutral rather than
+    healthy.
+    """
+
+    def test_a_failure_colour_is_not_the_idle_colour(self):
+        from collector.display import colour
+        self.assertNotEqual(colour("FAILED"), colour("DISCONNECTED"))
+
+    def test_failed_is_red_like_the_other_error_states(self):
+        from collector.display import colour
+        self.assertEqual(colour("FAILED"), colour("ERROR"))
+        self.assertEqual(colour("FAILED"), colour("AUTH_FAILED"))
+
+    def test_an_unknown_state_is_neutral_not_green(self):
+        from collector.display import colour
+        self.assertNotEqual(colour("SOMETHING_NEW"), colour("CONNECTED"))
+        self.assertEqual(colour("SOMETHING_NEW"), colour("STOPPED"))
+
+    def test_unknown_values_render_as_a_dash_never_zero(self):
+        from collector.display import fmt_count, fmt_time
+        self.assertEqual(fmt_count(None), "—")
+        self.assertEqual(fmt_time(None), "—")
+        self.assertEqual(fmt_time(0), "—")
+
+
+class ProbeStateLabelTest(unittest.TestCase):
+    """The probe label text, asserted through the pure helper the window uses.
+
+    A failed MT5 connect used to render exactly like "not tried yet", so the
+    owner clicked the button and saw no change. These assert the text the owner
+    actually reads for each state.
+    """
+
+    def test_a_failure_shows_the_reason_and_is_not_the_idle_text(self):
+        from collector.display import probe_text
+        reason = "MetaTrader5 package is not installed"
+        failed = probe_text("FAILED", reason)
+        idle = probe_text("DISCONNECTED")
+        self.assertIn(reason, failed)
+        self.assertNotEqual(failed, idle)
+
+    def test_connected_names_the_symbol_and_broker_detail(self):
+        from collector.display import probe_text
+        self.assertIn("XAUUSD @ Broker", probe_text("CONNECTED",
+                                                    "XAUUSD @ Broker"))
+
+    def test_an_unknown_state_never_reads_as_connected(self):
+        from collector.display import probe_text
+        unknown = probe_text("SOMETHING_NEW", "detail")
+        self.assertNotIn("connected", unknown.lower())
+        self.assertEqual(unknown, "Terminal: not checked")
+
+    def test_every_state_has_distinct_text(self):
+        from collector.display import PROBE_TEXT
+        texts = list(PROBE_TEXT.values())
+        self.assertEqual(len(texts), len(set(texts)),
+                         "two states would render identically")
+
+
 class RealServerContractTest(unittest.TestCase):
     """Deliver to the actual C++ ``astra_server`` binary, not a double.
 

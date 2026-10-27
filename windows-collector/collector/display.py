@@ -16,17 +16,49 @@ UNKNOWN = "—"
 STATE_COLOURS = {
     "READY": "#1a7f37",
     "ONLINE": "#1a7f37",
+    # MT5 probe states. CONNECTED must look healthy; CONNECTING and NO_DATA are
+    # in-progress or incomplete, so they read amber rather than green.
+    "CONNECTED": "#1a7f37",
+    "CONNECTING": "#9a6700",
+    "NO_DATA": "#9a6700",
     "STARTING": "#9a6700",
     "PAUSED": "#9a6700",
     "AUTH_FAILED": "#cf222e",
     "ERROR": "#cf222e",
+    "FAILED": "#cf222e",
     "STOPPED": "#57606a",
+    "DISCONNECTED": "#57606a",
 }
 
 
 def colour(state: str) -> str:
     """A colour for a component state. Unknown states look neutral, not fine."""
     return STATE_COLOURS.get(state, STATE_COLOURS["STOPPED"])
+
+
+#: Text for each MT5 probe state. Kept here, not in the widget code, so the
+#: rule that a failure must not read like "not tried yet" is testable without
+#: a display. The failure text carries the reason the reader reported.
+PROBE_TEXT = {
+    "CONNECTED": "Terminal: connected ({detail})",
+    "CONNECTING": "Terminal: connecting...",
+    "NO_DATA": "Terminal: reachable, no closed bar",
+    "FAILED": "Terminal: failed - {detail}",
+    "DISCONNECTED": "Terminal: not connected",
+}
+
+
+def probe_text(state: str, detail: str = "") -> str:
+    """The label text for an MT5 probe state.
+
+    An unrecognised state says "not checked" rather than borrowing a healthy
+    one, so a state added without text shows up as unknown instead of as
+    connected.
+    """
+    template = PROBE_TEXT.get(state)
+    if template is None:
+        return "Terminal: not checked"
+    return template.format(detail=detail)
 
 
 def fmt_time(epoch: Optional[int]) -> str:

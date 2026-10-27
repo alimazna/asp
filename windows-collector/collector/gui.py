@@ -29,6 +29,7 @@ from .config import (
     save_token,
 )
 from .display import colour as _colour
+from .display import probe_text
 from .display import fmt_time as _fmt_time
 from .engine import SyncEngine
 from .identity import TIMEFRAMES
@@ -100,6 +101,10 @@ class CollectorApp:
         self.engine: Optional[SyncEngine] = None
         self.events: "queue.Queue[tuple]" = queue.Queue()
         self._closing = False
+        #: Pending repeating timer. Cancelled on close: a timer left scheduled
+        #: fires after the widget tree is gone and Tk prints
+        #: `invalid command name "..._drain_events"` into the owner's log.
+        self._refresh_after_id: Optional[str] = None
         #: Standalone MT5 probe. Held open between clicks so the connection can
         #: be tested without starting a delivery run.
         self.probe: Optional[Mt5Reader] = None
@@ -375,27 +380,19 @@ class CollectorApp:
         # A failed re-check invalidates the old handle: keeping it would let the
         # window claim a connection the terminal no longer honours.
         self.probe = None
-        self.probe_state = "DISCONNECTED"
+        self.probe_state = "FAILED"
         self.probe_detail = message
         self.connect_button.configure(state="normal", text="Connect to MT5")
         self._render_probe()
         self._log(f"MT5 not connected: {message}")
 
     def _render_probe(self) -> None:
-        state = self.probe_state
-        text = {
-            "CONNECTED": f"Terminal: connected ({self.probe_detail})",
-            "CONNECTING": "Terminal: connecting...",
-            "NO_DATA": f"Terminal: reachable, no closed bar",
-            "DISCONNECTED": "Terminal: not connected",
-        }.get(state, "Terminal: not checked")
-        colour = {
-            "CONNECTED": _colour("CONNECTED"),
-            "CONNECTING": _colour("STARTING"),
-            "NO_DATA": _colour("STARTING"),
-            "DISCONNECTED": _colour("STOPPED"),
-        }.get(state, _colour("STOPPED"))
-        self.probe_label.configure(text=text, foreground=colour)
+        # Text comes from display.probe_text so the mapping is testable without
+        # a display; a state with no entry reads as "not checked", never as
+        # connected.
+        self.probe_label.configure(
+            text=probe_text(self.probe_state, self.probe_detail),
+            foreground=_colour(self.probe_state))
 
     # ---------------------------------------------------------------- brief
 
@@ -666,7 +663,7 @@ class CollectorApp:
         except queue.Empty:
             pass
         self._refresh()
-        self.root.after(REFRESH_MS, self._drain_events)
+        self._refresh_after_id = self.root.after(REFRESH_MS, self._drain_events)
 
     def _refresh(self) -> None:
         if self.engine is None:
@@ -739,6 +736,14 @@ class CollectorApp:
                 return
             self.engine.stop()
         self._closing = True
+        # Cancel the repeating refresh before the widget tree goes away, so no
+        # timer fires against destroyed widgets.
+        if self._refresh_after_id is not None:
+            try:
+                self.root.after_cancel(self._refresh_after_id)
+            except tk.TclError:
+                pass
+            self._refresh_after_id = None
         try:
             if self.probe is not None:
                 self.probe.disconnect()
@@ -770,11 +775,22 @@ class SetupDialog:
         # main window uses. Calling ``after`` from a worker thread is not
         # thread-safe and raises "main thread is not in main loop".
         self.events: "queue.Queue[tuple]" = queue.Queue()
+        #: Pending timers, cancelled in ``_close``. A timer that fires after the
+        #: window is destroyed makes Tk print an "invalid command name" error
+        #: into the owner's log, so both the repeating drain and the delayed
+        #: auto-close are tracked.
+        self._drain_after_id: Optional[str] = None
+        self._close_after_id: Optional[str] = None
         self.window = tk.Toplevel(parent)
         self.window.title("ASTRA Collector setup")
         self.window.geometry("620x460")
         self.window.minsize(560, 420)
         self.window.transient(parent)
+        # Tk deletes a widget's callback command names when it is destroyed, so
+        # a timer still pending at that moment fires into a missing command and
+        # prints "invalid command name" into the owner's log. Cancel on destroy
+        # so this holds no matter who tears the window down.
+        self.window.bind("<Destroy>", self._on_destroy, add="+")
         self.window.grab_set()
         self.window.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -843,8 +859,13 @@ class SetupDialog:
                     self._save(*payload)
         except queue.Empty:
             pass
+        # The window can be torn down from under this timer (the main window
+        # closing destroys its children), so a timer that has already fired is
+        # not an error. Reschedule only while the widget still exists.
         try:
-            self.window.after(120, self._drain)
+            if not self.window.winfo_exists():
+                return
+            self._drain_after_id = self.window.after(120, self._drain)
         except tk.TclError:
             pass
 
@@ -1001,15 +1022,37 @@ class SetupDialog:
         app._log(f"setup saved (destination {app.config.destination_id()})")
         # Leave the window up briefly so the outcome can be read, then close it
         # from the main thread (this method already runs there).
-        self.window.after(1200, self._close)
+        self._close_after_id = self.window.after(1200, self._close)
 
     def _close(self) -> None:
         self._closed = True
+        self._cancel_timers()
         try:
             self.window.grab_release()
             self.window.destroy()
         except tk.TclError:
             pass
+
+    def _on_destroy(self, event) -> None:
+        """Cancel pending timers when the window itself is destroyed.
+
+        ``<Destroy>`` also fires for every child widget, so ignore anything but
+        the toplevel. Whoever destroys the window - this dialog, or the main
+        window closing - no timer is left pointing at a deleted command.
+        """
+        if event.widget is self.window:
+            self._closed = True
+            self._cancel_timers()
+
+    def _cancel_timers(self) -> None:
+        for attr in ("_drain_after_id", "_close_after_id"):
+            ident = getattr(self, attr, None)
+            if ident is not None:
+                try:
+                    self.window.after_cancel(ident)
+                except tk.TclError:
+                    pass
+                setattr(self, attr, None)
 
     def on_cancel(self) -> None:
         self._close()
