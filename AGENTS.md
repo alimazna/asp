@@ -173,6 +173,41 @@ hardcode a timeframe as untrusted.
   `__main__.py` had a second literal (`VERSION = "0.4.4"`) that drifted; it now
   imports the package value.
 
+## Windows collector packaging (2026-10-27, release collector-v1.0.2)
+
+The packaged collector shipped twice unable to read a single candle. Both faults
+were in the bundle, not the collection logic, and neither is visible from a
+successful `PyInstaller` exit code:
+
+- **`numpy` in `excludes` breaks the bundled `MetaTrader5`.** The spec bundled
+  `MetaTrader5` as a hidden import but listed `numpy` under `excludes`, and
+  excludes wins over hiddenimports. The frozen exe then failed with
+  `ImportError: numpy._core.multiarray failed to import` on the owner's first
+  read. The sender spec never excluded numpy for exactly this reason. A spec
+  that bundles a package must not exclude that package's dependencies.
+- **A windowed exe turns an unhandled exception into a blocking dialog.** With
+  `console=False` and `disable_windowed_traceback=False`, an escaping exception
+  opens a native message box that waits for a click. In a headless run nobody
+  clicks it, so the job hung for 25 minutes until cancelled. The collector now
+  routes `sys.stdout`/`sys.stderr` to `console.log` in the data dir when they are
+  `None`, and `ASTRA_COLLECTOR_NO_DIALOG=1` converts an escaping exception into a
+  logged non-zero exit (mirroring the sender's `ASTRA_SENDER_NO_DIALOG`).
+- **Diagnostics must be written, not only printed.** A windowed exe has no
+  stdout, so `--selfcheck` writes `selfcheck.txt` in the data dir. CI reads that
+  file and asserts a positive `ok   MetaTrader5`, because "no FAIL line" also
+  passes for an exe that dropped MT5 entirely.
+- **Bound every headless smoke run with a timeout.** `WaitForExit(ms)` plus an
+  explicit "did not exit (a blocking dialog?)" error turns a future hang into a
+  one-minute failure instead of burning the job.
+- **`upload-artifact` stores paths relative to the uploaded file's parent**, so a
+  release job that assumes `dist/ASTRA-Collector.exe` fails even though the build
+  and smoke test passed. The release job now searches for the file and prints a
+  listing when it is absent.
+- Tests that pass on one host and fail on another usually branch on a missing
+  dependency: the selfcheck test passed locally (no tkinter, so it read stderr)
+  and failed in CI (tkinter present, so stdout was empty). Assert the contract
+  that holds on both hosts.
+
 ## Security: never publish a token-bearing installer
 
 The repository is **public**, so any GitHub Release asset is world-readable. The
