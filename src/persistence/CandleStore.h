@@ -65,6 +65,12 @@ public:
 
     bool isOpen() const noexcept { return db_ != nullptr; }
 
+    // Test seam (not part of the ingestion contract): when n > 0, the next
+    // insertBatch aborts and rolls back after n successful INSERTs, so a test
+    // can prove a batch is atomic (all-or-nothing). -1 disables it. Never used
+    // by production code paths.
+    void setFaultAfterInsertsForTest(int n) noexcept { faultAfterInserts_ = n; }
+
     // Insert a batch of candles under one transaction. Deduplication is by the
     // unique identity (source_id, symbol, timeframe, open_time_utc). A repeat of
     // an already-present candle is reported `already_stored`, not duplicated.
@@ -99,7 +105,10 @@ public:
     // Distinct symbols present in the store (any source).
     std::vector<std::string> distinctSymbols() const;
 
-    // Newest persisted open time for (sourceId, symbol, timeframe), or 0.
+    // Newest persisted open time for (sourceId, symbol, timeframe), or 0. Like
+    // every read path, this withholds a series contaminated by a misaligned row
+    // (scoped to this source identity), so it can never report a fabricated
+    // timestamp as a real watermark.
     std::int64_t latestOpenTime(const std::string& sourceId,
                                 const std::string& symbol,
                                 const std::string& timeframe) const;
@@ -131,6 +140,7 @@ private:
     bool exec(const std::string& sql, std::string& error) const;
     mutable std::mutex mutex_;
     sqlite3* db_ = nullptr;
+    int faultAfterInserts_ = -1;  // test seam; see setFaultAfterInsertsForTest
 };
 
 }  // namespace aura
