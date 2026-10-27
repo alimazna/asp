@@ -756,7 +756,8 @@ int main(int argc, char** argv) {
     std::shared_ptr<IOutboundHttpClient> outboundHttp =
         makeDefaultOutboundHttpClient();
     Llm7Provider llm7Provider(llm7Config, outboundHttp);
-    MockLlmProvider mockProvider(MockLlmProvider::Mode::Valid);
+    MockLlmProvider mockProvider(MockLlmProvider::modeFromString(
+        envOr("ASTRA_MOCK_LLM_MODE", "valid")));
     ILlmProvider* llmProvider =
         (providerKind == "mock") ? static_cast<ILlmProvider*>(&mockProvider)
                                  : static_cast<ILlmProvider*>(&llm7Provider);

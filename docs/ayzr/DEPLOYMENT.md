@@ -52,6 +52,7 @@ different values**: they guard disjoint capabilities (write / destructive / read
 | `LLM7_BASE_URL` | `https://api.llm7.io/v1` (default) |
 | `LLM7_MODEL` | `nemotron-3-nano:30b` (default) |
 | `ASTRA_LLM_PROVIDER` | `llm7` (prod) or `mock` (tests) |
+| `ASTRA_MOCK_LLM_MODE` | with `ASTRA_LLM_PROVIDER=mock`: `valid` (default), `malformed`, `empty`, `timeout`, `rate_limited`, `quota_exhausted`, `auth_failure`, `malformed_then_valid`. An unknown value falls back to `valid` |
 | `LLM7_CONNECT_TIMEOUT_MS`, `LLM7_READ_TIMEOUT_MS`, `LLM7_MAX_ATTEMPTS` | bounded timeouts/retries |
 | `LLM7_QUOTA_FALLBACK_COOLDOWN_S` | cooldown seconds used when a 429 quota response omits a reset time (default 3600) |
 

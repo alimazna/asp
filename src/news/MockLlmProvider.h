@@ -24,6 +24,19 @@ public:
 
     explicit MockLlmProvider(Mode mode = Mode::Valid) : mode_(mode) {}
 
+    // Map a config string to a mode. Unknown values fall back to Valid so a
+    // typo in a deployment setting can never silently enable failure injection.
+    static Mode modeFromString(const std::string& value) {
+        if (value == "malformed") return Mode::Malformed;
+        if (value == "empty") return Mode::Empty;
+        if (value == "timeout") return Mode::Timeout;
+        if (value == "rate_limited") return Mode::RateLimited;
+        if (value == "quota_exhausted") return Mode::QuotaExhausted;
+        if (value == "auth_failure") return Mode::AuthFailure;
+        if (value == "malformed_then_valid") return Mode::MalformedThenValid;
+        return Mode::Valid;
+    }
+
     std::string providerId() const override { return "mock"; }
     std::string modelId() const override { return "mock-model"; }
 

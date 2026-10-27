@@ -326,3 +326,22 @@ TEST_CASE(Quota_ServiceWithoutMonitorStillWorks) {
     CHECK(an.status == "ok");
     CHECK(an.proposedDirection == "bullish");
 }
+
+TEST_CASE(Quota_MockModeStringMapping) {
+    // The server selects the mock's failure mode from ASTRA_MOCK_LLM_MODE so the
+    // full HTTP path can be failure-injected without spending real quota. Pin
+    // the mapping and the safe fallback: an unknown/typo'd value must resolve to
+    // Valid, never silently enable a failure mode.
+    CHECK(MockLlmProvider::modeFromString("valid") == MockLlmProvider::Mode::Valid);
+    CHECK(MockLlmProvider::modeFromString("malformed") == MockLlmProvider::Mode::Malformed);
+    CHECK(MockLlmProvider::modeFromString("empty") == MockLlmProvider::Mode::Empty);
+    CHECK(MockLlmProvider::modeFromString("timeout") == MockLlmProvider::Mode::Timeout);
+    CHECK(MockLlmProvider::modeFromString("rate_limited") == MockLlmProvider::Mode::RateLimited);
+    CHECK(MockLlmProvider::modeFromString("quota_exhausted") == MockLlmProvider::Mode::QuotaExhausted);
+    CHECK(MockLlmProvider::modeFromString("auth_failure") == MockLlmProvider::Mode::AuthFailure);
+    CHECK(MockLlmProvider::modeFromString("malformed_then_valid") == MockLlmProvider::Mode::MalformedThenValid);
+    // Unknown / empty / typo -> Valid (safe default).
+    CHECK(MockLlmProvider::modeFromString("") == MockLlmProvider::Mode::Valid);
+    CHECK(MockLlmProvider::modeFromString("QUOTA_EXHAUSTED") == MockLlmProvider::Mode::Valid);
+    CHECK(MockLlmProvider::modeFromString("nonsense") == MockLlmProvider::Mode::Valid);
+}
