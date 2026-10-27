@@ -31,6 +31,7 @@ from .config import (
 from .display import colour as _colour
 from .display import probe_text
 from .display import fmt_time as _fmt_time
+from .display import resolve_brief_height
 from .engine import SyncEngine
 from .identity import TIMEFRAMES
 from .ledger import DeliveryLedger
@@ -238,6 +239,18 @@ class CollectorApp:
                                   state="disabled")
         self.error_text.pack(fill="both", expand=True)
 
+        # Re-runnable setup, for changing the destination or the token later.
+        # Packed *above* the brief panel, which stays the last element so it
+        # reads as the footer the owner asked for. A button below a panel that
+        # can grow past the bottom of the screen would be unreachable: packed
+        # tkinter content has no scrollbar to recover it.
+        setup_row = ttk.Frame(outer)
+        setup_row.pack(fill="x", pady=(8, 0))
+        ttk.Button(setup_row, text="Run setup again",
+                   command=self.on_setup_wizard).pack(side="left")
+        ttk.Label(setup_row, text="Use this to change the receiver URL, "
+                                  "symbol, or token.").pack(side="left", padx=8)
+
         # A ready-to-send description of the receiving side. The owner can hand
         # it to a developer or another agent, who can build a compatible
         # receiver from it without knowing the protocol. Collapsed by default so
@@ -267,14 +280,6 @@ class CollectorApp:
         self.brief_text.pack(side="left", fill="both", expand=True)
         brief_scroll.pack(side="right", fill="y")
         self._brief_shown = False
-
-        # Re-runnable setup, for changing the destination or the token later.
-        setup_row = ttk.Frame(outer)
-        setup_row.pack(fill="x", pady=(8, 0))
-        ttk.Button(setup_row, text="Run setup again",
-                   command=self.on_setup_wizard).pack(side="left")
-        ttk.Label(setup_row, text="Use this to change the receiver URL, "
-                                  "symbol, or token.").pack(side="left", padx=8)
         add_clipboard_menu(self.root)
 
     # ---------------------------------------------------------------- setup
@@ -439,13 +444,12 @@ class CollectorApp:
         bottom on a small display.
         """
         self.root.update_idletasks()
-        needed = self.root.winfo_reqheight()
-        screen_h = self.root.winfo_screenheight()
-        target = min(needed + 8, screen_h - 80)
-        if growing:
-            self.root.geometry(f"{self.root.winfo_width()}x{target}")
-        else:
-            self.root.geometry(f"{self.root.winfo_width()}x{max(target, 700)}")
+        target = resolve_brief_height(
+            needed=self.root.winfo_reqheight(),
+            screen_h=self.root.winfo_screenheight(),
+            current=self.root.winfo_height(),
+            growing=growing)
+        self.root.geometry(f"{self.root.winfo_width()}x{target}")
 
     def on_copy_brief(self) -> None:
         text = self._current_brief()

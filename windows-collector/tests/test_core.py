@@ -668,6 +668,54 @@ class ProbeStateLabelTest(unittest.TestCase):
                          "two states would render identically")
 
 
+class BriefHeightTest(unittest.TestCase):
+    """The window must not shrink while the setup panel is opening.
+
+    Measured on a 1024x768 screen: expanding the panel resized the window from
+    820 to 700 and pushed "Run setup again" off the bottom. Packed tkinter
+    content has no scrollbar, so the row could not be reached again.
+    """
+
+    def test_growing_never_shrinks_below_the_current_height(self):
+        from collector.display import resolve_brief_height
+        # Screen cap (768-80=688) is below the height already in use (820).
+        self.assertEqual(
+            resolve_brief_height(needed=900, screen_h=768, current=820,
+                                 growing=True),
+            820)
+
+    def test_growing_takes_the_content_height_when_it_fits(self):
+        from collector.display import resolve_brief_height
+        self.assertEqual(
+            resolve_brief_height(needed=900, screen_h=1080, current=820,
+                                 growing=True),
+            908)
+
+    def test_growing_is_capped_to_the_screen(self):
+        from collector.display import resolve_brief_height
+        self.assertEqual(
+            resolve_brief_height(needed=5000, screen_h=1080, current=820,
+                                 growing=True),
+            1000)
+
+    def test_collapsing_keeps_the_floor(self):
+        from collector.display import resolve_brief_height
+        self.assertEqual(
+            resolve_brief_height(needed=300, screen_h=768, current=820,
+                                 growing=False),
+            700)
+
+    def test_result_is_never_below_the_window_minimum(self):
+        from collector.display import resolve_brief_height
+        for screen in (600, 768, 1080, 1440):
+            for needed in (0, 300, 900, 5000):
+                for current in (0, 700, 820, 1400):
+                    for growing in (True, False):
+                        got = resolve_brief_height(needed, screen, current,
+                                                   growing)
+                        self.assertGreaterEqual(got, 700)
+
+
 class RealServerContractTest(unittest.TestCase):
     """Deliver to the actual C++ ``astra_server`` binary, not a double.
 

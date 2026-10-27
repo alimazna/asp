@@ -3,7 +3,7 @@
 Owner-facing instructions. Written so the application can be started normally,
 without a command prompt and without installing a development toolchain.
 
-> **Use 1.0.5 or later.** Releases 1.0.0 and 1.0.2 could not deliver a single
+> **Use 1.0.6 or later.** Releases 1.0.0 and 1.0.2 could not deliver a single
 > candle: they omitted `source_id`, sent the bar open time under the wrong field
 > name, and dropped the measured clock offset. The server rejected every batch
 > (HTTP 400), or accepted it with `ingested: 0` and every candle in `rejected`.
@@ -11,7 +11,8 @@ without a command prompt and without installing a development toolchain.
 > connection before it saves it, a separate **Connect to MT5** button, and a
 > copyable description of the receiving side. 1.0.5 makes a failed **Connect to
 > MT5** click state the reason instead of leaving the label unchanged, and stops
-> a timer error reaching the log when the window is closed.
+> a timer error reaching the log when the window is closed. 1.0.6 keeps **Run
+> setup again** reachable when the setup text is expanded on a small screen.
 
 ## 1. Requirements
 
@@ -27,8 +28,8 @@ executable.
 ## 2. Install
 
 1. Download `ASTRA-Collector.exe` — direct link:
-   <https://github.com/alimazna/asp/releases/download/collector-v1.0.5/ASTRA-Collector.exe>
-   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.5>
+   <https://github.com/alimazna/asp/releases/download/collector-v1.0.6/ASTRA-Collector.exe>
+   Release page: <https://github.com/alimazna/asp/releases/tag/collector-v1.0.6>
 2. Put it in its own folder, for example `C:\Users\<you>\ASTRA-Collector\`.
    If you also copied `Start-ASTRA-Collector.cmd` from `packaging/`, keep it in
    the same folder; it is a one-click launcher.
@@ -43,7 +44,7 @@ Optional: verify the download before running it. In PowerShell:
 Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
 ```
 
-For the 1.0.5 release the expected SHA256 is:
+For the 1.0.6 release the expected SHA256 is:
 
 ```
 C6C6650E8956035E9A738231E40768D1FF2D25FC01778BD7D45E4BA477B1729E

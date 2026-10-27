@@ -76,3 +76,22 @@ def fmt_count(value: Optional[int]) -> str:
     if value is None:
         return UNKNOWN
     return str(int(value))
+
+
+def resolve_brief_height(needed: int, screen_h: int, current: int,
+                         growing: bool) -> int:
+    """Pick the window height when the setup-text panel is toggled.
+
+    Kept here, free of tkinter, so the rule can be tested without a display.
+
+    Growing must never shrink the window. On a short screen the screen cap can
+    be below the height already in use, and shrinking while the panel grows
+    pushes the rows above it past the bottom edge. Packed tkinter content has
+    no scrollbar, so a row that goes past the bottom is gone for good.
+    """
+    target = min(needed + 8, screen_h - 80)
+    if growing:
+        target = max(target, current)
+    # Clamp to the window minimum here rather than relying on minsize() to do
+    # it. A caller that trusted a smaller number would clip the bottom row.
+    return max(target, 700)

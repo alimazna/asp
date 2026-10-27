@@ -273,6 +273,17 @@ Neither is visible in a diff, which is why they survived review.
   destroyed widget and printed `invalid command name "..._drain"` into the
   owner's log. `_close` alone is not enough: the *parent* can be destroyed
   first, so the binding is what makes it hold in both directions.
+- **Order of `pack()` calls is the layout, and it is not obvious from a diff.**
+  "Run setup again" was packed after the setup-text panel, so expanding the
+  panel pushed the button past the bottom edge. Packed tkinter has no
+  scrollbar: the control is simply gone. Anything the owner needs to reach must
+  be packed *above* the collapsible panel.
+- **`minsize()` does not rescue a computed geometry.** `_resize_for_brief` set
+  the window to `min(needed + 8, screen_h - 80)`. On a 768px screen that is 688,
+  which is *below* the 820 the window already had — expanding the panel shrank
+  the window and clipped the row. Growing must take `max(target, current)`.
+  Assert this with the pure function; the bug only appears at a screen size the
+  developer is not using.
 
 ## The collector's wire contract must be tested against the real server
 
