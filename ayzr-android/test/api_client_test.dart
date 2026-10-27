@@ -32,7 +32,7 @@ void main() {
       final client = fakeClient(routeTable({
         '/api/v1/news': (req) {
           seen = req.url;
-          return enveloped(newsList['news']);
+          return enveloped(newsList);
         },
       }));
       final r = await client.news(limit: 10, goldOnly: true);
@@ -58,12 +58,29 @@ void main() {
 
     test('history() parses the history array', () async {
       final client = fakeClient(routeTable({
-        '/api/v1/history': (_) => enveloped(historyList['history']),
+        '/api/v1/history': (_) => enveloped(historyList),
       }));
       final r = await client.history();
       expect(r.isSuccess, isTrue);
       expect(r.value, hasLength(1));
       expect(r.value!.first.headline, 'الذهب يرتفع مع تراجع الدولار');
+    });
+
+    // Regression: the backend nests rows under a named key (`{news:[...]}`,
+    // `{history:[...]}`). An earlier client assumed a bare array, so the real
+    // server returned nothing while a bare-array mock kept the tests green.
+    test('a bare array (wrong contract) yields an empty list, not a crash',
+        () async {
+      final client = fakeClient(routeTable({
+        '/api/v1/news': (_) => enveloped(const []),
+        '/api/v1/history': (_) => enveloped(const []),
+      }));
+      final news = await client.news();
+      final hist = await client.history();
+      expect(news.isSuccess, isTrue);
+      expect(news.value, isEmpty);
+      expect(hist.isSuccess, isTrue);
+      expect(hist.value, isEmpty);
     });
   });
 

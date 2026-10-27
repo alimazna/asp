@@ -31,8 +31,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
 
@@ -56,8 +56,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
       expect(find.text(Ar.shadowOnly), findsOneWidget);
@@ -71,8 +71,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
 
@@ -91,8 +91,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisUncalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
 
@@ -139,8 +139,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(<Object?>[]),
-          '/api/v1/history': (_) => enveloped(<Object?>[]),
+          '/api/v1/news': (_) => enveloped(const {'news': <Object?>[]}),
+          '/api/v1/history': (_) => enveloped(const {'history': <Object?>[]}),
         }),
       );
 
@@ -159,8 +159,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
           '/api/v1/news/analyze': (_) => enveloped(newsDetail),
         }),
       );
@@ -185,8 +185,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
           '/api/v1/news/analyze': (_) => enveloped(newsDetailNoAnalysis),
         }),
       );
@@ -211,9 +211,9 @@ void main() {
             if (req.url.queryParameters['gold_only'] == 'true') {
               sawGoldOnly = true;
             }
-            return enveloped(newsList['news']);
+            return enveloped(newsList);
           },
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
 
@@ -233,8 +233,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
 
@@ -250,8 +250,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(<Object?>[]),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(const {'history': <Object?>[]}),
         }),
       );
 
@@ -269,8 +269,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOffline),
           '/api/v1/analysis/latest': (_) => enveloped(analysisUncalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
       // health offline => the home shows the offline status label.
@@ -289,8 +289,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(staleAnalysis),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
       expect(find.textContaining(Ar.stale), findsWidgets);
@@ -325,8 +325,8 @@ void main() {
         routeTable({
           '/api/v1/health/v1': (_) => enveloped(healthOk),
           '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
-          '/api/v1/news': (_) => enveloped(newsList['news']),
-          '/api/v1/history': (_) => enveloped(historyList['history']),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
         }),
       );
       await tester.pumpWidget(AyzrApp(state: state));

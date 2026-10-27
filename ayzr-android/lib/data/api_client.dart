@@ -144,6 +144,17 @@ class ApiClient {
     return null;
   }
 
+  /// Rows from a list endpoint. The backend nests rows under a named key
+  /// (`{news: [...]}`); a bare array is also accepted so a contract drift
+  /// degrades to an empty list rather than a cast crash.
+  static List<Object?> _rows(Object? data, String key) {
+    if (data is Map) {
+      final v = data[key];
+      return v is List ? v : const [];
+    }
+    return data is List ? data : const [];
+  }
+
   Future<ApiResult<HealthV1>> health() async {
     final r = await _getData('/api/v1/health/v1');
     return r.map((d) => HealthV1.fromJson((d as Map).cast<String, dynamic>()));
@@ -163,7 +174,8 @@ class ApiClient {
       'limit': '$limit',
       if (goldOnly) 'gold_only': 'true',
     });
-    return r.map((d) => (d as List)
+    // The backend nests the rows under a named key: `{news: [...]}`.
+    return r.map((d) => _rows(d, 'news')
         .whereType<Map>()
         .map((m) => NewsListItem.fromJson(m.cast<String, dynamic>()))
         .toList(growable: false));
@@ -189,7 +201,8 @@ class ApiClient {
 
   Future<ApiResult<List<HistoryEntry>>> history({int limit = 50}) async {
     final r = await _getData('/api/v1/history', query: {'limit': '$limit'});
-    return r.map((d) => (d as List)
+    // The backend nests the rows under a named key: `{history: [...]}`.
+    return r.map((d) => _rows(d, 'history')
         .whereType<Map>()
         .map((m) => HistoryEntry.fromJson(m.cast<String, dynamic>()))
         .toList(growable: false));
