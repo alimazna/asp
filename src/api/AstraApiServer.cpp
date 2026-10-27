@@ -700,6 +700,13 @@ ApiResponse AstraApiServer::handleRequest(
             return ApiResponse{204, "application/json", "", true, ""};
         }
         if (!authorize(authHeader)) {
+            if (!unauthAllowed("news_ingest", config_.ingestRequestsPerMinute)) {
+                ApiResponse tooMany = errorResponse(
+                    429, "rate_limited",
+                    "too many unauthenticated attempts; retry after backoff");
+                tooMany.headers += "Retry-After: 60\r\n";
+                return tooMany;
+            }
             return errorResponse(401, "unauthorized",
                                  "a valid sender bearer token is required");
         }
