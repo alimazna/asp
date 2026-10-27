@@ -285,6 +285,58 @@ Neither is visible in a diff, which is why they survived review.
   Assert this with the pure function; the bug only appears at a screen size the
   developer is not using.
 
+## A release job that only runs on tags is untested until you run it on a tag
+
+`if: startsWith(github.ref, 'refs/tags/collector-v')` means the publish step is
+**skipped on every branch push**, so green CI on a PR says nothing about it. The
+step that renders the SHA256 into the release body was added that way. A dry-run
+tag (`collector-v1.0.6-hashtest`) run confirmed the digest in the body matched
+the asset digest exactly; the tag and its release were deleted immediately after.
+Do this before trusting any change to the release job.
+
+## The live deployment is not the branch
+
+`https://astra-server-production.up.railway.app` serves the **pre-fix** build.
+Verified 2026-10-27, after the fixes were committed:
+
+- `/api/v1/health` -> `aggregate: DEGRADED`, `decision_grade_data: false`, and
+  `degraded_reasons` lists all nine timeframes as `"closed bar present"` - the
+  healthy-looking sentence the fix replaced. `observed_at` is a real timestamp,
+  so the STARTING-stuck variant is not what is deployed.
+- `/api/v1/analysis/latest` -> `symbol: ""` for real XAUUSD candles, and no
+  `streams`/`data_quality` keys at all.
+
+Both are the exact symptoms `cd586bd` and `0ee0817` address. Never report the
+backend as fixed on the strength of a green CI run; curl the deployment.
+
+## Probe the live server before reasoning about the contract
+
+Routes are `/api/v1/...` and the ingest route is `/api/v1/candles/ingest`, not
+`/api/v1/ingest`. `/health`, `/healthz` and `/readyz` do not exist; the health
+route is `/api/v1/health`. Auth is enforced on ingest and sync: no token and a
+bogus token both return `401 {"code":"unauthorized"}`. `GET /api/v1/candles`
+returns one bar even though the analysis payload reports no streams.
+
+## The collector has no tkinter on Linux CI
+
+`probe_text` and `resolve_brief_height` live in `collector/display.py` precisely
+so their rules are testable without a window. Anything that needs a real widget
+must be driven under `xvfb-run` by hand, and that is how the v1.0.5 and v1.0.6
+faults were found - both were invisible to the suite.
+
+## The owner's four requirements, and how each is verified
+
+1. Setup dialog on first run: driven under `xvfb` with a temp config dir; one
+   `Toplevel` titled "ASTRA Collector setup" opens, and closing the main window
+   with it open raises nothing.
+2. A separate **Connect to MT5** button, no auto-connect: `ast.parse` over
+   `__init__` and `_build` confirms neither `on_connect_mt5` nor `start` is
+   called; the button's `command` is the only caller.
+3. English only: a scan for non-ASCII outside `•–—…·≥≤×→` across
+   `collector/*.py` returns zero files.
+4. Brief text at the bottom: `brief_frame` is packed last; the setup row was
+   moved *above* it to stay reachable.
+
 ## The collector's wire contract must be tested against the real server
 
 The collector shipped twice (v1.0.0, v1.0.2) unable to deliver **a single
