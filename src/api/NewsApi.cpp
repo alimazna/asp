@@ -130,6 +130,24 @@ ApiResponse NewsApi::detail(const NewsArticle& article,
                        envelope(jsonObject(fields)), true, ""};
 }
 
+ApiResponse NewsApi::quota(const LlmQuotaState& s) {
+    std::vector<ApiField> fields;
+    fields.push_back(stringField("category", s.category));
+    // Null, never a fabricated 0: a missing reset time means "unknown".
+    fields.push_back(s.retryAfterKnown()
+                         ? intField("retry_after_seconds", s.retryAfterSeconds)
+                         : rawField("retry_after_seconds", "null"));
+    fields.push_back(intField("last_change_at", s.lastChangeUtc));
+    fields.push_back(intField("last_success_at", s.lastSuccessUtc));
+    fields.push_back(boolField("cooling_down", s.coolingDown));
+    fields.push_back(intField("cooldown_until", s.cooldownUntilUtc));
+    fields.push_back(boolField("quota_exhausted", s.quotaExhausted()));
+    fields.push_back(boolField("rate_limited", s.rateLimited()));
+    return ApiResponse{200, "application/json",
+                       envelope(jsonObject({rawField("quota", jsonObject(fields))})),
+                       true, ""};
+}
+
 ApiResponse NewsApi::history(const std::vector<NewsAnalysis>& analyses,
                              const std::vector<NewsArticle>& articles) {
     std::vector<std::string> elements;

@@ -29,6 +29,19 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     analysis.providerId = provider_->providerId();
     analysis.modelId = provider_->modelId();
 
+    // Daily-quota cooldown: when a previous call exhausted the provider's daily
+    // budget, do not call again until the reset window. Serve the honest
+    // "paused" state instead of hammering the provider.
+    if (quotaMonitor_ != nullptr && !quotaMonitor_->shouldAttempt(nowUtc)) {
+        lastAttemptCount_ = 0;
+        analysis.status = "unavailable";
+        analysis.statusReason = "provider daily quota exhausted; cooling down";
+        analysis.limitationsAr.push_back(
+            "تم استهلاك حصة التحليل اليومية لمزوّد الذكاء الاصطناعي؛ "
+            "سيُستأنف التحليل تلقائياً بعد تجدّد الحصة.");
+        return analysis;
+    }
+
     const NewsPrompt prompt = buildNewsPrompt(context);
     LlmRequest request;
     request.model = provider_->modelId();
@@ -42,6 +55,9 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     for (int attempt = 0; attempt < maxAttempts_; ++attempt) {
         lastAttemptCount_ = attempt + 1;
         result = provider_->complete(request);
+        if (quotaMonitor_ != nullptr) {
+            quotaMonitor_->record(result, nowUtc);
+        }
         if (result.ok() || !result.retryable()) break;
         // Bounded backoff. A short fixed delay keeps a single analysis request
         // from hammering a rate-limited provider; the attempt cap bounds it.
@@ -50,11 +66,22 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
 
     if (!result.ok()) {
         analysis.status = "unavailable";
-        analysis.statusReason = result.error.empty()
-                                    ? "provider unavailable"
-                                    : ("provider unavailable: " + result.error);
-        analysis.limitationsAr.push_back(
-            "لم يتوفر تحليل الذكاء الاصطناعي لهذا الخبر.");
+        if (result.quotaExhausted()) {
+            analysis.statusReason = "provider daily quota exhausted";
+            analysis.limitationsAr.push_back(
+                "تم استهلاك حصة التحليل اليومية لمزوّد الذكاء الاصطناعي؛ "
+                "سيُستأنف التحليل تلقائياً بعد تجدّد الحصة.");
+        } else if (result.outcome == LlmOutcome::RateLimited) {
+            analysis.statusReason = "provider rate limited; retry shortly";
+            analysis.limitationsAr.push_back(
+                "مزوّد التحليل مشغول مؤقتاً؛ أعد المحاولة بعد لحظات.");
+        } else {
+            analysis.statusReason = result.error.empty()
+                                        ? "provider unavailable"
+                                        : ("provider unavailable: " + result.error);
+            analysis.limitationsAr.push_back(
+                "لم يتوفر تحليل الذكاء الاصطناعي لهذا الخبر.");
+        }
         return analysis;
     }
 
@@ -79,6 +106,9 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
                                   {"user", buildRepairUserMessage(parsed.error)}};
         repairRequest.timeoutMillis = 0;
         LlmResult repairResult = provider_->complete(repairRequest);
+        if (quotaMonitor_ != nullptr) {
+            quotaMonitor_->record(repairResult, nowUtc);
+        }
         ++lastAttemptCount_;
         if (repairResult.ok()) {
             parsed = parseAnalysisResponse(repairResult.content);

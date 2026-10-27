@@ -26,7 +26,9 @@ struct LlmRequest {
 enum class LlmOutcome {
     Ok,
     AuthFailure,      // 401/403 — credential problem, not retryable
-    RateLimited,      // 429 — retryable after backoff
+    RateLimited,      // 429 (temporary) — retryable after a short backoff
+    QuotaExhausted,   // 429 with insufficient_quota / daily quota — NOT retryable;
+                      // the caller must cool down until the quota resets
     Timeout,          // transport timeout — retryable
     BadRequest,       // 400/404/422 — request problem, not retryable
     ServerError,      // 5xx — retryable
@@ -38,6 +40,9 @@ struct LlmResult {
     int httpStatus = 0;
     std::string content;   // assistant text when outcome == Ok
     std::string error;     // safe, non-secret diagnostic
+    // Parsed from the `Retry-After` header or the provider's `retry_after` body
+    // field. -1 means "not provided / unknown" — never invent a reset time.
+    int retryAfterSeconds = -1;
 
     bool retryable() const noexcept {
         return outcome == LlmOutcome::RateLimited ||
@@ -46,6 +51,26 @@ struct LlmResult {
                outcome == LlmOutcome::TransportError;
     }
     bool ok() const noexcept { return outcome == LlmOutcome::Ok; }
+    bool quotaExhausted() const noexcept {
+        return outcome == LlmOutcome::QuotaExhausted;
+    }
+    bool retryAfterKnown() const noexcept { return retryAfterSeconds >= 0; }
+
+    // Stable, non-secret category string for logs and the API. Never derived
+    // from provider text, so it cannot leak response details.
+    const char* category() const noexcept {
+        switch (outcome) {
+            case LlmOutcome::Ok: return "ok";
+            case LlmOutcome::AuthFailure: return "auth_failure";
+            case LlmOutcome::RateLimited: return "rate_limited";
+            case LlmOutcome::QuotaExhausted: return "quota_exhausted";
+            case LlmOutcome::Timeout: return "timeout";
+            case LlmOutcome::BadRequest: return "bad_request";
+            case LlmOutcome::ServerError: return "server_error";
+            case LlmOutcome::TransportError: return "transport_error";
+        }
+        return "unknown";
+    }
 };
 
 class ILlmProvider {

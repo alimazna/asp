@@ -59,8 +59,17 @@ class AppState extends ChangeNotifier {
   Section<AnalysisLatest> analysis = const Section<AnalysisLatest>();
   Section<List<NewsListItem>> news = const Section<List<NewsListItem>>();
   Section<List<HistoryEntry>> history = const Section<List<HistoryEntry>>();
+  Section<LlmQuota> quota = const Section<LlmQuota>();
 
   bool goldOnly = false;
+
+  /// True when the AI provider's daily quota is spent and the backend is
+  /// withholding calls. Drives the Arabic "analysis paused" banner. A temporary
+  /// rate limit is surfaced separately and does not raise this flag.
+  bool get aiQuotaExhausted => quota.data?.quotaExhausted ?? false;
+
+  /// True when the provider is temporarily rate-limited (resolves in seconds).
+  bool get aiRateLimited => quota.data?.rateLimited ?? false;
 
   /// True when the most recent health read failed with a connectivity error.
   bool get isOffline => health.phase == LoadPhase.error &&
@@ -106,7 +115,14 @@ class AppState extends ChangeNotifier {
     if (goldOnly != null) this.goldOnly = goldOnly;
     news = news.loading();
     notifyListeners();
-    final r = await _client.news(goldOnly: this.goldOnly);
+    // Refresh the quota snapshot alongside the feed so the banner reflects the
+    // same moment as the data. Both run concurrently.
+    final results = await Future.wait([
+      _client.news(goldOnly: this.goldOnly),
+      _client.quota(),
+    ]);
+    final r = results[0] as ApiResult<List<NewsListItem>>;
+    final q = results[1] as ApiResult<LlmQuota>;
     if (!r.isSuccess) {
       news = Section<List<NewsListItem>>.failed(r.failure!);
     } else {
@@ -115,6 +131,9 @@ class AppState extends ChangeNotifier {
           ? const Section<List<NewsListItem>>.empty()
           : Section<List<NewsListItem>>.ready(items);
     }
+    quota = q.isSuccess
+        ? Section<LlmQuota>.ready(q.value!)
+        : const Section<LlmQuota>.empty();
     notifyListeners();
   }
 
@@ -130,6 +149,17 @@ class AppState extends ChangeNotifier {
           ? const Section<List<HistoryEntry>>.empty()
           : Section<List<HistoryEntry>>.ready(items);
     }
+    notifyListeners();
+  }
+
+  /// Loads the AI provider's availability snapshot. A failure here is not
+  /// surfaced as an error state: the quota banner simply stays hidden, because
+  /// an unknown quota must not be shown as "exhausted" or "ok".
+  Future<void> loadQuota() async {
+    final r = await _client.quota();
+    quota = r.isSuccess
+        ? Section<LlmQuota>.ready(r.value!)
+        : const Section<LlmQuota>.empty();
     notifyListeners();
   }
 

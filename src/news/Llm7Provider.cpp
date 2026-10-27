@@ -37,6 +37,80 @@ LlmOutcome Llm7Provider::classify(bool transportOk, int status) {
     return LlmOutcome::BadRequest;
 }
 
+namespace {
+
+std::string lowerAscii(std::string s) {
+    for (char& c : s) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+    return s;
+}
+
+// Trim ASCII whitespace from both ends.
+std::string trim(const std::string& s) {
+    std::size_t b = 0, e = s.size();
+    while (b < e && (s[b] == ' ' || s[b] == '\t' || s[b] == '\r' ||
+                     s[b] == '\n')) {
+        ++b;
+    }
+    while (e > b && (s[e - 1] == ' ' || s[e - 1] == '\t' || s[e - 1] == '\r' ||
+                     s[e - 1] == '\n')) {
+        --e;
+    }
+    return s.substr(b, e - b);
+}
+
+}  // namespace
+
+bool Llm7Provider::isQuotaExhaustedBody(const std::string& body) {
+    // The markers below are the ones the LLM7/OpenAI-compatible error envelope
+    // uses for a spent daily budget. They are deliberately specific: a bare 429
+    // (temporary rate limit) must NOT be classified as quota exhaustion.
+    const std::string b = lowerAscii(body);
+    return b.find("insufficient_quota") != std::string::npos ||
+           b.find("quota_exceeded") != std::string::npos ||
+           b.find("daily token quota") != std::string::npos ||
+           b.find("exceeded your current quota") != std::string::npos;
+}
+
+int Llm7Provider::parseRetryAfterSeconds(const std::string& retryAfterHeader,
+                                         const std::string& body) {
+    // 1. Retry-After header. RFC 9110 allows either delay-seconds or an
+    //    HTTP-date. Only delay-seconds is parsed here; a date would require
+    //    clock reconciliation and is left to the caller as "unknown".
+    const std::string h = trim(retryAfterHeader);
+    if (!h.empty()) {
+        bool allDigits = true;
+        for (char c : h) {
+            if (c < '0' || c > '9') { allDigits = false; break; }
+        }
+        if (allDigits && h.size() <= 9) {
+            try {
+                return std::stoi(h);
+            } catch (...) {
+                // fall through to the body
+            }
+        }
+    }
+    // 2. `retry_after` numeric field in the JSON body (LLM7 includes this).
+    JsonValue parsed;
+    std::string parseError;
+    if (JsonValue::parse(body, parsed, parseError)) {
+        const JsonValue& err = parsed["error"];
+        const JsonValue& direct = parsed["retry_after"];
+        if (direct.isNumber()) {
+            return static_cast<int>(direct.asInt64());
+        }
+        if (err.isObject()) {
+            const JsonValue& nested = err["retry_after"];
+            if (nested.isNumber()) {
+                return static_cast<int>(nested.asInt64());
+            }
+        }
+    }
+    return -1;
+}
+
 LlmResult Llm7Provider::complete(const LlmRequest& request) {
     LlmResult result;
 
@@ -69,6 +143,19 @@ LlmResult Llm7Provider::complete(const LlmRequest& request) {
         // no credential material.
         result.error = response.error;
         return result;
+    }
+
+    // Refine a 429 into quota exhaustion vs. a temporary rate limit, and record
+    // any provider-supplied retry delay. This must happen before the generic
+    // error branch below so the caller can cool down correctly.
+    if (response.statusCode == 429) {
+        if (isQuotaExhaustedBody(response.body)) {
+            result.outcome = LlmOutcome::QuotaExhausted;
+        } else {
+            result.outcome = LlmOutcome::RateLimited;
+        }
+        result.retryAfterSeconds = parseRetryAfterSeconds(
+            response.header("retry-after"), response.body);
     }
 
     if (result.outcome != LlmOutcome::Ok) {

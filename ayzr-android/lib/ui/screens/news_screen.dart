@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../data/models/news.dart';
 import '../../state/app_state.dart';
 import '../widgets/info_widgets.dart';
+import '../widgets/quota_banner.dart';
 import '../widgets/state_panel.dart';
 import 'news_detail_screen.dart';
 
@@ -21,6 +22,8 @@ class NewsScreen extends StatelessWidget {
     return Column(
       children: [
         _filterBar(),
+        if (state.quota.data != null && !state.quota.data!.isOk)
+          QuotaBanner(quota: state.quota.data!),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => state.loadNews(),

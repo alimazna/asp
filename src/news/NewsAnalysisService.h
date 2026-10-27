@@ -12,6 +12,7 @@
 // The service depends only on ILlmProvider, so tests inject MockLlmProvider.
 
 #include "news/LlmProvider.h"
+#include "news/LlmQuotaMonitor.h"
 #include "news/NewsModels.h"
 #include "news/NewsPrompt.h"
 
@@ -22,8 +23,16 @@ namespace aura {
 
 class NewsAnalysisService {
 public:
-    NewsAnalysisService(ILlmProvider* provider, int maxAttempts = 2)
-        : provider_(provider), maxAttempts_(maxAttempts < 1 ? 1 : maxAttempts) {}
+    // `quotaMonitor` is optional: when supplied, the service records every
+    // provider outcome and refuses to call the provider while a daily-quota
+    // cooldown is active, so a spent budget is not hammered. It is a raw
+    // pointer because the monitor is owned by the server and outlives the
+    // service.
+    NewsAnalysisService(ILlmProvider* provider, int maxAttempts = 2,
+                        LlmQuotaMonitor* quotaMonitor = nullptr)
+        : provider_(provider),
+          maxAttempts_(maxAttempts < 1 ? 1 : maxAttempts),
+          quotaMonitor_(quotaMonitor) {}
 
     // Analyse one article. `context` carries the real candle + ASTRA data the
     // caller assembled from the backend (never raw DB or MT5 access).
@@ -37,6 +46,7 @@ public:
 private:
     ILlmProvider* provider_;
     int maxAttempts_;
+    LlmQuotaMonitor* quotaMonitor_;
     int lastAttemptCount_ = 0;
 };
 

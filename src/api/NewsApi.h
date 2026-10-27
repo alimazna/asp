@@ -5,6 +5,7 @@
 // analysis happen here, so the shapes are unit-testable without a database.
 
 #include "api/BackendApiSchema.h"
+#include "news/LlmQuotaMonitor.h"
 #include "news/NewsModels.h"
 
 #include <string>
@@ -24,6 +25,11 @@ public:
     // `hasAnalysis` distinguishes "no analysis yet" from "analysis unavailable".
     static ApiResponse detail(const NewsArticle& article,
                               const NewsAnalysis* analysis, bool hasAnalysis);
+
+    // GET /api/v1/news/quota — the LLM provider's availability snapshot. Lets
+    // the Android app show an honest Arabic banner when the daily AI quota is
+    // spent, instead of appearing broken. Secret-free by construction.
+    static ApiResponse quota(const LlmQuotaState& state);
 
     // GET /api/v1/history — persisted analyses (newest first), each joined with
     // the article headline/source it belongs to.

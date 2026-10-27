@@ -175,6 +175,18 @@ class ApiClient {
         (d) => NewsDetail.fromJson((d as Map).cast<String, dynamic>()));
   }
 
+  /// The AI provider's availability snapshot. Used to show an honest Arabic
+  /// banner when the daily quota is spent, rather than an unexplained failure.
+  Future<ApiResult<LlmQuota>> quota() async {
+    final r = await _getData('/api/v1/news/quota');
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      final inner = m['quota'];
+      return LlmQuota.fromJson(
+          inner is Map ? inner.cast<String, dynamic>() : m);
+    });
+  }
+
   Future<ApiResult<List<HistoryEntry>>> history({int limit = 50}) async {
     final r = await _getData('/api/v1/history', query: {'limit': '$limit'});
     return r.map((d) => (d as List)

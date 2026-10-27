@@ -94,9 +94,11 @@ public:
     // (config_.clientTokens). Each receives the raw query string.
     //   GET  /api/v1/news                    -> newsListHandler(query)
     //   GET  /api/v1/news/analyze?id=...     -> newsAnalyzeHandler(query)
+    //   GET  /api/v1/news/quota              -> newsQuotaHandler()
     //   GET  /api/v1/history                 -> historyHandler(query)
     std::function<ApiResponse(const std::string&)> newsListHandler;
     std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
+    std::function<ApiResponse()> newsQuotaHandler;
     std::function<ApiResponse(const std::string&)> historyHandler;
     //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
     std::function<ApiResponse(const std::string&)> newsIngestHandler;

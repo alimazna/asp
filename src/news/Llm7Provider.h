@@ -37,8 +37,23 @@ public:
     // Exposed for tests: build the exact JSON body sent to the provider.
     std::string buildRequestBody(const LlmRequest& request) const;
 
-    // Exposed for tests: classify an HTTP status + transport result.
+    // Exposed for tests: classify an HTTP status + transport result. A plain
+    // 429 maps to RateLimited; use classifyRateLimitBody() to refine a 429 into
+    // QuotaExhausted when the body indicates the daily quota is spent.
     static LlmOutcome classify(bool transportOk, int status);
+
+    // Exposed for tests: decide whether a 429 response means the daily quota is
+    // exhausted (not retryable) rather than a temporary rate limit (retryable).
+    // `body` is the provider response body; it is inspected for the documented
+    // `insufficient_quota` / `quota_exceeded` / "daily token quota" markers.
+    static bool isQuotaExhaustedBody(const std::string& body);
+
+    // Exposed for tests: parse a retry delay in seconds from a `Retry-After`
+    // header value (integer seconds or an HTTP-date) or, failing that, a
+    // `retry_after` numeric field in the JSON body. Returns -1 when no reliable
+    // value is present — the caller must then report the reset time as unknown.
+    static int parseRetryAfterSeconds(const std::string& retryAfterHeader,
+                                      const std::string& body);
 
 private:
     Llm7Config config_;

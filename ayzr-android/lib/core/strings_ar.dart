@@ -90,6 +90,19 @@ class Ar {
   static const noAnalysisYet = 'لا يوجد تحليل لهذا الخبر بعد';
   static const analysisUnavailable = 'تعذّر تحليل الخبر';
 
+  // AI provider quota / rate-limit notices. A spent daily quota and a temporary
+  // burst limit are different situations and must read differently: the first is
+  // a pause until the provider's window resets, the second resolves in seconds.
+  static const quotaExhaustedTitle = 'توقف التحليل مؤقتاً';
+  static const quotaExhaustedBody =
+      'تم استهلاك حصة التحليل اليومية لمزوّد الذكاء الاصطناعي. '
+      'سيعود التحليل تلقائياً بعد تجدّد الحصة.';
+  static const quotaResetUnknown = 'موعد تجدّد الحصة غير معلوم حالياً.';
+  static const quotaResetAt = 'يُتوقع تجدّد الحصة عند';
+  static const rateLimitedTitle = 'المزوّد مشغول مؤقتاً';
+  static const rateLimitedBody =
+      'تعذّر التحليل الآن بسبب ضغط مؤقت على المزوّد. أعد المحاولة بعد لحظات.';
+
   // History
   static const historyTitle = 'السجل';
   static const historyEmpty = 'لا يوجد سجل تحليلات بعد';

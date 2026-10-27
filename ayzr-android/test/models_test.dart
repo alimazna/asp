@@ -115,4 +115,53 @@ void main() {
       expect(entries.first.analysis.direction, 'bullish');
     });
   });
+
+  group('LlmQuota parsing', () {
+    test('a spent daily quota keeps its reset time and is not ok', () {
+      final q = LlmQuota.fromJson({
+        'category': 'quota_exhausted',
+        'retry_after_seconds': 68400,
+        'cooling_down': true,
+        'cooldown_until': 1792114200,
+        'quota_exhausted': true,
+        'rate_limited': false,
+      });
+      expect(q.isOk, isFalse);
+      expect(q.quotaExhausted, isTrue);
+      expect(q.rateLimited, isFalse);
+      expect(q.coolingDown, isTrue);
+      expect(q.retryAfterSeconds, 68400);
+    });
+
+    test('an unknown reset time stays null, never a fabricated countdown', () {
+      final q = LlmQuota.fromJson({
+        'category': 'quota_exhausted',
+        'retry_after_seconds': null,
+        'cooling_down': true,
+        'cooldown_until': 0,
+        'quota_exhausted': true,
+        'rate_limited': false,
+      });
+      expect(q.retryAfterSeconds, isNull);
+      expect(q.quotaExhausted, isTrue);
+    });
+
+    test('a temporary rate limit is distinct from exhaustion', () {
+      final q = LlmQuota.fromJson({
+        'category': 'rate_limited',
+        'retry_after_seconds': 20,
+        'quota_exhausted': false,
+        'rate_limited': true,
+      });
+      expect(q.rateLimited, isTrue);
+      expect(q.quotaExhausted, isFalse);
+      expect(q.isOk, isFalse);
+    });
+
+    test('an ok snapshot reports ok', () {
+      final q = LlmQuota.fromJson({'category': 'ok'});
+      expect(q.isOk, isTrue);
+      expect(q.quotaExhausted, isFalse);
+    });
+  });
 }

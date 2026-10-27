@@ -760,7 +760,12 @@ int main(int argc, char** argv) {
     ILlmProvider* llmProvider =
         (providerKind == "mock") ? static_cast<ILlmProvider*>(&mockProvider)
                                  : static_cast<ILlmProvider*>(&llm7Provider);
-    NewsAnalysisService newsService(llmProvider, parseIntEnv("LLM7_MAX_ATTEMPTS", 2));
+    // Daily-quota monitor: distinguishes a spent daily budget (pause until the
+    // reset window) from a temporary rate limit (bounded retry). The fallback
+    // cooldown is used only when the provider omits a reset time.
+    LlmQuotaMonitor quotaMonitor(parseIntEnv("LLM7_QUOTA_FALLBACK_COOLDOWN_S", 3600));
+    NewsAnalysisService newsService(llmProvider, parseIntEnv("LLM7_MAX_ATTEMPTS", 2),
+                                    &quotaMonitor);
     std::cout << "  llm provider: " << llmProvider->providerId() << " ("
               << llmProvider->modelId() << ")" << std::endl;
 
@@ -846,6 +851,14 @@ int main(int argc, char** argv) {
                       << std::endl;
         }
         return NewsApi::detail(article, &analysis, true);
+    };
+
+    // GET /api/v1/news/quota — honest provider-availability snapshot. The app
+    // shows an Arabic banner from this instead of appearing broken when the
+    // daily AI budget is spent.
+    server.newsQuotaHandler = [&]() -> ApiResponse {
+        const std::int64_t nowUtc = Timestamp::now().epochMillis() / 1000;
+        return NewsApi::quota(quotaMonitor.state(nowUtc));
     };
 
     server.historyHandler = [&](const std::string& query) -> ApiResponse {

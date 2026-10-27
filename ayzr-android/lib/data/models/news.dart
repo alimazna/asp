@@ -201,6 +201,47 @@ class NewsDetail {
       );
 }
 
+/// The AI provider's availability snapshot (`GET /api/v1/news/quota`).
+///
+/// Distinguishes a spent daily budget (`quotaExhausted`) from a temporary
+/// burst limit (`rateLimited`). `retryAfterSeconds` is null when the provider
+/// did not state a reset time — the UI must then say "unknown", never invent a
+/// countdown.
+class LlmQuota {
+  const LlmQuota({
+    required this.category,
+    required this.retryAfterSeconds,
+    required this.coolingDown,
+    required this.cooldownUntilUtc,
+    required this.quotaExhausted,
+    required this.rateLimited,
+    required this.lastChangeUtc,
+    required this.lastSuccessUtc,
+  });
+
+  final String category;
+  final int? retryAfterSeconds;
+  final bool coolingDown;
+  final int? cooldownUntilUtc;
+  final bool quotaExhausted;
+  final bool rateLimited;
+  final int? lastChangeUtc;
+  final int? lastSuccessUtc;
+
+  bool get isOk => category == 'ok';
+
+  static LlmQuota fromJson(Map<String, dynamic> j) => LlmQuota(
+        category: _s(j['category'], 'ok'),
+        retryAfterSeconds: _i(j['retry_after_seconds']),
+        coolingDown: j['cooling_down'] == true,
+        cooldownUntilUtc: _i(j['cooldown_until']),
+        quotaExhausted: j['quota_exhausted'] == true,
+        rateLimited: j['rate_limited'] == true,
+        lastChangeUtc: _i(j['last_change_at']),
+        lastSuccessUtc: _i(j['last_success_at']),
+      );
+}
+
 /// One row of `GET /api/v1/history`.
 class HistoryEntry {
   const HistoryEntry({

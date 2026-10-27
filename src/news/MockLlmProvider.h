@@ -15,6 +15,9 @@ namespace aura {
 class MockLlmProvider : public ILlmProvider {
 public:
     enum class Mode { Valid, Malformed, Empty, Timeout, RateLimited, AuthFailure,
+                      // 429 with a spent daily budget: NOT retryable; the caller
+                      // must cool down until the reset window.
+                      QuotaExhausted,
                       // First call returns schema-invalid output, subsequent calls
                       // return a valid payload. Models the repair turn.
                       MalformedThenValid };
@@ -55,6 +58,16 @@ public:
                 result.outcome = LlmOutcome::RateLimited;
                 result.httpStatus = 429;
                 result.error = "injected rate limit";
+                result.retryAfterSeconds = 20;
+                break;
+            case Mode::QuotaExhausted:
+                result.outcome = LlmOutcome::QuotaExhausted;
+                result.httpStatus = 429;
+                result.error = "injected daily quota exhaustion";
+                // A real provider may or may not supply a reset time; the mock
+                // reports one so the monitor can be tested both ways via the
+                // monitor's own unit tests.
+                result.retryAfterSeconds = 3600;
                 break;
             case Mode::AuthFailure:
                 result.outcome = LlmOutcome::AuthFailure;

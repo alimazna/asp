@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace aura {
@@ -34,6 +35,12 @@ struct OutboundHttpResponse {
     int statusCode = 0;
     std::string body;
     std::string error;        // transport-level failure detail, empty on ok
+    // Response headers, lowercased key -> value (last value wins). Used to read
+    // `Retry-After` so a 429 can be classified without parsing provider prose.
+    std::vector<std::pair<std::string, std::string>> headers;
+
+    // Case-insensitive header lookup; returns "" when absent.
+    std::string header(const std::string& name) const;
 };
 
 class IOutboundHttpClient {

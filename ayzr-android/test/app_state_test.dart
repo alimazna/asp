@@ -29,10 +29,59 @@ void main() {
         () async {
       final state = await stateWith(routeTable({
         '/api/v1/news': (_) => enveloped(<Object?>[]),
+        '/api/v1/news/quota': (_) => enveloped({'quota': {'category': 'ok'}}),
       }));
       await state.loadNews();
       expect(state.news.phase, LoadPhase.empty);
       expect(state.news.failure, isNull);
+    });
+
+    test('loadNews surfaces a spent quota and raises aiQuotaExhausted',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news': (_) => enveloped(<Object?>[]),
+        '/api/v1/news/quota': (_) => enveloped({
+              'quota': {
+                'category': 'quota_exhausted',
+                'retry_after_seconds': null,
+                'quota_exhausted': true,
+                'rate_limited': false,
+                'cooling_down': true,
+              }
+            }),
+      }));
+      await state.loadNews();
+      expect(state.aiQuotaExhausted, isTrue);
+      expect(state.aiRateLimited, isFalse);
+      expect(state.quota.data!.retryAfterSeconds, isNull);
+    });
+
+    test('loadNews surfaces a temporary rate limit without quota exhaustion',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news': (_) => enveloped(<Object?>[]),
+        '/api/v1/news/quota': (_) => enveloped({
+              'quota': {
+                'category': 'rate_limited',
+                'rate_limited': true,
+                'quota_exhausted': false,
+              }
+            }),
+      }));
+      await state.loadNews();
+      expect(state.aiRateLimited, isTrue);
+      expect(state.aiQuotaExhausted, isFalse);
+    });
+
+    test('a failed quota read does not raise a false exhausted banner',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news': (_) => enveloped(<Object?>[]),
+        '/api/v1/news/quota': (_) => errorBody('server_error', 'boom', 500),
+      }));
+      await state.loadNews();
+      expect(state.aiQuotaExhausted, isFalse);
+      expect(state.aiRateLimited, isFalse);
     });
 
     test('loadNews: unauthorized maps to error with unauthorized failure',
