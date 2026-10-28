@@ -88,6 +88,8 @@ class NewsAnalysis {
     required this.opposingEvidenceAr,
     required this.goldImpactAr,
     required this.aiGoldRelevance,
+    required this.aiGoldChannel,
+    required this.aiImpactHorizon,
     required this.direction,
     required this.entry,
     required this.stopLoss,
@@ -117,6 +119,16 @@ class NewsAnalysis {
   /// (`high|medium|low|none|unknown`). Distinct from the feed's routing tag on
   /// [NewsArticle.goldRelevance]; `unknown` means the model did not assert one.
   final String aiGoldRelevance;
+
+  /// The transmission channel the model named for this article
+  /// (`monetary_policy|inflation|usd_rates|safe_haven|physical_demand|
+  /// positioning|other|unknown`). A closed vocabulary: the UI groups by it, so
+  /// an unrecognised value is rendered as "غير محدَّد", never guessed at.
+  final String aiGoldChannel;
+
+  /// How soon the model expects the effect to be felt
+  /// (`immediate|short|medium|long|unknown`).
+  final String aiImpactHorizon;
   final String direction;
   final double? entry;
   final double? stopLoss;
@@ -152,6 +164,8 @@ class NewsAnalysis {
       opposingEvidenceAr: _strList(j['opposing_evidence_ar']),
       goldImpactAr: _s(j['gold_impact_ar']),
       aiGoldRelevance: _s(j['ai_gold_relevance'], 'unknown'),
+      aiGoldChannel: _s(j['gold_channel'], 'unknown'),
+      aiImpactHorizon: _s(j['impact_horizon'], 'unknown'),
       direction: _s(j['direction'], 'no_trade'),
       entry: _d(levels['entry']),
       stopLoss: _d(levels['stop_loss']),
@@ -324,6 +338,34 @@ class HistoryEntry {
   static HistoryEntry fromJson(Map<String, dynamic> j) => HistoryEntry(
         headline: _s(j['headline']),
         source: _s(j['source']),
+        analysis: NewsAnalysis.fromJson(
+            (j['analysis'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      );
+}
+
+/// One row of `GET /api/v1/news/results` — the news-results log.
+///
+/// Unlike [HistoryEntry] (which carries only the headline and source), a result
+/// row joins the persisted analysis to the FULL source metadata of its article,
+/// so the UI can show the source link, the publish time and the feed category
+/// without a second request. `articleAvailable` is false when the article row
+/// was not retained; the headline/source are then empty and the UI must render
+/// "غير متاح" rather than invent them.
+class NewsResult {
+  const NewsResult({
+    required this.article,
+    required this.articleAvailable,
+    required this.analysis,
+  });
+
+  final NewsArticle article;
+  final bool articleAvailable;
+  final NewsAnalysis analysis;
+
+  static NewsResult fromJson(Map<String, dynamic> j) => NewsResult(
+        article: NewsArticle.fromJson(
+            (j['article'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        articleAvailable: j['article_available'] == true,
         analysis: NewsAnalysis.fromJson(
             (j['analysis'] as Map?)?.cast<String, dynamic>() ?? const {}),
       );

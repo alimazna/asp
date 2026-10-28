@@ -36,6 +36,41 @@ void main() {
       expect(state.news.failure, isNull);
     });
 
+    test('loadNewsResults: parses the results log into the ready phase',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news/results': (_) => enveloped(newsResults),
+      }));
+      await state.loadNewsResults();
+      expect(state.newsResults.phase, LoadPhase.ready);
+      expect(state.newsResults.data, hasLength(2));
+      expect(state.newsResults.data!.first.article.source, 'Reuters');
+    });
+
+    test('loadNewsResults: empty log becomes the empty phase, not an error',
+        () async {
+      final state = await stateWith(routeTable({
+        '/api/v1/news/results': (_) => enveloped(<Object?>[]),
+      }));
+      await state.loadNewsResults();
+      expect(state.newsResults.phase, LoadPhase.empty);
+      expect(state.newsResults.failure, isNull);
+    });
+
+    test('loadNewsResults: stores the direction filter for the next query',
+        () async {
+      late Uri seen;
+      final state = await stateWith(routeTable({
+        '/api/v1/news/results': (req) {
+          seen = req.url;
+          return enveloped(newsResults);
+        },
+      }));
+      await state.loadNewsResults(direction: 'bearish');
+      expect(state.newsResultDirection, 'bearish');
+      expect(seen.queryParameters['direction'], 'bearish');
+    });
+
     test('loadNews surfaces a spent quota and raises aiQuotaExhausted',
         () async {
       final state = await stateWith(routeTable({

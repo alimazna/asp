@@ -210,6 +210,26 @@ class ApiClient {
         .toList(growable: false));
   }
 
+  /// GET /api/v1/news/results — the news-results log: every persisted analysis
+  /// joined to the full source metadata of its article. `direction` filters
+  /// server-side when it is one of the four known tokens; any other value is
+  /// treated as "no filter" by the backend, so it is passed through verbatim
+  /// only when known.
+  Future<ApiResult<List<NewsResult>>> newsResults({
+    int limit = 50,
+    String direction = '',
+  }) async {
+    final r = await _getData('/api/v1/news/results', query: {
+      'limit': '$limit',
+      if (direction.isNotEmpty) 'direction': direction,
+    });
+    // The backend nests the rows under a named key: `{results: [...]}`.
+    return r.map((d) => _rows(d, 'results')
+        .whereType<Map>()
+        .map((m) => NewsResult.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
   /// GET /api/v1/activity — the durable record of what the backend actually did.
   /// `kind` filters server-side when non-empty.
   Future<ApiResult<ActivityPage>> activity({

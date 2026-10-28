@@ -99,6 +99,43 @@ class Ar {
   static const noAnalysisYet = 'لا يوجد تحليل لهذا الخبر بعد';
   static const analysisUnavailable = 'تعذّر تحليل الخبر';
 
+  // Gold transmission channel and impact horizon — the two closed-vocabulary
+  // classifiers the model assigns. Each maps to an Arabic label; an
+  // unrecognised value renders as the neutral "غير محدَّد".
+  static const goldChannel = 'قناة التأثير على الذهب';
+  static const goldChannelHint =
+      'الآلية التي ينتقل بها أثر هذا الخبر إلى سعر الذهب.';
+  static const impactHorizon = 'الأفق الزمني للتأثير';
+  static const impactHorizonHint =
+      'المدى الزمني المتوقع لظهور أثر الخبر على السوق.';
+  static const channelMonetaryPolicy = 'السياسة النقدية';
+  static const channelInflation = 'التضخم';
+  static const channelUsdRates = 'الدولار وأسعار الفائدة';
+  static const channelSafeHaven = 'الملاذ الآمن';
+  static const channelPhysicalDemand = 'الطلب الفعلي';
+  static const channelPositioning = 'المراكز والتموضع';
+  static const channelOther = 'أخرى';
+  static const channelUnknown = 'غير محدَّد';
+  static const horizonImmediate = 'فوري';
+  static const horizonShort = 'قصير';
+  static const horizonMedium = 'متوسط';
+  static const horizonLong = 'طويل';
+  static const horizonUnknown = 'غير محدَّد';
+
+  // News results log — persisted analyses joined to their article's source
+  // metadata. Distinct from the ASTRA analysis history.
+  static const newsResultsTitle = 'نتائج تحليل الأخبار';
+  static const newsResultsSubtitle = 'كل تحليل محفوظ مع مصدره ووقت نشره';
+  static const newsResultsEmpty = 'لا توجد نتائج تحليل محفوظة بعد';
+  static const publishedAt = 'وقت النشر';
+  static const openSource = 'فتح المصدر';
+  static const categoryLabel = 'التصنيف';
+  static const filterDirection = 'تصفية بالاتجاه';
+  static const dirBullish = 'صاعد';
+  static const dirBearish = 'هابط';
+  static const dirSideways = 'عرضي';
+  static const dirNoTrade = 'لا صفقة';
+
   // AI provider quota / rate-limit notices. A spent daily quota and a temporary
   // burst limit are different situations and must read differently: the first is
   // a pause until the provider's window resets, the second resolves in seconds.

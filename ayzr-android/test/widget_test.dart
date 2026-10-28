@@ -413,6 +413,52 @@ void main() {
     });
   });
 
+  group('News results log', () {
+    testWidgets('opens from the app bar and shows source metadata',
+        (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/results': (_) => enveloped(newsResults),
+        }),
+      );
+
+      await tester.tap(find.byIcon(Icons.fact_check_outlined));
+      await tester.pumpAndSettle();
+
+      // The headline and its source come from the joined article row.
+      expect(find.text('الذهب يرتفع مع تراجع الدولار'), findsWidgets);
+      expect(find.text('Reuters'), findsWidgets);
+      // The channel classifier is rendered as its Arabic label.
+      expect(find.text(Ar.channelUsdRates), findsWidgets);
+      // A missing article row renders as unavailable, not a fabricated headline.
+      expect(find.text(Ar.unavailable), findsWidgets);
+    });
+
+    testWidgets('empty results log shows the dedicated Arabic empty state',
+        (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/results':
+              (_) => enveloped(const {'results': <Object?>[]}),
+        }),
+      );
+
+      await tester.tap(find.byIcon(Icons.fact_check_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text(Ar.newsResultsEmpty), findsOneWidget);
+    });
+  });
+
   group('Degraded and stale states', () {
     testWidgets('degraded backend surfaces the degraded banner',
         (tester) async {

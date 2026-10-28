@@ -10,6 +10,7 @@ import 'screens/events_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/news_screen.dart';
+import 'screens/news_results_screen.dart';
 import 'screens/settings_screen.dart';
 
 /// The RTL shell: a bottom navigation bar over the four Arabic sections, with a
@@ -78,6 +79,22 @@ class _AppShellState extends State<AppShell> {
             appBar: AppBar(
               title: Text(_titles[_index]),
               actions: [
+                IconButton(
+                  tooltip: Ar.newsResultsTitle,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  onPressed: () {
+                    widget.state.loadNewsResults();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar:
+                              AppBar(title: const Text(Ar.newsResultsTitle)),
+                          body: NewsResultsScreen(state: widget.state),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                   tooltip: Ar.eventsTitle,
                   icon: const Icon(Icons.event_note_outlined),

@@ -66,6 +66,37 @@ void main() {
       expect(r.value!.first.headline, 'الذهب يرتفع مع تراجع الدولار');
     });
 
+    test('newsResults() parses the results log and sends the direction filter',
+        () async {
+      late Uri seen;
+      final client = fakeClient(routeTable({
+        '/api/v1/news/results': (req) {
+          seen = req.url;
+          return enveloped(newsResults);
+        },
+      }));
+      final r = await client.newsResults(direction: 'bullish');
+      expect(r.isSuccess, isTrue);
+      expect(r.value, hasLength(2));
+      expect(r.value!.first.articleAvailable, isTrue);
+      expect(r.value!.first.analysis.aiGoldChannel, 'usd_rates');
+      expect(seen.queryParameters['direction'], 'bullish');
+      expect(seen.queryParameters['limit'], '50');
+    });
+
+    test('newsResults() omits the direction when it is empty (all)', () async {
+      late Uri seen;
+      final client = fakeClient(routeTable({
+        '/api/v1/news/results': (req) {
+          seen = req.url;
+          return enveloped(newsResults);
+        },
+      }));
+      final r = await client.newsResults();
+      expect(r.isSuccess, isTrue);
+      expect(seen.queryParameters.containsKey('direction'), isFalse);
+    });
+
     // Regression: the backend nests rows under a named key (`{news:[...]}`,
     // `{history:[...]}`). An earlier client assumed a bare array, so the real
     // server returned nothing while a bare-array mock kept the tests green.

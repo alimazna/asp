@@ -61,12 +61,17 @@ class AppState extends ChangeNotifier {
   Section<AnalysisLatest> analysis = const Section<AnalysisLatest>();
   Section<List<NewsListItem>> news = const Section<List<NewsListItem>>();
   Section<List<HistoryEntry>> history = const Section<List<HistoryEntry>>();
+  Section<List<NewsResult>> newsResults = const Section<List<NewsResult>>();
   Section<LlmQuota> quota = const Section<LlmQuota>();
   Section<ActivityPage> activity = const Section<ActivityPage>();
   Section<ProviderPage> providers = const Section<ProviderPage>();
   Section<List<EventListItem>> events = const Section<List<EventListItem>>();
 
   bool goldOnly = false;
+
+  /// The active direction filter on the news-results log ('' = all). One of the
+  /// four backend tokens or empty; the backend ignores an unknown value.
+  String newsResultDirection = '';
 
   /// Which event scope is shown: `upcoming` (default) or `past`.
   String eventScope = 'upcoming';
@@ -150,6 +155,25 @@ class AppState extends ChangeNotifier {
       history = items.isEmpty
           ? const Section<List<HistoryEntry>>.empty()
           : Section<List<HistoryEntry>>.ready(items);
+    }
+    notifyListeners();
+  }
+
+  /// Loads the news-results log — every persisted analysis joined to its
+  /// article's full source metadata. Distinct from [loadHistory] (which is the
+  /// ASTRA analysis history): this is the news-intelligence results log.
+  Future<void> loadNewsResults({String? direction}) async {
+    if (direction != null) newsResultDirection = direction;
+    newsResults = newsResults.loading();
+    notifyListeners();
+    final r = await _client.newsResults(direction: newsResultDirection);
+    if (!r.isSuccess) {
+      newsResults = Section<List<NewsResult>>.failed(r.failure!);
+    } else {
+      final items = r.value!;
+      newsResults = items.isEmpty
+          ? const Section<List<NewsResult>>.empty()
+          : Section<List<NewsResult>>.ready(items);
     }
     notifyListeners();
   }

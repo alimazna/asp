@@ -6,6 +6,8 @@ import 'test_helpers.dart';
 
 void main() {
   _aiGoldTests();
+  _classifierTests();
+  _newsResultsTests();
 
   group('AnalysisLatest parsing', () {
     test('parses the uncalibrated v1 shape and keeps nulls null', () {
@@ -280,6 +282,73 @@ void _aiGoldTests() {
       });
       expect(detail.article.goldRelevance, 'medium');
       expect(detail.analysis!.aiGoldRelevance, 'none');
+    });
+  });
+}
+
+/// The two closed-vocabulary classifiers: channel and horizon. Both default to
+/// "unknown" when the model did not assert one, and an unrecognised value is
+/// passed through verbatim so the label helper can render it as "غير محدَّد".
+void _classifierTests() {
+  group('NewsAnalysis gold channel / impact horizon', () {
+    test('parses a named channel and horizon', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'bullish',
+        'gold_channel': 'safe_haven',
+        'impact_horizon': 'immediate',
+      });
+      expect(a.aiGoldChannel, 'safe_haven');
+      expect(a.aiImpactHorizon, 'immediate');
+    });
+
+    test('absent classifiers stay "unknown", never a guessed channel', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+      });
+      expect(a.aiGoldChannel, 'unknown');
+      expect(a.aiImpactHorizon, 'unknown');
+    });
+  });
+}
+
+/// `GET /api/v1/news/results` — the news-results log.
+void _newsResultsTests() {
+  group('NewsResult (news results log)', () {
+    test('joins an analysis to its article source metadata', () {
+      final rows = (newsResults['results']! as List)
+          .map((e) => NewsResult.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      expect(rows, hasLength(2));
+
+      final first = rows.first;
+      expect(first.articleAvailable, isTrue);
+      expect(first.article.headline, 'الذهب يرتفع مع تراجع الدولار');
+      expect(first.article.source, 'Reuters');
+      expect(first.article.url, 'https://example.com/a1');
+      expect(first.article.category, 'monetary_policy');
+      expect(first.article.publishedAtIso, '2026-10-16T08:00:00Z');
+      expect(first.analysis.aiGoldChannel, 'usd_rates');
+      expect(first.analysis.aiImpactHorizon, 'short');
+      expect(first.analysis.direction, 'bullish');
+      expect(first.analysis.entry, closeTo(2650.0, 1e-9));
+    });
+
+    test('a missing article row is flagged, not fabricated', () {
+      final rows = (newsResults['results']! as List)
+          .map((e) => NewsResult.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      final second = rows[1];
+      // The article was not retained: the flag is false and the headline/source
+      // are empty. The UI renders "غير متاح" for these rather than inventing one.
+      expect(second.articleAvailable, isFalse);
+      expect(second.article.headline, isEmpty);
+      expect(second.article.source, isEmpty);
+      // The analysis itself is still present and parsed.
+      expect(second.analysis.direction, 'no_trade');
     });
   });
 }

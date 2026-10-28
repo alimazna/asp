@@ -292,6 +292,53 @@ const historyList = {
   ],
 };
 
+/// `GET /api/v1/news/results` — the news-results log: an analysis joined to its
+/// article's full source metadata. The second row has `article_available` false
+/// (the article row was not retained) and must render as unavailable.
+const newsResults = {
+  'results': [
+    {
+      'article': {
+        'article_id': 'a1',
+        'headline': 'الذهب يرتفع مع تراجع الدولار',
+        'source': 'Reuters',
+        'url': 'https://example.com/a1',
+        'category': 'monetary_policy',
+        'published_at': 1760000000,
+        'published_at_iso': '2026-10-16T08:00:00Z',
+        'gold_relevance': 'high',
+        'body_available': false,
+        'body_text': null,
+      },
+      'article_available': true,
+      'analysis': {
+        'article_id': 'a1',
+        'status': 'ok',
+        'summary_ar': 'تراجع الدولار يدعم الذهب.',
+        'direction': 'bullish',
+        'gold_channel': 'usd_rates',
+        'impact_horizon': 'short',
+        'levels': {'entry': 2650.0, 'stop_loss': 2640.0, 'take_profit': 2675.0},
+        'astra_agreement': 'agree',
+        'analyzed_at': 1760000300,
+      },
+    },
+    {
+      'article': <String, Object?>{},
+      'article_available': false,
+      'analysis': {
+        'article_id': 'gone',
+        'status': 'ok',
+        'direction': 'no_trade',
+        'gold_channel': 'unknown',
+        'impact_horizon': 'unknown',
+        'levels': {'entry': null, 'stop_loss': null, 'take_profit': null},
+        'analyzed_at': 1760000400,
+      },
+    },
+  ],
+};
+
 // ---- Macro-event payloads (shapes taken from the v1 /events contract) ------
 
 /// An upcoming gold-relevant event whose expectation turn exists but whose

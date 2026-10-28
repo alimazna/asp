@@ -43,6 +43,28 @@ String goldRelevanceLabel(String v) => switch (v) {
       _ => Ar.relUnknown,
     };
 
+/// Arabic label for the model's gold-transmission channel. Closed vocabulary:
+/// an unrecognised value is shown as "غير محدَّد", never a friendlier guess.
+String goldChannelLabel(String v) => switch (v) {
+      'monetary_policy' => Ar.channelMonetaryPolicy,
+      'inflation' => Ar.channelInflation,
+      'usd_rates' => Ar.channelUsdRates,
+      'safe_haven' => Ar.channelSafeHaven,
+      'physical_demand' => Ar.channelPhysicalDemand,
+      'positioning' => Ar.channelPositioning,
+      'other' => Ar.channelOther,
+      _ => Ar.channelUnknown,
+    };
+
+/// Arabic label for the model's impact horizon. Closed vocabulary, same rule.
+String impactHorizonLabel(String v) => switch (v) {
+      'immediate' => Ar.horizonImmediate,
+      'short' => Ar.horizonShort,
+      'medium' => Ar.horizonMedium,
+      'long' => Ar.horizonLong,
+      _ => Ar.horizonUnknown,
+    };
+
 List<Widget> _cards(NewsAnalysis an) {
   final cards = <Widget>[];
   if (!an.isOk) {
@@ -153,6 +175,51 @@ List<Widget> _cards(NewsAnalysis an) {
       const SizedBox(height: 4),
       const Text(
         Ar.aiGoldRelevanceHint,
+        style: TextStyle(
+          color: AyzrColors.textMuted,
+          fontSize: 11.5,
+          height: 1.5,
+        ),
+      ),
+    ],
+  ));
+  // The transmission channel and impact horizon: two closed-vocabulary
+  // classifiers, rendered together so the reader sees "how" and "when" in one
+  // place. Both are always shown, even as "غير محدَّد", so an unanswered field
+  // is visible as unanswered rather than silently absent.
+  cards.add(SectionCard(
+    title: Ar.goldChannel,
+    icon: Icons.route_outlined,
+    children: [
+      Text(
+        goldChannelLabel(an.aiGoldChannel),
+        style: const TextStyle(
+          color: AyzrColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        Ar.goldChannelHint,
+        style: TextStyle(
+          color: AyzrColors.textMuted,
+          fontSize: 11.5,
+          height: 1.5,
+        ),
+      ),
+      const Divider(height: 22),
+      Text(
+        impactHorizonLabel(an.aiImpactHorizon),
+        style: const TextStyle(
+          color: AyzrColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        Ar.impactHorizonHint,
         style: TextStyle(
           color: AyzrColors.textMuted,
           fontSize: 11.5,
