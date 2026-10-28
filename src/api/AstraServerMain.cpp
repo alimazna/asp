@@ -108,6 +108,28 @@ std::int64_t parseClockOffset(const JsonValue& root) {
     return offset;
 }
 
+// Canonicalise the instrument name. This system stores XAUUSD only, but an MT5
+// broker exposes gold under many names (XAUUSD, GOLD, XAUUSDm, XAUUSD.a, ...)
+// and the sender resolves the broker's own name and sends it verbatim. Without
+// canonicalising here, a "GOLD" batch would be persisted under "GOLD" and then
+// be invisible to every read route (which serve XAUUSD) — accepted with a 200
+// yet unreadable, the worst possible outcome. Anything not recognisably gold is
+// rejected up front instead of being stored where no reader can ever see it.
+std::string canonicalSymbol(const std::string& raw) {
+    std::string upper;
+    upper.reserve(raw.size());
+    for (char ch : raw) {
+        char c = ch;
+        if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+        upper.push_back(c);
+    }
+    if (upper.find("XAU") != std::string::npos ||
+        upper.find("GOLD") != std::string::npos) {
+        return "XAUUSD";
+    }
+    return "";
+}
+
 // Percent-decode a URL query value (also turns '+' into a space). The sync
 // route takes a source identity from the query string, and identities may
 // legitimately contain characters a client has to escape.
@@ -459,11 +481,21 @@ int main(int argc, char** argv) {
                                  "cannot parse ingest body: " + parseError);
         }
         const std::string source = root["source_id"].asString();
-        const std::string symbol = root["symbol"].asString();
+        const std::string rawSymbol = root["symbol"].asString();
         const std::string timeframe = root["timeframe"].asString();
-        if (source.empty() || symbol.empty() || timeframe.empty()) {
+        if (source.empty() || rawSymbol.empty() || timeframe.empty()) {
             return errorResponse(400, "missing_fields",
                                  "source_id, symbol and timeframe are required");
+        }
+        // Store only the canonical instrument. A broker-specific gold alias is
+        // folded to XAUUSD so it stays readable; anything else is refused here
+        // rather than accepted into a store no read route serves.
+        const std::string symbol = canonicalSymbol(rawSymbol);
+        if (symbol.empty()) {
+            return errorResponse(
+                400, "unsupported_symbol",
+                "unsupported symbol '" + rawSymbol +
+                    "'; this server stores gold (XAUUSD) only");
         }
         // Validate the timeframe before persisting anything. Storing a candle
         // whose timeframe the analysis engine cannot map would create a row

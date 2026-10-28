@@ -60,7 +60,10 @@ the SQLite primary key. Replaying a batch is therefore safe: the store returns
 Fields:
 
 - `source_id` (string, required): stable sender identity. Also scopes `/sync/latest`.
-- `symbol` (string, required): `XAUUSD` only.
+- `symbol` (string, required): gold only. Broker-specific gold names are folded
+  to the canonical `XAUUSD` on receipt (`GOLD`, `XAUUSDm`, `XAUUSD.a`, …), so a
+  sender may pass the broker's own name. Any other instrument is refused with
+  `400 unsupported_symbol` rather than stored where no read route serves it.
 - `timeframe` (string, required): one of `M1 M5 M15 M30 H1 H4 D1 W1 MN1`.
 - `clock_offset_seconds` (int, optional, additive): `(broker time − UTC)` in
   seconds. Clamped to `|offset| <= 18h`; an implausible value is treated as a
@@ -115,7 +118,7 @@ persistence acknowledgment, distinct from mere HTTP receipt.
 | Code | Meaning |
 |------|---------|
 | 200 | Request handled; inspect `accepted`/`duplicates`/`rejected` |
-| 400 | Malformed JSON, missing top-level fields (`missing_fields`), or unsupported `timeframe` (`invalid_timeframe`) |
+| 400 | Malformed JSON, missing top-level fields (`missing_fields`), unsupported `timeframe` (`invalid_timeframe`), or a non-gold `symbol` (`unsupported_symbol`) |
 | 401 | Missing/invalid sender bearer token (`unauthorized`) |
 | 405 | Wrong HTTP method on the ingest route (`method_not_allowed`) |
 | 413 | Batch exceeds `ASTRA_MAX_CANDLES_PER_BATCH` (default 500) — `batch_too_large` |

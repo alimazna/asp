@@ -98,6 +98,19 @@ HttpResponse postIngest(std::uint16_t port, const std::string& body,
     return httpRequest(req);
 }
 
+// Read the chart route with the client credential. Used to prove a stored
+// candle is actually visible to a reader, not merely accepted.
+HttpResponse getCandles(std::uint16_t port, const std::string& query,
+                        const std::string& token = "ingest-test-token") {
+    HttpRequest req;
+    req.port = port;
+    req.path = "/api/v1/candles" + query;
+    req.headers = "Authorization: Bearer " + token + "\r\n";
+    req.connectTimeoutMillis = 1000;
+    req.readTimeoutMillis = 3000;
+    return httpGet(req);
+}
+
 #endif  // !_WIN32
 
 }  // namespace
@@ -363,6 +376,106 @@ TEST_CASE(broker_clock_offset_is_honored_for_intraday_bars) {
 //
 // This runs the REAL astra_server binary over real HTTP, so either regression
 // fails the test. Linux-only.
+TEST_CASE(ingest_folds_broker_gold_alias_and_rejects_other_symbols) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    fs::path exe;
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) {
+            exe = candidate;
+            break;
+        }
+    }
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-sym-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t openM15 = (now / 900) * 900 - 900;
+
+        // A broker names gold "GOLD"; the sender sends that verbatim. It must be
+        // folded to XAUUSD so the candle is readable, not stored under "GOLD"
+        // where no read route would ever serve it.
+        const std::string gold =
+            "{\"source_id\":\"sym-src\",\"symbol\":\"GOLD\","
+            "\"timeframe\":\"M15\",\"candles\":[{\"uid\":\"G-1\",\"time\":" +
+            std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse g = postIngest(port, gold);
+        CHECK(g.is2xx());
+        CHECK(g.body.find("\"state\":\"stored_new\"") != std::string::npos);
+        // The ack echoes the canonical symbol, so the sender sees what was stored.
+        CHECK(g.body.find("symbol=XAUUSD&timeframe=M15&open_time=") !=
+              std::string::npos);
+
+        // ...and it is visible through the chart route that serves XAUUSD.
+        const HttpResponse read = getCandles(port, "?tf=M15&limit=10");
+        CHECK(read.is2xx());
+        CHECK(read.body.find("\"time\":" + std::to_string(openM15)) !=
+              std::string::npos);
+
+        // A genuinely different instrument is refused up front instead of being
+        // accepted into a store no reader can reach.
+        const std::string eur =
+            "{\"source_id\":\"sym-src\",\"symbol\":\"EURUSD\","
+            "\"timeframe\":\"M15\",\"candles\":[{\"uid\":\"E-1\",\"time\":" +
+            std::to_string(openM15 + 900) +
+            ",\"open\":1.1,\"high\":1.2,\"low\":1.0,\"close\":1.15,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse e = postIngest(port, eur);
+        CHECK(e.statusCode == 400);
+        CHECK(e.body.find("unsupported_symbol") != std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
 TEST_CASE(ingest_ack_correlates_every_candle_by_identity_and_echoes_uid) {
 #ifdef _WIN32
     std::cout << "  [SKIP] process-level server test is Linux-only\n";
