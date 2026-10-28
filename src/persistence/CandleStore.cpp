@@ -26,17 +26,28 @@ std::string misalignedExpr(const std::string& a) {
            "   WHEN 'H4' THEN 14400 END))<>0)";
 }
 // Series keyed by (symbol, timeframe) across all sources.
+//
+// The quarantine set is computed once as a DISTINCT derived table and probed
+// with a keyed NOT EXISTS. Writing it as a correlated subquery over the outer
+// row (NOT EXISTS (... WHERE bad.symbol=candles.symbol AND ...)) is logically
+// identical but makes SQLite re-evaluate the misalignment predicate once per
+// candidate row, which is quadratic in the series length: on a 50k-row series a
+// sync call took ~500 ms and held the store mutex long enough to starve the
+// ingest writer (AyzrConcurrencyTests hung). The derived form is ~15 ms and
+// returns exactly the same rows.
 std::string cleanSeriesExpr() {
-    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
-           " bad.symbol=candles.symbol AND bad.timeframe=candles.timeframe AND "
-           + misalignedExpr("bad") + ")";
+    return "NOT EXISTS (SELECT 1 FROM (SELECT DISTINCT symbol, timeframe"
+           " FROM candles b WHERE "
+           + misalignedExpr("b") + ") bad WHERE"
+           " bad.symbol=candles.symbol AND bad.timeframe=candles.timeframe)";
 }
 // Series keyed by (source_id, symbol, timeframe).
 std::string cleanSourceSeriesExpr() {
-    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
+    return "NOT EXISTS (SELECT 1 FROM (SELECT DISTINCT source_id, symbol,"
+           " timeframe FROM candles b WHERE "
+           + misalignedExpr("b") + ") bad WHERE"
            " bad.source_id=candles.source_id AND bad.symbol=candles.symbol"
-           " AND bad.timeframe=candles.timeframe AND "
-           + misalignedExpr("bad") + ")";
+           " AND bad.timeframe=candles.timeframe)";
 }
 }  // namespace
 
@@ -45,6 +56,7 @@ constexpr char kSchema[] =
     "CREATE TABLE IF NOT EXISTS candles ("
     "  source_id    TEXT NOT NULL,"
     "  symbol       TEXT NOT NULL,"
+    "  raw_symbol   TEXT NOT NULL DEFAULT '',"
     "  timeframe    TEXT NOT NULL,"
     "  open_time    INTEGER NOT NULL,"
     "  open         REAL NOT NULL,"
@@ -104,7 +116,48 @@ bool CandleStore::open(const std::string& path, std::string& error) {
     char* walMsg = nullptr;
     sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &walMsg);
     if (walMsg != nullptr) sqlite3_free(walMsg);
+
+    // Additive migration: a database created before raw_symbol existed gains the
+    // column here. ADD COLUMN is safe and non-destructive and the existence
+    // probe makes it idempotent, so reopening is a no-op. Existing rows read
+    // back as '' (unknown sender name), which is the honest value: they predate
+    // the field, so the canonical symbol is the only name that was ever known
+    // for them.
+    if (!hasColumn("candles", "raw_symbol")) {
+        char* migMsg = nullptr;
+        if (sqlite3_exec(db_,
+                         "ALTER TABLE candles ADD COLUMN "
+                         "raw_symbol TEXT NOT NULL DEFAULT '';",
+                         nullptr, nullptr, &migMsg) != SQLITE_OK) {
+            error = std::string("cannot migrate candle store: ") +
+                    (migMsg != nullptr ? migMsg : "unknown");
+            if (migMsg != nullptr) sqlite3_free(migMsg);
+            sqlite3_close(db_);
+            db_ = nullptr;
+            return false;
+        }
+    }
     return true;
+}
+
+bool CandleStore::hasColumn(const std::string& table,
+                            const std::string& column) const {
+    const std::string sql = "PRAGMA table_info(" + table + ");";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    bool found = false;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        if (name != nullptr && column == name) {
+            found = true;
+            break;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return found;
 }
 
 bool CandleStore::exec(const std::string& sql, std::string& error) const {
@@ -186,9 +239,9 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
         sqlite3_stmt* stmt = nullptr;
         const char* sql =
             "INSERT INTO candles"
-            " (source_id, symbol, timeframe, open_time, open, high, low, close,"
-            "  tick_volume, spread, real_volume, received_at)"
-            " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12);";
+            " (source_id, symbol, raw_symbol, timeframe, open_time, open, high,"
+            "  low, close, tick_volume, spread, real_volume, received_at)"
+            " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13);";
         if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             txError = std::string("prepare failed: ") + sqlite3_errmsg(db_);
             ok = false;
@@ -196,16 +249,17 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
         }
         sqlite3_bind_text(stmt, 1, c.sourceId.c_str(), -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, 2, c.symbol.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, c.timeframe.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 4, c.openTimeUtc);
-        sqlite3_bind_double(stmt, 5, c.open);
-        sqlite3_bind_double(stmt, 6, c.high);
-        sqlite3_bind_double(stmt, 7, c.low);
-        sqlite3_bind_double(stmt, 8, c.close);
-        sqlite3_bind_int64(stmt, 9, c.tickVolume);
-        sqlite3_bind_int64(stmt, 10, c.spread);
-        sqlite3_bind_int64(stmt, 11, c.realVolume);
-        sqlite3_bind_int64(stmt, 12, c.receivedAtUtc);
+        sqlite3_bind_text(stmt, 3, c.rawSymbol.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, c.timeframe.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 5, c.openTimeUtc);
+        sqlite3_bind_double(stmt, 6, c.open);
+        sqlite3_bind_double(stmt, 7, c.high);
+        sqlite3_bind_double(stmt, 8, c.low);
+        sqlite3_bind_double(stmt, 9, c.close);
+        sqlite3_bind_int64(stmt, 10, c.tickVolume);
+        sqlite3_bind_int64(stmt, 11, c.spread);
+        sqlite3_bind_int64(stmt, 12, c.realVolume);
+        sqlite3_bind_int64(stmt, 13, c.receivedAtUtc);
         const int rc = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
 
@@ -357,8 +411,13 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
     if (db_ == nullptr) return out;
 
     sqlite3_stmt* stmt = nullptr;
+    // MAX(raw_symbol) picks the sender's own name for the series. The alias is
+    // stable per (source, symbol, timeframe) in practice, and a row that
+    // predates raw_symbol carries '' which COALESCE folds back to the canonical
+    // symbol, so a source-scoped reconcile always reports a usable name.
     const std::string sql =
-        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
+        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*),"
+                    " COALESCE(MAX(raw_symbol), '')"
                     " FROM candles WHERE source_id=?1 AND ") +
         cleanSourceSeriesExpr() + " GROUP BY symbol, timeframe;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -372,6 +431,9 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
         sp.timeframe = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         sp.lastOpenTimeUtc = sqlite3_column_int64(stmt, 2);
         sp.count = sqlite3_column_int64(stmt, 3);
+        const char* raw =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        sp.senderSymbol = (raw != nullptr && *raw != '\0') ? raw : sp.symbol;
         out.push_back(std::move(sp));
     }
     sqlite3_finalize(stmt);

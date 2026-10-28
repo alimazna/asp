@@ -21,6 +21,13 @@ namespace aura {
 struct StoredCandle {
     std::string sourceId;
     std::string symbol;
+    // The instrument name the sender actually used, kept verbatim. A broker
+    // resolves gold to a house name (GOLD, XAUUSDm, XAUUSD.vx) and the sender
+    // reconciles its local ledger by that name, so folding it away without
+    // remembering the original would make a server acknowledgment invisible to
+    // the only client that has to match it. Empty when the sender sent the
+    // canonical name already.
+    std::string rawSymbol;
     std::string timeframe;
     std::int64_t openTimeUtc = 0;   // candle open time, epoch seconds (UTC)
     double open = 0.0;
@@ -52,6 +59,12 @@ struct CandleSyncPoint {
     std::string timeframe;
     std::int64_t lastOpenTimeUtc = 0;  // newest persisted candle open time
     std::int64_t count = 0;            // rows retained for the identity
+    // The sender-facing instrument name for this series: the broker-resolved
+    // alias the sender used (GOLD, XAUUSD.vx, ...) when it supplied one, else
+    // the canonical symbol. A sender reconciles its local ledger by this name,
+    // so a source-scoped sync must report what that sender actually sent, not
+    // only the folded canonical form.
+    std::string senderSymbol;
 };
 
 class CandleStore {
@@ -142,6 +155,9 @@ public:
 
 private:
     bool exec(const std::string& sql, std::string& error) const;
+    // True when `table` already has `column`; makes additive migrations
+    // idempotent so reopening an existing database is a no-op.
+    bool hasColumn(const std::string& table, const std::string& column) const;
     mutable std::mutex mutex_;
     sqlite3* db_ = nullptr;
     int faultAfterInserts_ = -1;  // test seam; see setFaultAfterInsertsForTest

@@ -538,6 +538,12 @@ int main(int argc, char** argv) {
             StoredCandle c;
             c.sourceId = source;
             c.symbol = symbol;
+            // Keep the sender's own instrument name alongside the canonical
+            // one. The sender reconciles its local ledger by the name it sent
+            // (the broker-resolved alias), so discarding it here would make the
+            // server's acknowledgment unmatchable for that sender. Stored empty
+            // when the sender already used the canonical name.
+            c.rawSymbol = (rawSymbol == symbol) ? std::string() : rawSymbol;
             c.timeframe = timeframe;
             c.receivedAtUtc = now;
             // Echo the sender's own uid when it supplies one, so the ack is
@@ -686,7 +692,13 @@ int main(int argc, char** argv) {
         if (!sourceId.empty()) {
             for (const auto& sp : store.syncPointsForSource(sourceId)) {
                 std::vector<ApiField> f;
-                f.push_back({"symbol", jsonString(sp.symbol), true});
+                // `symbol` is the name THIS sender used (its broker-resolved
+                // alias, e.g. GOLD or XAUUSD.vx) so its ledger reconciliation
+                // correlates; `canonical_symbol` is the folded store symbol for
+                // diagnostics. A sender that always sent the canonical name sees
+                // the two equal, which is harmless.
+                f.push_back({"symbol", jsonString(sp.senderSymbol), true});
+                f.push_back({"canonical_symbol", jsonString(sp.symbol), true});
                 f.push_back({"timeframe", jsonString(sp.timeframe), true});
                 f.push_back({"last_open_time_utc",
                              jsonInteger(sp.lastOpenTimeUtc), true});

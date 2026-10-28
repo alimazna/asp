@@ -559,7 +559,7 @@ ApiResponse AstraApiServer::handleRequest(
             return tooMany;
         }
         return errorResponse(401, "unauthorized",
-                             "a valid sender bearer token is required");
+                             "authorization failed: a valid sender bearer token is required");
     }
 
     if (path == "/api/v1/admin/candles") {
@@ -574,7 +574,7 @@ ApiResponse AstraApiServer::handleRequest(
                 return tooMany;
             }
             return errorResponse(401, "unauthorized",
-                                 "a valid admin bearer token is required");
+                                 "authorization failed: a valid admin bearer token is required");
         }
         if (method != "DELETE" && method != "GET") {
             return errorResponse(405, "method_not_allowed",
@@ -708,7 +708,7 @@ ApiResponse AstraApiServer::handleRequest(
                 return tooMany;
             }
             return errorResponse(401, "unauthorized",
-                                 "a valid sender bearer token is required");
+                                 "authorization failed: a valid sender bearer token is required");
         }
         if (!rateAllow("news_ingest", authHeader, config_.ingestRequestsPerMinute)) {
             ApiResponse tooMany = errorResponse(
@@ -751,7 +751,7 @@ ApiResponse AstraApiServer::handleRequest(
                 return tooMany;
             }
             return errorResponse(401, "unauthorized",
-                                 "a valid client bearer token is required");
+                                 "authorization failed: a valid client bearer token is required");
         }
         if (!rateAllow("client", authHeader, config_.syncRequestsPerMinute)) {
             ApiResponse tooMany = errorResponse(

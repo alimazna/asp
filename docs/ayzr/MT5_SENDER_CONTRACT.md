@@ -61,9 +61,11 @@ Fields:
 
 - `source_id` (string, required): stable sender identity. Also scopes `/sync/latest`.
 - `symbol` (string, required): gold only. Broker-specific gold names are folded
-  to the canonical `XAUUSD` on receipt (`GOLD`, `XAUUSDm`, `XAUUSD.a`, …), so a
-  sender may pass the broker's own name. Any other instrument is refused with
-  `400 unsupported_symbol` rather than stored where no read route serves it.
+  to the canonical `XAUUSD` on receipt (`GOLD`, `XAUUSDm`, `XAUUSD.a`,
+  `XAUUSD.vx`, …), so a sender may pass the broker's own name. Any other
+  instrument is refused with `400 unsupported_symbol` rather than stored where no
+  read route serves it. The name the sender actually used is remembered so the
+  scoped sync can report it back (see §5).
 - `timeframe` (string, required): one of `M1 M5 M15 M30 H1 H4 D1 W1 MN1`.
 - `clock_offset_seconds` (int, optional, additive): `(broker time − UTC)` in
   seconds. Clamped to `|offset| <= 18h`; an implausible value is treated as a
@@ -119,7 +121,7 @@ persistence acknowledgment, distinct from mere HTTP receipt.
 |------|---------|
 | 200 | Request handled; inspect `accepted`/`duplicates`/`rejected` |
 | 400 | Malformed JSON, missing top-level fields (`missing_fields`), unsupported `timeframe` (`invalid_timeframe`), or a non-gold `symbol` (`unsupported_symbol`) |
-| 401 | Missing/invalid sender bearer token (`unauthorized`) |
+| 401 | Missing/invalid sender bearer token (`unauthorized`). The message contains the word `authorization` so the sender can classify it as an auth failure rather than a generic error |
 | 405 | Wrong HTTP method on the ingest route (`method_not_allowed`) |
 | 413 | Batch exceeds `ASTRA_MAX_CANDLES_PER_BATCH` (default 500) — `batch_too_large` |
 | 429 | Rate limit exceeded (`Retry-After: 60`, `rate_limited`) |
@@ -129,7 +131,7 @@ persistence acknowledgment, distinct from mere HTTP receipt.
 Error body is **not** wrapped in the `api`/`schema` envelope; it is flat:
 
 ```json
-{"error":"true","code":"unauthorized","message":"a valid sender bearer token is required"}
+{"error":"true","code":"unauthorized","message":"authorization failed: a valid sender bearer token is required"}
 ```
 
 `error` is the JSON string `"true"`, not a boolean (contract detail in
@@ -140,6 +142,16 @@ Error body is **not** wrapped in the `api`/`schema` envelope; it is flat:
 `GET /api/v1/sync/latest?source_id=<id>` returns, per `(symbol, timeframe)`, the
 authoritative `last_open_time_utc` and `count` **for that source**. A sender must
 scope by its own `source_id`; another sender's watermark is not delivery proof.
+
+The `symbol` field in this **scoped** response is the name *that sender* used —
+the broker-resolved alias (`GOLD`, `XAUUSD.vx`, …) when it sent one, otherwise the
+canonical name. This matters because a sender keys its local delivery ledger on
+`(source_id, symbol, timeframe, open_time)` using its own resolved symbol; if the
+server reported only the folded `XAUUSD`, a sender that had lost its ledger could
+never recognize the server's watermark as its own and would re-prime its whole
+history on every restart. A `canonical_symbol` field is included alongside for
+diagnostics. The unscoped aggregate response carries no delivery proof and keeps
+the canonical symbol only.
 
 ## 6. Retry and idempotency
 
