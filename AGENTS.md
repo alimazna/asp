@@ -248,3 +248,30 @@ Rules:
   `/api/v1/history` (note: **not** `/news/history`). Ingest is sender-token
   gated: `/api/v1/news/ingest`. Candle read is `/api/v1/candles?tf=...&limit=...`
   and returns a `bars` array (the route ignores `symbol`, defaults `tf=M15`).
+
+## Macro events (backend + AYZR Android, 2026-10-27)
+
+- `src/macro/CalendarFeed.{h,cpp}`, `EventStore.{h,cpp}`, `EventWatcher.{h,cpp}`
+  add a scheduled-macro-event surface on top of the news pipeline. The watcher
+  polls a real calendar (default FairEconomy `ff_calendar_thisweek.json`) and
+  writes two analysis turns per event, keyed by
+  `source|country|title|scheduled_at`: an EXPECTATION before release and a
+  RESULT after. Client routes: `GET /api/v1/events?scope=upcoming|past&limit=`
+  and `GET /api/v1/events/detail?key=` (client-token gated, read-only).
+- Honesty invariants (mirror the news surface): an unpublished consensus
+  serializes as `null`, never `0`/`""`; a turn that has not run reports
+  `has_expectation`/`has_result=false`, which the UI shows as "pending" — never
+  as "ran and found nothing".
+- **Dangling-pointer trap:** the calendar source must be a `shared_ptr` that
+  outlives the watcher. Scoping it inside the setup `if` block left the watcher
+  holding a raw pointer that dangled (symptom: `URL using bad/illegal format`).
+  Keep it at function scope in `AstraServerMain`.
+- A failing calendar feed backs off exponentially (cap ~15 min). Do not replace
+  this with a fixed short retry — the public feed rate-limits (HTTP 429).
+- The outbound client is HTTPS-only; an `http://` fixture calendar is rejected
+  by design. Use the real HTTPS feed or a mock source for tests.
+- Android lives in `ayzr-android/` (Flutter, Arabic-only RTL, `com.ayzr.ayzr_app`,
+  INTERNET permission only). Shared analysis rendering is
+  `lib/ui/widgets/analysis_view.dart`, used by both news detail and event turns.
+  Build: `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/tools/jdk17
+  flutter build apk --debug`. Tests: `flutter test` (79 pass).
