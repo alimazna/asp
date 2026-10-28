@@ -736,6 +736,7 @@ ApiResponse AstraApiServer::handleRequest(
     // runs, and the routes are disabled (401) when no client token is configured
     // rather than being served unauthenticated.
     if (path == "/api/v1/news" || path == "/api/v1/news/analyze" ||
+        path == "/api/v1/news/results" ||
         path == "/api/v1/news/quota" || path == "/api/v1/history" ||
         path == "/api/v1/activity" || path == "/api/v1/providers" ||
         path == "/api/v1/events" || path == "/api/v1/events/detail") {
@@ -773,6 +774,11 @@ ApiResponse AstraApiServer::handleRequest(
             if (newsAnalyzeHandler) return newsAnalyzeHandler(query);
             return errorResponse(503, "dependency_unavailable",
                                  "news analyze handler not configured");
+        }
+        if (path == "/api/v1/news/results") {
+            if (newsResultsHandler) return newsResultsHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "news results handler not configured");
         }
         if (path == "/api/v1/news/quota") {
             if (newsQuotaHandler) return newsQuotaHandler();

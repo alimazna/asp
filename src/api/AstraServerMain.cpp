@@ -1160,6 +1160,46 @@ int main(int argc, char** argv) {
         return NewsApi::quota(quotaMonitor.state(nowUtc), health);
     };
 
+    // GET /api/v1/news/results — the news-results log. Every persisted analysis
+    // with the full source metadata of its article, so the app's history screen
+    // can show the headline, the source, the publish time and the result in one
+    // read. Filters: ?limit=, ?direction= (bullish|bearish|sideways|no_trade),
+    // ?since= (epoch seconds). No filter is applied when a parameter is absent.
+    server.newsResultsHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 500) limit = 50;
+        std::string direction = queryParam(query, "direction");
+        // Only the four allowed direction tokens are honoured; anything else is
+        // treated as "no filter" rather than silently matching nothing.
+        if (direction != "bullish" && direction != "bearish" &&
+            direction != "sideways" && direction != "no_trade") {
+            direction.clear();
+        }
+        std::int64_t since = 0;
+        const std::string sinceRaw = queryParam(query, "since");
+        if (!sinceRaw.empty()) {
+            try { since = std::stoll(sinceRaw); } catch (...) { since = 0; }
+        }
+        if (since < 0) since = 0;
+        const std::vector<NewsAnalysis> analyses =
+            newsStore.recentAnalysesFiltered(limit, direction, since);
+        std::vector<std::string> ids;
+        ids.reserve(analyses.size());
+        for (const auto& a : analyses) ids.push_back(a.articleId);
+        const std::vector<NewsArticle> articles = newsStore.articlesByIds(ids);
+        recordActivity("history_read", analyses.empty() ? "empty" : "ok", "",
+                       "store",
+                       "news results: " + std::to_string(analyses.size()) +
+                           " analyses (direction=" +
+                           (direction.empty() ? "all" : direction) + ")",
+                       static_cast<int>(analyses.size()), -1);
+        return NewsApi::results(analyses, articles);
+    };
+
     server.historyHandler = [&](const std::string& query) -> ApiResponse {
         int limit = 50;
         const std::string limitRaw = queryParam(query, "limit");

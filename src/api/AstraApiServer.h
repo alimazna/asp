@@ -100,6 +100,7 @@ public:
     // Private mobile read surface (AYZR). Requires the client credential
     // (config_.clientTokens). Each receives the raw query string.
     //   GET  /api/v1/news                    -> newsListHandler(query)
+    //   GET  /api/v1/news/results            -> newsResultsHandler(query)
     //   GET  /api/v1/news/analyze?id=...     -> newsAnalyzeHandler(query)
     //   GET  /api/v1/news/quota              -> newsQuotaHandler()
     //   GET  /api/v1/history                 -> historyHandler(query)
@@ -108,6 +109,9 @@ public:
     //   GET  /api/v1/events?scope&limit      -> eventsHandler(query)
     //   GET  /api/v1/events/detail?key=...   -> eventDetailHandler(query)
     std::function<ApiResponse(const std::string&)> newsListHandler;
+    // GET /api/v1/news/results — the news-results log: persisted analyses with
+    // the full source metadata of the article each belongs to.
+    std::function<ApiResponse(const std::string&)> newsResultsHandler;
     std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
     std::function<ApiResponse()> newsQuotaHandler;
     std::function<ApiResponse(const std::string&)> historyHandler;

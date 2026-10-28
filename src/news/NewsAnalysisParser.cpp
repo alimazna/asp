@@ -27,6 +27,22 @@ bool isAllowedGoldRelevance(const std::string& v) {
            v == "unknown";
 }
 
+// The channel through which news reaches gold. A closed vocabulary so the
+// client can group without parsing prose; an out-of-set value is rejected, not
+// coerced, exactly as gold_relevance is.
+bool isAllowedGoldChannel(const std::string& v) {
+    return v == "monetary_policy" || v == "inflation" || v == "usd_rates" ||
+           v == "safe_haven" || v == "physical_demand" ||
+           v == "positioning" || v == "other" || v == "unknown";
+}
+
+// How soon the effect is expected. Qualitative on purpose: a horizon in minutes
+// would be a fabricated precision.
+bool isAllowedImpactHorizon(const std::string& v) {
+    return v == "immediate" || v == "short" || v == "medium" || v == "long" ||
+           v == "unknown";
+}
+
 bool isAllowedAgreement(const std::string& a) {
     return a == "agree" || a == "disagree" || a == "unknown";
 }
@@ -145,6 +161,22 @@ ParsedAnalysis parseAnalysisResponse(const std::string& text) {
     if (a.goldRelevance.empty()) a.goldRelevance = "unknown";
     if (!isAllowedGoldRelevance(a.goldRelevance)) {
         result.error = "invalid gold_relevance: '" + a.goldRelevance + "'";
+        return result;
+    }
+
+    // Optional: the gold transmission channel and the impact horizon. Both are
+    // closed vocabularies; absent/empty becomes "unknown", an out-of-set value
+    // is rejected rather than coerced to a channel the model never named.
+    a.goldChannel = root["gold_channel"].asString();
+    if (a.goldChannel.empty()) a.goldChannel = "unknown";
+    if (!isAllowedGoldChannel(a.goldChannel)) {
+        result.error = "invalid gold_channel: '" + a.goldChannel + "'";
+        return result;
+    }
+    a.impactHorizon = root["impact_horizon"].asString();
+    if (a.impactHorizon.empty()) a.impactHorizon = "unknown";
+    if (!isAllowedImpactHorizon(a.impactHorizon)) {
+        result.error = "invalid impact_horizon: '" + a.impactHorizon + "'";
         return result;
     }
     // Optional free-text fields.

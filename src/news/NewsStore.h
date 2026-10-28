@@ -55,11 +55,25 @@ public:
     // One article by id (canonical or duplicate).
     bool getArticle(const std::string& articleId, NewsArticle& out) const;
 
+    // Articles whose ids appear in `ids`, in an unspecified order. Used by the
+    // news-results log to join analyses to their full source metadata in one
+    // query instead of a lookup per row. Ids with no stored article are simply
+    // absent from the result -- the caller treats that as "input not retained".
+    std::vector<NewsArticle> articlesByIds(
+        const std::vector<std::string>& ids) const;
+
     // Latest analysis for an article; returns false when none exists.
     bool getAnalysis(const std::string& articleId, NewsAnalysis& out) const;
 
     // Recent analyses across all articles (newest first) — the history feed.
     std::vector<NewsAnalysis> recentAnalyses(int limit) const;
+
+    // Recent analyses filtered by direction and/or a minimum analyzed_at.
+    // Used by the news-results log so the app can page a specific slice
+    // (e.g. only actionable proposals, only the last day) without pulling the
+    // whole table. An empty `direction` and a zero `sinceUtc` mean "no filter".
+    std::vector<NewsAnalysis> recentAnalysesFiltered(
+        int limit, const std::string& direction, std::int64_t sinceUtc) const;
 
 private:
     mutable std::mutex mutex_;

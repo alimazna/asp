@@ -435,3 +435,84 @@ TEST_CASE(news_arabic_stories_are_not_collapsed) {
     supervisor.stop(2000, stopError);
     fs::remove_all(dataDir);
 }
+
+// GET /api/v1/news/results — the news-results log. Verifies the endpoint is
+// behind the client credential, joins each analysis to its article metadata,
+// exposes the new gold-channel / impact-horizon classifiers, and supports the
+// direction filter.
+TEST_CASE(news_results_log_joins_analysis_to_article) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+    ProcessSupervisor supervisor(newsSpec(exe, port, dataDir, true));
+    std::string error;
+    REQUIRE(supervisor.start(error));
+    REQUIRE(waitReady(port));
+
+    // Results require the client credential, exactly like the rest of the
+    // private surface.
+    CHECK_EQ(request(port, "GET", "/api/v1/news/results", "").statusCode, 401);
+    CHECK_EQ(request(port, "GET", "/api/v1/news/results", "sender-tok").statusCode,
+             401);
+
+    // Empty log: a well-formed, empty results array -- not an error.
+    const HttpResponse empty = request(port, "GET", "/api/v1/news/results",
+                                       "client-tok");
+    CHECK_EQ(empty.statusCode, 200);
+    CHECK(contains(empty.body, "\"results\""));
+
+    // Ingest then analyze so a persisted result exists.
+    const HttpResponse ingest = request(port, "POST", "/api/v1/news/ingest",
+                                        "sender-tok", kArabicNewsBody);
+    CHECK_EQ(ingest.statusCode, 200);
+    const HttpResponse list = request(port, "GET", "/api/v1/news", "client-tok");
+    CHECK_EQ(list.statusCode, 200);
+    // Extract the first article id from the list body (the analyze route needs
+    // it) by locating the "article_id" key.
+    const std::string marker = "\"article_id\":\"";
+    const std::size_t at = list.body.find(marker);
+    REQUIRE(at != std::string::npos);
+    const std::size_t start = at + marker.size();
+    const std::size_t end = list.body.find('"', start);
+    REQUIRE(end != std::string::npos);
+    const std::string articleId = list.body.substr(start, end - start);
+    CHECK(!articleId.empty());
+
+    const HttpResponse analyze = request(
+        port, "GET", "/api/v1/news/analyze?id=" + articleId, "client-tok");
+    CHECK_EQ(analyze.statusCode, 200);
+    CHECK(contains(analyze.body, "\"status\":\"ok\""));
+    // The new classifiers are emitted on the analysis object.
+    CHECK(contains(analyze.body, "\"gold_channel\":\"inflation\""));
+    CHECK(contains(analyze.body, "\"impact_horizon\":\"short\""));
+
+    // The results log now carries the analysis AND the article metadata.
+    const HttpResponse results = request(port, "GET", "/api/v1/news/results",
+                                         "client-tok");
+    CHECK_EQ(results.statusCode, 200);
+    CHECK(contains(results.body, "\"results\""));
+    CHECK(contains(results.body, "\"article_available\":true"));
+    CHECK(contains(results.body, "\"headline\""));
+    CHECK(contains(results.body, "\"gold_channel\":\"inflation\""));
+
+    // The direction filter accepts a known token and returns the bullish row.
+    const HttpResponse bullish = request(
+        port, "GET", "/api/v1/news/results?direction=bullish", "client-tok");
+    CHECK_EQ(bullish.statusCode, 200);
+    CHECK(contains(bullish.body, "\"direction\":\"bullish\""));
+
+    // A bogus direction is treated as "no filter", never an error and never an
+    // empty result that would look like "no matches".
+    const HttpResponse bogus = request(
+        port, "GET", "/api/v1/news/results?direction=banana", "client-tok");
+    CHECK_EQ(bogus.statusCode, 200);
+    CHECK(contains(bogus.body, "\"results\""));
+
+    std::string stopError;
+    supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}

@@ -19,6 +19,8 @@
 #include <filesystem>
 #include <string>
 
+#include <sqlite3.h>
+
 using namespace aura;
 namespace fs = std::filesystem;
 
@@ -558,6 +560,120 @@ TEST_CASE(news_parser_absent_gold_relevance_stays_unknown) {
         R"({"summary_ar":"س","direction":"no_trade"})");
     CHECK(p.valid);
     CHECK_EQ(p.analysis.goldRelevance, std::string("unknown"));
+}
+
+// --- Parser: the gold channel and impact horizon are closed vocabularies ----
+TEST_CASE(news_parser_keeps_valid_gold_channel_and_horizon) {
+    for (const char* c : {"monetary_policy", "inflation", "usd_rates",
+                          "safe_haven", "physical_demand", "positioning",
+                          "other", "unknown"}) {
+        const std::string text =
+            std::string(R"({"summary_ar":"س","direction":"no_trade",)")
+            + R"("gold_channel":")" + c + R"("})";
+        const ParsedAnalysis p = parseAnalysisResponse(text);
+        CHECK(p.valid);
+        CHECK_EQ(p.analysis.goldChannel, std::string(c));
+    }
+    for (const char* h : {"immediate", "short", "medium", "long", "unknown"}) {
+        const std::string text =
+            std::string(R"({"summary_ar":"س","direction":"no_trade",)")
+            + R"("impact_horizon":")" + h + R"("})";
+        const ParsedAnalysis p = parseAnalysisResponse(text);
+        CHECK(p.valid);
+        CHECK_EQ(p.analysis.impactHorizon, std::string(h));
+    }
+}
+
+TEST_CASE(news_parser_rejects_unknown_gold_channel_and_horizon) {
+    // An out-of-vocabulary channel must fail loudly, exactly as gold_relevance
+    // does: a channel the model never named must not reach the client.
+    CHECK(!parseAnalysisResponse(
+               R"({"summary_ar":"س","direction":"no_trade","gold_channel":"rates"})")
+               .valid);
+    CHECK(!parseAnalysisResponse(
+               R"({"summary_ar":"س","direction":"no_trade","impact_horizon":"5m"})")
+               .valid);
+}
+
+TEST_CASE(news_parser_absent_channel_and_horizon_stay_unknown) {
+    // Absent => "unknown". The client renders "غير محدَّد", never a guess.
+    const ParsedAnalysis p = parseAnalysisResponse(
+        R"({"summary_ar":"س","direction":"no_trade"})");
+    CHECK(p.valid);
+    CHECK_EQ(p.analysis.goldChannel, std::string("unknown"));
+    CHECK_EQ(p.analysis.impactHorizon, std::string("unknown"));
+}
+
+TEST_CASE(news_store_roundtrips_channel_and_horizon) {
+    const std::string path = tempDbPath();
+    NewsStore store;
+    std::string error;
+    REQUIRE(store.open(path, error));
+    NewsAnalysis a;
+    a.articleId = "ch1";
+    a.status = "ok";
+    a.summaryAr = "ملخص";
+    a.proposedDirection = "bullish";
+    a.goldChannel = "safe_haven";
+    a.impactHorizon = "immediate";
+    a.analyzedAtUtc = 5000;
+    REQUIRE(store.saveAnalysis(a, error));
+    NewsAnalysis out;
+    REQUIRE(store.getAnalysis("ch1", out));
+    CHECK_EQ(out.goldChannel, std::string("safe_haven"));
+    CHECK_EQ(out.impactHorizon, std::string("immediate"));
+    fs::remove(path);
+}
+
+TEST_CASE(news_store_migrates_pre_existing_analyses_table) {
+    // A database created before the two columns existed must gain them on open,
+    // with existing rows reading back as "unknown" -- never a fabricated value.
+    const std::string path = tempDbPath();
+    {
+        // Build a legacy table by hand: the original schema without the two
+        // classifier columns, plus one row.
+        NewsStore seed;
+        std::string error;
+        REQUIRE(seed.open(path, error));
+        (void)error;
+    }
+    // Drop the two columns to simulate a pre-migration database. SQLite has no
+    // DROP COLUMN before 3.35, so rebuild the table explicitly.
+    {
+        sqlite3* db = nullptr;
+        REQUIRE(sqlite3_open(path.c_str(), &db) == SQLITE_OK);
+        const char* rebuild =
+            "ALTER TABLE news_analyses RENAME TO news_analyses_old;"
+            "CREATE TABLE news_analyses ("
+            " article_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL,"
+            " status_reason TEXT NOT NULL DEFAULT '', summary_ar TEXT NOT NULL DEFAULT '',"
+            " facts_json TEXT NOT NULL DEFAULT '[]', implications_ar TEXT NOT NULL DEFAULT '[]',"
+            " supporting_ar TEXT NOT NULL DEFAULT '[]', opposing_ar TEXT NOT NULL DEFAULT '[]',"
+            " gold_impact_ar TEXT NOT NULL DEFAULT '', gold_relevance TEXT NOT NULL DEFAULT 'unknown',"
+            " direction TEXT NOT NULL DEFAULT 'no_trade', has_entry INTEGER NOT NULL DEFAULT 0,"
+            " entry REAL NOT NULL DEFAULT 0, has_stop INTEGER NOT NULL DEFAULT 0,"
+            " stop_loss REAL NOT NULL DEFAULT 0, has_target INTEGER NOT NULL DEFAULT 0,"
+            " take_profit REAL NOT NULL DEFAULT 0, invalidating_ar TEXT NOT NULL DEFAULT '',"
+            " astra_agreement TEXT NOT NULL DEFAULT 'unknown', disagreement_ar TEXT NOT NULL DEFAULT '',"
+            " limitations_ar TEXT NOT NULL DEFAULT '[]', provider_id TEXT NOT NULL DEFAULT '',"
+            " model_id TEXT NOT NULL DEFAULT '', analyzed_at INTEGER NOT NULL DEFAULT 0,"
+            " timeframe_ctx TEXT NOT NULL DEFAULT '', candle_as_of INTEGER NOT NULL DEFAULT 0,"
+            " astra_signal TEXT NOT NULL DEFAULT ''"
+            ");"
+            "INSERT INTO news_analyses (article_id, status, summary_ar, direction, analyzed_at)"
+            " SELECT article_id, status, summary_ar, direction, analyzed_at FROM news_analyses_old;"
+            "DROP TABLE news_analyses_old;";
+        char* msg = nullptr;
+        REQUIRE(sqlite3_exec(db, rebuild, nullptr, nullptr, &msg) == SQLITE_OK);
+        sqlite3_close(db);
+    }
+    // Reopen: the migration must add the columns and preserve the row.
+    NewsStore store;
+    std::string error;
+    REQUIRE(store.open(path, error));
+    CHECK(store.hasColumn("news_analyses", "gold_channel"));
+    CHECK(store.hasColumn("news_analyses", "impact_horizon"));
+    fs::remove(path);
 }
 
 // --- Parser: oversized model output is rejected, not persisted -------------

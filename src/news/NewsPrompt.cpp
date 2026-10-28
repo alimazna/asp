@@ -31,7 +31,18 @@ std::string sharedSystemRules() {
         "when the supplied ASTRA levels justify them; otherwise "
         "omit them entirely. Never invent a number.\n"
         "6. All *_ar fields must be written in Arabic.\n"
-        "7. astra_agreement must be one of: agree, disagree, unknown.\n";
+        "7. astra_agreement must be one of: agree, disagree, unknown.\n"
+        "8. gold_channel names the SINGLE most direct channel by which this news "
+        "reaches gold. Choose exactly one of: monetary_policy (central-bank "
+        "policy/rates), inflation (CPI, PPI, price data), usd_rates (dollar "
+        "index, treasury yields, real rates), safe_haven (geopolitics, risk "
+        "off/on), physical_demand (jewellery, central-bank buying, ETF flows), "
+        "positioning (speculative positioning, futures), other, unknown. Use "
+        "unknown when the news has no clear gold channel.\n"
+        "9. impact_horizon is how soon the effect is expected to be felt: "
+        "immediate (already in the price / within hours), short (days), medium "
+        "(weeks), long (months), unknown. Never state a number of minutes or "
+        "hours for this.\n";
 }
 
 // Keys shared by every turn's JSON object.
@@ -41,6 +52,9 @@ constexpr char kSharedSchemaKeys[] =
     "\"market_implications_ar\":[string], \"supporting_evidence_ar\":[string], "
     "\"opposing_evidence_ar\":[string], \"gold_impact_ar\":string, "
     "\"gold_relevance\":\"high|medium|low|none\", "
+    "\"gold_channel\":\"monetary_policy|inflation|usd_rates|safe_haven|"
+    "physical_demand|positioning|other|unknown\", "
+    "\"impact_horizon\":\"immediate|short|medium|long|unknown\", "
     "\"direction\":\"bullish|bearish|sideways|no_trade\", "
     "\"entry\":number?, \"stop_loss\":number?, \"take_profit\":number?, "
     "\"astra_agreement\":\"agree|disagree|unknown\", "

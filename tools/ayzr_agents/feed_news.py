@@ -38,17 +38,46 @@ import xml.etree.ElementTree as ET
 
 # (RSS query, stored category, gold_relevance). The relevance tag routes an
 # article into the app's gold-only filter; it does not assert market impact.
+#
+# The set is organised around the channels through which news actually reaches
+# gold, so the analyzer has gold-focused input for every channel it can name:
+#   monetary_policy  -> central-bank decisions, FOMC
+#   inflation        -> CPI / PPI / inflation expectations
+#   usd_rates        -> dollar index, treasury yields, real rates
+#   safe_haven       -> geopolitics, risk-off, war, sanctions
+#   physical_demand  -> central-bank buying, ETF flows, jewellery, mine supply
+#   positioning      -> futures positioning, speculative flows
+# Nothing is inferred here: these are query strings, and the stored category is a
+# plain label copied verbatim.
 FEEDS: list[tuple[str, str, str]] = [
+    # Gold-specific price and market coverage.
     ("gold price XAUUSD", "markets", "high"),
     ("gold futures COMEX", "markets", "high"),
+    ("gold market forecast", "markets", "high"),
+    # Monetary policy.
     ("Federal Reserve interest rate", "monetary_policy", "high"),
+    ("FOMC decision", "monetary_policy", "high"),
     ("central bank interest rate decision", "monetary_policy", "medium"),
+    ("ECB rate decision", "monetary_policy", "medium"),
+    # Inflation.
     ("US inflation CPI", "inflation", "high"),
+    ("PPI producer prices", "inflation", "medium"),
     ("inflation expectations", "inflation", "medium"),
-    ("central bank gold reserves", "central_banks", "medium"),
-    ("US economic data jobs report", "economic_data", "medium"),
-    ("geopolitics safe haven gold", "geopolitical", "medium"),
+    # Dollar and rates.
     ("dollar index US treasury yields", "markets", "medium"),
+    ("real interest rates", "markets", "medium"),
+    ("US jobs report nonfarm payrolls", "economic_data", "medium"),
+    ("US economic data GDP", "economic_data", "medium"),
+    # Safe haven / geopolitics.
+    ("geopolitics safe haven gold", "geopolitical", "medium"),
+    ("war conflict markets risk", "geopolitical", "medium"),
+    ("sanctions risk-off", "geopolitical", "medium"),
+    # Physical demand and positioning.
+    ("central bank gold reserves", "central_banks", "medium"),
+    ("gold ETF flows holdings", "physical_demand", "high"),
+    ("gold jewellery demand India China", "physical_demand", "medium"),
+    ("gold mine supply production", "physical_demand", "low"),
+    ("gold futures positioning CFTC", "positioning", "medium"),
 ]
 
 RSS = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"

@@ -45,6 +45,17 @@ public:
     static ApiResponse history(const std::vector<NewsAnalysis>& analyses,
                                const std::vector<NewsArticle>& articles);
 
+    // GET /api/v1/news/results — the news-results log: every persisted analysis
+    // with the FULL source metadata of the article it belongs to (headline,
+    // source, url, category, feed relevance, publish time). Distinct from
+    // /history, which carries only headline+source: this is the audit surface
+    // the app's "سجل نتائج الأخبار" screen reads, and it must let the user open
+    // the original article and see exactly which input produced the result.
+    // `articles` is aligned to `analyses` by article id (empty record when the
+    // article row is missing, never a fabricated one).
+    static ApiResponse results(const std::vector<NewsAnalysis>& analyses,
+                               const std::vector<NewsArticle>& articles);
+
     // POST /api/v1/news/ingest — acknowledgement with per-article outcomes.
     static ApiResponse ingestAck(
         int received, const std::vector<NewsInsertResult>& results);

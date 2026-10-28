@@ -73,6 +73,14 @@ struct NewsAnalysis {
     // did not classify it, and the UI must not present an unclassified article
     // as gold-relevant.
     std::string goldRelevance = "unknown";   // high | medium | low | none
+    // The transmission channel through which this news moves gold. A closed
+    // vocabulary, so the client can group and filter without parsing prose and
+    // the model cannot smuggle a free-form claim in. `unknown` is the honest
+    // value when the model did not classify it.
+    std::string goldChannel = "unknown";
+    // How soon the effect is expected to be felt. Also a closed vocabulary: a
+    // qualitative horizon is honest, a made-up number of minutes is not.
+    std::string impactHorizon = "unknown";
     std::string astraAgreement = "unknown";   // agree | disagree | unknown
     std::string disagreementNoteAr;
     std::vector<std::string> limitationsAr;

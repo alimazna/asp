@@ -82,6 +82,8 @@ std::string NewsApi::analysisJson(const NewsAnalysis& a) {
                               stringArray(a.opposingEvidenceAr)));
     fields.push_back(stringField("gold_impact_ar", a.goldImpactAr));
     fields.push_back(stringField("ai_gold_relevance", a.goldRelevance));
+    fields.push_back(stringField("gold_channel", a.goldChannel));
+    fields.push_back(stringField("impact_horizon", a.impactHorizon));
     fields.push_back(stringField("direction", a.proposedDirection));
 
     // Levels: each is independently optional. An absent level is null, never 0,
@@ -221,6 +223,35 @@ ApiResponse NewsApi::history(const std::vector<NewsAnalysis>& analyses,
     }
     return ApiResponse{200, "application/json",
                        envelope(jsonObject({rawField("history", jsonArray(elements))})),
+                       true, ""};
+}
+
+ApiResponse NewsApi::results(const std::vector<NewsAnalysis>& analyses,
+                             const std::vector<NewsArticle>& articles) {
+    std::vector<std::string> elements;
+    elements.reserve(analyses.size());
+    for (const auto& a : analyses) {
+        // Join the analysis to its source article. A missing article row yields
+        // an empty article object with empty strings -- never a fabricated
+        // headline. The client renders "غير متاح" for those, which is the truth:
+        // the input was not retained.
+        NewsArticle article;
+        bool haveArticle = false;
+        for (const auto& art : articles) {
+            if (art.articleId == a.articleId) {
+                article = art;
+                haveArticle = true;
+                break;
+            }
+        }
+        std::vector<ApiField> fields;
+        fields.push_back(rawField("article", articleJson(article, false)));
+        fields.push_back(boolField("article_available", haveArticle));
+        fields.push_back(rawField("analysis", analysisJson(a)));
+        elements.push_back(jsonObject(fields));
+    }
+    return ApiResponse{200, "application/json",
+                       envelope(jsonObject({rawField("results", jsonArray(elements))})),
                        true, ""};
 }
 
