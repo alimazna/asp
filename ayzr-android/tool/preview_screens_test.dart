@@ -11,8 +11,6 @@
 // so it must not run as part of a plain `flutter test`.
 import 'dart:io';
 
-import 'package:ayzr_app/core/strings_ar.dart';
-import 'package:ayzr_app/state/app_state.dart';
 import 'package:ayzr_app/ui/app_shell.dart';
 import 'package:ayzr_app/ui/screens/news_screen.dart';
 import 'package:flutter/material.dart';

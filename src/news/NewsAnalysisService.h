@@ -40,6 +40,14 @@ public:
                          const NewsPromptContext& context,
                          std::int64_t nowUtc);
 
+    // Analyse one scheduled macro event. `eventKey` is the persisted event's
+    // identity; `turn` selects the pre-release expectation or the post-release
+    // result. Shares the provider call, retry and repair path with analyze(), so
+    // the safety contract cannot diverge between the two.
+    NewsAnalysis analyzeEvent(const std::string& eventKey, EventTurn turn,
+                              const EventPromptContext& context,
+                              std::int64_t nowUtc);
+
     // Test seam: how many attempts the last analyze() used.
     int lastAttemptCount() const noexcept { return lastAttemptCount_; }
 

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../core/app_config.dart';
 import 'api_result.dart';
 import 'models/analysis.dart';
+import 'models/events.dart';
 import 'models/health.dart';
 import 'models/activity.dart';
 import 'models/news.dart';
@@ -239,6 +240,33 @@ class ApiClient {
             .toList(growable: false),
       );
     });
+  }
+
+  /// GET /api/v1/events — scheduled macro events with consensus.
+  /// `scope` is `upcoming` (default) or `past`.
+  Future<ApiResult<List<EventListItem>>> events({
+    int limit = 50,
+    String scope = 'upcoming',
+    bool goldOnly = true,
+  }) async {
+    final r = await _getData('/api/v1/events', query: {
+      'limit': '$limit',
+      'scope': scope,
+      if (!goldOnly) 'gold_only': 'false',
+    });
+    // The backend nests the rows under a named key: `{events: [...]}`.
+    return r.map((d) => _rows(d, 'events')
+        .whereType<Map>()
+        .map((m) => EventListItem.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  /// GET /api/v1/events/detail?key= — one event plus its expectation/result
+  /// turns. A missing turn is null, distinct from a turn that ran and failed.
+  Future<ApiResult<EventDetail>> eventDetail(String eventKey) async {
+    final r = await _getData('/api/v1/events/detail', query: {'key': eventKey});
+    return r.map(
+        (d) => EventDetail.fromJson((d as Map).cast<String, dynamic>()));
   }
 
   /// GET /api/v1/providers — which AI credentials work and how each performed.

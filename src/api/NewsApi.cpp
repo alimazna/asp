@@ -209,4 +209,74 @@ ApiResponse NewsApi::ingestAck(int received,
                        envelope(jsonObject(fields)), true, ""};
 }
 
+std::string NewsApi::eventJson(const ScheduledEvent& e) {
+    std::vector<ApiField> fields;
+    fields.push_back(stringField("event_key", e.eventKey));
+    fields.push_back(stringField("title", e.title));
+    fields.push_back(stringField("country", e.country));
+    fields.push_back(stringField("impact", e.impact));
+    fields.push_back(intField("scheduled_at", e.scheduledAtUtc));
+    const std::string iso = isoUtcSeconds(e.scheduledAtUtc);
+    fields.push_back(iso.empty() ? rawField("scheduled_at_iso", "null")
+                                 : stringField("scheduled_at_iso", iso));
+    // Consensus/previous are whatever the calendar published. An event the feed
+    // carried without a forecast stays null, never "0" or "" which the UI would
+    // render as a real number or a real string.
+    fields.push_back(e.forecast.empty() ? rawField("forecast", "null")
+                                        : stringField("forecast", e.forecast));
+    fields.push_back(e.previous.empty() ? rawField("previous", "null")
+                                        : stringField("previous", e.previous));
+    fields.push_back(stringField("source", e.source));
+    fields.push_back(stringField("stage", e.stage));
+    fields.push_back(boolField("gold_relevant", e.goldRelevant));
+    fields.push_back(intField("first_seen", e.firstSeenUtc));
+    fields.push_back(intField("updated_at", e.updatedAtUtc));
+    fields.push_back(e.preparedAtUtc > 0 ? intField("prepared_at", e.preparedAtUtc)
+                                         : rawField("prepared_at", "null"));
+    fields.push_back(stringField("prepare_status", e.prepareStatus));
+    fields.push_back(e.releasedAtUtc > 0 ? intField("released_at", e.releasedAtUtc)
+                                         : rawField("released_at", "null"));
+    fields.push_back(stringField("release_status", e.releaseStatus));
+    return jsonObject(fields);
+}
+
+ApiResponse NewsApi::events(const std::vector<ScheduledEvent>& events,
+                            const std::vector<std::string>& stages) {
+    std::vector<std::string> elements;
+    elements.reserve(events.size());
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        const std::string stage = i < stages.size() ? stages[i] : events[i].stage;
+        elements.push_back(jsonObject({
+            rawField("event", eventJson(events[i])),
+            stringField("stage", stage),
+            boolField("has_expectation", events[i].preparedAtUtc > 0),
+            boolField("has_result", events[i].releasedAtUtc > 0),
+        }));
+    }
+    return ApiResponse{200, "application/json",
+                       envelope(jsonObject({rawField("events", jsonArray(elements))})),
+                       true, ""};
+}
+
+ApiResponse NewsApi::eventDetail(const ScheduledEvent& event,
+                                 const NewsAnalysis* expectation,
+                                 bool hasExpectation, const NewsAnalysis* result,
+                                 bool hasResult) {
+    std::vector<ApiField> fields;
+    fields.push_back(rawField("event", eventJson(event)));
+    // A turn that has not run is reported as absent, distinct from a turn that
+    // ran and came back unavailable. The client must not read "not yet" as
+    // "analysed and found empty".
+    fields.push_back(boolField("has_expectation", hasExpectation));
+    fields.push_back(hasExpectation && expectation != nullptr
+                         ? rawField("expectation", analysisJson(*expectation))
+                         : rawField("expectation", "null"));
+    fields.push_back(boolField("has_result", hasResult));
+    fields.push_back(hasResult && result != nullptr
+                         ? rawField("result", analysisJson(*result))
+                         : rawField("result", "null"));
+    return ApiResponse{200, "application/json", envelope(jsonObject(fields)), true,
+                       ""};
+}
+
 }  // namespace aura

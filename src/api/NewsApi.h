@@ -5,6 +5,7 @@
 // analysis happen here, so the shapes are unit-testable without a database.
 
 #include "api/BackendApiSchema.h"
+#include "macro/EventStore.h"
 #include "news/LlmQuotaMonitor.h"
 #include "news/NewsModels.h"
 
@@ -39,6 +40,25 @@ public:
     // POST /api/v1/news/ingest — acknowledgement with per-article outcomes.
     static ApiResponse ingestAck(
         int received, const std::vector<NewsInsertResult>& results);
+
+    // GET /api/v1/events — scheduled macro events. `scope=upcoming` (default)
+    // lists gold-relevant events from now on; `scope=past` lists released ones.
+    // Each element carries whether an expectation/result turn exists, so the app
+    // can show "expectation ready" without a second round-trip.
+    static ApiResponse events(const std::vector<ScheduledEvent>& events,
+                              const std::vector<std::string>& stages);
+
+    // GET /api/v1/events/detail?key=... — one event with its expectation turn,
+    // its result turn, or both. A missing turn is reported as absent, never as
+    // an empty analysis.
+    static ApiResponse eventDetail(const ScheduledEvent& event,
+                                   const NewsAnalysis* expectation,
+                                   bool hasExpectation,
+                                   const NewsAnalysis* result,
+                                   bool hasResult);
+
+    // The `data` object for one scheduled event.
+    static std::string eventJson(const ScheduledEvent& e);
 
     // The `data` object for an analysis, shared by detail and history.
     static std::string analysisJson(const NewsAnalysis& analysis);

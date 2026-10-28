@@ -117,6 +117,33 @@ class Ar {
   static const historyEmpty = 'لا يوجد سجل تحليلات بعد';
   static const headline = 'العنوان';
 
+  // Macro events — scheduled economic releases and their expectation/result
+  // turns. Kept distinct from the news surface: an event is known in advance.
+  static const eventsTitle = 'الأحداث الاقتصادية';
+  static const eventsSubtitle = 'إصدارات مجدولة وتوقعاتها';
+  static const eventsEmpty = 'لا توجد أحداث مجدولة حالياً';
+  static const eventUpcoming = 'القادمة';
+  static const eventPast = 'المنقضية';
+  static const eventConsensus = 'التوقع';
+  static const eventPrevious = 'السابق';
+  static const eventForecastUnavailable = 'لم يُنشر توقع';
+  static const eventImpact = 'الأهمية';
+  static const eventImpactHigh = 'مرتفعة';
+  static const eventImpactMedium = 'متوسطة';
+  static const eventImpactLow = 'منخفضة';
+  static const eventImpactHoliday = 'عطلة';
+  static const eventImpactUnknown = 'غير محدَّدة';
+  static const eventStageScheduled = 'مجدول';
+  static const eventStagePrepared = 'التوقع جاهز';
+  static const eventStageReleased = 'صدر';
+  static const eventExpectation = 'التوقع قبل الإصدار';
+  static const eventResult = 'قراءة النتيجة';
+  static const eventExpectationPending = 'لم يُكتب التوقع بعد';
+  static const eventResultPending = 'لم تُقرأ النتيجة بعد';
+  static const eventDetails = 'تفاصيل الحدث';
+  static const eventScheduledAt = 'موعد الإصدار';
+  static const eventGoldRelevant = 'ذو صلة بالذهب';
+
   // Activity log — the durable record of what the backend did.
   static const activityTitle = 'سجل النشاط';
   static const activityEmpty = 'لا يوجد نشاط مسجَّل بعد';

@@ -105,12 +105,16 @@ public:
     //   GET  /api/v1/history                 -> historyHandler(query)
     //   GET  /api/v1/activity?limit&kind     -> activityHandler(query)
     //   GET  /api/v1/providers               -> providersHandler()
+    //   GET  /api/v1/events?scope&limit      -> eventsHandler(query)
+    //   GET  /api/v1/events/detail?key=...   -> eventDetailHandler(query)
     std::function<ApiResponse(const std::string&)> newsListHandler;
     std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
     std::function<ApiResponse()> newsQuotaHandler;
     std::function<ApiResponse(const std::string&)> historyHandler;
     std::function<ApiResponse(const std::string&)> activityHandler;
     std::function<ApiResponse()> providersHandler;
+    std::function<ApiResponse(const std::string&)> eventsHandler;
+    std::function<ApiResponse(const std::string&)> eventDetailHandler;
     //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
     std::function<ApiResponse(const std::string&)> newsIngestHandler;
 

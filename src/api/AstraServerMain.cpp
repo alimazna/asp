@@ -24,6 +24,9 @@
 #include "foundation/OutboundHttpClient.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
+#include "macro/CalendarFeed.h"
+#include "macro/EventStore.h"
+#include "macro/EventWatcher.h"
 #include "news/Llm7Provider.h"
 #include "news/FailoverLlmProvider.h"
 #include "news/GeminiProvider.h"
@@ -1170,6 +1173,123 @@ int main(int argc, char** argv) {
         return NewsApi::ingestAck(static_cast<int>(articles.size()), results);
     };
 
+    // ---------------------------------------------------------------------
+    // AYZR automatic macro-event intelligence (additive).
+    //
+    // The watcher polls a real economic calendar on its own thread. For each
+    // gold-relevant high/medium-impact event it writes an EXPECTATION turn
+    // before release and a RESULT turn once the scheduled time has passed. Both
+    // turns reuse NewsAnalysisService, so they share its quota, retry and
+    // schema-validation behaviour, and both are READ-ONLY with respect to
+    // ASTRA: the watcher only reads the latest analysis to supply context.
+    //
+    // The whole subsystem is optional and fail-open: with no calendar, no
+    // credential or no store the server still starts and the routes report the
+    // real state rather than fabricating one.
+    // ---------------------------------------------------------------------
+    EventStore eventStore;
+    std::unique_ptr<EventWatcher> eventWatcher;
+    // Held here, not inside the `if` below: the watcher keeps a raw pointer to
+    // the calendar, so the source must outlive it for the whole server run.
+    std::shared_ptr<ICalendarSource> calendar;
+    {
+        std::string eventError;
+        if (!eventStore.open(dataDir + "/events.sqlite", eventError)) {
+            std::cerr << "  WARN: event store unavailable: " << eventError
+                      << std::endl;
+        } else {
+            std::cout << "  event store: " << dataDir << "/events.sqlite"
+                      << std::endl;
+        }
+    }
+    const bool eventsEnabled = eventStore.isOpen() &&
+                               envOr("ASTRA_EVENTS_ENABLED", "1") != "0";
+    if (eventsEnabled) {
+        calendar = std::make_shared<FairEconomyCalendarSource>(
+            envOr("ASTRA_CALENDAR_URL",
+                  "https://nfs.faireconomy.media/ff_calendar_thisweek.json"),
+            outboundHttp);
+        EventContextProvider eventCtx;
+        eventCtx.timeframeContext = "M15,H4";
+        eventCtx.candleSummary = [&candleSummary]() {
+            return candleSummary("M15", 30) + candleSummary("H4", 20);
+        };
+        // The existing ASTRA analysis, verbatim and read-only.
+        eventCtx.astraSummary = [&facade]() { return facade.latestAnalysis().body; };
+        eventCtx.candleAsOfUtc = [&store]() {
+            return store.latestOpenTimeAnySource("XAUUSD", "M15");
+        };
+        eventWatcher = std::make_unique<EventWatcher>(
+            &eventStore, calendar.get(), &newsService, eventCtx, &activityLog);
+        EventWatcher::Options watcherOptions;
+        watcherOptions.tickSeconds = parseIntEnv("ASTRA_EVENT_TICK_S", 60);
+        watcherOptions.prepareHorizonSeconds =
+            parseIntEnv("ASTRA_EVENT_PREPARE_HORIZON_S", 3 * 3600);
+        watcherOptions.maxPreparePerTick =
+            parseIntEnv("ASTRA_EVENT_MAX_PREPARE_PER_TICK", 2);
+        watcherOptions.maxReleasePerTick =
+            parseIntEnv("ASTRA_EVENT_MAX_RELEASE_PER_TICK", 2);
+        eventWatcher->setOptions(watcherOptions);
+        eventWatcher->start();
+        std::cout << "  event watcher: started (calendar="
+                  << calendar->sourceLabel() << ")" << std::endl;
+    } else {
+        std::cout << "  event watcher: disabled" << std::endl;
+    }
+
+    server.eventsHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 200) limit = 50;
+        const std::string scope = queryParam(query, "scope");
+        const bool past = (scope == "past");
+        const std::string goldRaw = queryParam(query, "gold_only");
+        const bool goldOnly = (goldRaw != "false" && goldRaw != "0");
+        if (!eventStore.isOpen()) {
+            return errorResponse(503, "dependency_unavailable",
+                                 "event store not configured");
+        }
+        const std::vector<ScheduledEvent> events =
+            eventStore.recent(limit, past, goldOnly);
+        std::vector<std::string> stages;
+        stages.reserve(events.size());
+        for (const auto& e : events) stages.push_back(e.stage);
+        recordActivity("events_read", events.empty() ? "empty" : "ok", "",
+                       "calendar",
+                       "listed " + std::to_string(events.size()) +
+                           " events (scope=" + (past ? "past" : "upcoming") + ")",
+                       static_cast<int>(events.size()), -1);
+        return NewsApi::events(events, stages);
+    };
+
+    server.eventDetailHandler = [&](const std::string& query) -> ApiResponse {
+        const std::string key = queryParam(query, "key");
+        if (key.empty()) {
+            return errorResponse(400, "missing_key",
+                                 "event detail requires ?key=<event_key>");
+        }
+        if (!eventStore.isOpen()) {
+            return errorResponse(503, "dependency_unavailable",
+                                 "event store not configured");
+        }
+        ScheduledEvent event;
+        if (!eventStore.getEvent(key, event)) {
+            return errorResponse(404, "not_found",
+                                 "no stored event with that key");
+        }
+        NewsAnalysis expectation;
+        const bool hasExpectation =
+            eventStore.getEventAnalysis(key, "expectation", expectation);
+        NewsAnalysis result;
+        const bool hasResult = eventStore.getEventAnalysis(key, "result", result);
+        return NewsApi::eventDetail(event, hasExpectation ? &expectation : nullptr,
+                                    hasExpectation, hasResult ? &result : nullptr,
+                                    hasResult);
+    };
+
     std::string apiError;
     if (!server.start(apiError)) {
         std::cerr << "FATAL: cannot start astra api server: " << apiError
@@ -1184,6 +1304,7 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "  shutdown requested" << std::endl;
+    if (eventWatcher) eventWatcher->stop();
     server.stop();
     runtime.stop();
     std::cout << "  bye" << std::endl;

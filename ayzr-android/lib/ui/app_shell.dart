@@ -6,6 +6,7 @@ import '../core/theme.dart';
 import '../state/app_state.dart';
 import 'screens/activity_screen.dart';
 import 'screens/analysis_screen.dart';
+import 'screens/events_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/news_screen.dart';
@@ -38,6 +39,7 @@ class _AppShellState extends State<AppShell> {
     await widget.state.loadAnalysis();
     await widget.state.loadNews();
     await widget.state.loadHistory();
+    await widget.state.loadEvents();
   }
 
   void _onSelect(int i) {
@@ -76,6 +78,18 @@ class _AppShellState extends State<AppShell> {
             appBar: AppBar(
               title: Text(_titles[_index]),
               actions: [
+                IconButton(
+                  tooltip: Ar.eventsTitle,
+                  icon: const Icon(Icons.event_note_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text(Ar.eventsTitle)),
+                        body: EventsScreen(state: widget.state),
+                      ),
+                    ),
+                  ),
+                ),
                 IconButton(
                   tooltip: Ar.activityTitle,
                   icon: const Icon(Icons.receipt_long_outlined),

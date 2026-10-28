@@ -737,7 +737,8 @@ ApiResponse AstraApiServer::handleRequest(
     // rather than being served unauthenticated.
     if (path == "/api/v1/news" || path == "/api/v1/news/analyze" ||
         path == "/api/v1/news/quota" || path == "/api/v1/history" ||
-        path == "/api/v1/activity" || path == "/api/v1/providers") {
+        path == "/api/v1/activity" || path == "/api/v1/providers" ||
+        path == "/api/v1/events" || path == "/api/v1/events/detail") {
         if (method == "OPTIONS") {
             return ApiResponse{204, "application/json", "", true, ""};
         }
@@ -777,6 +778,16 @@ ApiResponse AstraApiServer::handleRequest(
             if (newsQuotaHandler) return newsQuotaHandler();
             return errorResponse(503, "dependency_unavailable",
                                  "news quota handler not configured");
+        }
+        if (path == "/api/v1/events") {
+            if (eventsHandler) return eventsHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "events handler not configured");
+        }
+        if (path == "/api/v1/events/detail") {
+            if (eventDetailHandler) return eventDetailHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "event detail handler not configured");
         }
         if (path == "/api/v1/activity") {
             if (activityHandler) return activityHandler(query);

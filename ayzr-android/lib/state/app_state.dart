@@ -4,6 +4,7 @@ import '../core/app_config.dart';
 import '../data/api_client.dart';
 import '../data/api_result.dart';
 import '../data/models/analysis.dart';
+import '../data/models/events.dart';
 import '../data/models/health.dart';
 import '../data/models/activity.dart';
 import '../data/models/news.dart';
@@ -63,8 +64,12 @@ class AppState extends ChangeNotifier {
   Section<LlmQuota> quota = const Section<LlmQuota>();
   Section<ActivityPage> activity = const Section<ActivityPage>();
   Section<ProviderPage> providers = const Section<ProviderPage>();
+  Section<List<EventListItem>> events = const Section<List<EventListItem>>();
 
   bool goldOnly = false;
+
+  /// Which event scope is shown: `upcoming` (default) or `past`.
+  String eventScope = 'upcoming';
 
   /// True when the AI provider's daily quota is spent and the backend is
   /// withholding calls. Drives the Arabic "analysis paused" banner. A temporary
@@ -186,6 +191,27 @@ class AppState extends ChangeNotifier {
         : const Section<ProviderPage>.empty();
     notifyListeners();
   }
+
+  /// Loads the scheduled macro events. `scope` is `upcoming` or `past`.
+  Future<void> loadEvents({String? scope}) async {
+    if (scope != null) eventScope = scope;
+    events = events.loading();
+    notifyListeners();
+    final r = await _client.events(scope: eventScope);
+    if (!r.isSuccess) {
+      events = Section<List<EventListItem>>.failed(r.failure!);
+    } else {
+      final items = r.value!;
+      events = items.isEmpty
+          ? const Section<List<EventListItem>>.empty()
+          : Section<List<EventListItem>>.ready(items);
+    }
+    notifyListeners();
+  }
+
+  /// Loads one event's expectation/result turns on demand (detail screen).
+  Future<ApiResult<EventDetail>> loadEventDetail(String key) =>
+      _client.eventDetail(key);
 
   /// Loads one article's analysis on demand (detail screen).
   Future<ApiResult<NewsDetail>> loadArticle(String id) =>

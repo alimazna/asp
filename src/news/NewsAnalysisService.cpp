@@ -9,31 +9,33 @@
 
 namespace aura {
 
-NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
-                                          const NewsPromptContext& context,
-                                          std::int64_t nowUtc) {
-    NewsAnalysis analysis;
-    analysis.articleId = article.articleId;
-    analysis.analyzedAtUtc = nowUtc;
-    analysis.timeframeContext = context.timeframeContext;
+namespace {
 
-    lastAttemptCount_ = 0;
-    // The null check must come first: dereferencing provider_ to stamp the
-    // identity would crash before the guard below could run.
-    if (provider_ == nullptr) {
+// The provider call, quota bookkeeping, bounded retry and bounded schema repair
+// are identical for an article turn and a macro-event turn. Factoring them here
+// keeps one implementation of the retry/repair contract, so the two paths
+// cannot drift apart. `analysis` carries the stamped identity on entry and the
+// validated fields on exit.
+NewsAnalysis runAnalysisTurn(ILlmProvider* provider, int maxAttempts,
+                             LlmQuotaMonitor* quotaMonitor,
+                             const NewsPrompt& prompt, std::int64_t nowUtc,
+                             NewsAnalysis analysis, int& attemptCount) {
+    attemptCount = 0;
+    // The null check must come first: dereferencing provider to stamp the
+    // identity would crash before the guard could run.
+    if (provider == nullptr) {
         analysis.status = "unavailable";
         analysis.statusReason = "no provider configured";
         return analysis;
     }
 
-    analysis.providerId = provider_->providerId();
-    analysis.modelId = provider_->modelId();
+    analysis.providerId = provider->providerId();
+    analysis.modelId = provider->modelId();
 
     // Daily-quota cooldown: when a previous call exhausted the provider's daily
     // budget, do not call again until the reset window. Serve the honest
     // "paused" state instead of hammering the provider.
-    if (quotaMonitor_ != nullptr && !quotaMonitor_->shouldAttempt(nowUtc)) {
-        lastAttemptCount_ = 0;
+    if (quotaMonitor != nullptr && !quotaMonitor->shouldAttempt(nowUtc)) {
         analysis.status = "unavailable";
         analysis.statusReason = "provider daily quota exhausted; cooling down";
         analysis.limitationsAr.push_back(
@@ -42,9 +44,8 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
         return analysis;
     }
 
-    const NewsPrompt prompt = buildNewsPrompt(context);
     LlmRequest request;
-    request.model = provider_->modelId();
+    request.model = provider->modelId();
     request.messages = {{"system", prompt.system}, {"user", prompt.user}};
     // 0 means "no per-request override": the adapter then applies its configured
     // read timeout (LLM7_READ_TIMEOUT_MS). Leaving the struct default (30000)
@@ -52,11 +53,11 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     request.timeoutMillis = 0;
 
     LlmResult result;
-    for (int attempt = 0; attempt < maxAttempts_; ++attempt) {
-        lastAttemptCount_ = attempt + 1;
-        result = provider_->complete(request);
-        if (quotaMonitor_ != nullptr) {
-            quotaMonitor_->record(result, nowUtc);
+    for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+        attemptCount = attempt + 1;
+        result = provider->complete(request);
+        if (quotaMonitor != nullptr) {
+            quotaMonitor->record(result, nowUtc);
         }
         if (result.ok() || !result.retryable()) break;
         // Bounded backoff. A short fixed delay keeps a single analysis request
@@ -92,9 +93,9 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     // turn — echoing the invalid reply and the parser's reason — fixes most
     // cases. It is only attempted when the caller allowed more than one attempt,
     // so it shares the existing retry budget and cannot become a retry storm.
-    if (!parsed.valid && maxAttempts_ >= 2) {
+    if (!parsed.valid && maxAttempts >= 2) {
         LlmRequest repairRequest;
-        repairRequest.model = provider_->modelId();
+        repairRequest.model = provider->modelId();
         // The repair must replay the conversation and append the model's own
         // invalid reply as an assistant turn, then the corrective user turn.
         // Verified against nemotron-3-nano:30b: inlining the reply into a single
@@ -105,11 +106,11 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
                                   {"assistant", result.content},
                                   {"user", buildRepairUserMessage(parsed.error)}};
         repairRequest.timeoutMillis = 0;
-        LlmResult repairResult = provider_->complete(repairRequest);
-        if (quotaMonitor_ != nullptr) {
-            quotaMonitor_->record(repairResult, nowUtc);
+        LlmResult repairResult = provider->complete(repairRequest);
+        if (quotaMonitor != nullptr) {
+            quotaMonitor->record(repairResult, nowUtc);
         }
-        ++lastAttemptCount_;
+        ++attemptCount;
         if (repairResult.ok()) {
             parsed = parseAnalysisResponse(repairResult.content);
         }
@@ -123,18 +124,48 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
         return analysis;
     }
 
-    // Carry the validated fields; identity/timestamps were stamped above.
-    NewsAnalysis& a = parsed.analysis;
-    a.articleId = article.articleId;
-    a.analyzedAtUtc = nowUtc;
+    // Carry the validated fields; identity/timestamps were stamped by the caller.
+    NewsAnalysis a = parsed.analysis;
+    a.articleId = analysis.articleId;
+    a.analyzedAtUtc = analysis.analyzedAtUtc;
+    a.timeframeContext = analysis.timeframeContext;
     // Attribute the analysis to the provider that actually answered, not to the
     // chain's primary. With failover configured those differ whenever an earlier
     // provider was skipped, and the record must name the real one.
-    a.providerId = result.provider.empty() ? provider_->providerId()
+    a.providerId = result.provider.empty() ? provider->providerId()
                                            : result.provider;
-    a.modelId = result.model.empty() ? provider_->modelId() : result.model;
-    a.timeframeContext = context.timeframeContext;
+    a.modelId = result.model.empty() ? provider->modelId() : result.model;
     return a;
 }
 
+}  // namespace
+
+NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
+                                          const NewsPromptContext& context,
+                                          std::int64_t nowUtc) {
+    NewsAnalysis analysis;
+    analysis.articleId = article.articleId;
+    analysis.analyzedAtUtc = nowUtc;
+    analysis.timeframeContext = context.timeframeContext;
+    return runAnalysisTurn(provider_, maxAttempts_, quotaMonitor_,
+                           buildNewsPrompt(context), nowUtc, std::move(analysis),
+                           lastAttemptCount_);
+}
+
+NewsAnalysis NewsAnalysisService::analyzeEvent(const std::string& eventKey,
+                                               EventTurn turn,
+                                               const EventPromptContext& context,
+                                               std::int64_t nowUtc) {
+    NewsAnalysis analysis;
+    // The event key is the record's identity, exactly as an article id is for
+    // an article turn. It is what the store keys on.
+    analysis.articleId = eventKey;
+    analysis.analyzedAtUtc = nowUtc;
+    analysis.timeframeContext = context.timeframeContext;
+    return runAnalysisTurn(provider_, maxAttempts_, quotaMonitor_,
+                           buildEventPrompt(turn, context), nowUtc,
+                           std::move(analysis), lastAttemptCount_);
+}
+
 }  // namespace aura
+
