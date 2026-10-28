@@ -410,3 +410,29 @@ Rules:
 - Deploying the sender alone is **not** enough — the server-side guard is the
   half that rejected the bars. Ship both, or the symptom persists.
 
+## The receiver base URL must carry /api/v1 (v1.0.8+)
+
+- `collector/receiver.py` appends fixed relative paths (`/health`, `/candles`,
+  `/candles/ingest`, `/sync/latest`) to the configured base URL. There is no
+  `/api/v1` in those constants, so the prefix has to live in the base.
+- A base URL without it returns **404 `not_found` on every route**. The owner
+  sees a configured, plausible URL and the only symptom is silence — no error
+  that points at the cause.
+- `normalize_api_base()` now adds the prefix when it is absent and never
+  doubles an existing one, so a bare host, a trailing slash and a future
+  `/api/v2` all behave. `ReceiverClient` applies it in `__init__`, so callers
+  cannot bypass it.
+- `tests/doubles.py` serves under the prefix, matching the real server and
+  `tools/hiding_receiver.py`. It previously answered bare paths, which is why
+  the bug reached a release: a client pointed at a bare host passed the suite
+  and failed in production. **Keep the double's paths faithful to the real
+  server** — a double that is more forgiving than production hides exactly the
+  configuration bugs that matter.
+- `docs/BACKEND_CONTRACT.md` is the contract for any new backend. It was
+  extracted by running the binary and calling it, not from the docs, and it
+  records the traps: `clock_offset_seconds` is effectively mandatory (the
+  broker-time trap above), the batch cap is 500, an empty stream answers 503
+  `dependency_unavailable` rather than 200-with-`[]`, and `/candles` pages
+  oldest-first with a clamp, so **partial** stream loss is undetectable until
+  a cursor parameter exists.
+
