@@ -44,6 +44,7 @@ Routes called (all GET, all client-token gated in
 | `/api/v1/analysis/latest` | context + signal + levels + meta |
 | `/api/v1/news?limit=&gold_only=` | article list with analysis status |
 | `/api/v1/news/analyze?id=` | one article + its Arabic analysis |
+| `/api/v1/news/results?limit=&direction=` | news-results log: each analysis joined to its article's source metadata |
 | `/api/v1/history?limit=` | persisted analyses |
 
 Ingestion (`/candles/ingest`), `/sync/latest` and `/admin/candles` are
@@ -73,6 +74,12 @@ the flat `{error,code,message}` object and are mapped to typed failures.
 - **Shadow-only notice** is permanently visible on the home screen.
 - **News analysis gate.** Only `status == "ok"` presents a proposal/levels; any
   other status shows the reason instead.
+- **Results log join is honest.** `GET /api/v1/news/results` joins each persisted
+  analysis to its article's source metadata. A row whose article was not retained
+  carries `article_available: false` and empty headline/source; the UI renders
+  **غير متاح** for those rather than inventing a headline. The two classifiers the
+  model assigns — `gold_channel` and `impact_horizon` — are closed vocabularies:
+  an unrecognised value shows as **غير محدَّد**, never a friendlier guess.
 
 ## 4. Layout of the code
 
@@ -86,9 +93,9 @@ ayzr-android/
       theme.dart                  dark-navy + gold tokens, Cairo font
     data/
       api_result.dart             ApiResult<T> + typed ApiFailure
-      api_client.dart             authenticated client for the 5 routes
+      api_client.dart             authenticated client for the 6 routes
       models/analysis.dart        analysis surface models (RULE C aware)
-      models/news.dart            news + history models
+      models/news.dart            news + history + news-results models
       models/health.dart          health model
     state/
       app_state.dart              ChangeNotifier: sections, phases, flags
@@ -96,7 +103,7 @@ ayzr-android/
     ui/
       app_shell.dart              RTL shell, bottom nav, MaterialApp
       screens/                    home, analysis, news, news_detail,
-                                  history, settings
+                                  news_results, history, settings
       widgets/                    state panels, banners, info rows, chips
   test/                           see §6
   assets/                         owned by Agent D (icons, fonts, graphics)

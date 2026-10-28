@@ -89,24 +89,30 @@ flutter build apk --debug
 
 `flutter analyze` → **No issues found!**
 
-`flutter test` → **+45: All tests passed!** (0 failed)
+`flutter test` → **+97: All tests passed!** (0 failed)
 
 Per file:
 
 | File | Tests | Result |
 |------|-------|--------|
-| `test/models_test.dart` | 9 | all passed |
-| `test/api_client_test.dart` | 13 | all passed |
-| `test/app_state_test.dart` | 7 | all passed |
-| `test/widget_test.dart` | 16 | all passed |
-| **Total** | **45** | **45 passed / 0 failed** |
+| `test/models_test.dart` | 23 | all passed |
+| `test/api_client_test.dart` | 16 | all passed |
+| `test/app_state_test.dart` | 15 | all passed |
+| `test/activity_models_test.dart` | 7 | all passed |
+| `test/events_test.dart` | 14 | all passed |
+| `test/widget_test.dart` | 22 | all passed |
+| **Total** | **97** | **97 passed / 0 failed** |
 
 Tests use a real `MockClient` at the HTTP boundary so the actual parsing, state
 machine and widget code run. Key assertions: an uncalibrated signal renders a
 score and never a probability (RULE C); a socket failure renders the offline
 panel, not an empty state; an empty list renders the empty state, not an error;
 401 maps to the configuration prompt; RTL directionality is asserted on the
-shell.
+shell. For the news-results log: an analysis is joined to its article's source
+metadata, a row whose article was not retained renders **غير متاح** rather than a
+fabricated headline, the `gold_channel`/`impact_horizon` classifiers render as
+Arabic labels (and **غير محدَّد** for an unrecognised value), and the direction
+filter is sent to the server (and omitted when "all").
 
 ## APK
 
