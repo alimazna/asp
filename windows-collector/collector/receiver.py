@@ -43,6 +43,33 @@ STATE_STORED_NEW = "stored_new"
 STATE_ALREADY_STORED = "already_stored"
 CONFIRMED_STATES = frozenset({STATE_STORED_NEW, STATE_ALREADY_STORED})
 
+#: Version prefix the ASTRA server serves every route under.
+API_PREFIX = "/api/v1"
+
+
+def normalize_api_base(base_url: str) -> str:
+    """Return `base_url` with the API version prefix present.
+
+    The collector appends fixed relative paths, so the prefix has to live in
+    the base. Accepting a bare host makes the configuration forgiving without
+    making it ambiguous: a URL that already carries any "/api/<n>" segment is
+    left alone, so a future version or a differently-prefixed receiver still
+    works and this never appends a second prefix.
+    """
+    url = (base_url or "").strip().rstrip("/")
+    if not url:
+        return ""
+    lowered = url.lower()
+    if not (lowered.startswith("http://") or lowered.startswith("https://")):
+        # Not a URL at all (empty-ish or a typo). Leave it untouched so the
+        # caller's validation reports it, rather than silently rewriting it
+        # into something that looks valid.
+        return url
+    path = urllib.parse.urlsplit(url).path
+    if "/api/" in path:
+        return url
+    return url + API_PREFIX
+
 
 class ReceiverError(Exception):
     """A transport or protocol failure. Carries a stable code, never a token."""
@@ -73,7 +100,13 @@ class ReceiverClient:
     def __init__(self, base_url: str, token: str,
                  timeout_seconds: float = 30.0,
                  verify_tls: bool = True):
-        self.base_url = (base_url or "").strip().rstrip("/")
+        # Every request path below is relative ("/health", "/candles/ingest"),
+        # and the ASTRA server serves them under a version prefix. A base URL
+        # that omits "/api/v1" therefore 404s on every call, which the sender
+        # reports only as an opaque HTTP error — the owner sees a configured,
+        # apparently valid URL that silently never delivers. Normalise here so
+        # the form the owner types does not have to be exact.
+        self.base_url = normalize_api_base(base_url)
         self._token = token or ""
         self._timeout = timeout_seconds
         self._context: Optional[ssl.SSLContext] = None

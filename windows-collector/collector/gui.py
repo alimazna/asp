@@ -821,7 +821,7 @@ class SetupDialog:
         self.token_var = tk.StringVar(value=load_token())
 
         self._row(form, 0, "Receiver URL", self.url_var,
-                  hint="Ends with /api/v1")
+                  hint="The base URL, e.g. https://host (or .../api/v1)")
         self._row(form, 1, "Symbol", self.symbol_var,
                   hint="XAUUSD, or GOLD if that is your broker's name")
         self._row(form, 2, "Sender id", self.sender_var,
@@ -900,17 +900,16 @@ class SetupDialog:
                 row=row * 2 + 1, column=1, sticky="w", padx=6)
 
     def _on_url_changed(self) -> None:
-        """Warn early about the most common paste mistake.
+        """Reassure rather than warn: the prefix is now added automatically.
 
-        A URL without the /api/v1 suffix is accepted by the entry field but
-        every request lands on the wrong path and fails with an unhelpful
-        error, so the missing suffix is called out as it is typed.
+        The client normalises the base URL, so both forms work. The note is
+        kept because an owner who was previously told the suffix was mandatory
+        will otherwise keep editing the field.
         """
         url = self.url_var.get().strip()
         if url and not url.rstrip("/").endswith("/api/v1"):
-            self._note("Note: the URL usually ends with /api/v1. Add it if the "
-                       "receiver operator gave you a URL that already includes "
-                       "the version.")
+            self._note("Note: /api/v1 is added automatically if you leave it "
+                       "out. Paste the base URL the receiver operator gave you.")
 
     # ----------------------------------------------------------------- state
 

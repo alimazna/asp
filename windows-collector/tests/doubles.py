@@ -175,6 +175,15 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         path = self.path.split("?")[0]
+        # Serve under the same version prefix as the real ASTRA server. The
+        # double used to answer the bare paths, which meant a client pointed at
+        # a host without "/api/v1" passed here and 404'd against the real
+        # server. Keeping the prefix makes the double able to catch that class
+        # of misconfiguration instead of hiding it.
+        for prefix in ("/api/v1",):
+            if path.startswith(prefix + "/"):
+                path = path[len(prefix):]
+                break
         if path == "/health":
             # Unauthenticated, matching the real ASTRA server: health is a
             # liveness probe and the C++ server does not gate it. The double
@@ -257,6 +266,10 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         path = self.path.split("?")[0]
+        for prefix in ("/api/v1",):
+            if path.startswith(prefix + "/"):
+                path = path[len(prefix):]
+                break
         if path != "/candles/ingest":
             self._reply(404, {"error": "true", "code": "not_found"})
             return

@@ -52,6 +52,7 @@ from collector.receiver import (  # noqa: E402
     SYNC_PATH,
     ReceiverClient,
     ReceiverError,
+    normalize_api_base,
 )
 from tests.doubles import FakeReceiver  # noqa: E402
 
@@ -488,6 +489,72 @@ class PlannerTest(unittest.TestCase):
         summary = summarise(plan)
         self.assertEqual(summary["send_count"], 1)
         self.assertEqual(summary["destination"], "dest")
+
+
+class ApiBaseNormalizationTest(unittest.TestCase):
+    """A base URL without the version prefix must not silently 404.
+
+    Verified against the real astra_server: with the prefix every route
+    answers; without it every route returns 404 `not_found`. Because the
+    collector appends fixed relative paths, a bare host is a configuration
+    error that produces an opaque HTTP failure rather than an obvious one, so
+    the client normalises it instead of trusting the owner to type it exactly.
+    """
+
+    def test_a_bare_host_gets_the_version_prefix(self):
+        self.assertEqual(normalize_api_base("https://astra.up.railway.app"),
+                         "https://astra.up.railway.app/api/v1")
+
+    def test_a_trailing_slash_is_tolerated(self):
+        self.assertEqual(normalize_api_base("https://astra.up.railway.app/"),
+                         "https://astra.up.railway.app/api/v1")
+
+    def test_an_existing_prefix_is_not_doubled(self):
+        self.assertEqual(
+            normalize_api_base("https://astra.up.railway.app/api/v1"),
+            "https://astra.up.railway.app/api/v1")
+
+    def test_an_existing_prefix_with_a_trailing_slash_is_not_doubled(self):
+        self.assertEqual(
+            normalize_api_base("https://astra.up.railway.app/api/v1/"),
+            "https://astra.up.railway.app/api/v1")
+
+    def test_a_future_version_is_left_alone(self):
+        """Never append a second prefix to a URL that already has one.
+
+        A v2 receiver must keep working; rewriting it to /api/v1/api/v2 would
+        break it in a way that looks like a server fault.
+        """
+        self.assertEqual(normalize_api_base("https://host/api/v2"),
+                         "https://host/api/v2")
+
+    def test_plain_http_is_normalised_too(self):
+        self.assertEqual(normalize_api_base("http://127.0.0.1:8080"),
+                         "http://127.0.0.1:8080/api/v1")
+
+    def test_empty_stays_empty(self):
+        self.assertEqual(normalize_api_base(""), "")
+        self.assertEqual(normalize_api_base("   "), "")
+
+    def test_a_non_url_is_left_for_validation_to_reject(self):
+        """A typo must be reported, not rewritten into something plausible."""
+        self.assertEqual(normalize_api_base("astra.up.railway.app"),
+                         "astra.up.railway.app")
+
+    def test_the_client_applies_it(self):
+        client = ReceiverClient("https://host.example", token="t")
+        self.assertEqual(client.base_url, "https://host.example/api/v1")
+
+
+class BareHostDeliversTest(unittest.TestCase):
+    """End to end: a bare host must actually deliver, not just look right."""
+
+    def test_a_client_given_a_bare_host_reaches_the_receiver(self):
+        with FakeReceiver(token="t") as server:
+            # server.url is bare (no prefix), exactly what an owner would paste.
+            client = ReceiverClient(server.url, token="t", timeout_seconds=10)
+            self.assertTrue(client.health())
+            client.verify_token()   # authenticated route; raises on failure
 
 
 class ReceiverWireContractTest(unittest.TestCase):
