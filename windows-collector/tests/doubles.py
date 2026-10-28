@@ -145,6 +145,14 @@ class FakeReceiverState:
         self.commit_then_fail = False  # commit, then lose the response
         self.delay_seconds = 0.0
         self.health_ok = True
+        #: (symbol, timeframe) pairs to report as holding nothing. Models a
+        #: receiver that lost a stream (restored database, partial restore)
+        #: while still answering for the others.
+        self.empty_streams: set = set()
+        #: How an empty stream is signalled. The real ASTRA server answers 503
+        #: `dependency_unavailable`; some builds answer 200 with no bars. Both
+        #: must be understood as an authoritative absence.
+        self.empty_mode = "503"
 
 
 class FakeReceiverHandler(BaseHTTPRequestHandler):
@@ -199,6 +207,20 @@ class FakeReceiverHandler(BaseHTTPRequestHandler):
                                           if "?" in self.path else "")
             symbol = (query.get("symbol") or [""])[0]
             timeframe = (query.get("timeframe") or [""])[0]
+            if (symbol, timeframe) in self.state.empty_streams:
+                # A stream the receiver lost. Answered the way the real server
+                # answers a stream it holds nothing for.
+                if self.state.empty_mode == "503":
+                    self._reply(503, {"error": "true",
+                                      "code": "dependency_unavailable",
+                                      "message": ("no candle data available for "
+                                                  + timeframe)})
+                else:
+                    self._reply(200, {"data": {
+                        "bars": [], "symbol": symbol, "timeframe": timeframe,
+                        "count": 0, "closed_only": True,
+                        "newest_closed_time": 0}})
+                return
             with self.state.lock:
                 candles = [dict(c) for c in self.state.stored.values()]
             # A real receiver scopes a stream query to the requested symbol and

@@ -21,7 +21,7 @@ before the candles it depends on, and never sees a stream restart mid-flight.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Set
 
 from .identity import (
     CandleKey,
@@ -80,7 +80,8 @@ def plan_delivery(destination: str,
                   remote_open_times: Dict[tuple, Sequence[int]],
                   acknowledged: Optional[Dict[tuple, Sequence[int]]] = None,
                   window_start: Optional[Dict[tuple, int]] = None,
-                  window_end: Optional[Dict[tuple, int]] = None) -> DeliveryPlan:
+                  window_end: Optional[Dict[tuple, int]] = None,
+                  empty_streams: Optional[Set[tuple]] = None) -> DeliveryPlan:
     """Build the plan.
 
     ``local_open_times``  maps (symbol, timeframe) -> open times we hold.
@@ -92,9 +93,14 @@ def plan_delivery(destination: str,
                           earlier is not re-planned.
     ``window_start``/``window_end`` optionally bound the local window considered
                           for gap analysis, per stream.
+    ``empty_streams``     (symbol, timeframe) pairs the receiver answered for,
+                          successfully and authoritatively, with no candles.
+                          These are re-planned even when the ledger says they
+                          were delivered, because the receiver has lost them.
     """
     plan = DeliveryPlan(destination=destination)
     acknowledged = acknowledged or {}
+    empty_streams = empty_streams or set()
     keys = set(local_open_times) | set(remote_open_times)
     for symbol, timeframe in sorted(
             keys, key=lambda k: (k[0], timeframe_rank(k[1]))):
@@ -103,14 +109,28 @@ def plan_delivery(destination: str,
         acked = sorted({int(t) for t in acknowledged.get((symbol, timeframe), [])})
         stream = StreamPlan(symbol=symbol, timeframe=timeframe)
 
-        # "The receiver has it" is the union of what it reported and what we
-        # recorded as acknowledged. A receiver that answers with a full set is
-        # authoritative; the local record covers the case where the receiver
-        # could not be reached on this run.
-        have_remote = set(remote) | set(acked)
+        # "The receiver has it" is normally the union of what it reported and
+        # what we recorded as acknowledged. A receiver that answers with a full
+        # set is authoritative; the local record covers the case where the
+        # receiver could not be reached on this run.
+        #
+        # The union is wrong for one case: a receiver that is reachable and
+        # explicitly reports *nothing* for a stream. Truncation cannot produce
+        # that answer — a limited query returns its full page or nothing at all
+        # — so an empty authoritative answer means the stream really is gone
+        # there, and the ledger must not suppress the repair. This is the case
+        # a restored database or a partial restore creates: the receiver loses
+        # a stream, keeps answering for the others, and the sender would
+        # otherwise never notice.
+        authoritative_empty = (symbol, timeframe) in empty_streams
+        have_remote = set(remote) if authoritative_empty else (set(remote) | set(acked))
         stream.already_have = sorted(set(local) & have_remote)
         stream.receiver_only = sorted(set(remote) - set(local))
         stream.to_send = sorted(set(local) - have_remote)
+        if authoritative_empty and stream.to_send:
+            plan.notes.append(
+                f"{symbol} {timeframe}: receiver reports nothing for this "
+                f"stream; re-sending {len(stream.to_send)} candle(s)")
 
         if is_known_timeframe(timeframe) and local:
             start = window_start.get((symbol, timeframe)) if window_start else None

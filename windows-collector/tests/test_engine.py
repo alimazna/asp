@@ -619,5 +619,118 @@ class OutageCatchUpTest(unittest.TestCase):
                          f"lost {len(missing)} of {len(expected)} candles")
 
 
+class ReceiverEmptyStreamTest(unittest.TestCase):
+    """T41 end to end: a receiver that lost a stream is repaired automatically.
+
+    This is the scenario the live hiding-receiver test exposed. The receiver
+    accepts and stores a stream, then reports holding nothing for it. The
+    collector must re-send, because the ledger alone would never notice.
+    """
+
+    def setUp(self):
+        self.h = EngineHarness(timeframes=["M15", "H1"], total_bars=40)
+        self.addCleanup(self.h.close)
+
+    def _deliver_all(self):
+        """Deliver everything, including a prime, so the ledger is populated."""
+        self.h.config.prime_history_bars = 5
+        self.h.engine.sync_once()
+        self.h.engine.sync_once()
+        self.h.receiver.state.requests = []
+
+    def test_lost_stream_is_repaired_when_signalled_with_503(self):
+        self._deliver_all()
+        acked = self.h.ledger.acknowledged_open_times(
+            self.h.config.destination_id(), "XAUUSD", "M15")
+        self.assertTrue(acked, "the prime must have been acknowledged")
+
+        # The receiver loses M15 and answers 503 for it, while H1 is intact.
+        self.h.receiver.state.empty_streams = {("XAUUSD", "M15")}
+        self.h.receiver.state.empty_mode = "503"
+        self.h.engine.sync_once()
+
+        resent = [t for t in self.h.sent_times()]
+        self.assertTrue(resent, "the lost stream must be re-sent")
+        for candle in self.h.receiver.state.requests:
+            self.assertEqual(candle["timeframe"], "M15",
+                             "only the lost stream may be re-sent")
+
+    def test_lost_stream_is_repaired_when_signalled_with_empty_200(self):
+        self._deliver_all()
+        self.h.receiver.state.empty_streams = {("XAUUSD", "M15")}
+        self.h.receiver.state.empty_mode = "200"
+        self.h.engine.sync_once()
+        self.assertTrue(self.h.sent_times(),
+                        "an empty 200 answer must also be read as absence")
+
+    def test_healthy_streams_are_not_resent_while_one_is_repaired(self):
+        self._deliver_all()
+        self.h.receiver.state.empty_streams = {("XAUUSD", "M15")}
+        self.h.engine.sync_once()
+        tfs = {c["timeframe"] for c in self.h.receiver.state.requests}
+        self.assertNotIn("H1", tfs,
+                         "a healthy stream must not be dragged into the repair")
+
+    def test_repair_stops_once_the_receiver_holds_the_stream_again(self):
+        self._deliver_all()
+        self.h.receiver.state.empty_streams = {("XAUUSD", "M15")}
+        self.h.engine.sync_once()
+        self.assertTrue(self.h.sent_times())
+
+        # The receiver has it back; the repair must not repeat forever.
+        self.h.receiver.state.empty_streams = set()
+        self.h.receiver.state.requests = []
+        self.h.engine.sync_once()
+        self.assertEqual(self.h.sent_times(), [],
+                         "an intact stream must not be re-sent again")
+
+    def test_one_failing_stream_does_not_blind_the_others(self):
+        """A stream that cannot be queried must not disable reconciliation."""
+        self._deliver_all()
+        # Drop M15's answer only, by pointing one timeframe at a dead port.
+        original = self.h.client.remote_open_times
+
+        def selective(symbol, timeframe):
+            if timeframe == "M15":
+                raise ReceiverError("UNREACHABLE", "stream query failed")
+            return original(symbol, timeframe)
+
+        self.h.client.remote_open_times = selective
+        self.h.engine.sync_once()
+        # H1 is intact and acknowledged, so it must still not be re-sent.
+        self.assertEqual(self.h.sent_times(), [],
+                         "an unanswered stream must fall back to the ledger")
+
+
+class ReceiverProbeOrderTest(unittest.TestCase):
+    """The server status must not stay STARTING while the server is reachable.
+
+    The probe used to run after `_ensure_reader`, so a missing MT5 terminal
+    raised first and the status stayed STARTING although /health answered.
+    """
+
+    def setUp(self):
+        self.h = EngineHarness(timeframes=["M15"])
+        self.addCleanup(self.h.close)
+
+    def test_status_is_online_even_when_the_terminal_is_down(self):
+        self.h.terminal.available = False
+        try:
+            self.h.engine.sync_once()
+        except Exception:
+            pass  # the MT5 failure is expected; the probe is what matters
+        self.assertEqual(self.h.engine.status()["receiver_state"], "ONLINE",
+                         "a reachable server must report ONLINE")
+
+    def test_status_reports_auth_failure_not_starting(self):
+        self.h.client._token = "wrong-token"
+        try:
+            self.h.engine.sync_once()
+        except Exception:
+            pass
+        self.assertEqual(self.h.engine.status()["receiver_state"],
+                         "AUTH_FAILED")
+
+
 if __name__ == "__main__":
     unittest.main()

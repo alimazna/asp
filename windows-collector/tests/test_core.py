@@ -392,6 +392,67 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(plan.send_count, 0)
         self.assertTrue(any("we do not have locally" in n for n in plan.notes))
 
+    def test_authoritative_empty_stream_is_resent_despite_the_ledger(self):
+        """T41: a receiver that lost a stream must be repaired.
+
+        The ledger says all three candles were delivered. The receiver answers
+        for this stream with nothing. The ledger must not win: an authoritative
+        empty answer is proof of absence, unlike an unanswered query.
+        """
+        base = m15(1700000000)
+        times = [base + i * M15_STEP for i in range(3)]
+        local = {("XAUUSD", "M15"): times}
+        acked = {("XAUUSD", "M15"): times}
+        remote = {("XAUUSD", "M15"): []}
+        plan = plan_delivery("dest", local, remote, acked,
+                             empty_streams={("XAUUSD", "M15")})
+        self.assertEqual(plan.send_count, 3)
+        self.assertEqual(plan.queue[0].open_time_utc, base)
+        self.assertEqual(plan.queue[-1].open_time_utc, base + 2 * M15_STEP)
+        self.assertTrue(any("reports nothing for this stream" in n
+                            for n in plan.notes))
+
+    def test_empty_answer_without_the_flag_still_suppresses(self):
+        """The flag is what carries the meaning, not the empty list alone.
+
+        A caller that cannot tell an empty answer from no answer passes no flag
+        and keeps the old, safe behaviour.
+        """
+        base = m15(1700000000)
+        times = [base + i * M15_STEP for i in range(3)]
+        plan = plan_delivery("dest", {("XAUUSD", "M15"): times},
+                             {("XAUUSD", "M15"): []},
+                             {("XAUUSD", "M15"): times})
+        self.assertEqual(plan.send_count, 0)
+
+    def test_unanswered_stream_uses_the_ledger_not_the_empty_list(self):
+        """An unreachable stream must not be re-planned, or an outage storms."""
+        base = m15(1700000000)
+        times = [base + i * M15_STEP for i in range(4)]
+        local = {("XAUUSD", "M15"): times}
+        acked = {("XAUUSD", "M15"): times[:3]}
+        # The stream is absent from `remote` entirely: it could not be asked.
+        plan = plan_delivery("dest", local, {}, acked)
+        self.assertEqual(plan.send_count, 1)
+        self.assertEqual(plan.queue[0].open_time_utc, base + 3 * M15_STEP)
+
+    def test_empty_stream_repair_is_scoped_to_that_stream(self):
+        """Repairing one lost stream must not disturb the healthy ones."""
+        base = m15(1700000000)
+        local = {
+            ("XAUUSD", "M15"): [base, base + M15_STEP],
+            ("XAUUSD", "H1"): [base],
+        }
+        acked = {
+            ("XAUUSD", "M15"): [base, base + M15_STEP],
+            ("XAUUSD", "H1"): [base],
+        }
+        remote = {("XAUUSD", "M15"): [], ("XAUUSD", "H1"): [base]}
+        plan = plan_delivery("dest", local, remote, acked,
+                             empty_streams={("XAUUSD", "M15")})
+        self.assertEqual([k.timeframe for k in plan.queue], ["M15", "M15"])
+        self.assertEqual(plan.send_count, 2)
+
     def test_catchup_is_bounded_and_oldest_first(self):
         base = m15(1700000000)
         local = [base + i * M15_STEP for i in range(20)]
@@ -873,6 +934,71 @@ class RealServerContractTest(unittest.TestCase):
         finally:
             con.close()
         self.assertEqual(rows, 0, "proving a token must not store a candle")
+
+
+class BatchGroupingTest(unittest.TestCase):
+    """T42: request grouping must fill batches without reordering a stream.
+
+    Untested before, which is how a 23x request overhead shipped: nine
+    timeframes interleaved chronologically produced 1,197 requests for 2,700
+    candles, 700 of them carrying a single candle.
+    """
+
+    def _queue(self, timeframes, bars, base=1800000000):
+        step = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600,
+                "H4": 14400, "D1": 86400, "W1": 604800, "MN1": 2592000}
+        keys = [CandleKey("XAUUSD", tf, base - i * step[tf])
+                for i in range(bars) for tf in timeframes]
+        return sort_keys(keys)
+
+    def test_batches_fill_to_the_cap_across_interleaved_streams(self):
+        from collector.engine import _group_batches, BATCH_SIZE
+        queue = self._queue(TIMEFRAMES, 300)
+        batches = _group_batches(queue)
+        self.assertEqual(len(queue), 2700)
+        # Every batch but the last per stream is full.
+        sizes = {}
+        for _, _, keys in batches:
+            sizes[len(keys)] = sizes.get(len(keys), 0) + 1
+        self.assertEqual(sizes.get(1, 0), 0,
+                         "no batch may carry a single candle")
+        self.assertEqual(sum(sizes.values()), len(batches))
+        self.assertLessEqual(len(batches), 60,
+                             f"expected ~54 batches, got {len(batches)}")
+
+    def test_a_batch_never_spans_two_streams(self):
+        from collector.engine import _group_batches
+        for _, _, keys in _group_batches(self._queue(TIMEFRAMES, 5)):
+            self.assertEqual(len({(k.symbol, k.timeframe) for k in keys}), 1)
+
+    def test_candles_within_a_stream_stay_ascending(self):
+        from collector.engine import _group_batches
+        for _, _, keys in _group_batches(self._queue(TIMEFRAMES, 120)):
+            times = [k.open_time_utc for k in keys]
+            self.assertEqual(times, sorted(times))
+
+    def test_batches_are_ordered_chronologically_across_streams(self):
+        from collector.engine import _group_batches
+        batches = _group_batches(self._queue(["M15", "H1"], 40))
+        firsts = [keys[0].open_time_utc for _, _, keys in batches]
+        self.assertEqual(firsts, sorted(firsts))
+
+    def test_finer_timeframe_first_at_a_shared_instant(self):
+        from collector.engine import _group_batches
+        base = 1800000000
+        queue = sort_keys([CandleKey("XAUUSD", "H1", base),
+                           CandleKey("XAUUSD", "M15", base)])
+        batches = _group_batches(queue)
+        self.assertEqual([b[1] for b in batches], ["M15", "H1"])
+
+    def test_batching_is_deterministic(self):
+        from collector.engine import _group_batches
+        queue = self._queue(TIMEFRAMES, 30)
+        self.assertEqual(_group_batches(queue), _group_batches(queue))
+
+    def test_empty_queue_yields_no_batches(self):
+        from collector.engine import _group_batches
+        self.assertEqual(_group_batches([]), [])
 
 
 if __name__ == "__main__":

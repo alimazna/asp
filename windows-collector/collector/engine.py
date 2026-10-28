@@ -24,7 +24,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set
 
 from . import planner as planning
 from .config import CollectorConfig
@@ -134,6 +134,11 @@ class SyncEngine:
         self._remote_cache: Dict[tuple, List[int]] = {}
         self._remote_cache_at: float = 0.0
         self._primed_destinations: set = set()
+        #: (symbol, timeframe) pairs the receiver answered for with no candles.
+        #: An authoritative absence, so the ledger must not suppress the repair.
+        self._empty_streams: Set[tuple] = set()
+        #: True when any stream query went unanswered this pass.
+        self._receiver_unreachable = False
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -213,6 +218,10 @@ class SyncEngine:
 
     def sync_once(self) -> planning.DeliveryPlan:
         """Run one full pass. Returns the plan that was executed."""
+        # Probe the receiver first. It needs no MT5 access, so a dead or
+        # not-yet-connected terminal must not leave the server status stuck on
+        # STARTING while the server is in fact reachable and answering.
+        self._probe_receiver()
         self._ensure_reader()
 
         # 1. Read and store the newest closed candle per timeframe. A fault on
@@ -238,7 +247,6 @@ class SyncEngine:
         remote = self._receiver_open_times()
         acknowledged = self._acknowledged_open_times()
         self._reconcile(remote)
-        self._probe_receiver()
 
         # 3. Plan.
         local = self._local_open_times()
@@ -246,7 +254,8 @@ class SyncEngine:
             destination=self._status.destination,
             local_open_times=local,
             remote_open_times=remote,
-            acknowledged=acknowledged)
+            acknowledged=acknowledged,
+            empty_streams=self._empty_streams)
 
         # 4. First contact with this destination: prime a bounded window.
         self._apply_prime(plan, local, remote, acknowledged)
@@ -330,16 +339,42 @@ class SyncEngine:
         return newest.open_time_utc
 
     def _receiver_open_times(self) -> Dict[tuple, List[int]]:
-        """What the receiver holds, per stream. Empty on failure (the local
-        ledger then acts as the fallback), never invented."""
+        """What the receiver holds, per stream.
+
+        Two failure modes are deliberately distinguished, because collapsing
+        them is what let a receiver that lost a stream go unrepaired:
+
+          * the receiver answered and named candles -> that inventory is used;
+          * the receiver answered and named none     -> recorded in
+            ``_empty_streams`` as an authoritative absence, so the ledger does
+            not suppress the repair;
+          * the receiver could not be asked           -> that stream is left
+            out entirely, so the local ledger covers it and a network outage
+            does not trigger a resend storm.
+
+        Each stream is queried independently. A single failing stream must not
+        blind the other eight: the previous all-or-nothing return meant one bad
+        timeframe silently disabled reconciliation for every timeframe.
+        """
         result: Dict[tuple, List[int]] = {}
+        empty: Set[tuple] = set()
         for timeframe in self._config.timeframes:
             symbol = self._symbol()
             try:
-                result[(symbol, timeframe)] = \
-                    self._client.remote_open_times(symbol, timeframe)
-            except ReceiverError:
-                return {}
+                times = self._client.remote_open_times(symbol, timeframe)
+            except ReceiverError as exc:
+                # No answer for this stream. Left out of both maps so the
+                # ledger acts as the fallback for it alone.
+                if exc.code in ("UNREACHABLE", "TIMEOUT"):
+                    self._receiver_unreachable = True
+                continue
+            if times is None:
+                self._receiver_unreachable = True
+                continue
+            result[(symbol, timeframe)] = times
+            if not times:
+                empty.add((symbol, timeframe))
+        self._empty_streams = empty
         return result
 
     def _acknowledged_open_times(self) -> Dict[tuple, List[int]]:
@@ -806,21 +841,32 @@ def _step_seconds(timeframe: str) -> Optional[int]:
 def _group_batches(queue: Sequence[CandleKey]):
     """Split the ordered queue into (symbol, timeframe, keys) batches.
 
-    Order is preserved globally: batches are emitted in the order their first
-    candle appears, so the receiver still sees a single chronological stream.
-    A stream change forces a new batch, which keeps one request to one stream.
+    One request carries one stream: the ingest endpoint takes a single
+    ``symbol`` and ``timeframe``, so a batch can never span two streams.
+
+    Batching per stream *before* ordering is what makes the requests efficient.
+    Splitting a single chronological queue instead forces a new batch at every
+    stream change, and with nine timeframes interleaved by timestamp that is
+    almost every candle: measured at 1,197 requests for 2,700 candles, of which
+    700 carried a single candle, against an ideal of 54.
+
+    The receiver still sees a single chronological stream, because the batches
+    themselves are ordered by their first candle. Within a stream, candles are
+    already ascending, so no candle is ever delivered ahead of an earlier one.
     """
-    batches: List[tuple] = []
-    current: List[CandleKey] = []
-    current_stream = None
+    per_stream: Dict[tuple, List[CandleKey]] = {}
     for key in queue:
-        stream = (key.symbol, key.timeframe)
-        if current and (stream != current_stream or len(current) >= BATCH_SIZE):
-            batches.append((current_stream[0], current_stream[1], current))
-            current = []
-        if not current:
-            current_stream = stream
-        current.append(key)
-    if current and current_stream:
-        batches.append((current_stream[0], current_stream[1], current))
+        per_stream.setdefault((key.symbol, key.timeframe), []).append(key)
+
+    batches: List[tuple] = []
+    for (symbol, timeframe), keys in per_stream.items():
+        keys = sorted(keys, key=lambda k: k.open_time_utc)
+        for start in range(0, len(keys), BATCH_SIZE):
+            batches.append((symbol, timeframe, keys[start:start + BATCH_SIZE]))
+
+    # Chronological across streams: a batch is placed by its oldest candle, and
+    # ties go to the finer timeframe so the receiver gets the finer context
+    # first at a shared instant.
+    batches.sort(key=lambda b: (b[2][0].open_time_utc,
+                                timeframe_rank(b[1])))
     return batches

@@ -86,7 +86,8 @@ class ReceiverClient:
 
     def _request(self, path: str, method: str = "GET",
                  body: Optional[bytes] = None,
-                 params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+                 params: Optional[Dict[str, str]] = None,
+                 no_data_on_503: bool = False) -> Dict[str, Any]:
         if not self.base_url:
             raise ReceiverError("NO_DESTINATION", "no receiver URL configured")
         url = self.base_url + path
@@ -115,6 +116,15 @@ class ReceiverClient:
             if exc.code == 429:
                 raise ReceiverError("RATE_LIMITED",
                                     "receiver rate limit reached") from None
+            if exc.code == 503 and no_data_on_503:
+                # The ASTRA server answers a candle query for a stream it holds
+                # nothing for with 503 `dependency_unavailable`, not 200 with an
+                # empty array. That is an authoritative "this stream is empty",
+                # which the caller must be able to tell apart from an
+                # unreachable receiver.
+                raise ReceiverError("NO_DATA",
+                                    "receiver holds no data for this stream") \
+                    from None
             raise ReceiverError("HTTP_ERROR",
                                 f"receiver returned HTTP {exc.code}: "
                                 f"{_safe_message(payload)}") from None
@@ -164,17 +174,31 @@ class ReceiverClient:
         self._request(SYNC_PATH)
 
     def remote_open_times(self, symbol: str,
-                          timeframe: str) -> List[int]:
+                          timeframe: str) -> Optional[List[int]]:
         """The receiver's authoritative open times for one stream.
+
+        Returns a sorted list when the receiver answered, and ``None`` when it
+        could not be asked. An empty list is a real answer meaning the receiver
+        holds nothing for this stream — that distinction is the whole point of
+        the return type, because a caller that treats "no answer" and "answered
+        empty" alike will suppress the repair of a stream the receiver lost.
+
+        The ASTRA server signals an empty stream with HTTP 503
+        ``dependency_unavailable``; that is translated to an empty list here.
 
         The ASTRA server answers ``/candles`` with ``data.bars[]`` where each bar
         carries ``time`` (the open time in epoch seconds). A summary form
         (``open_times``) and a generic ``candles`` list are also accepted so the
-        client is not welded to one receiver build. An empty result is reported
-        as empty, never guessed.
+        client is not welded to one receiver build.
         """
-        response = self._request(CANDLES_PATH, params={
-            "symbol": symbol, "timeframe": timeframe, "limit": "100000"})
+        try:
+            response = self._request(CANDLES_PATH, params={
+                "symbol": symbol, "timeframe": timeframe, "limit": "100000"},
+                no_data_on_503=True)
+        except ReceiverError as exc:
+            if exc.code == "NO_DATA":
+                return []
+            raise
         data = response.get("data", response)
         if not isinstance(data, dict):
             return []
