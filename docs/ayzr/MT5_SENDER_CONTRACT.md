@@ -70,28 +70,41 @@ Fields:
 
 Per-candle fields: `time` (epoch seconds, required), `open/high/low/close`
 (required), `tick_volume`, `spread`, `real_volume` (optional; never fabricated —
-omit rather than send 0 for a field the source does not provide).
+omit rather than send 0 for a field the source does not provide). An optional
+`uid` (string) is a sender-chosen correlation id: it is echoed back on the
+matching ack entry and never persisted, so the sender can reconcile its local
+ledger by its own identifier rather than a re-derived key.
 
 ## 3. Response
 
-`200 OK` with the standard envelope:
+`200 OK` with the standard envelope. The envelope is `{"api":"v1","schema":"1.0","data":…}`
+— `api` is the API major version string `"v1"` and `schema` is the schema version
+string `"1.0"` (see `foundation/SchemaVersion.h`). This was verified against the
+running binary, not copied from an earlier draft.
 
 ```json
 {
-  "api": "astra",
-  "schema": 1,
+  "api": "v1",
+  "schema": "1.0",
   "data": {
     "source_id": "sender-pc-1",
     "symbol": "XAUUSD",
     "timeframe": "M15",
     "received": 1792045900,
-    "accepted":   [{"identity": "symbol=XAUUSD&timeframe=M15&open_time=1792045800", "state": "stored_new"}],
-    "duplicates": [{"identity": "...", "state": "already_stored"}],
-    "rejected":   [{"state": "rejected", "reason": "candle OHLC ordering violated"}],
+    "accepted":   [{"identity": "symbol=XAUUSD&timeframe=M15&open_time=1792045800", "state": "stored_new", "uid": "SENDER-42"}],
+    "duplicates": [{"identity": "...", "state": "already_stored", "uid": "SENDER-42"}],
+    "rejected":   [{"identity": "symbol=XAUUSD&timeframe=M15&open_time=1792045800", "state": "rejected", "reason": "candle rejected: candle OHLC ordering violated"}],
     "ingested": 1
   }
 }
 ```
+
+Every entry carries an `identity` the sender matches on, and the `uid` it sent
+when it supplied one. A rejection that fails before `time` could be read falls
+back to `"uid": "…"` (or `symbol=…&timeframe=…` when there is no uid either), so
+no ack entry is ever uncorrelated. A sender that cannot match an entry can never
+mark that candle confirmed, so an uncorrelated rejection would be retried
+forever — this is why the identity is mandatory.
 
 `ingested` counts only rows **persisted** this call. A row already present is a
 `duplicate` (`already_stored`) and does not increment `ingested` — this is the
@@ -102,14 +115,22 @@ persistence acknowledgment, distinct from mere HTTP receipt.
 | Code | Meaning |
 |------|---------|
 | 200 | Request handled; inspect `accepted`/`duplicates`/`rejected` |
-| 400 | Malformed JSON or missing top-level fields |
-| 401 | Missing/invalid sender bearer token |
-| 413 | Request body exceeds `ASTRA_MAX_REQUEST_BYTES` |
-| 429 | Rate limit exceeded (`Retry-After: 60`) |
-| 500 | Persistence failure (transaction rolled back) |
+| 400 | Malformed JSON, missing top-level fields (`missing_fields`), or unsupported `timeframe` (`invalid_timeframe`) |
+| 401 | Missing/invalid sender bearer token (`unauthorized`) |
+| 405 | Wrong HTTP method on the ingest route (`method_not_allowed`) |
+| 413 | Batch exceeds `ASTRA_MAX_CANDLES_PER_BATCH` (default 500) — `batch_too_large` |
+| 429 | Rate limit exceeded (`Retry-After: 60`, `rate_limited`) |
+| 500 | Persistence failure; transaction rolled back (`store_failure`) |
+| 503 | A read route has no data for the requested series (`dependency_unavailable`) |
 
-Error body: `{"api":"astra","schema":1,"error":{"code":"...","message":"..."}}`.
-No stack traces or internal details are returned.
+Error body is **not** wrapped in the `api`/`schema` envelope; it is flat:
+
+```json
+{"error":"true","code":"unauthorized","message":"a valid sender bearer token is required"}
+```
+
+`error` is the JSON string `"true"`, not a boolean (contract detail in
+`BackendApiSchema.cpp`). No stack traces or internal details are returned.
 
 ## 5. Sync / reconciliation
 
@@ -123,24 +144,37 @@ scope by its own `source_id`; another sender's watermark is not delivery proof.
   `already_stored`.
 - Retry only on 5xx / 429 / transport errors, with bounded exponential backoff.
 - Treat 400 as terminal (fix the payload); do not retry.
-- Recommended batch size: <= 1000 candles; the server caps the body size.
+- Batch size is capped at `ASTRA_MAX_CANDLES_PER_BATCH` (default 500); exceeding
+  it returns 413 `batch_too_large` for the whole request.
+- A 200 is a persistence acknowledgment: check `ingested` and the `accepted`
+  list. A `rejected` entry is terminal for that candle — do not resend it
+  unchanged.
 
 ## 7. Environment variables (server side)
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `ASTRA_SENDER_TOKEN` | yes | bearer token accepted for ingest/sync |
+| `ASTRA_CLIENT_TOKEN` | no | read-only credential for the Android client |
 | `ASTRA_ADMIN_TOKEN` | no | separate credential for admin routes |
-| `ASTRA_MAX_REQUEST_BYTES` | no | body cap (default 1 MiB) |
-| `ASTRA_INGEST_REQUESTS_PER_MINUTE` | no | per-credential rate limit |
+| `ASTRA_MAX_CANDLES_PER_BATCH` | no | candles per batch (default 500) |
+| `ASTRA_MAX_CONCURRENT_CONNECTIONS` | no | connection cap (default 256) |
+| `ASTRA_INGEST_RATE_PER_MIN` | no | per-credential ingest rate limit (default 240) |
+| `ASTRA_SYNC_RATE_PER_MIN` | no | per-credential sync rate limit (default 240) |
+| `ASTRA_ALLOWED_ORIGINS` | no | comma-separated CORS allowlist |
 | `ASTRA_DATA_DIR` | no | SQLite location (Railway volume) |
+
+The request body cap is a fixed 1 MiB (`AstraApiServer.h#maxRequestBytes`); it is
+not environment-configurable, so there is no `ASTRA_MAX_REQUEST_BYTES`.
 
 ## 8. Local verification (mock sender)
 
-`tests/NewsApiIntegrationTests.cpp` and `tests/AstraApiServerTests.cpp` drive the
-real server with mock batches. A standalone mock sender is provided at
-`tools/ayzr_agents/mock_sender.py` for manual end-to-end checks against a local
-instance:
+`tests/IngestContractTests.cpp` runs the **real** `astra_server` binary over real
+HTTP against a real SQLite file, covering the broker-clock offset, idempotent
+replay, future-bar rejection, and ack correlation. `tests/AstraApiServerTests.cpp`
+and `tests/NewsApiIntegrationTests.cpp` drive the same server with mock batches. A
+standalone mock sender is provided at `tools/ayzr_agents/mock_sender.py` for
+manual end-to-end checks against a local instance:
 
 ```bash
 ASTRA_SENDER_TOKEN=dev-token ./build-linux/astra_server --data-dir /tmp/astra-demo --port 8790 &

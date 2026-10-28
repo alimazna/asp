@@ -348,3 +348,138 @@ TEST_CASE(broker_clock_offset_is_honored_for_intraday_bars) {
     fs::remove_all(tmp, ec);
 #endif
 }
+
+// INGEST-ACK-0001 - every entry in the ingest ack must name the candle it
+// refers to, and a sender-supplied `uid` must be echoed back unchanged.
+//
+// A sender reconciles its local ledger against the ack: an accepted/duplicate/
+// rejected entry it cannot correlate is a candle it can never mark confirmed,
+// so it retries forever. Two defects were found against the real binary:
+//   * `uid` was parsed off the wire and then dropped, so the sender's own
+//     correlation id never came back; and
+//   * validation-level rejections (bad OHLC, misaligned grid, missing `time`)
+//     emitted only a free-text `reason` with no `identity`, so a rejected
+//     candle was indistinguishable from an unconfirmed one.
+//
+// This runs the REAL astra_server binary over real HTTP, so either regression
+// fails the test. Linux-only.
+TEST_CASE(ingest_ack_correlates_every_candle_by_identity_and_echoes_uid) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    fs::path exe;
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) {
+            exe = candidate;
+            break;
+        }
+    }
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-ack-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t offset = 3 * 3600;   // a UTC+3 broker
+        const std::int64_t openM15 = ((now + offset) / 900) * 900 - 900;
+
+        // 1. A stored candle echoes the sender's uid verbatim.
+        const std::string withUid =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-42\","
+            "\"time\":" + std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse stored = postIngest(port, withUid);
+        CHECK(stored.is2xx());
+        CHECK(stored.body.find("\"state\":\"stored_new\"") != std::string::npos);
+        CHECK(stored.body.find("\"uid\":\"SENDER-42\"") != std::string::npos);
+        // The uid field must be well-formed JSON, not a double-quoted literal.
+        CHECK(stored.body.find("\"uid\":\"\"SENDER-42\"\"") ==
+              std::string::npos);
+
+        // 2. The dedupe ack carries the same uid, so a replay is matchable too.
+        const HttpResponse dup = postIngest(port, withUid);
+        CHECK(dup.is2xx());
+        CHECK(dup.body.find("\"state\":\"already_stored\"") != std::string::npos);
+        CHECK(dup.body.find("\"uid\":\"SENDER-42\"") != std::string::npos);
+
+        // 3. A validation-level rejection names the candle by identity (here an
+        //    OHLC-ordering violation, where `time` is present and usable).
+        const std::string badOhlc =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-43\","
+            "\"time\":" + std::to_string(openM15 + 900) +
+            ",\"open\":1900,\"high\":1880,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse rej = postIngest(port, badOhlc);
+        CHECK(rej.is2xx());
+        CHECK(rej.body.find("\"state\":\"rejected\"") != std::string::npos);
+        CHECK(rej.body.find("\"identity\":\"symbol=XAUUSD&timeframe=M15&"
+                            "open_time=" +
+                            std::to_string(openM15 + 900) + "\"") !=
+              std::string::npos);
+
+        // 4. When `time` itself is missing the derived key is meaningless, so
+        //    the uid is the only correlate and must be used instead of an
+        //    empty identity.
+        const std::string noTime =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-44\","
+            "\"open_time_utc\":" + std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905}]}";
+        const HttpResponse rejNoTime = postIngest(port, noTime);
+        CHECK(rejNoTime.is2xx());
+        CHECK(rejNoTime.body.find("\"state\":\"rejected\"") != std::string::npos);
+        CHECK(rejNoTime.body.find("\"identity\":\"uid=SENDER-44\"") !=
+              std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}

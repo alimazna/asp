@@ -31,6 +31,10 @@ struct StoredCandle {
     std::int64_t spread = 0;
     std::int64_t realVolume = 0;
     std::int64_t receivedAtUtc = 0; // server accept time, epoch seconds
+    // Sender-supplied correlation id, echoed back in the ack. Not persisted and
+    // not part of the identity: the identity is (sourceId, symbol, timeframe,
+    // openTimeUtc), which is what the store deduplicates on.
+    std::string uid;
 };
 
 // Per-candle result of an insert attempt.

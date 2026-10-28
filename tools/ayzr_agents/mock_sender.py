@@ -50,10 +50,10 @@ def batch():
         "symbol": SYMBOL,
         "timeframe": TIMEFRAME,
         "candles": [
-            {"time": BASE_TIME, "open": 2650.0, "high": 2655.0,
+            {"uid": "mock-1", "time": BASE_TIME, "open": 2650.0, "high": 2655.0,
              "low": 2648.0, "close": 2654.0, "tick_volume": 100},
-            {"time": BASE_TIME + 900, "open": 2654.0, "high": 2660.0,
-             "low": 2652.0, "close": 2658.0, "tick_volume": 120},
+            {"uid": "mock-2", "time": BASE_TIME + 900, "open": 2654.0,
+             "high": 2660.0, "low": 2652.0, "close": 2658.0, "tick_volume": 120},
         ],
     }
 
@@ -65,8 +65,8 @@ def invalid_batch():
         "timeframe": TIMEFRAME,
         "candles": [
             # high < low: must be rejected.
-            {"time": BASE_TIME + 1800, "open": 2658.0, "high": 2650.0,
-             "low": 2665.0, "close": 2660.0},
+            {"uid": "mock-bad", "time": BASE_TIME + 1800, "open": 2658.0,
+             "high": 2650.0, "low": 2665.0, "close": 2660.0},
         ],
     }
 
@@ -86,8 +86,11 @@ def main():
     status, body = post(args.host, args.port, "/api/v1/candles/ingest",
                         args.token, batch())
     ingested = body.get("data", {}).get("ingested")
-    print(f"[1] first send: HTTP {status}, ingested={ingested}")
-    ok &= status == 200 and ingested == 2
+    accepted = body.get("data", {}).get("accepted", [])
+    # The ack must echo the sender's own uid so the sender can reconcile.
+    uids = {e.get("uid") for e in accepted}
+    print(f"[1] first send: HTTP {status}, ingested={ingested}, uids={sorted(uids)}")
+    ok &= status == 200 and ingested == 2 and uids == {"mock-1", "mock-2"}
 
     status, body = post(args.host, args.port, "/api/v1/candles/ingest",
                         args.token, batch())
@@ -99,8 +102,12 @@ def main():
     status, body = post(args.host, args.port, "/api/v1/candles/ingest",
                         args.token, invalid_batch())
     rejected = body.get("data", {}).get("rejected", [])
-    print(f"[3] invalid OHLC: HTTP {status}, rejected={len(rejected)}")
-    ok &= status == 200 and len(rejected) == 1
+    # A rejection must name the candle (identity), or the sender can never
+    # mark it resolved and will retry it forever.
+    named = all(e.get("identity") for e in rejected)
+    print(f"[3] invalid OHLC: HTTP {status}, rejected={len(rejected)}, "
+          f"named={named}")
+    ok &= status == 200 and len(rejected) == 1 and named
 
     status, body = get(args.host, args.port,
                        "/api/v1/sync/latest?source_id=mock-sender", args.token)

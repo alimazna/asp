@@ -248,6 +248,22 @@ ApiResponse storeFailureResponse(const std::string& context,
                          "persistence failed; the server log has the detail");
 }
 
+// The identity echoed in the ack for a candle that was rejected before it
+// reached the store. A validation failure can leave openTimeUtc at 0 (the
+// 'time' field itself was missing), so fall back to the sender's uid when the
+// derived key would be meaningless. `identity` is what a sender matches on; a
+// value it cannot correlate is worse than a free-text reason.
+std::string candleIdentity(const JsonValue& item, const StoredCandle& c) {
+    if (c.openTimeUtc > 0) {
+        return "symbol=" + c.symbol + "&timeframe=" + c.timeframe +
+               "&open_time=" + std::to_string(c.openTimeUtc);
+    }
+    if (item["uid"].isString() && !item["uid"].asString().empty()) {
+        return "uid=" + item["uid"].asString();
+    }
+    return "symbol=" + c.symbol + "&timeframe=" + c.timeframe;
+}
+
 }  // namespace
 }  // namespace aura
 
@@ -479,16 +495,26 @@ int main(int argc, char** argv) {
         const std::int64_t brokerNow = now + clockOffsetSeconds;
 
         std::vector<StoredCandle> candles;
+        // Validation-level rejections, kept parallel to the candles that failed
+        // so the ack can name each one by identity. A free-text reason alone is
+        // not actionable: the sender matches acknowledgments by identity, and a
+        // rejection it cannot match looks like an unconfirmed candle it must
+        // retry forever.
         std::vector<std::string> rejections;
+        std::vector<std::string> rejectionIdentities;
         for (const auto& item : candlesJson.items()) {
             StoredCandle c;
             c.sourceId = source;
             c.symbol = symbol;
             c.timeframe = timeframe;
             c.receivedAtUtc = now;
+            // Echo the sender's own uid when it supplies one, so the ack is
+            // matched by the sender's identifier rather than a re-derived key.
+            if (item["uid"].isString()) c.uid = item["uid"].asString();
             std::string candleError;
             if (!parseCandle(item, c, candleError, clockOffsetSeconds)) {
                 rejections.push_back("candle rejected: " + candleError);
+                rejectionIdentities.push_back(candleIdentity(item, c));
                 continue;
             }
             // A candle whose opening time is not on its timeframe grid is not
@@ -499,6 +525,7 @@ int main(int argc, char** argv) {
                 rejections.push_back(
                     "candle rejected: open_time not aligned to timeframe " +
                     timeframe);
+                rejectionIdentities.push_back(candleIdentity(item, c));
                 continue;
             }
             candles.push_back(std::move(c));
@@ -542,27 +569,42 @@ int main(int argc, char** argv) {
         std::vector<std::string> accepted;
         std::vector<std::string> duplicates;
         std::vector<std::string> rejectedResults;
-        for (const auto& r : results) {
+        // `results` is produced in the same order as `candles` (the store
+        // iterates the batch in order), so a stored result at index i belongs to
+        // the candle that carried uid `candles[i].uid`.
+        for (std::size_t i = 0; i < results.size(); ++i) {
+            const auto& r = results[i];
             std::string identity =
                 "symbol=" + r.symbol + "&timeframe=" + r.timeframe +
                 "&open_time=" + std::to_string(r.openTimeUtc);
+            std::string uidField;
+            if (i < candles.size() && !candles[i].uid.empty()) {
+                uidField = ",\"uid\":" + jsonString(candles[i].uid);
+            }
             if (r.state == "stored_new") {
                 accepted.push_back("{\"identity\":\"" + identity +
-                                   "\",\"state\":\"stored_new\"}");
+                                   "\",\"state\":\"stored_new\"" + uidField +
+                                   "}");
             } else if (r.state == "already_stored") {
                 duplicates.push_back("{\"identity\":\"" + identity +
-                                     "\",\"state\":\"already_stored\"}");
+                                     "\",\"state\":\"already_stored\"" +
+                                     uidField + "}");
             } else {
                 rejectedResults.push_back(
                     "{\"identity\":\"" + identity + "\",\"state\":\"rejected\"," +
-                    "\"reason\":\"" + jsonString(r.reason) + "\"}");
+                    "\"reason\":" + jsonString(r.reason) + uidField + "}");
             }
         }
-        // Pre-parse rejections from validation bound to the batch.
+        // Pre-parse rejections from validation bound to the batch. Each carries
+        // the same identity the sender matches on, so a rejected candle is
+        // actionable and cannot be mistaken for an unconfirmed one.
         std::vector<std::string> batchRejections;
-        for (const auto& rej : rejections) {
-            batchRejections.push_back("{\"state\":\"rejected\",\"reason\":" +
-                                      jsonString(rej) + "}");
+        for (std::size_t i = 0; i < rejections.size(); ++i) {
+            const std::string identity =
+                i < rejectionIdentities.size() ? rejectionIdentities[i] : "";
+            batchRejections.push_back(
+                "{\"identity\":\"" + identity + "\",\"state\":\"rejected\"," +
+                "\"reason\":" + jsonString(rejections[i]) + "}");
         }
 
         std::vector<ApiField> fields;
