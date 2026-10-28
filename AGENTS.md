@@ -306,3 +306,30 @@ Rules:
   `update-ca-certificates`) rather than passing `CURL_CA_BUNDLE` to the server
   process; then point `*_BASE_URL` at `https://127.0.0.1:<port>/...` and read
   `/api/v1/news/quota` back over real HTTP. Remove the CA afterwards.
+
+## Sender contract: reconciliation + auth classification (2026-10-28)
+
+- The standalone sender keys its delivery ledger on the instrument name **it**
+  sent — the broker-resolved alias (`GOLD`, `XAUUSD.vx`, …) — not the canonical
+  `XAUUSD` the store folds to. So the source-scoped `GET /api/v1/sync/latest?
+  source_id=` must report that sender's own name in `symbol` (plus
+  `canonical_symbol` for diagnostics). Report only the folded name and a sender
+  that lost its ledger can never match the server watermark: it re-primes its
+  whole history every restart and an acked candle is resent forever.
+  `candles.raw_symbol` (additive migration, legacy rows `''`) carries the
+  verbatim name; empty means "sender used the canonical name".
+- The sender classifies AUTH_FAILED by a dedicated code **or** the word
+  `authorization` in the message. Every sender/admin/client 401 message now
+  starts `authorization failed: ...` while keeping the stable `unauthorized`
+  code and 401 status — otherwise a wrong/rotated token looks like a generic
+  ERROR and sends the operator chasing the terminal.
+- **Quarantine predicate was quadratic.** `cleanSeriesExpr()` /
+  `cleanSourceSeriesExpr()` were correlated `NOT EXISTS` over the outer row, so
+  SQLite re-evaluated the misalignment test once per candidate row (~500 ms on a
+  50k-row series) while holding the store mutex — long enough to starve the
+  ingest writer and hang `AyzrConcurrencyTests` (it was already ~1/8 flaky
+  before). Rewritten as a `DISTINCT` derived table probed by key (~15 ms),
+  proven row-for-row equivalent on a contaminated dataset. If a read holds the
+  mutex for hundreds of ms, suspect this class of correlated subquery.
+- `AyzrConcurrencyTests` must be stress-run (e.g. 8×), not once: a single pass
+  hides the starvation race.
