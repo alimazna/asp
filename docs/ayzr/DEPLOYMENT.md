@@ -44,17 +44,29 @@ reports `unavailable`.
 `ASTRA_SENDER_TOKEN`, `ASTRA_ADMIN_TOKEN` and `ASTRA_CLIENT_TOKEN` **must be three
 different values**: they guard disjoint capabilities (write / destructive / read).
 
-### Required for LLM7 news analysis
+### Required for LLM news analysis
+
+Provider selection is `ASTRA_LLM_PROVIDER`. Set it to `auto` to build an ordered
+failover chain from every provider that has a credential, or pin it to one name
+(`gemini` | `zai` | `mistral` | `llm7`) to isolate that provider. `mock` runs the
+pipeline offline for tests.
 
 | Variable | Purpose |
 |----------|---------|
-| `LLM7_API_TOKEN` | server-side only; never in the APK |
-| `LLM7_BASE_URL` | `https://api.llm7.io/v1` (default) |
-| `LLM7_MODEL` | `nemotron-3-nano:30b` (default) |
-| `ASTRA_LLM_PROVIDER` | `llm7` (prod) or `mock` (tests) |
+| `ASTRA_LLM_PROVIDER` | `auto` (chain) \| `gemini` \| `zai` \| `mistral` \| `llm7` \| `mock` |
+| `ASTRA_LLM_ORDER` | chain order for `auto` (default `gemini,zai,mistral,llm7`); a provider without a credential is skipped |
+| `LLM7_API_TOKEN`, `LLM7_BASE_URL`, `LLM7_MODEL` | LLM7 (OpenAI-compatible); default model `nemotron-3-nano:30b` |
+| `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_MODEL` | Gemini (native `generateContent`); key travels in `X-goog-api-key` |
+| `ZAI_API_KEY`, `ZAI_BASE_URL`, `ZAI_MODEL` | z.ai (OpenAI-compatible) |
+| `MISTRAL_API_KEY`, `MISTRAL_BASE_URL`, `MISTRAL_MODEL` | Mistral (OpenAI-compatible) |
 | `ASTRA_MOCK_LLM_MODE` | with `ASTRA_LLM_PROVIDER=mock`: `valid` (default), `malformed`, `empty`, `timeout`, `rate_limited`, `quota_exhausted`, `auth_failure`, `malformed_then_valid`. An unknown value falls back to `valid` |
 | `LLM7_CONNECT_TIMEOUT_MS`, `LLM7_READ_TIMEOUT_MS`, `LLM7_MAX_ATTEMPTS` | bounded timeouts/retries |
 | `LLM7_QUOTA_FALLBACK_COOLDOWN_S` | cooldown seconds used when a 429 quota response omits a reset time (default 3600) |
+
+Every provider key is a **server-side secret**; none is ever embedded in the
+APK. `GET /api/v1/news/quota` reports the whole-chain verdict
+(`ok` | `degraded` | `all_quota_exhausted` | `all_unavailable` | `no_provider`)
+so the app shows an honest Arabic banner instead of looking broken.
 
 ### Cloudflare database
 Not required. No Cloudflare database is used (see `CLOUDFLARE_DATABASE.md`). The

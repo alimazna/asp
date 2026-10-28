@@ -22,8 +22,10 @@ class NewsScreen extends StatelessWidget {
     return Column(
       children: [
         _filterBar(),
-        if (state.quota.data != null && !state.quota.data!.isOk)
-          QuotaBanner(quota: state.quota.data!),
+        // The banner decides its own visibility: it hides only when every
+        // provider is healthy, so a degraded chain (some keys down) is still
+        // surfaced rather than silently swallowed.
+        if (state.quota.data != null) QuotaBanner(quota: state.quota.data!),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => state.loadNews(),

@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../data/models/health.dart';
 import '../../state/app_state.dart';
 import '../widgets/info_widgets.dart';
+import '../widgets/quota_banner.dart';
 import '../widgets/state_panel.dart';
 
 /// الرئيسية — a calm overview: system health, market state and the latest
@@ -25,6 +26,10 @@ class HomeScreen extends StatelessWidget {
           NoticeBanner.shadow(),
           if (state.isDegraded) NoticeBanner.degraded(),
           if (state.isStale) NoticeBanner.stale(),
+          // The AI provider's health belongs on the landing screen: a spent
+          // budget or a dead key stops all analysis, so the owner must see it
+          // without navigating to الأخبار first.
+          if (state.quota.data != null) QuotaBanner(quota: state.quota.data!),
           _HealthCard(section: state.health),
           const SizedBox(height: 4),
           _MarketStateCard(state: state),

@@ -651,6 +651,30 @@ TEST_CASE(contract_news_list_and_detail_shape_is_stable) {
 // 4. Data-honesty guard: an unknown timestamp is null, never epoch 0.
 // ---------------------------------------------------------------------------
 
+// GET /api/v1/news/quota now also carries the whole-chain availability verdict.
+// The app keys its "all providers down" banner on `chain_summary`; the fields
+// are additive, so the pre-existing keys must remain.
+TEST_CASE(contract_quota_exposes_chain_health) {
+    ContractServer server;
+    std::string error;
+    if (!server.start(error)) {
+        std::cout << "  [SKIP] " << error << "\n";
+        return;
+    }
+    const HttpResponse quota = request(server.port, "GET",
+                                      "/api/v1/news/quota", "client-tok");
+    CHECK_EQ(quota.statusCode, 200);
+    for (const char* key : {"\"quota\"", "\"category\"", "\"cooling_down\"",
+                            "\"quota_exhausted\"", "\"rate_limited\"",
+                            "\"retry_after_seconds\"", "\"chain_summary\"",
+                            "\"providers_configured\"",
+                            "\"all_providers_unavailable\"",
+                            "\"all_providers_quota_exhausted\"",
+                            "\"any_provider_available\"", "\"providers\""}) {
+        CHECK(contains(quota.body, key));
+    }
+}
+
 // A sender may legitimately omit published_at. The API must not present that
 // absence as 1970-01-01, which the client would render as a real date.
 TEST_CASE(contract_missing_publish_time_is_null_not_epoch_zero) {

@@ -219,7 +219,7 @@ class AppState extends ChangeNotifier {
 
   /// Refreshes everything the shell shows at once.
   Future<void> refreshAll() async {
-    await Future.wait([loadHealth(), loadAnalysis()]);
+    await Future.wait([loadHealth(), loadAnalysis(), loadQuota()]);
   }
 
   Future<void> applyConfig(AppConfig next) async {

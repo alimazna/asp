@@ -123,6 +123,52 @@ int GeminiProvider::parseRetryAfterHeader(const std::string& value) {
     }
 }
 
+bool GeminiProvider::isQuotaExhaustedBody(const std::string& body) {
+    // Google reports both a spent quota and a temporary rate limit with HTTP 429
+    // and status RESOURCE_EXHAUSTED, so the status alone cannot tell them apart.
+    // Only the exhaustion-specific wording below counts: a plain rate limit
+    // ("Resource has been exhausted") must stay RateLimited, or the provider
+    // would be cooled down and hidden from the app for a condition that would
+    // have cleared on the next call.
+    std::string b;
+    b.reserve(body.size());
+    for (char c : body) {
+        b.push_back(c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c);
+    }
+    return b.find("exceeded your current quota") != std::string::npos ||
+           b.find("insufficient_quota") != std::string::npos ||
+           b.find("quota_exceeded") != std::string::npos ||
+           b.find("check your plan and billing") != std::string::npos;
+}
+
+int GeminiProvider::parseRetryInfoSeconds(const std::string& body) {
+    // google.rpc.RetryInfo carries `"retryDelay": "3.5s"`. Only a whole-second
+    // or fractional-seconds value ending in `s` is honoured; anything else
+    // (including an absent field) yields -1 = unknown.
+    JsonValue parsed;
+    std::string parseError;
+    if (!JsonValue::parse(body, parsed, parseError)) return -1;
+    const JsonValue& err = parsed["error"];
+    if (!err.isObject()) return -1;
+    const JsonValue& details = err["details"];
+    if (!details.isArray()) return -1;
+    for (const auto& detail : details.items()) {
+        const JsonValue& delay = detail["retryDelay"];
+        if (!delay.isString()) continue;
+        const std::string raw = delay.asString();
+        if (raw.empty() || raw.back() != 's') continue;
+        const std::string num = raw.substr(0, raw.size() - 1);
+        try {
+            const double seconds = std::stod(num);
+            if (seconds < 0) return -1;
+            return static_cast<int>(seconds);
+        } catch (...) {
+            continue;
+        }
+    }
+    return -1;
+}
+
 LlmResult GeminiProvider::complete(const LlmRequest& request) {
     LlmResult result;
     result.provider = config_.providerLabel;
@@ -157,11 +203,18 @@ LlmResult GeminiProvider::complete(const LlmRequest& request) {
     }
 
     if (response.statusCode == 429) {
-        // Google returns RetryInfo in the body; a plain Retry-After header is
-        // also honoured when present. Absent either, the reset is reported as
-        // unknown rather than guessed.
-        result.retryAfterSeconds =
-            parseRetryAfterHeader(response.header("retry-after"));
+        // Google reports both a temporary rate limit and a spent quota as 429.
+        // Refine the outcome and record any reset the provider actually gave
+        // (RetryInfo in the body, or a plain Retry-After header). Absent either,
+        // the reset is reported as unknown rather than guessed.
+        if (isQuotaExhaustedBody(response.body)) {
+            result.outcome = LlmOutcome::QuotaExhausted;
+        }
+        result.retryAfterSeconds = parseRetryAfterHeader(
+            response.header("retry-after"));
+        if (result.retryAfterSeconds < 0) {
+            result.retryAfterSeconds = parseRetryInfoSeconds(response.body);
+        }
     }
 
     if (result.outcome != LlmOutcome::Ok) {

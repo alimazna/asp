@@ -62,6 +62,17 @@ public:
     // report a precise reset the provider never gave us.
     static int parseRetryAfterHeader(const std::string& value);
 
+    // Exposed for tests: does a 429 body indicate a spent quota rather than a
+    // temporary rate limit? Only specific quota markers count, so a plain rate
+    // limit is never mislabelled as exhaustion (which would wrongly cool the
+    // provider down and hide it from the app).
+    static bool isQuotaExhaustedBody(const std::string& body);
+
+    // Exposed for tests: parse a `google.rpc.RetryInfo` `retryDelay` value
+    // (e.g. "3.5s") into whole seconds. Returns -1 when absent or unparseable —
+    // an unknown reset is reported as unknown, never guessed.
+    static int parseRetryInfoSeconds(const std::string& body);
+
 private:
     GeminiConfig config_;
     std::shared_ptr<IOutboundHttpClient> http_;

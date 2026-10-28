@@ -160,6 +160,46 @@ ApiResponse NewsApi::quota(const LlmQuotaState& s) {
                        true, ""};
 }
 
+ApiResponse NewsApi::quota(const LlmQuotaState& s, const ChainHealth& h) {
+    std::vector<ApiField> fields;
+    fields.push_back(stringField("category", s.category));
+    fields.push_back(s.retryAfterKnown()
+                         ? intField("retry_after_seconds", s.retryAfterSeconds)
+                         : rawField("retry_after_seconds", "null"));
+    fields.push_back(intField("last_change_at", s.lastChangeUtc));
+    fields.push_back(intField("last_success_at", s.lastSuccessUtc));
+    fields.push_back(boolField("cooling_down", s.coolingDown));
+    fields.push_back(intField("cooldown_until", s.cooldownUntilUtc));
+    fields.push_back(boolField("quota_exhausted", s.quotaExhausted()));
+    fields.push_back(boolField("rate_limited", s.rateLimited()));
+
+    // Whole-chain availability. `chain_summary` is the machine token the app
+    // keys its banner on; the per-provider rows let it name which credential is
+    // down without a second request. Labels and counts only — no key material.
+    std::vector<std::string> providers;
+    providers.reserve(h.providers.size());
+    for (const auto& p : h.providers) {
+        providers.push_back(jsonObject({
+            stringField("provider", p.label),
+            stringField("last_outcome", p.lastOutcome),
+            boolField("unavailable", p.knownUnavailable),
+            boolField("quota_exhausted", p.quotaExhausted),
+        }));
+    }
+    fields.push_back(stringField("chain_summary", h.summary));
+    fields.push_back(intField("providers_configured", h.configured));
+    fields.push_back(intField("providers_unavailable", h.knownUnavailable));
+    fields.push_back(intField("providers_quota_exhausted", h.quotaExhausted));
+    fields.push_back(boolField("any_provider_available", h.anyAvailable));
+    fields.push_back(boolField("all_providers_unavailable", h.allUnavailable));
+    fields.push_back(boolField("all_providers_quota_exhausted",
+                               h.allQuotaExhausted));
+    fields.push_back(rawField("providers", jsonArray(providers)));
+    return ApiResponse{200, "application/json",
+                       envelope(jsonObject({rawField("quota", jsonObject(fields))})),
+                       true, ""};
+}
+
 ApiResponse NewsApi::history(const std::vector<NewsAnalysis>& analyses,
                              const std::vector<NewsArticle>& articles) {
     std::vector<std::string> elements;

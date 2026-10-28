@@ -173,6 +173,61 @@ The Android app calls this alongside the news feed and shows an Arabic banner
 "provider busy, retry shortly". A failed quota read leaves the banner hidden —
 an unknown quota is never shown as exhausted.
 
+### Multi-provider failover chain (`ASTRA_LLM_ORDER`)
+
+A single provider is a single point of failure: when its free budget is spent,
+every analysis stops. With `ASTRA_LLM_PROVIDER=auto` (the default) the backend
+builds an ordered failover chain instead (`FailoverLlmProvider`,
+`src/news/FailoverLlmProvider.*`). The order comes from `ASTRA_LLM_ORDER`
+(default `gemini,zai,mistral,llm7`); a provider whose credential is empty is
+**skipped**, never placed at the head as dead weight. The first provider that
+answers wins, and each analysis is attributed to the model that really produced
+it.
+
+Pinning `ASTRA_LLM_PROVIDER` to one name (`gemini` | `zai` | `mistral` | `llm7`)
+still selects exactly that provider, so an operator can reproduce or isolate a
+single one. Pinning never silently becomes a chain — otherwise a test that
+points one provider at a dead port would be rescued by the others.
+
+`GET /api/v1/news/quota` reports the whole chain as well as the last result, so
+the app can say *which* credential is down and whether analysis still works:
+
+```json
+{"category":"quota_exhausted","retry_after_seconds":3600,
+ "cooling_down":true,"cooldown_until":1793188799,
+ "quota_exhausted":true,"rate_limited":false,
+ "chain_summary":"all_quota_exhausted",
+ "providers_configured":3,"providers_unavailable":3,
+ "providers_quota_exhausted":3,
+ "any_provider_available":false,"all_providers_unavailable":true,
+ "all_providers_quota_exhausted":true,
+ "providers":[
+   {"provider":"gemini","last_outcome":"quota_exhausted",
+    "unavailable":true,"quota_exhausted":true}]}
+```
+
+`chain_summary` is the machine token the app keys its banner on:
+`ok` | `degraded` (some providers down, at least one still answers) |
+`all_quota_exhausted` | `all_unavailable` | `no_provider`. Only **hard**
+outcomes (`auth_failure`, `quota_exhausted`, `bad_request`) count a provider as
+down; a timeout, 5xx, transport error or temporary rate limit may clear on the
+next call and must not be reported as down. Labels and counts only — never key
+material.
+
+The Gemini adapter (native `generateContent` shape) classifies a 429 the same
+way as the OpenAI-compatible adapters: a body carrying an exhaustion marker
+(`insufficient_quota`, `quota_exceeded`, `exceeded your current quota`, `check
+your plan and billing`) is `quota_exhausted`, any other 429 stays `rate_limited`.
+The reset is read from a `Retry-After` header or the `google.rpc.RetryInfo`
+`retryDelay` field; when neither is present the reset is reported as unknown.
+
+**Live evidence (2026-10-27, local HTTPS stub):** three providers pointed at a
+stub returning `429 insufficient_quota` produced
+`chain_summary:"all_quota_exhausted"` with all three rows `quota_exhausted:true`;
+the same stub returning `401` produced `chain_summary:"all_unavailable"` with
+`category:"auth_failure"`. Both verdicts were read back over real HTTP from the
+running server. The transport is HTTPS-only, so the stub is served over TLS.
+
 **Live evidence (2026-10-27):** the real token returned
 `HTTP 429`, `retry-after: 66401`, and body
 `{"error":{"message":"Daily token quota exceeded. Retry after 66401 seconds.","type":"insufficient_quota","param":null,"code":"quota_exceeded","retry_after":66401}}`.

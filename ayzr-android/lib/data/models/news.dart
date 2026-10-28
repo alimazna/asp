@@ -224,6 +224,13 @@ class LlmQuota {
     required this.rateLimited,
     required this.lastChangeUtc,
     required this.lastSuccessUtc,
+    this.chainSummary = 'ok',
+    this.providersConfigured = 0,
+    this.providersUnavailable = 0,
+    this.anyProviderAvailable = true,
+    this.allProvidersUnavailable = false,
+    this.allProvidersQuotaExhausted = false,
+    this.providers = const [],
   });
 
   final String category;
@@ -235,7 +242,25 @@ class LlmQuota {
   final int? lastChangeUtc;
   final int? lastSuccessUtc;
 
+  /// Whole-chain verdict: `ok` | `degraded` | `all_quota_exhausted` |
+  /// `all_unavailable` | `no_provider`.
+  final String chainSummary;
+  final int providersConfigured;
+  final int providersUnavailable;
+  final bool anyProviderAvailable;
+  final bool allProvidersUnavailable;
+  final bool allProvidersQuotaExhausted;
+
+  /// Per-provider availability, so the banner can name which credential is
+  /// down without a second request.
+  final List<QuotaProvider> providers;
+
   bool get isOk => category == 'ok';
+
+  /// True when every configured credential is known-down. Distinct from
+  /// [quotaExhausted], which describes the last chain result: a chain can have
+  /// one provider out of budget while another still answers.
+  bool get allProvidersDown => allProvidersUnavailable;
 
   static LlmQuota fromJson(Map<String, dynamic> j) => LlmQuota(
         category: _s(j['category'], 'ok'),
@@ -246,6 +271,41 @@ class LlmQuota {
         rateLimited: j['rate_limited'] == true,
         lastChangeUtc: _i(j['last_change_at']),
         lastSuccessUtc: _i(j['last_success_at']),
+        chainSummary: _s(j['chain_summary'], 'ok'),
+        providersConfigured: _i(j['providers_configured']) ?? 0,
+        providersUnavailable: _i(j['providers_unavailable']) ?? 0,
+        anyProviderAvailable: j['any_provider_available'] != false,
+        allProvidersUnavailable: j['all_providers_unavailable'] == true,
+        allProvidersQuotaExhausted:
+            j['all_providers_quota_exhausted'] == true,
+        providers: (j['providers'] is List)
+            ? (j['providers'] as List)
+                .whereType<Map>()
+                .map((e) => QuotaProvider.fromJson(e.cast<String, dynamic>()))
+                .toList()
+            : const [],
+      );
+}
+
+/// One row of the `providers` array inside `GET /api/v1/news/quota`.
+class QuotaProvider {
+  const QuotaProvider({
+    required this.provider,
+    required this.lastOutcome,
+    required this.unavailable,
+    required this.quotaExhausted,
+  });
+
+  final String provider;
+  final String lastOutcome;
+  final bool unavailable;
+  final bool quotaExhausted;
+
+  static QuotaProvider fromJson(Map<String, dynamic> j) => QuotaProvider(
+        provider: _s(j['provider']),
+        lastOutcome: _s(j['last_outcome'], 'none'),
+        unavailable: j['unavailable'] == true,
+        quotaExhausted: j['quota_exhausted'] == true,
       );
 }
 

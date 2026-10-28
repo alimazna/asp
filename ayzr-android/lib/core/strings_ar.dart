@@ -112,6 +112,25 @@ class Ar {
   static const rateLimitedBody =
       'تعذّر التحليل الآن بسبب ضغط مؤقت على المزوّد. أعد المحاولة بعد لحظات.';
 
+  // All-provider states. When every configured credential is down the banner
+  // must NOT say "retry in a moment" — no amount of retrying clears a spent
+  // budget or a rejected key. These read as a definite stop with the reason.
+  static const allExhaustedTitle = 'توقّف التحليل — استُهلكت كل الحصص';
+  static const allExhaustedBody =
+      'تم استهلاك الحصة اليومية لدى جميع مزوّدي التحليل. '
+      'لن يُستأنف التحليل حتى تجدّد الحصة.';
+  static const allDownTitle = 'توقّف التحليل — لا يوجد مزوّد فعّال';
+  static const allDownBody =
+      'جميع مزوّدي التحليل غير متاحين حالياً. '
+      'قد تكون المفاتيح منتهية أو مرفوضة، ويجب تحديثها من الخادم.';
+  static const allDownReasonAuth = 'السبب: مفاتيح التحليل مرفوضة.';
+  static const allDownReasonQuota = 'السبب: الحصص اليومية مستهلكة.';
+  static const allDownReasonUnknown = 'السبب: تعذّر تحديد سبب دقيق.';
+  static const degradedTitle = 'بعض مزوّدي التحليل غير متاحين';
+  static const degradedBody =
+      'التحليل يعمل عبر المزوّدين المتاحين. تم تخطّي المزوّدين غير المتاحين.';
+  static const providersDownList = 'المزوّدون غير المتاحين';
+
   // History
   static const historyTitle = 'السجل';
   static const historyEmpty = 'لا يوجد سجل تحليلات بعد';

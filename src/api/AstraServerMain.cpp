@@ -1058,9 +1058,20 @@ int main(int argc, char** argv) {
     // GET /api/v1/news/quota — honest provider-availability snapshot. The app
     // shows an Arabic banner from this instead of appearing broken when the
     // daily AI budget is spent.
+    //
+    // The chain verdict is attached when a failover chain is active. In pinned
+    // mode (a single explicit provider, including "mock") there is no chain, so
+    // the verdict is derived from that one provider's last observed outcome,
+    // which keeps the same "all providers unavailable" semantics meaningful.
     server.newsQuotaHandler = [&]() -> ApiResponse {
         const std::int64_t nowUtc = Timestamp::now().epochMillis() / 1000;
-        return NewsApi::quota(quotaMonitor.state(nowUtc));
+        if (llmProvider == &failoverProvider) {
+            return NewsApi::quota(quotaMonitor.state(nowUtc),
+                                  failoverProvider.health());
+        }
+        const ChainHealth health = FailoverLlmProvider::singleProvider(
+            llmProvider->providerId(), quotaMonitor.state(nowUtc).category);
+        return NewsApi::quota(quotaMonitor.state(nowUtc), health);
     };
 
     server.historyHandler = [&](const std::string& query) -> ApiResponse {

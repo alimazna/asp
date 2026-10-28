@@ -226,6 +226,158 @@ void main() {
     });
   });
 
+  group('AI provider health banner', () {
+    // The whole point of the aggregate: when no credential can answer, the app
+    // must say so plainly instead of showing the generic "provider busy, retry
+    // shortly" message that no retry can ever clear.
+    testWidgets('all providers exhausted shows the dedicated stop banner',
+        (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/quota': (_) => enveloped({
+                'category': 'quota_exhausted',
+                'quota_exhausted': true,
+                'rate_limited': false,
+                'cooling_down': true,
+                'cooldown_until': 0,
+                'chain_summary': 'all_quota_exhausted',
+                'providers_configured': 3,
+                'providers_unavailable': 3,
+                'any_provider_available': false,
+                'all_providers_unavailable': true,
+                'all_providers_quota_exhausted': true,
+                'providers': [
+                  {
+                    'provider': 'gemini',
+                    'last_outcome': 'quota_exhausted',
+                    'unavailable': true,
+                    'quota_exhausted': true,
+                  },
+                ],
+              }),
+        }),
+      );
+
+      expect(find.text(Ar.allExhaustedTitle), findsWidgets);
+      expect(find.text(Ar.quotaExhaustedTitle), findsNothing);
+    });
+
+    // Regression: a rejected key was previously rendered as "provider busy,
+    // retry in a moment", which is false — retrying never fixes a dead key.
+    testWidgets('all keys rejected reads as a stop, not a temporary busy',
+        (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/quota': (_) => enveloped({
+                'category': 'auth_failure',
+                'quota_exhausted': false,
+                'rate_limited': false,
+                'cooling_down': false,
+                'chain_summary': 'all_unavailable',
+                'providers_configured': 2,
+                'providers_unavailable': 2,
+                'any_provider_available': false,
+                'all_providers_unavailable': true,
+                'all_providers_quota_exhausted': false,
+                'providers': [
+                  {
+                    'provider': 'gemini',
+                    'last_outcome': 'auth_failure',
+                    'unavailable': true,
+                    'quota_exhausted': false,
+                  },
+                  {
+                    'provider': 'zai',
+                    'last_outcome': 'auth_failure',
+                    'unavailable': true,
+                    'quota_exhausted': false,
+                  },
+                ],
+              }),
+        }),
+      );
+
+      expect(find.text(Ar.allDownTitle), findsWidgets);
+      expect(find.text(Ar.rateLimitedTitle), findsNothing);
+      expect(find.textContaining(Ar.allDownReasonAuth), findsWidgets);
+    });
+
+    testWidgets('a healthy chain shows no banner', (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/quota': (_) => enveloped({
+                'category': 'ok',
+                'quota_exhausted': false,
+                'rate_limited': false,
+                'cooling_down': false,
+                'chain_summary': 'ok',
+                'providers_configured': 3,
+                'providers_unavailable': 0,
+                'any_provider_available': true,
+                'all_providers_unavailable': false,
+                'all_providers_quota_exhausted': false,
+                'providers': [],
+              }),
+        }),
+      );
+
+      expect(find.text(Ar.quotaExhaustedTitle), findsNothing);
+      expect(find.text(Ar.allDownTitle), findsNothing);
+      expect(find.text(Ar.allExhaustedTitle), findsNothing);
+      expect(find.text(Ar.degradedTitle), findsNothing);
+    });
+
+    testWidgets('one provider down shows the degraded notice', (tester) async {
+      await pumpApp(
+        tester,
+        routeTable({
+          '/api/v1/health/v1': (_) => enveloped(healthOk),
+          '/api/v1/analysis/latest': (_) => enveloped(analysisCalibrated),
+          '/api/v1/news': (_) => enveloped(newsList),
+          '/api/v1/history': (_) => enveloped(historyList),
+          '/api/v1/news/quota': (_) => enveloped({
+                'category': 'ok',
+                'quota_exhausted': false,
+                'rate_limited': false,
+                'cooling_down': false,
+                'chain_summary': 'degraded',
+                'providers_configured': 3,
+                'providers_unavailable': 1,
+                'any_provider_available': true,
+                'all_providers_unavailable': false,
+                'all_providers_quota_exhausted': false,
+                'providers': [
+                  {
+                    'provider': 'gemini',
+                    'last_outcome': 'auth_failure',
+                    'unavailable': true,
+                    'quota_exhausted': false,
+                  },
+                ],
+              }),
+        }),
+      );
+
+      expect(find.text(Ar.degradedTitle), findsWidgets);
+      expect(find.textContaining('gemini'), findsWidgets);
+    });
+  });
+
   group('History flow', () {
     testWidgets('history shows persisted analyses', (tester) async {
       await pumpApp(

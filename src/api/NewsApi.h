@@ -6,6 +6,7 @@
 
 #include "api/BackendApiSchema.h"
 #include "macro/EventStore.h"
+#include "news/FailoverLlmProvider.h"
 #include "news/LlmQuotaMonitor.h"
 #include "news/NewsModels.h"
 
@@ -31,6 +32,13 @@ public:
     // the Android app show an honest Arabic banner when the daily AI quota is
     // spent, instead of appearing broken. Secret-free by construction.
     static ApiResponse quota(const LlmQuotaState& state);
+
+    // The same route with whole-chain availability attached, so the app can tell
+    // "one credential is down" from "every credential is down" and stop claiming
+    // analysis is merely paused when no provider can answer at all. The extra
+    // fields are additive: an older client ignores them.
+    static ApiResponse quota(const LlmQuotaState& state,
+                             const ChainHealth& health);
 
     // GET /api/v1/history — persisted analyses (newest first), each joined with
     // the article headline/source it belongs to.

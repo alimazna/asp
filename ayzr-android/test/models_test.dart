@@ -165,6 +165,78 @@ void main() {
       expect(q.isOk, isTrue);
       expect(q.quotaExhausted, isFalse);
     });
+
+    test('an absent chain block defaults to available, never "all down"', () {
+      // An older backend (or a pinned single provider) sends no chain fields.
+      // The app must not then claim every provider is down.
+      final q = LlmQuota.fromJson({'category': 'ok'});
+      expect(q.allProvidersDown, isFalse);
+      expect(q.anyProviderAvailable, isTrue);
+      expect(q.chainSummary, 'ok');
+      expect(q.providers, isEmpty);
+    });
+
+    test('parses the whole-chain verdict and per-provider rows', () {
+      final q = LlmQuota.fromJson({
+        'category': 'quota_exhausted',
+        'quota_exhausted': true,
+        'chain_summary': 'all_quota_exhausted',
+        'providers_configured': 3,
+        'providers_unavailable': 3,
+        'any_provider_available': false,
+        'all_providers_unavailable': true,
+        'all_providers_quota_exhausted': true,
+        'providers': [
+          {
+            'provider': 'gemini',
+            'last_outcome': 'quota_exhausted',
+            'unavailable': true,
+            'quota_exhausted': true,
+          },
+          {
+            'provider': 'zai',
+            'last_outcome': 'quota_exhausted',
+            'unavailable': true,
+            'quota_exhausted': true,
+          },
+        ],
+      });
+      expect(q.allProvidersDown, isTrue);
+      expect(q.allProvidersQuotaExhausted, isTrue);
+      expect(q.providersConfigured, 3);
+      expect(q.providers.length, 2);
+      expect(q.providers.first.provider, 'gemini');
+      expect(q.providers.first.quotaExhausted, isTrue);
+    });
+
+    test('one provider down is degraded, not all-down', () {
+      final q = LlmQuota.fromJson({
+        'category': 'ok',
+        'chain_summary': 'degraded',
+        'providers_configured': 3,
+        'providers_unavailable': 1,
+        'any_provider_available': true,
+        'all_providers_unavailable': false,
+        'all_providers_quota_exhausted': false,
+        'providers': [
+          {
+            'provider': 'gemini',
+            'last_outcome': 'auth_failure',
+            'unavailable': true,
+            'quota_exhausted': false,
+          },
+          {
+            'provider': 'zai',
+            'last_outcome': 'ok',
+            'unavailable': false,
+            'quota_exhausted': false,
+          },
+        ],
+      });
+      expect(q.isOk, isTrue);
+      expect(q.allProvidersDown, isFalse);
+      expect(q.providersUnavailable, 1);
+    });
   });
 }
 

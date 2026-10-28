@@ -49,18 +49,50 @@ scripts that print their own `N/M checks passed`; two of them
 (`test_contract_t16.py`, `test_e2e_real_host_t13.py`) SKIP unless a `build/`
 directory with `aura_backend_host` exists.
 
-## Totals (verified 2026-10-27, HEAD `9ebfe62` + AYZR working tree)
+## Totals (verified 2026-10-27, AYZR working tree)
 
 | Suite | Result |
 |-------|--------|
-| CTest cases | **30/30 passed, 0 failed** |
-| C++ harness test cases (30 binaries) | **254, 0 failed** |
+| CTest cases | **40/40 passed, 0 failed** |
+| C++ harness test cases (40 binaries) | 0 failed (per-binary `RESULT: PASS`) |
 | `SingleInstanceTests` assertions | 10/10 (own printer) |
 | `tests/models` (unittest) | **308 passed, 0 failed** |
-| `python3 -m pytest tests/` (full tree) | **318 passed, 4 skipped, 1 error** — the error is pre-existing: pytest mis-collects the `test_segments_overlap` helper imported from `src/models/walk_forward.py`. Unrelated to AYZR; files unmodified at HEAD. |
-| `tests/integration/*.py` | 6 scripts PASS; 2 SKIP (no `build/`); **1 script has 1 pre-existing FAIL** (see Findings) |
-| Flutter (`ayzr-android`) | **45 passed, 0 failed** |
-| Mock-sender E2E (`tools/ayzr_agents/mock_sender.py`) | **PASS** (ingest=2, duplicates=2, rejected=1, sync=1) |
+| Flutter (AYZR Android) | **86 passed, 0 failed** (`flutter test`) |
+| Flutter analyze | **0 issues** (`flutter analyze`) |
+
+Two AYZR suites were added or extended in this pass and are included in the
+40/40 above:
+
+- `GeminiProviderTests` (new, 9 cases) — locks the Gemini 429 refinement: a
+  body carrying an exhaustion marker is `quota_exhausted`, a bare rate limit
+  stays `rate_limited`, `RetryInfo.retryDelay` / `Retry-After` are parsed, and
+  the credential never appears in the URL.
+- `FailoverLlmProviderTests` (extended, +6 health cases) — the whole-chain
+  verdict: one exhausted provider is `degraded`, all exhausted is
+  `all_quota_exhausted`, all auth-failure is `all_unavailable` (and is **not**
+  mislabelled as quota), a transient failure stays available, and an empty
+  chain reports `no_provider`.
+- `AyzrApiContractTests` (extended, +1 case) — `GET /api/v1/news/quota` still
+  carries every pre-existing key and now also the chain-health keys.
+
+### End-to-end (real server, local HTTPS stub)
+
+The provider chain was exercised over real HTTP against the running
+`astra_server` with all three providers pointed at a TLS stub:
+
+- stub returns `429 insufficient_quota` → `chain_summary:"all_quota_exhausted"`,
+  all rows `quota_exhausted:true`, `all_providers_quota_exhausted:true`.
+- stub returns `401` → `chain_summary:"all_unavailable"`,
+  `category:"auth_failure"`, all rows `last_outcome:"auth_failure"`.
+
+The transport is HTTPS-only by design, so the stub is served over TLS with its
+CA trusted by the host. The three-provider chain, `/quota` verdicts and the
+`/analyze` `unavailable` path were all read back from the live server.
+
+Additional suites at the same revision: `tests/integration/*.py` — 6 scripts
+PASS, 2 SKIP (no `build/`), 1 pre-existing FAIL (see Findings); mock-sender E2E
+(`tools/ayzr_agents/mock_sender.py`) — PASS (ingest=2, duplicates=2, rejected=1,
+sync=1).
 
 Per-binary C++ harness counts at the same revision:
 
