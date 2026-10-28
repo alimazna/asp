@@ -12,14 +12,27 @@
 //   ASTRA_HOST          (bind host; default 0.0.0.0)
 //   ASTRA_ALLOWED_ORIGINS (comma-separated browser origins for CORS)
 
+#include "activity/ActivityLog.h"
+#include "api/ActivityApi.h"
 #include "api/AstraApiServer.h"
 #include "api/BackendFacade.h"
 #include "api/AnalysisApi.h"
+#include "api/NewsApi.h"
 #include "api/ProbabilityApi.h"
 #include "data/BarNormalizer.h"
 #include "foundation/Json.h"
+#include "foundation/OutboundHttpClient.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
+#include "macro/CalendarFeed.h"
+#include "macro/EventStore.h"
+#include "macro/EventWatcher.h"
+#include "news/Llm7Provider.h"
+#include "news/FailoverLlmProvider.h"
+#include "news/GeminiProvider.h"
+#include "news/MockLlmProvider.h"
+#include "news/NewsAnalysisService.h"
+#include "news/NewsStore.h"
 #include "persistence/CandleStore.h"
 #include "runtime/AuraRuntime.h"
 #include "telegram/TelegramGateway.h"
@@ -31,6 +44,8 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -91,6 +106,28 @@ std::int64_t parseClockOffset(const JsonValue& root) {
         return 0;
     }
     return offset;
+}
+
+// Canonicalise the instrument name. This system stores XAUUSD only, but an MT5
+// broker exposes gold under many names (XAUUSD, GOLD, XAUUSDm, XAUUSD.a, ...)
+// and the sender resolves the broker's own name and sends it verbatim. Without
+// canonicalising here, a "GOLD" batch would be persisted under "GOLD" and then
+// be invisible to every read route (which serve XAUUSD) — accepted with a 200
+// yet unreadable, the worst possible outcome. Anything not recognisably gold is
+// rejected up front instead of being stored where no reader can ever see it.
+std::string canonicalSymbol(const std::string& raw) {
+    std::string upper;
+    upper.reserve(raw.size());
+    for (char ch : raw) {
+        char c = ch;
+        if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+        upper.push_back(c);
+    }
+    if (upper.find("XAU") != std::string::npos ||
+        upper.find("GOLD") != std::string::npos) {
+        return "XAUUSD";
+    }
+    return "";
 }
 
 // Percent-decode a URL query value (also turns '+' into a space). The sync
@@ -222,6 +259,33 @@ bool parseCandle(const JsonValue& candle, StoredCandle& out,
     return true;
 }
 
+// A persistence failure detail can carry the raw sqlite3 message (table names,
+// file paths, "attempt to write a readonly database"). That is useful in the
+// server log and an information leak in a client response, so log the detail
+// and return only a generic, stable message to the caller.
+ApiResponse storeFailureResponse(const std::string& context,
+                                 const std::string& detail) {
+    std::cerr << "  ERROR: " << context << ": " << detail << std::endl;
+    return errorResponse(500, "store_failure",
+                         "persistence failed; the server log has the detail");
+}
+
+// The identity echoed in the ack for a candle that was rejected before it
+// reached the store. A validation failure can leave openTimeUtc at 0 (the
+// 'time' field itself was missing), so fall back to the sender's uid when the
+// derived key would be meaningless. `identity` is what a sender matches on; a
+// value it cannot correlate is worse than a free-text reason.
+std::string candleIdentity(const JsonValue& item, const StoredCandle& c) {
+    if (c.openTimeUtc > 0) {
+        return "symbol=" + c.symbol + "&timeframe=" + c.timeframe +
+               "&open_time=" + std::to_string(c.openTimeUtc);
+    }
+    if (item["uid"].isString() && !item["uid"].asString().empty()) {
+        return "uid=" + item["uid"].asString();
+    }
+    return "symbol=" + c.symbol + "&timeframe=" + c.timeframe;
+}
+
 }  // namespace
 }  // namespace aura
 
@@ -309,6 +373,29 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    // The three credential sets are separate privileges by design: a sender
+    // credential must not open the admin or private read surface, and the admin
+    // credential must not open the private read surface. If the operator reuses
+    // one value across sets that separation silently collapses, so refuse to
+    // start rather than serve with a weaker model than the docs promise.
+    {
+        std::vector<std::string> all = tokens;
+        all.insert(all.end(), adminTokens.begin(), adminTokens.end());
+        const std::vector<std::string> clientTokens =
+            splitComma(envOr("ASTRA_CLIENT_TOKEN", ""));
+        all.insert(all.end(), clientTokens.begin(), clientTokens.end());
+        std::set<std::string> seen;
+        for (const auto& t : all) {
+            if (!t.empty() && !seen.insert(t).second) {
+                std::cerr << "FATAL: a credential value is reused across "
+                             "sender/admin/client. Use three distinct tokens so "
+                             "the separation of powers holds."
+                          << std::endl;
+                return 2;
+            }
+        }
+    }
+
     std::error_code fsError;
     std::filesystem::create_directories(dataDir, fsError);
     if (fsError) {
@@ -365,6 +452,10 @@ int main(int argc, char** argv) {
     apiConfig.port = static_cast<std::uint16_t>(port);
     apiConfig.senderTokens = tokens;
     apiConfig.adminTokens = adminTokens;
+    // Read-only client credential for the private AYZR mobile surface. Absent by
+    // default, which disables the news/history routes (401) rather than exposing
+    // them unauthenticated.
+    apiConfig.clientTokens = splitComma(envOr("ASTRA_CLIENT_TOKEN", ""));
     apiConfig.allowedOrigins = cliOrigins.empty()
                                    ? splitComma(envOr("ASTRA_ALLOWED_ORIGINS", ""))
                                    : cliOrigins;
@@ -376,6 +467,8 @@ int main(int argc, char** argv) {
         parseIntEnv("ASTRA_SYNC_RATE_PER_MIN", 240);
     apiConfig.maxCandlesPerBatch = static_cast<std::size_t>(
         parseIntEnv("ASTRA_MAX_CANDLES_PER_BATCH", 500));
+    apiConfig.maxConcurrentConnections =
+        parseIntEnv("ASTRA_MAX_CONCURRENT_CONNECTIONS", 256);
 
     AstraApiServer server(&facade, apiConfig);
 
@@ -388,11 +481,21 @@ int main(int argc, char** argv) {
                                  "cannot parse ingest body: " + parseError);
         }
         const std::string source = root["source_id"].asString();
-        const std::string symbol = root["symbol"].asString();
+        const std::string rawSymbol = root["symbol"].asString();
         const std::string timeframe = root["timeframe"].asString();
-        if (source.empty() || symbol.empty() || timeframe.empty()) {
+        if (source.empty() || rawSymbol.empty() || timeframe.empty()) {
             return errorResponse(400, "missing_fields",
                                  "source_id, symbol and timeframe are required");
+        }
+        // Store only the canonical instrument. A broker-specific gold alias is
+        // folded to XAUUSD so it stays readable; anything else is refused here
+        // rather than accepted into a store no read route serves.
+        const std::string symbol = canonicalSymbol(rawSymbol);
+        if (symbol.empty()) {
+            return errorResponse(
+                400, "unsupported_symbol",
+                "unsupported symbol '" + rawSymbol +
+                    "'; this server stores gold (XAUUSD) only");
         }
         // Validate the timeframe before persisting anything. Storing a candle
         // whose timeframe the analysis engine cannot map would create a row
@@ -424,16 +527,32 @@ int main(int argc, char** argv) {
         const std::int64_t brokerNow = now + clockOffsetSeconds;
 
         std::vector<StoredCandle> candles;
+        // Validation-level rejections, kept parallel to the candles that failed
+        // so the ack can name each one by identity. A free-text reason alone is
+        // not actionable: the sender matches acknowledgments by identity, and a
+        // rejection it cannot match looks like an unconfirmed candle it must
+        // retry forever.
         std::vector<std::string> rejections;
+        std::vector<std::string> rejectionIdentities;
         for (const auto& item : candlesJson.items()) {
             StoredCandle c;
             c.sourceId = source;
             c.symbol = symbol;
+            // Keep the sender's own instrument name alongside the canonical
+            // one. The sender reconciles its local ledger by the name it sent
+            // (the broker-resolved alias), so discarding it here would make the
+            // server's acknowledgment unmatchable for that sender. Stored empty
+            // when the sender already used the canonical name.
+            c.rawSymbol = (rawSymbol == symbol) ? std::string() : rawSymbol;
             c.timeframe = timeframe;
             c.receivedAtUtc = now;
+            // Echo the sender's own uid when it supplies one, so the ack is
+            // matched by the sender's identifier rather than a re-derived key.
+            if (item["uid"].isString()) c.uid = item["uid"].asString();
             std::string candleError;
             if (!parseCandle(item, c, candleError, clockOffsetSeconds)) {
                 rejections.push_back("candle rejected: " + candleError);
+                rejectionIdentities.push_back(candleIdentity(item, c));
                 continue;
             }
             // A candle whose opening time is not on its timeframe grid is not
@@ -444,6 +563,7 @@ int main(int argc, char** argv) {
                 rejections.push_back(
                     "candle rejected: open_time not aligned to timeframe " +
                     timeframe);
+                rejectionIdentities.push_back(candleIdentity(item, c));
                 continue;
             }
             candles.push_back(std::move(c));
@@ -452,8 +572,7 @@ int main(int argc, char** argv) {
         std::vector<CandleInsertResult> results;
         std::string storeError;
         if (!store.insertBatch(candles, results, storeError)) {
-            return errorResponse(500, "store_failure",
-                                 "persistence failed: " + storeError);
+            return storeFailureResponse("candle ingest persistence", storeError);
         }
 
         // Feed accepted candles into the runtime analysis path. The timeframe
@@ -488,27 +607,42 @@ int main(int argc, char** argv) {
         std::vector<std::string> accepted;
         std::vector<std::string> duplicates;
         std::vector<std::string> rejectedResults;
-        for (const auto& r : results) {
+        // `results` is produced in the same order as `candles` (the store
+        // iterates the batch in order), so a stored result at index i belongs to
+        // the candle that carried uid `candles[i].uid`.
+        for (std::size_t i = 0; i < results.size(); ++i) {
+            const auto& r = results[i];
             std::string identity =
                 "symbol=" + r.symbol + "&timeframe=" + r.timeframe +
                 "&open_time=" + std::to_string(r.openTimeUtc);
+            std::string uidField;
+            if (i < candles.size() && !candles[i].uid.empty()) {
+                uidField = ",\"uid\":" + jsonString(candles[i].uid);
+            }
             if (r.state == "stored_new") {
                 accepted.push_back("{\"identity\":\"" + identity +
-                                   "\",\"state\":\"stored_new\"}");
+                                   "\",\"state\":\"stored_new\"" + uidField +
+                                   "}");
             } else if (r.state == "already_stored") {
                 duplicates.push_back("{\"identity\":\"" + identity +
-                                     "\",\"state\":\"already_stored\"}");
+                                     "\",\"state\":\"already_stored\"" +
+                                     uidField + "}");
             } else {
                 rejectedResults.push_back(
                     "{\"identity\":\"" + identity + "\",\"state\":\"rejected\"," +
-                    "\"reason\":\"" + jsonString(r.reason) + "\"}");
+                    "\"reason\":" + jsonString(r.reason) + uidField + "}");
             }
         }
-        // Pre-parse rejections from validation bound to the batch.
+        // Pre-parse rejections from validation bound to the batch. Each carries
+        // the same identity the sender matches on, so a rejected candle is
+        // actionable and cannot be mistaken for an unconfirmed one.
         std::vector<std::string> batchRejections;
-        for (const auto& rej : rejections) {
-            batchRejections.push_back("{\"state\":\"rejected\",\"reason\":" +
-                                      jsonString(rej) + "}");
+        for (std::size_t i = 0; i < rejections.size(); ++i) {
+            const std::string identity =
+                i < rejectionIdentities.size() ? rejectionIdentities[i] : "";
+            batchRejections.push_back(
+                "{\"identity\":\"" + identity + "\",\"state\":\"rejected\"," +
+                "\"reason\":" + jsonString(rejections[i]) + "}");
         }
 
         std::vector<ApiField> fields;
@@ -558,7 +692,13 @@ int main(int argc, char** argv) {
         if (!sourceId.empty()) {
             for (const auto& sp : store.syncPointsForSource(sourceId)) {
                 std::vector<ApiField> f;
-                f.push_back({"symbol", jsonString(sp.symbol), true});
+                // `symbol` is the name THIS sender used (its broker-resolved
+                // alias, e.g. GOLD or XAUUSD.vx) so its ledger reconciliation
+                // correlates; `canonical_symbol` is the folded store symbol for
+                // diagnostics. A sender that always sent the canonical name sees
+                // the two equal, which is harmless.
+                f.push_back({"symbol", jsonString(sp.senderSymbol), true});
+                f.push_back({"canonical_symbol", jsonString(sp.symbol), true});
                 f.push_back({"timeframe", jsonString(sp.timeframe), true});
                 f.push_back({"last_open_time_utc",
                              jsonInteger(sp.lastOpenTimeUtc), true});
@@ -589,6 +729,44 @@ int main(int argc, char** argv) {
     };
 
     // Candle chart route from the persisted store.
+    // Durable activity log: records what the backend actually did so the owner
+    // can see, side by side, which news reads, candle reads and AI calls
+    // succeeded and what they returned. A failure to open it only costs
+    // visibility, never correctness, so it degrades to a no-op.
+    ActivityLog activityLog;
+    {
+        std::string activityError;
+        if (!activityLog.open(dataDir + "/activity.sqlite", activityError)) {
+            std::cerr << "  WARN: activity log unavailable: " << activityError
+                      << std::endl;
+        } else {
+            std::cout << "  activity log: " << dataDir << "/activity.sqlite"
+                      << std::endl;
+        }
+    }
+    // Bounded, secret-free recorder. A log write failure is swallowed by
+    // design: the operation it describes has already been decided on its own
+    // merits, and an audit trail is not worth failing a request over.
+    auto recordActivity = [&activityLog](const std::string& kind,
+                                         const std::string& outcome,
+                                         const std::string& reason,
+                                         const std::string& source,
+                                         const std::string& detail,
+                                         int itemCount, int durationMs) {
+        if (!activityLog.isOpen()) return;
+        ActivityEntry e;
+        e.atUtc = static_cast<std::int64_t>(std::time(nullptr));
+        e.kind = kind;
+        e.outcome = outcome;
+        e.reason = reason;
+        e.source = source;
+        e.detail = detail;
+        e.itemCount = itemCount;
+        e.durationMs = durationMs;
+        std::string ignore;
+        activityLog.record(e, ignore);
+    };
+
     server.candlesHandler = [&](const std::string& tf, int limit) -> ApiResponse {
         if (limit < 1 || limit > 1000) limit = 500;
         std::vector<StoredCandle> candles;
@@ -604,6 +782,8 @@ int main(int argc, char** argv) {
             }
         }
         if (candles.empty()) {
+            recordActivity("candle_read", "empty", "no_data", "store",
+                           "timeframe=" + tf + " (no stored candles)", 0, -1);
             return errorResponse(503, "dependency_unavailable",
                                  "no candle data available for " + tf);
         }
@@ -632,6 +812,11 @@ int main(int argc, char** argv) {
         dataFields.push_back(
             {"newest_closed_time",
              jsonInteger(candles.back().openTimeUtc), true});
+        recordActivity("candle_read", "ok", "", "store",
+                       "timeframe=" + tf + " bars=" +
+                           std::to_string(candles.size()) + " newest=" +
+                           std::to_string(candles.back().openTimeUtc),
+                       static_cast<int>(candles.size()), -1);
         return ApiResponse{200, "application/json",
                            envelope(jsonObject(dataFields)), true};
     };
@@ -668,8 +853,7 @@ int main(int argc, char** argv) {
         std::string deleteError;
         if (!store.deleteCandle(source, symbol, timeframe, openTime.asInt64(),
                                 deleted, deleteError)) {
-            return errorResponse(500, "store_failure",
-                                 "purge failed: " + deleteError);
+            return storeFailureResponse("admin candle purge", deleteError);
         }
         std::vector<ApiField> fields;
         fields.push_back({"source_id", jsonString(source), true});
@@ -713,6 +897,496 @@ int main(int argc, char** argv) {
                            envelope(jsonObject(fields)), true};
     };
 
+    // ---------------------------------------------------------------------
+    // AYZR news intelligence (additive). A durable news store plus a
+    // provider-neutral LLM adapter. The analysis layer is READ-ONLY with
+    // respect to ASTRA: it reads candles and the existing analysis, and never
+    // modifies a decision.
+    // ---------------------------------------------------------------------
+    NewsStore newsStore;
+    {
+        std::string newsError;
+        if (!newsStore.open(dataDir + "/news.sqlite", newsError)) {
+            std::cerr << "  WARN: news store unavailable: " << newsError
+                      << std::endl;
+        } else {
+            std::cout << "  news store: " << dataDir << "/news.sqlite"
+                      << std::endl;
+        }
+    }
+
+
+    // Several AI credentials are configured, and only one needs to work for
+    // analysis to proceed. Each provider is built independently from the
+    // environment, and the ones with a credential form an ordered failover
+    // chain: a provider that is missing, out of quota, or rejecting its key is
+    // skipped in favour of the next. Credentials are read from the environment
+    // and are never logged or serialized. `ASTRA_LLM_PROVIDER=mock` still
+    // selects the deterministic offline provider used by tests.
+    const std::string providerKind = envOr("ASTRA_LLM_PROVIDER", "auto");
+    std::shared_ptr<IOutboundHttpClient> outboundHttp =
+        makeDefaultOutboundHttpClient();
+
+    // LLM7 (OpenAI-compatible chat completions).
+    Llm7Config llm7Config;
+    llm7Config.baseUrl = envOr("LLM7_BASE_URL", "https://api.llm7.io/v1");
+    llm7Config.model = envOr("LLM7_MODEL", "nemotron-3-nano:30b");
+    llm7Config.apiToken = envOr("LLM7_API_TOKEN", "");
+    llm7Config.providerLabel = "llm7";
+    llm7Config.connectTimeoutMillis = parseIntEnv("LLM7_CONNECT_TIMEOUT_MS", 5000);
+    llm7Config.readTimeoutMillis = parseIntEnv("LLM7_READ_TIMEOUT_MS", 45000);
+    Llm7Provider llm7Provider(llm7Config, outboundHttp);
+
+    // z.ai GLM (OpenAI-compatible).
+    Llm7Config zaiConfig;
+    zaiConfig.baseUrl = envOr("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4");
+    zaiConfig.model = envOr("ZAI_MODEL", "glm-4.5-flash");
+    zaiConfig.apiToken = envOr("ZAI_API_KEY", "");
+    zaiConfig.providerLabel = "zai";
+    zaiConfig.readTimeoutMillis = parseIntEnv("ZAI_READ_TIMEOUT_MS", 45000);
+    Llm7Provider zaiProvider(zaiConfig, outboundHttp);
+
+    // Mistral (OpenAI-compatible).
+    Llm7Config mistralConfig;
+    mistralConfig.baseUrl = envOr("MISTRAL_BASE_URL", "https://api.mistral.ai/v1");
+    mistralConfig.model = envOr("MISTRAL_MODEL", "open-mistral-nemo");
+    mistralConfig.apiToken = envOr("MISTRAL_API_KEY", "");
+    mistralConfig.providerLabel = "mistral";
+    mistralConfig.readTimeoutMillis = parseIntEnv("MISTRAL_READ_TIMEOUT_MS", 45000);
+    Llm7Provider mistralProvider(mistralConfig, outboundHttp);
+
+    // Gemini (native generateContent shape, not OpenAI-compatible).
+    GeminiConfig geminiConfig;
+    geminiConfig.baseUrl = envOr(
+        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta");
+    geminiConfig.model = envOr("GEMINI_MODEL", "gemini-flash-lite-latest");
+    geminiConfig.apiKey = envOr("GEMINI_API_KEY", "");
+    geminiConfig.providerLabel = "gemini";
+    geminiConfig.readTimeoutMillis = parseIntEnv("GEMINI_READ_TIMEOUT_MS", 45000);
+    GeminiProvider geminiProvider(geminiConfig, outboundHttp);
+
+    MockLlmProvider mockProvider(MockLlmProvider::modeFromString(
+        envOr("ASTRA_MOCK_LLM_MODE", "valid")));
+
+    // Build the chain in the configured order, including only providers that
+    // actually have a credential. A provider with no key would fail on every
+    // call, so it is omitted rather than placed at the head as dead weight.
+    std::vector<FailoverEntry> chain;
+    auto addProvider = [&chain](const std::string& name, const std::string& token,
+                                ILlmProvider* provider) {
+        if (token.empty()) return;
+        chain.push_back(FailoverEntry{provider, name});
+    };
+    std::istringstream orderStream(
+        envOr("ASTRA_LLM_ORDER", "gemini,zai,mistral,llm7"));
+    std::string orderName;
+    while (std::getline(orderStream, orderName, ',')) {
+        if (orderName == "gemini") {
+            addProvider("gemini", geminiConfig.apiKey, &geminiProvider);
+        } else if (orderName == "zai") {
+            addProvider("zai", zaiConfig.apiToken, &zaiProvider);
+        } else if (orderName == "mistral") {
+            addProvider("mistral", mistralConfig.apiToken, &mistralProvider);
+        } else if (orderName == "llm7") {
+            addProvider("llm7", llm7Config.apiToken, &llm7Provider);
+        }
+    }
+    FailoverLlmProvider failoverProvider(std::move(chain));
+
+    // `ASTRA_LLM_PROVIDER` keeps its original meaning: naming a provider pins
+    // the pipeline to exactly that one, so an operator can reproduce or isolate
+    // a single provider. Only `auto` (the default) builds the multi-provider
+    // failover chain. Pinning must not silently become a chain, or a test that
+    // points one provider at a dead port would be rescued by the others.
+    ILlmProvider* llmProvider = nullptr;
+    const bool autoMode = (providerKind == "auto" || providerKind.empty());
+    if (providerKind == "mock") {
+        llmProvider = &mockProvider;
+    } else if (providerKind == "gemini") {
+        llmProvider = &geminiProvider;
+    } else if (providerKind == "zai") {
+        llmProvider = &zaiProvider;
+    } else if (providerKind == "mistral") {
+        llmProvider = &mistralProvider;
+    } else if (providerKind == "llm7") {
+        llmProvider = &llm7Provider;
+    } else if (autoMode && !failoverProvider.stats().empty()) {
+        llmProvider = &failoverProvider;
+    } else {
+        // Auto with no credential anywhere: fall back to the LLM7 adapter so the
+        // pipeline reports an honest auth failure instead of crashing.
+        llmProvider = &llm7Provider;
+    }
+    std::cout << "  llm mode: " << providerKind << ", chain size "
+              << failoverProvider.stats().size() << ", active "
+              << llmProvider->providerId() << std::endl;
+    // Daily-quota monitor: distinguishes a spent daily budget (pause until the
+    // reset window) from a temporary rate limit (bounded retry). The fallback
+    // cooldown is used only when the provider omits a reset time.
+    LlmQuotaMonitor quotaMonitor(parseIntEnv("LLM7_QUOTA_FALLBACK_COOLDOWN_S", 3600));
+    NewsAnalysisService newsService(llmProvider, parseIntEnv("LLM7_MAX_ATTEMPTS", 2),
+                                    &quotaMonitor);
+    std::cout << "  llm provider: " << llmProvider->providerId() << " ("
+              << llmProvider->modelId() << ")" << std::endl;
+
+    // Query-string helper for the news routes.
+    auto queryParam = [](const std::string& query,
+                         const std::string& key) -> std::string {
+        std::istringstream qs(query);
+        std::string pair;
+        while (std::getline(qs, pair, '&')) {
+            const std::size_t eq = pair.find('=');
+            if (eq == std::string::npos) continue;
+            if (pair.substr(0, eq) == key) return urlDecode(pair.substr(eq + 1));
+        }
+        return std::string();
+    };
+    // Real, closed candles only (store.recent already applies the alignment
+    // quarantine). Empty when a timeframe has no trustworthy data.
+    auto candleSummary = [&](const std::string& tf, int n) -> std::string {
+        const std::vector<StoredCandle> rows = store.recent("XAUUSD", tf, n);
+        if (rows.empty()) return std::string();
+        std::ostringstream out;
+        out << tf << " (" << rows.size() << " closed bars):";
+        for (const auto& c : rows) {
+            out << "\n  t=" << c.openTimeUtc << " O=" << c.open << " H=" << c.high
+                << " L=" << c.low << " C=" << c.close;
+        }
+        return out.str();
+    };
+
+    server.newsListHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 500) limit = 50;
+        const std::string category = queryParam(query, "category");
+        const std::string goldRaw = queryParam(query, "gold_only");
+        const bool goldOnly = (goldRaw == "true" || goldRaw == "1");
+        const std::vector<NewsArticle> articles =
+            newsStore.recentArticles(limit, category, goldOnly);
+        std::vector<std::string> statuses;
+        statuses.reserve(articles.size());
+        for (const auto& a : articles) {
+            NewsAnalysis an;
+            statuses.push_back(newsStore.getAnalysis(a.articleId, an) ? an.status
+                                                                      : "none");
+        }
+        recordActivity("news_read", articles.empty() ? "empty" : "ok", "",
+                       "store",
+                       "listed " + std::to_string(articles.size()) +
+                           " articles (gold_only=" + (goldOnly ? "true" : "false")
+                           + ", category=" + (category.empty() ? "all" : category)
+                           + ")",
+                       static_cast<int>(articles.size()), -1);
+        return NewsApi::list(articles, statuses);
+    };
+
+    server.newsAnalyzeHandler = [&](const std::string& query) -> ApiResponse {
+        const std::string id = queryParam(query, "id");
+        if (id.empty()) {
+            return errorResponse(400, "missing_id",
+                                 "news analyze requires ?id=<article_id>");
+        }
+        NewsArticle article;
+        if (!newsStore.getArticle(id, article)) {
+            return errorResponse(404, "not_found",
+                                 "no stored article with that id");
+        }
+        NewsPromptContext ctx;
+        ctx.headline = article.headline;
+        ctx.source = article.source;
+        ctx.bodyText = article.bodyText;
+        ctx.bodyAvailable = article.bodyAvailable;
+        ctx.publishedAtIso = isoUtcSeconds(article.publishedAtUtc);
+        ctx.timeframeContext = "M15,H4";
+        ctx.candleSummary = candleSummary("M15", 30) + candleSummary("H4", 20);
+        // The existing ASTRA analysis, verbatim and read-only. This is the real
+        // backend payload, never a paraphrase.
+        ctx.astraSummary = facade.latestAnalysis().body;
+
+        const std::int64_t analyzeStartMs = Timestamp::now().epochMillis();
+        NewsAnalysis analysis =
+            newsService.analyze(article, ctx, Timestamp::now().epochMillis() / 1000);
+        analysis.candleAsOfUtc = store.latestOpenTimeAnySource("XAUUSD", "M15");
+        const int analyzeMs =
+            static_cast<int>(Timestamp::now().epochMillis() - analyzeStartMs);
+        // Record the real AI outcome: which provider answered, whether a valid
+        // proposal came back, and how long it took. A failure is logged as a
+        // failure, never smoothed into a success.
+        {
+            const std::string provider =
+                analysis.providerId.empty() ? "none" : analysis.providerId;
+            std::string outcome = "ok";
+            if (analysis.status == "unavailable") outcome = "unavailable";
+            else if (analysis.status == "insufficient_data") outcome = "empty";
+            else if (analysis.status == "invalid_model_output") outcome = "rejected";
+            recordActivity("llm_analyze", outcome, analysis.statusReason,
+                           provider,
+                           "article=" + article.articleId +
+                               " status=" + analysis.status +
+                               " direction=" + analysis.proposedDirection +
+                               " model=" + analysis.modelId,
+                           1, analyzeMs);
+        }
+        std::string saveError;
+        if (!newsStore.saveAnalysis(analysis, saveError)) {
+            // Persisting the analysis is best-effort: the response still carries
+            // the validated result, and the failure is visible in the logs.
+            std::cerr << "  WARN: cannot persist analysis: " << saveError
+                      << std::endl;
+        }
+        return NewsApi::detail(article, &analysis, true);
+    };
+
+    // GET /api/v1/news/quota — honest provider-availability snapshot. The app
+    // shows an Arabic banner from this instead of appearing broken when the
+    // daily AI budget is spent.
+    //
+    // The chain verdict is attached when a failover chain is active. In pinned
+    // mode (a single explicit provider, including "mock") there is no chain, so
+    // the verdict is derived from that one provider's last observed outcome,
+    // which keeps the same "all providers unavailable" semantics meaningful.
+    server.newsQuotaHandler = [&]() -> ApiResponse {
+        const std::int64_t nowUtc = Timestamp::now().epochMillis() / 1000;
+        if (llmProvider == &failoverProvider) {
+            return NewsApi::quota(quotaMonitor.state(nowUtc),
+                                  failoverProvider.health());
+        }
+        const ChainHealth health = FailoverLlmProvider::singleProvider(
+            llmProvider->providerId(), quotaMonitor.state(nowUtc).category);
+        return NewsApi::quota(quotaMonitor.state(nowUtc), health);
+    };
+
+    server.historyHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 500) limit = 50;
+        const std::vector<NewsAnalysis> analyses = newsStore.recentAnalyses(limit);
+        std::vector<NewsArticle> articles;
+        articles.reserve(analyses.size());
+        for (const auto& a : analyses) {
+            NewsArticle art;
+            if (newsStore.getArticle(a.articleId, art)) articles.push_back(art);
+        }
+        recordActivity("history_read",
+                       analyses.empty() ? "empty" : "ok", "", "store",
+                       "returned " + std::to_string(analyses.size()) +
+                           " persisted analyses",
+                       static_cast<int>(analyses.size()), -1);
+        return NewsApi::history(analyses, articles);
+    };
+
+    // GET /api/v1/activity — the durable record of what the backend did. The app
+    // shows this so a successful news read, candle read or AI call is visible
+    // rather than merely claimed.
+    server.activityHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 200;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 200; }
+        }
+        if (limit < 1 || limit > 1000) limit = 200;
+        const std::string kind = queryParam(query, "kind");
+        const std::vector<ActivityEntry> entries = activityLog.recent(limit, kind);
+        // A 24-hour tally: a rolling window is more useful than an all-time
+        // total, which only ever grows.
+        const std::int64_t since =
+            static_cast<std::int64_t>(std::time(nullptr)) - 24 * 3600;
+        return ActivityApi::list(entries, activityLog.tally(since));
+    };
+
+    // GET /api/v1/providers — which AI credentials are configured and how each
+    // has performed. Secret-free: only labels and counts, never key material.
+    server.providersHandler = [&]() -> ApiResponse {
+        return ActivityApi::providers(failoverProvider.stats(),
+                                      failoverProvider.lastSuccessProvider());
+    };
+
+    server.newsIngestHandler = [&](const std::string& body) -> ApiResponse {
+        JsonValue root;
+        std::string parseError;
+        if (!JsonValue::parse(body, root, parseError)) {
+            return errorResponse(400, "malformed_json",
+                                 "cannot parse news body: " + parseError);
+        }
+        const JsonValue& arr = root["articles"];
+        if (!arr.isArray()) {
+            return errorResponse(400, "missing_articles",
+                                 "articles must be an array");
+        }
+        if (arr.items().size() > 200) {
+            return errorResponse(413, "batch_too_large",
+                                 "articles array exceeds 200 entries");
+        }
+        const std::int64_t now = Timestamp::now().epochMillis() / 1000;
+        std::vector<NewsArticle> articles;
+        for (const auto& item : arr.items()) {
+            NewsArticle a;
+            a.headline = item["headline"].asString();
+            a.source = item["source"].asString();
+            if (a.headline.empty() || a.source.empty()) {
+                return errorResponse(400, "missing_fields",
+                                     "each article requires headline and source");
+            }
+            a.url = item["url"].asString();
+            a.category = item["category"].asString();
+            if (a.category.empty()) a.category = "other";
+            a.publishedAtUtc = item["published_at"].asInt64();
+            a.bodyText = item["body"].asString();
+            a.bodyAvailable = !a.bodyText.empty();
+            a.language = item["language"].asString();
+            a.goldRelevance = item["gold_relevance"].asString();
+            if (a.goldRelevance.empty()) a.goldRelevance = "unknown";
+            a.collectedAtUtc = now;
+            a.dedupKey = newsDedupKey(a.headline);
+            a.articleId = deriveArticleId(a.source, a.url, a.headline);
+            articles.push_back(std::move(a));
+        }
+        std::vector<NewsInsertResult> results;
+        std::string storeError;
+        if (!newsStore.insertArticles(articles, results, storeError)) {
+            recordActivity("news_ingest", "error", "persist_failed", "sender",
+                           "store rejected the batch: " + storeError,
+                           static_cast<int>(articles.size()), -1);
+            return storeFailureResponse("news ingest persistence", storeError);
+        }
+        int stored = 0, dupes = 0, rejected = 0;
+        for (const auto& r : results) {
+            if (r.state == "stored_new") ++stored;
+            else if (r.state == "rejected") ++rejected;
+            else ++dupes;
+        }
+        recordActivity("news_ingest", stored > 0 ? "ok" : "empty", "", "sender",
+                       "stored=" + std::to_string(stored) + " duplicates=" +
+                           std::to_string(dupes) + " rejected=" +
+                           std::to_string(rejected),
+                       static_cast<int>(articles.size()), -1);
+        return NewsApi::ingestAck(static_cast<int>(articles.size()), results);
+    };
+
+    // ---------------------------------------------------------------------
+    // AYZR automatic macro-event intelligence (additive).
+    //
+    // The watcher polls a real economic calendar on its own thread. For each
+    // gold-relevant high/medium-impact event it writes an EXPECTATION turn
+    // before release and a RESULT turn once the scheduled time has passed. Both
+    // turns reuse NewsAnalysisService, so they share its quota, retry and
+    // schema-validation behaviour, and both are READ-ONLY with respect to
+    // ASTRA: the watcher only reads the latest analysis to supply context.
+    //
+    // The whole subsystem is optional and fail-open: with no calendar, no
+    // credential or no store the server still starts and the routes report the
+    // real state rather than fabricating one.
+    // ---------------------------------------------------------------------
+    EventStore eventStore;
+    std::unique_ptr<EventWatcher> eventWatcher;
+    // Held here, not inside the `if` below: the watcher keeps a raw pointer to
+    // the calendar, so the source must outlive it for the whole server run.
+    std::shared_ptr<ICalendarSource> calendar;
+    {
+        std::string eventError;
+        if (!eventStore.open(dataDir + "/events.sqlite", eventError)) {
+            std::cerr << "  WARN: event store unavailable: " << eventError
+                      << std::endl;
+        } else {
+            std::cout << "  event store: " << dataDir << "/events.sqlite"
+                      << std::endl;
+        }
+    }
+    const bool eventsEnabled = eventStore.isOpen() &&
+                               envOr("ASTRA_EVENTS_ENABLED", "1") != "0";
+    if (eventsEnabled) {
+        calendar = std::make_shared<FairEconomyCalendarSource>(
+            envOr("ASTRA_CALENDAR_URL",
+                  "https://nfs.faireconomy.media/ff_calendar_thisweek.json"),
+            outboundHttp);
+        EventContextProvider eventCtx;
+        eventCtx.timeframeContext = "M15,H4";
+        eventCtx.candleSummary = [&candleSummary]() {
+            return candleSummary("M15", 30) + candleSummary("H4", 20);
+        };
+        // The existing ASTRA analysis, verbatim and read-only.
+        eventCtx.astraSummary = [&facade]() { return facade.latestAnalysis().body; };
+        eventCtx.candleAsOfUtc = [&store]() {
+            return store.latestOpenTimeAnySource("XAUUSD", "M15");
+        };
+        eventWatcher = std::make_unique<EventWatcher>(
+            &eventStore, calendar.get(), &newsService, eventCtx, &activityLog);
+        EventWatcher::Options watcherOptions;
+        watcherOptions.tickSeconds = parseIntEnv("ASTRA_EVENT_TICK_S", 60);
+        watcherOptions.prepareHorizonSeconds =
+            parseIntEnv("ASTRA_EVENT_PREPARE_HORIZON_S", 3 * 3600);
+        watcherOptions.maxPreparePerTick =
+            parseIntEnv("ASTRA_EVENT_MAX_PREPARE_PER_TICK", 2);
+        watcherOptions.maxReleasePerTick =
+            parseIntEnv("ASTRA_EVENT_MAX_RELEASE_PER_TICK", 2);
+        eventWatcher->setOptions(watcherOptions);
+        eventWatcher->start();
+        std::cout << "  event watcher: started (calendar="
+                  << calendar->sourceLabel() << ")" << std::endl;
+    } else {
+        std::cout << "  event watcher: disabled" << std::endl;
+    }
+
+    server.eventsHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 50;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 50; }
+        }
+        if (limit < 1 || limit > 200) limit = 50;
+        const std::string scope = queryParam(query, "scope");
+        const bool past = (scope == "past");
+        const std::string goldRaw = queryParam(query, "gold_only");
+        const bool goldOnly = (goldRaw != "false" && goldRaw != "0");
+        if (!eventStore.isOpen()) {
+            return errorResponse(503, "dependency_unavailable",
+                                 "event store not configured");
+        }
+        const std::vector<ScheduledEvent> events =
+            eventStore.recent(limit, past, goldOnly);
+        std::vector<std::string> stages;
+        stages.reserve(events.size());
+        for (const auto& e : events) stages.push_back(e.stage);
+        recordActivity("events_read", events.empty() ? "empty" : "ok", "",
+                       "calendar",
+                       "listed " + std::to_string(events.size()) +
+                           " events (scope=" + (past ? "past" : "upcoming") + ")",
+                       static_cast<int>(events.size()), -1);
+        return NewsApi::events(events, stages);
+    };
+
+    server.eventDetailHandler = [&](const std::string& query) -> ApiResponse {
+        const std::string key = queryParam(query, "key");
+        if (key.empty()) {
+            return errorResponse(400, "missing_key",
+                                 "event detail requires ?key=<event_key>");
+        }
+        if (!eventStore.isOpen()) {
+            return errorResponse(503, "dependency_unavailable",
+                                 "event store not configured");
+        }
+        ScheduledEvent event;
+        if (!eventStore.getEvent(key, event)) {
+            return errorResponse(404, "not_found",
+                                 "no stored event with that key");
+        }
+        NewsAnalysis expectation;
+        const bool hasExpectation =
+            eventStore.getEventAnalysis(key, "expectation", expectation);
+        NewsAnalysis result;
+        const bool hasResult = eventStore.getEventAnalysis(key, "result", result);
+        return NewsApi::eventDetail(event, hasExpectation ? &expectation : nullptr,
+                                    hasExpectation, hasResult ? &result : nullptr,
+                                    hasResult);
+    };
+
     std::string apiError;
     if (!server.start(apiError)) {
         std::cerr << "FATAL: cannot start astra api server: " << apiError
@@ -727,6 +1401,7 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "  shutdown requested" << std::endl;
+    if (eventWatcher) eventWatcher->stop();
     server.stop();
     runtime.stop();
     std::cout << "  bye" << std::endl;

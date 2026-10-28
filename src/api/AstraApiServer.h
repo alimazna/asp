@@ -39,6 +39,11 @@ struct AstraApiServerConfig {
     // Deliberately separate from senderTokens so a leaked ingestion credential
     // cannot purge stored data.
     std::vector<std::string> adminTokens;
+    // Read-only client bearer tokens accepted for the private AYZR mobile read
+    // surface (news + mobile-specific views). Separate from senderTokens so a
+    // leaked read credential cannot write candles. When empty the mobile routes
+    // are disabled rather than served unauthenticated.
+    std::vector<std::string> clientTokens;
     // Allowed browser origins for CORS (exact match, no trailing slash).
     std::vector<std::string> allowedOrigins;
 
@@ -50,6 +55,13 @@ struct AstraApiServerConfig {
     // Largest accepted ingestion batch. A sender paginates; the server refuses
     // an unbounded batch rather than parse it. Enforced in the ingest handler.
     std::size_t maxCandlesPerBatch = 500;
+    // Hard cap on concurrent connection-handler threads. Each connection is
+    // served on its own thread, so without a cap a client that opens many
+    // sockets (or dribbles headers) parks unbounded threads. Excess connections
+    // over the cap are refused with 503 rather than queued, so a flood cannot
+    // exhaust the process. <= 0 disables the cap (tests that drive many
+    // sequential connections).
+    int maxConcurrentConnections = 256;
 };
 
 class AstraApiServer {
@@ -85,6 +97,27 @@ public:
     // so it too requires the admin credential.
     std::function<ApiResponse(const std::string&, int)> adminListHandler;
 
+    // Private mobile read surface (AYZR). Requires the client credential
+    // (config_.clientTokens). Each receives the raw query string.
+    //   GET  /api/v1/news                    -> newsListHandler(query)
+    //   GET  /api/v1/news/analyze?id=...     -> newsAnalyzeHandler(query)
+    //   GET  /api/v1/news/quota              -> newsQuotaHandler()
+    //   GET  /api/v1/history                 -> historyHandler(query)
+    //   GET  /api/v1/activity?limit&kind     -> activityHandler(query)
+    //   GET  /api/v1/providers               -> providersHandler()
+    //   GET  /api/v1/events?scope&limit      -> eventsHandler(query)
+    //   GET  /api/v1/events/detail?key=...   -> eventDetailHandler(query)
+    std::function<ApiResponse(const std::string&)> newsListHandler;
+    std::function<ApiResponse(const std::string&)> newsAnalyzeHandler;
+    std::function<ApiResponse()> newsQuotaHandler;
+    std::function<ApiResponse(const std::string&)> historyHandler;
+    std::function<ApiResponse(const std::string&)> activityHandler;
+    std::function<ApiResponse()> providersHandler;
+    std::function<ApiResponse(const std::string&)> eventsHandler;
+    std::function<ApiResponse(const std::string&)> eventDetailHandler;
+    //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
+    std::function<ApiResponse(const std::string&)> newsIngestHandler;
+
 private:
     void acceptLoop();
     void handleConnection(std::intptr_t conn);
@@ -97,6 +130,10 @@ private:
     // CORS / auth helpers.
     bool authorize(const std::string& authorizationHeader) const;
     bool authorizeAdmin(const std::string& authorizationHeader) const;
+    bool authorizeClient(const std::string& authorizationHeader) const;
+    // Per-route throttle for failed authentication. Returns true while the
+    // route is under its unauthenticated-probe budget (the route's own limit).
+    bool unauthAllowed(const std::string& route, int limitPerMinute);
     bool originAllowed(const std::string& origin) const;
 
     // Fixed-window, per-credential rate limit. Returns true when the request is

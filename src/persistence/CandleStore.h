@@ -21,6 +21,13 @@ namespace aura {
 struct StoredCandle {
     std::string sourceId;
     std::string symbol;
+    // The instrument name the sender actually used, kept verbatim. A broker
+    // resolves gold to a house name (GOLD, XAUUSDm, XAUUSD.vx) and the sender
+    // reconciles its local ledger by that name, so folding it away without
+    // remembering the original would make a server acknowledgment invisible to
+    // the only client that has to match it. Empty when the sender sent the
+    // canonical name already.
+    std::string rawSymbol;
     std::string timeframe;
     std::int64_t openTimeUtc = 0;   // candle open time, epoch seconds (UTC)
     double open = 0.0;
@@ -31,6 +38,10 @@ struct StoredCandle {
     std::int64_t spread = 0;
     std::int64_t realVolume = 0;
     std::int64_t receivedAtUtc = 0; // server accept time, epoch seconds
+    // Sender-supplied correlation id, echoed back in the ack. Not persisted and
+    // not part of the identity: the identity is (sourceId, symbol, timeframe,
+    // openTimeUtc), which is what the store deduplicates on.
+    std::string uid;
 };
 
 // Per-candle result of an insert attempt.
@@ -48,6 +59,12 @@ struct CandleSyncPoint {
     std::string timeframe;
     std::int64_t lastOpenTimeUtc = 0;  // newest persisted candle open time
     std::int64_t count = 0;            // rows retained for the identity
+    // The sender-facing instrument name for this series: the broker-resolved
+    // alias the sender used (GOLD, XAUUSD.vx, ...) when it supplied one, else
+    // the canonical symbol. A sender reconciles its local ledger by this name,
+    // so a source-scoped sync must report what that sender actually sent, not
+    // only the folded canonical form.
+    std::string senderSymbol;
 };
 
 class CandleStore {
@@ -64,6 +81,12 @@ public:
     bool open(const std::string& path, std::string& error);
 
     bool isOpen() const noexcept { return db_ != nullptr; }
+
+    // Test seam (not part of the ingestion contract): when n > 0, the next
+    // insertBatch aborts and rolls back after n successful INSERTs, so a test
+    // can prove a batch is atomic (all-or-nothing). -1 disables it. Never used
+    // by production code paths.
+    void setFaultAfterInsertsForTest(int n) noexcept { faultAfterInserts_ = n; }
 
     // Insert a batch of candles under one transaction. Deduplication is by the
     // unique identity (source_id, symbol, timeframe, open_time_utc). A repeat of
@@ -99,7 +122,10 @@ public:
     // Distinct symbols present in the store (any source).
     std::vector<std::string> distinctSymbols() const;
 
-    // Newest persisted open time for (sourceId, symbol, timeframe), or 0.
+    // Newest persisted open time for (sourceId, symbol, timeframe), or 0. Like
+    // every read path, this withholds a series contaminated by a misaligned row
+    // (scoped to this source identity), so it can never report a fabricated
+    // timestamp as a real watermark.
     std::int64_t latestOpenTime(const std::string& sourceId,
                                 const std::string& symbol,
                                 const std::string& timeframe) const;
@@ -129,8 +155,12 @@ public:
 
 private:
     bool exec(const std::string& sql, std::string& error) const;
+    // True when `table` already has `column`; makes additive migrations
+    // idempotent so reopening an existing database is a no-op.
+    bool hasColumn(const std::string& table, const std::string& column) const;
     mutable std::mutex mutex_;
     sqlite3* db_ = nullptr;
+    int faultAfterInserts_ = -1;  // test seam; see setFaultAfterInsertsForTest
 };
 
 }  // namespace aura

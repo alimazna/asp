@@ -1,0 +1,287 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+
+import '../core/app_config.dart';
+import 'api_result.dart';
+import 'models/analysis.dart';
+import 'models/events.dart';
+import 'models/health.dart';
+import 'models/activity.dart';
+import 'models/news.dart';
+
+/// Authenticated client for the AYZR mobile read surface.
+///
+/// Only the documented, client-token routes are called:
+///   GET /api/v1/health/v1
+///   GET /api/v1/analysis/latest
+///   GET /api/v1/news?limit=&gold_only=
+///   GET /api/v1/news/analyze?id=
+///   GET /api/v1/history?limit=
+///
+/// Ingestion, admin and sync routes are intentionally absent: this app is
+/// read-only and must never be able to write candles or purge data.
+class ApiClient {
+  ApiClient({
+    required AppConfig config,
+    http.Client? httpClient,
+    Duration timeout = const Duration(seconds: 15),
+  })  : _config = config,
+        _http = httpClient ?? http.Client(),
+        _timeout = timeout;
+
+  AppConfig _config;
+  final http.Client _http;
+  final Duration _timeout;
+
+  AppConfig get config => _config;
+
+  void updateConfig(AppConfig next) => _config = next;
+
+  void dispose() => _http.close();
+
+  Map<String, String> get _headers => {
+        'Accept': 'application/json',
+        if (_config.hasToken)
+          'Authorization': 'Bearer ${_config.clientToken.trim()}',
+      };
+
+  /// Performs a GET, unwraps the `{api,schema,data}` envelope and returns the
+  /// `data` node. Errors are mapped to typed [ApiFailure]s, never thrown.
+  Future<ApiResult<dynamic>> _getData(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    if (!_config.hasToken) {
+      return const ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.unauthorized,
+        message: 'client token not configured',
+        statusCode: 401,
+      ));
+    }
+    final Uri uri;
+    try {
+      uri = _config.endpoint(path, query);
+    } catch (e) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.server,
+        message: 'invalid base url: $e',
+      ));
+    }
+
+    http.Response resp;
+    try {
+      resp = await _http.get(uri, headers: _headers).timeout(_timeout);
+    } on TimeoutException {
+      return const ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.offline,
+        message: 'request timed out',
+      ));
+    } on SocketException catch (e) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.offline,
+        message: 'network unreachable: ${e.message}',
+      ));
+    } on http.ClientException catch (e) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.offline,
+        message: 'connection failed: ${e.message}',
+      ));
+    } catch (e) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.offline,
+        message: 'connection failed: $e',
+      ));
+    }
+
+    if (resp.statusCode == 401 || resp.statusCode == 403) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.unauthorized,
+        message: _errorMessage(resp) ?? 'unauthorized',
+        statusCode: resp.statusCode,
+      ));
+    }
+    if (resp.statusCode == 429) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.rateLimited,
+        message: _errorMessage(resp) ?? 'rate limited',
+        statusCode: 429,
+      ));
+    }
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.server,
+        message: _errorMessage(resp) ?? 'HTTP ${resp.statusCode}',
+        statusCode: resp.statusCode,
+      ));
+    }
+
+    try {
+      final decoded = jsonDecode(utf8.decode(resp.bodyBytes));
+      if (decoded is! Map<String, dynamic>) {
+        return const ApiResult.failure(ApiFailure(
+          kind: ApiFailureKind.server,
+          message: 'unexpected response shape',
+        ));
+      }
+      return ApiResult.success(decoded['data']);
+    } catch (e) {
+      return ApiResult.failure(ApiFailure(
+        kind: ApiFailureKind.server,
+        message: 'malformed JSON: $e',
+      ));
+    }
+  }
+
+  /// The backend's flat error object is `{error,code,message}` (not enveloped).
+  String? _errorMessage(http.Response resp) {
+    try {
+      final decoded = jsonDecode(utf8.decode(resp.bodyBytes));
+      if (decoded is Map && decoded['message'] is String) {
+        return decoded['message'] as String;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Rows from a list endpoint. The backend nests rows under a named key
+  /// (`{news: [...]}`); a bare array is also accepted so a contract drift
+  /// degrades to an empty list rather than a cast crash.
+  static List<Object?> _rows(Object? data, String key) {
+    if (data is Map) {
+      final v = data[key];
+      return v is List ? v : const [];
+    }
+    return data is List ? data : const [];
+  }
+
+  Future<ApiResult<HealthV1>> health() async {
+    final r = await _getData('/api/v1/health/v1');
+    return r.map((d) => HealthV1.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  Future<ApiResult<AnalysisLatest>> latestAnalysis() async {
+    final r = await _getData('/api/v1/analysis/latest');
+    return r.map(
+        (d) => AnalysisLatest.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  Future<ApiResult<List<NewsListItem>>> news({
+    int limit = 50,
+    bool goldOnly = false,
+  }) async {
+    final r = await _getData('/api/v1/news', query: {
+      'limit': '$limit',
+      if (goldOnly) 'gold_only': 'true',
+    });
+    // The backend nests the rows under a named key: `{news: [...]}`.
+    return r.map((d) => _rows(d, 'news')
+        .whereType<Map>()
+        .map((m) => NewsListItem.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  Future<ApiResult<NewsDetail>> analyze(String articleId) async {
+    final r = await _getData('/api/v1/news/analyze', query: {'id': articleId});
+    return r.map(
+        (d) => NewsDetail.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// The AI provider's availability snapshot. Used to show an honest Arabic
+  /// banner when the daily quota is spent, rather than an unexplained failure.
+  Future<ApiResult<LlmQuota>> quota() async {
+    final r = await _getData('/api/v1/news/quota');
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      final inner = m['quota'];
+      return LlmQuota.fromJson(
+          inner is Map ? inner.cast<String, dynamic>() : m);
+    });
+  }
+
+  Future<ApiResult<List<HistoryEntry>>> history({int limit = 50}) async {
+    final r = await _getData('/api/v1/history', query: {'limit': '$limit'});
+    // The backend nests the rows under a named key: `{history: [...]}`.
+    return r.map((d) => _rows(d, 'history')
+        .whereType<Map>()
+        .map((m) => HistoryEntry.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  /// GET /api/v1/activity — the durable record of what the backend actually did.
+  /// `kind` filters server-side when non-empty.
+  Future<ApiResult<ActivityPage>> activity({
+    int limit = 200,
+    String kind = '',
+  }) async {
+    final r = await _getData('/api/v1/activity', query: {
+      'limit': '$limit',
+      if (kind.isNotEmpty) 'kind': kind,
+    });
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      final tallyRaw = m['tally'];
+      return ActivityPage(
+        tally: tallyRaw is Map
+            ? ActivityTally.fromJson(tallyRaw.cast<String, dynamic>())
+            : const ActivityTally(
+                ok: 0,
+                empty: 0,
+                rejected: 0,
+                unavailable: 0,
+                error: 0,
+                total: 0,
+              ),
+        entries: _rows(d, 'entries')
+            .whereType<Map>()
+            .map((e) => ActivityEntry.fromJson(e.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+    });
+  }
+
+  /// GET /api/v1/events — scheduled macro events with consensus.
+  /// `scope` is `upcoming` (default) or `past`.
+  Future<ApiResult<List<EventListItem>>> events({
+    int limit = 50,
+    String scope = 'upcoming',
+    bool goldOnly = true,
+  }) async {
+    final r = await _getData('/api/v1/events', query: {
+      'limit': '$limit',
+      'scope': scope,
+      if (!goldOnly) 'gold_only': 'false',
+    });
+    // The backend nests the rows under a named key: `{events: [...]}`.
+    return r.map((d) => _rows(d, 'events')
+        .whereType<Map>()
+        .map((m) => EventListItem.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  /// GET /api/v1/events/detail?key= — one event plus its expectation/result
+  /// turns. A missing turn is null, distinct from a turn that ran and failed.
+  Future<ApiResult<EventDetail>> eventDetail(String eventKey) async {
+    final r = await _getData('/api/v1/events/detail', query: {'key': eventKey});
+    return r.map(
+        (d) => EventDetail.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// GET /api/v1/providers — which AI credentials work and how each performed.
+  Future<ApiResult<ProviderPage>> providers() async {
+    final r = await _getData('/api/v1/providers');
+    return r.map((d) {
+      final m = (d as Map).cast<String, dynamic>();
+      return ProviderPage(
+        activeProvider: (m['active_provider'] as String?) ?? '',
+        configured: m['configured'] is int ? m['configured'] as int : 0,
+        providers: _rows(d, 'providers')
+            .whereType<Map>()
+            .map((p) => ProviderStatus.fromJson(p.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+    });
+  }
+}

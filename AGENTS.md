@@ -196,3 +196,140 @@ Rules:
 - Deploying the sender alone is **not** enough — the server-side guard is the
   half that rejected the bars. Ship both, or the symptom persists.
 
+
+## AYZR mobile + news intelligence (2026-10-27)
+
+- `ayzr-android/` is a **separate** Flutter app (package `com.ayzr.ayzr_app`,
+  Arabic-only, RTL). It is NOT the `astra-frontend/` SPA; do not reuse or read
+  that frontend. Build: `cd ayzr-android && flutter build apk --debug`.
+- The Android SDK lives at `/workspace/tools/android-sdk` (platform 34,
+  build-tools 34.0.0, **ndk 27.0.12077973**). `android/app/build.gradle` pins
+  `ndkVersion = "27.0.12077973"`: `shared_preferences_android` requires it and
+  Flutter's default (23.1.7779620) raises a build warning. NDK releases are
+  backward compatible, so pin the highest required version.
+- Outbound LLM7 HTTP needs **libcurl**: `apt-get install libcurl4-openssl-dev`,
+  then reconfigure cmake. Without it the news pipeline honestly reports
+  `unavailable` ("outbound HTTP transport not compiled"). The build finds the
+  header at `/usr/include/x86_64-linux-gnu/curl/`.
+- `nemotron-3-nano:30b` on the LLM7 free tier has **no JSON mode** and returns
+  *valid JSON that violates the schema* on the first turn (it folds top-level
+  keys into a `facts` element). The service makes **one** conversational repair
+  turn (system + user + the invalid assistant reply + a corrective user message
+  with a concrete example). An inline restatement in a single user message does
+  NOT work; the assistant+user turn sequence does.
+- The LLM7 free tier **rate-limits aggressively** (HTTP 429 within seconds),
+  and a real-token probe on 2026-10-27 confirmed the daily free budget can be
+  fully exhausted (`insufficient_quota`, `retry_after` ~19 h) — the account has
+  a $0 balance. The adapter classifies 429 as retryable/bounded and the API
+  degrades to `unavailable`; reliable production analysis needs a paid balance.
+- A **429 is two opposite conditions** and must not be conflated. `LlmQuotaMonitor`
+  (`src/news/LlmQuotaMonitor.*`) refines the 429: a body with a quota marker
+  (`insufficient_quota`/`quota_exceeded`/`daily token quota`) is `quota_exhausted`
+  (**not retryable** — the service opens a cooldown and withholds provider calls);
+  any other 429 is `rate_limited` (retryable, bounded). The reset comes from the
+  `Retry-After` header or the body `retry_after`; when absent it cools down via
+  `LLM7_QUOTA_FALLBACK_COOLDOWN_S` but reports `retry_after_seconds: null` — it
+  **never invents a countdown**. `GET /api/v1/news/quota` (client token) exposes
+  a secret-free snapshot; the Android app shows an Arabic `QuotaBanner`.
+- **Live 429 shape (2026-10-27):** `retry-after: 66401` header plus body
+  `{"error":{"message":"Daily token quota exceeded. Retry after 66401 seconds.","type":"insufficient_quota","param":null,"code":"quota_exceeded","retry_after":66401}}`.
+  The classifier matches it exactly; the test fixture is grounded in this probe.
+- `ASTRA_MOCK_LLM_MODE` (`ASTRA_LLM_PROVIDER=mock`) selects a mock failure mode
+  (`valid`/`malformed`/`empty`/`timeout`/`rate_limited`/`quota_exhausted`/
+  `auth_failure`/`malformed_then_valid`) so the full HTTP path can be
+  failure-injected **without spending real quota**. Unknown value → `valid`.
+- **`CandleStore::recent()` returned the OLDEST `limit` rows**, not the newest,
+  despite its name. With 6667 real M15 rows and `limit=500`, the candles route
+  published `newest_closed_time` ~98 days stale as the "newest closed candle".
+  Fixed to select the newest N in an inner `DESC` query then re-sort `ASC`, with
+  the quarantine predicate kept inside the inner query so `LIMIT` sees a clean
+  series (agent-b, verified independently by the principal).
+- News routes are client-token gated: `/api/v1/news`, `/api/v1/news/analyze?id=`,
+  `/api/v1/history` (note: **not** `/news/history`). Ingest is sender-token
+  gated: `/api/v1/news/ingest`. Candle read is `/api/v1/candles?tf=...&limit=...`
+  and returns a `bars` array (the route ignores `symbol`, defaults `tf=M15`).
+
+## Macro events (backend + AYZR Android, 2026-10-27)
+
+- `src/macro/CalendarFeed.{h,cpp}`, `EventStore.{h,cpp}`, `EventWatcher.{h,cpp}`
+  add a scheduled-macro-event surface on top of the news pipeline. The watcher
+  polls a real calendar (default FairEconomy `ff_calendar_thisweek.json`) and
+  writes two analysis turns per event, keyed by
+  `source|country|title|scheduled_at`: an EXPECTATION before release and a
+  RESULT after. Client routes: `GET /api/v1/events?scope=upcoming|past&limit=`
+  and `GET /api/v1/events/detail?key=` (client-token gated, read-only).
+- Honesty invariants (mirror the news surface): an unpublished consensus
+  serializes as `null`, never `0`/`""`; a turn that has not run reports
+  `has_expectation`/`has_result=false`, which the UI shows as "pending" — never
+  as "ran and found nothing".
+- **Dangling-pointer trap:** the calendar source must be a `shared_ptr` that
+  outlives the watcher. Scoping it inside the setup `if` block left the watcher
+  holding a raw pointer that dangled (symptom: `URL using bad/illegal format`).
+  Keep it at function scope in `AstraServerMain`.
+- A failing calendar feed backs off exponentially (cap ~15 min). Do not replace
+  this with a fixed short retry — the public feed rate-limits (HTTP 429).
+- The outbound client is HTTPS-only; an `http://` fixture calendar is rejected
+  by design. Use the real HTTPS feed or a mock source for tests.
+- Android lives in `ayzr-android/` (Flutter, Arabic-only RTL, `com.ayzr.ayzr_app`,
+  INTERNET permission only). Shared analysis rendering is
+  `lib/ui/widgets/analysis_view.dart`, used by both news detail and event turns.
+  Build: `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/tools/jdk17
+  flutter build apk --debug`. Tests: `flutter test` (86 pass).
+
+## Multi-provider LLM failover (2026-10-27)
+
+- `ASTRA_LLM_PROVIDER=auto` (default) builds an ordered chain from
+  `ASTRA_LLM_ORDER` (default `gemini,zai,mistral,llm7`); a provider whose key is
+  empty is skipped. Pinning the var to one name selects exactly that provider —
+  it must never silently become a chain, or a test pointed at a dead port would
+  be rescued by the others.
+- `FailoverLlmProvider::health()` folds per-provider outcomes into
+  `ok | degraded | all_quota_exhausted | all_unavailable | no_provider`. Only
+  **hard** outcomes (`auth_failure`, `quota_exhausted`, `bad_request`) mark a
+  provider down; a timeout/5xx/transport/rate-limit may clear and must not be
+  reported as down. `GET /api/v1/news/quota` carries this plus per-provider
+  rows (labels/counts only, never key material).
+- **Gemini maps every 429 to RateLimited at the status level.** A spent daily
+  budget and a temporary burst limit are both HTTP 429 + `RESOURCE_EXHAUSTED`,
+  so the body must be inspected: only an exhaustion marker
+  (`insufficient_quota`, `quota_exceeded`, `exceeded your current quota`, `check
+  your plan and billing`) is `quota_exhausted`. A bare rate limit stays
+  `rate_limited`. Reset comes from `Retry-After` or
+  `google.rpc.RetryInfo.retryDelay`; absent both, it is reported unknown.
+- Provider env names (authoritative): `GEMINI_API_KEY`, `ZAI_API_KEY`,
+  `MISTRAL_API_KEY` (all `*_API_KEY`), but `LLM7_API_TOKEN`. Each also has
+  `*_BASE_URL`, `*_MODEL`, `*_READ_TIMEOUT_MS`.
+- **E2E-proving the chain needs a TLS stub.** `OutboundHttpClient` is
+  HTTPS-only, so a plain-HTTP stub fails with "Unsupported protocol" and a
+  self-signed leaf with "SSL peer certificate ... not OK". Install the stub CA
+  into the system trust store (`/usr/local/share/ca-certificates` +
+  `update-ca-certificates`) rather than passing `CURL_CA_BUNDLE` to the server
+  process; then point `*_BASE_URL` at `https://127.0.0.1:<port>/...` and read
+  `/api/v1/news/quota` back over real HTTP. Remove the CA afterwards.
+
+## Sender contract: reconciliation + auth classification (2026-10-28)
+
+- The standalone sender keys its delivery ledger on the instrument name **it**
+  sent — the broker-resolved alias (`GOLD`, `XAUUSD.vx`, …) — not the canonical
+  `XAUUSD` the store folds to. So the source-scoped `GET /api/v1/sync/latest?
+  source_id=` must report that sender's own name in `symbol` (plus
+  `canonical_symbol` for diagnostics). Report only the folded name and a sender
+  that lost its ledger can never match the server watermark: it re-primes its
+  whole history every restart and an acked candle is resent forever.
+  `candles.raw_symbol` (additive migration, legacy rows `''`) carries the
+  verbatim name; empty means "sender used the canonical name".
+- The sender classifies AUTH_FAILED by a dedicated code **or** the word
+  `authorization` in the message. Every sender/admin/client 401 message now
+  starts `authorization failed: ...` while keeping the stable `unauthorized`
+  code and 401 status — otherwise a wrong/rotated token looks like a generic
+  ERROR and sends the operator chasing the terminal.
+- **Quarantine predicate was quadratic.** `cleanSeriesExpr()` /
+  `cleanSourceSeriesExpr()` were correlated `NOT EXISTS` over the outer row, so
+  SQLite re-evaluated the misalignment test once per candidate row (~500 ms on a
+  50k-row series) while holding the store mutex — long enough to starve the
+  ingest writer and hang `AyzrConcurrencyTests` (it was already ~1/8 flaky
+  before). Rewritten as a `DISTINCT` derived table probed by key (~15 ms),
+  proven row-for-row equivalent on a contaminated dataset. If a read holds the
+  mutex for hundreds of ms, suspect this class of correlated subquery.
+- `AyzrConcurrencyTests` must be stress-run (e.g. 8×), not once: a single pass
+  hides the starvation race.

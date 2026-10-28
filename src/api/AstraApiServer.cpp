@@ -57,8 +57,10 @@ const char* reasonPhrase(int status) {
     switch (status) {
         case 200: return "OK";
         case 201: return "Created";
+        case 204: return "No Content";
         case 400: return "Bad Request";
         case 401: return "Unauthorized";
+        case 403: return "Forbidden";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
         case 413: return "Payload Too Large";
@@ -92,6 +94,31 @@ std::string lower(std::string s) {
             std::tolower(static_cast<unsigned char>(c)));
     }
     return s;
+}
+
+// Constant-time string equality. `==` short-circuits on the first differing
+// byte, so its timing depends on how many leading bytes of a guess match. That
+// is only remotely interesting for a network-facing secret, but the fix is free
+// and removes the whole class. Length is folded in without an early return so a
+// wrong-length guess costs the same as a wrong-content one.
+bool constantTimeEquals(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) {
+        // Still touch the bytes so the length mismatch is not the only signal,
+        // then compare a same-length view so the loop runs.
+        unsigned char diff = static_cast<unsigned char>(a.size() ^ b.size());
+        const std::size_t n = a.size() < b.size() ? a.size() : b.size();
+        for (std::size_t i = 0; i < n; ++i) {
+            diff |= static_cast<unsigned char>(a[i]) ^
+                    static_cast<unsigned char>(b[i]);
+        }
+        return diff == 0;   // false: lengths differ
+    }
+    unsigned char diff = 0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        diff |= static_cast<unsigned char>(a[i]) ^
+                static_cast<unsigned char>(b[i]);
+    }
+    return diff == 0;
 }
 
 std::string encodeHttpResponse(int status, const std::string& body,
@@ -219,6 +246,24 @@ void AstraApiServer::acceptLoop() {
 
         {
             std::lock_guard<std::mutex> lock(workersMutex_);
+            if (config_.maxConcurrentConnections > 0 &&
+                activeWorkers_ >= config_.maxConcurrentConnections) {
+                // Over the cap: shed this connection immediately instead of
+                // spawning another thread. A one-line 503 is enough; the client
+                // is expected to back off.
+                const std::string body =
+                    "{\"error\":\"server_busy\",\"code\":\"overloaded\"}";
+                const std::string resp =
+                    "HTTP/1.1 503 Service Unavailable\r\n"
+                    "Content-Type: application/json\r\n"
+                    "Retry-After: 1\r\n"
+                    "Connection: close\r\n"
+                    "Content-Length: " + std::to_string(body.size()) +
+                    "\r\n\r\n" + body;
+                ::send(conn, resp.data(), resp.size(), 0);
+                closeSocket(conn);
+                continue;
+            }
             ++activeWorkers_;
         }
         std::thread([this, conn]() {
@@ -398,7 +443,7 @@ bool AstraApiServer::authorize(const std::string& authorizationHeader) const {
     const std::string presented = trim(trimmed.substr(6));
     if (presented.empty()) return false;
     for (const auto& token : config_.senderTokens) {
-        if (presented == token) return true;
+        if (constantTimeEquals(presented, token)) return true;
     }
     return false;
 }
@@ -413,7 +458,22 @@ bool AstraApiServer::authorizeAdmin(const std::string& authorizationHeader) cons
     const std::string presented = trim(trimmed.substr(6));
     if (presented.empty()) return false;
     for (const auto& token : config_.adminTokens) {
-        if (presented == token) return true;
+        if (constantTimeEquals(presented, token)) return true;
+    }
+    return false;
+}
+
+bool AstraApiServer::authorizeClient(const std::string& authorizationHeader) const {
+    // Read-only client credential for the private mobile surface. Kept separate
+    // from the sender token so a leaked read credential cannot write candles.
+    if (authorizationHeader.empty() || config_.clientTokens.empty()) return false;
+    constexpr const char* kBearer = "Bearer ";
+    const std::string trimmed = trim(authorizationHeader);
+    if (trimmed.rfind(kBearer, 0) != 0) return false;
+    const std::string presented = trim(trimmed.substr(6));
+    if (presented.empty()) return false;
+    for (const auto& token : config_.clientTokens) {
+        if (constantTimeEquals(presented, token)) return true;
     }
     return false;
 }
@@ -431,10 +491,17 @@ bool AstraApiServer::rateAllow(const std::string& route,
                                int limitPerMinute) {
     if (limitPerMinute <= 0) return true;   // disabled
 
-    // Identify the credential without storing it: FNV-1a over the raw header is
-    // enough to separate callers and is not reversible.
+    // Identify the credential by the canonical presented token, not the raw
+    // header. Keying on the raw header let a caller evade the limit by varying
+    // incidental whitespace around the same token ("Bearer  x" vs "Bearer x"),
+    // each variant landing in its own bucket.
+    std::string canonical = trim(authorizationHeader);
+    constexpr const char* kBearer = "Bearer ";
+    if (canonical.rfind(kBearer, 0) == 0) canonical = trim(canonical.substr(6));
+
+    // FNV-1a over the canonical token: separates callers, never reversible.
     std::uint64_t hash = 1469598103934665603ULL;
-    for (char c : authorizationHeader) {
+    for (char c : canonical) {
         hash ^= static_cast<unsigned char>(c);
         hash *= 1099511628211ULL;
     }
@@ -456,6 +523,23 @@ bool AstraApiServer::rateAllow(const std::string& route,
     return true;
 }
 
+bool AstraApiServer::unauthAllowed(const std::string& route, int limitPerMinute) {
+    if (limitPerMinute <= 0) return true;   // disabled
+
+    const std::int64_t nowSec = Timestamp::now().epochMillis() / 1000;
+    constexpr std::int64_t kWindowSec = 60;
+
+    std::lock_guard<std::mutex> lock(rateMutex_);
+    RateWindow& window = rateWindows_["unauth|" + route];
+    if (nowSec - window.windowStartSec >= kWindowSec) {
+        window.windowStartSec = nowSec;
+        window.count = 0;
+    }
+    if (window.count >= limitPerMinute) return false;
+    ++window.count;
+    return true;
+}
+
 ApiResponse AstraApiServer::handleRequest(
     const std::string& method, const std::string& path, const std::string& query,
     const std::string& body, bool authenticated, const std::string& authHeader,
@@ -467,18 +551,34 @@ ApiResponse AstraApiServer::handleRequest(
         (path == "/api/v1/candles/ingest") || (path == "/api/v1/sync/latest");
 
     if (requiresAuth && !authenticated) {
+        if (!unauthAllowed(path, config_.ingestRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "too many unauthenticated attempts; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
         return errorResponse(401, "unauthorized",
-                             "a valid sender bearer token is required");
+                             "authorization failed: a valid sender bearer token is required");
     }
 
     if (path == "/api/v1/admin/candles") {
+        // Authenticate BEFORE the method check: otherwise an unauthenticated
+        // caller learns the privileged route's allowed method set from a 405.
+        if (!authorizeAdmin(authHeader)) {
+            if (!unauthAllowed("admin", config_.ingestRequestsPerMinute)) {
+                ApiResponse tooMany = errorResponse(
+                    429, "rate_limited",
+                    "too many unauthenticated attempts; retry after backoff");
+                tooMany.headers += "Retry-After: 60\r\n";
+                return tooMany;
+            }
+            return errorResponse(401, "unauthorized",
+                                 "authorization failed: a valid admin bearer token is required");
+        }
         if (method != "DELETE" && method != "GET") {
             return errorResponse(405, "method_not_allowed",
                                  "admin candle route requires DELETE or GET");
-        }
-        if (!authorizeAdmin(authHeader)) {
-            return errorResponse(401, "unauthorized",
-                                 "a valid admin bearer token is required");
         }
         if (!rateAllow("admin", authHeader, config_.ingestRequestsPerMinute)) {
             ApiResponse tooMany = errorResponse(
@@ -590,6 +690,118 @@ ApiResponse AstraApiServer::handleRequest(
         if (candlesHandler) return candlesHandler(tf, limit);
         return errorResponse(503, "dependency_unavailable",
                              "candles handler not configured");
+    }
+
+    // News ingest is a WRITE surface. It is guarded by the sender (data-provider)
+    // credential, NOT the client token: the client token is read-only and is
+    // embedded in the Android app, so it must never authorize a write.
+    if (path == "/api/v1/news/ingest") {
+        if (method == "OPTIONS") {
+            return ApiResponse{204, "application/json", "", true, ""};
+        }
+        if (!authorize(authHeader)) {
+            if (!unauthAllowed("news_ingest", config_.ingestRequestsPerMinute)) {
+                ApiResponse tooMany = errorResponse(
+                    429, "rate_limited",
+                    "too many unauthenticated attempts; retry after backoff");
+                tooMany.headers += "Retry-After: 60\r\n";
+                return tooMany;
+            }
+            return errorResponse(401, "unauthorized",
+                                 "authorization failed: a valid sender bearer token is required");
+        }
+        if (!rateAllow("news_ingest", authHeader, config_.ingestRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "news ingest rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
+        if (method != "POST") {
+            return errorResponse(405, "method_not_allowed",
+                                 "news ingest requires POST");
+        }
+        if (body.empty()) {
+            return errorResponse(400, "malformed_request",
+                                 "news ingest requires a JSON body");
+        }
+        if (newsIngestHandler) return newsIngestHandler(body);
+        return errorResponse(503, "dependency_unavailable",
+                             "news ingest handler not configured");
+    }
+
+    // Private AYZR mobile read surface. Every route here requires the client
+    // credential: it exposes news, AI analysis and history that are not part of
+    // the public frozen contract. The credential is checked before any handler
+    // runs, and the routes are disabled (401) when no client token is configured
+    // rather than being served unauthenticated.
+    if (path == "/api/v1/news" || path == "/api/v1/news/analyze" ||
+        path == "/api/v1/news/quota" || path == "/api/v1/history" ||
+        path == "/api/v1/activity" || path == "/api/v1/providers" ||
+        path == "/api/v1/events" || path == "/api/v1/events/detail") {
+        if (method == "OPTIONS") {
+            return ApiResponse{204, "application/json", "", true, ""};
+        }
+        if (!authorizeClient(authHeader)) {
+            if (!unauthAllowed("client", config_.syncRequestsPerMinute)) {
+                ApiResponse tooMany = errorResponse(
+                    429, "rate_limited",
+                    "too many unauthenticated attempts; retry after backoff");
+                tooMany.headers += "Retry-After: 60\r\n";
+                return tooMany;
+            }
+            return errorResponse(401, "unauthorized",
+                                 "authorization failed: a valid client bearer token is required");
+        }
+        if (!rateAllow("client", authHeader, config_.syncRequestsPerMinute)) {
+            ApiResponse tooMany = errorResponse(
+                429, "rate_limited",
+                "client rate limit exceeded; retry after backoff");
+            tooMany.headers += "Retry-After: 60\r\n";
+            return tooMany;
+        }
+        if (method != "GET") {
+            return errorResponse(405, "method_not_allowed",
+                                 "news routes require GET");
+        }
+        if (path == "/api/v1/news") {
+            if (newsListHandler) return newsListHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "news list handler not configured");
+        }
+        if (path == "/api/v1/news/analyze") {
+            if (newsAnalyzeHandler) return newsAnalyzeHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "news analyze handler not configured");
+        }
+        if (path == "/api/v1/news/quota") {
+            if (newsQuotaHandler) return newsQuotaHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "news quota handler not configured");
+        }
+        if (path == "/api/v1/events") {
+            if (eventsHandler) return eventsHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "events handler not configured");
+        }
+        if (path == "/api/v1/events/detail") {
+            if (eventDetailHandler) return eventDetailHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "event detail handler not configured");
+        }
+        if (path == "/api/v1/activity") {
+            if (activityHandler) return activityHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "activity handler not configured");
+        }
+        if (path == "/api/v1/providers") {
+            if (providersHandler) return providersHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "providers handler not configured");
+        }
+        if (historyHandler) return historyHandler(query);
+        return errorResponse(503, "dependency_unavailable",
+                             "history handler not configured");
     }
 
     // Everything else is the frozen read surface served by the facade.

@@ -42,6 +42,14 @@ std::int64_t nowMillis() {
 ProcessSupervisor::ProcessSupervisor(ProcessLaunchSpec spec, RestartPolicy policy)
     : spec_(std::move(spec)), policy_(policy) {}
 
+ProcessSupervisor::~ProcessSupervisor() {
+    // Best-effort reap so an aborted test never leaks its child process.
+    if (info_.running && info_.pid != 0) {
+        std::string ignored;
+        stop(500, ignored);
+    }
+}
+
 bool ProcessSupervisor::isRunning() const {
     const_cast<ProcessSupervisor*>(this)->reapIfExited();
     return info_.running;

@@ -38,6 +38,14 @@ class ProcessSupervisor {
 public:
     ProcessSupervisor(ProcessLaunchSpec spec, RestartPolicy policy = {});
 
+    // A failed assertion in a test aborts before the explicit stop() call, which
+    // would otherwise leak the child (and its fixed test port) into the shared
+    // environment and poison unrelated runs. The destructor is the backstop.
+    ~ProcessSupervisor();
+
+    ProcessSupervisor(const ProcessSupervisor&) = delete;
+    ProcessSupervisor& operator=(const ProcessSupervisor&) = delete;
+
     // Launch the child. Fails if already running or the executable is missing.
     bool start(std::string& error);
 

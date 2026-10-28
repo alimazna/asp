@@ -3,7 +3,7 @@
 FROM ubuntu:22.04 AS build
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      build-essential cmake ninja-build libsqlite3-dev \
+      build-essential cmake ninja-build libsqlite3-dev libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -14,7 +14,7 @@ RUN cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
 
 FROM ubuntu:22.04 AS runtime
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      libsqlite3-0 \
+      libsqlite3-0 libcurl4 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/astra
