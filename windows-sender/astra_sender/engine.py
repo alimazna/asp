@@ -382,9 +382,25 @@ class SyncEngine:
 
         # 3. Catch-up: when the server ack trails the latest closed candle by
         #    more than one bar, fetch a bounded window of closed bars and send
-        #    them chronologically.
+        #    them chronologically. The same path serves the first-run prime:
+        #    with no acknowledgment at all, the engine has no decision-grade
+        #    feature window, so seed a bounded history window instead of one bar.
         candle_windows = [candle]
-        if ack_time is not None and candle.time > ack_time:
+        if ack_time is None:
+            # First contact from this sender. Prime the server with a bounded,
+            # chronological history window so the analysis engine has a
+            # decision-grade feature window immediately, rather than after 55
+            # live candles. Identity is per-candle and idempotent, so re-running
+            # is a server-side no-op. Bounded and capped, never the full history.
+            if self._config.prime_history_bars > 0:
+                recent = self._collector.read_recent_closed(
+                    timeframe, self._config.prime_history_bars)
+                if recent["ok"] and recent["candles"]:
+                    primed = sorted(recent["candles"], key=lambda c: c.time)
+                    primed = [c for c in primed if c.time <= candle.time]
+                    if primed:
+                        candle_windows = primed
+        elif candle.time > ack_time:
             gap = candle.time - ack_time
             if gap > 1800:   # more than one 15-minute-ish interval
                 recent = self._collector.read_recent_closed(

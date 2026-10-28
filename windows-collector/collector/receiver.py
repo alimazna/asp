@@ -1,0 +1,367 @@
+"""Receiver client: talk to whichever endpoint is configured.
+
+The endpoint is a *setting*, not a constant. Everything here is keyed on the
+destination identity derived from that URL, so pointing the collector at a
+different receiver cannot make it believe the new receiver already has candles
+it has never seen.
+
+Protocol (all over HTTPS; the token is sent as a bearer credential and is never
+logged, echoed, or stored in the ledger):
+
+  GET  <base>/health          -> liveness probe
+  GET  <base>/candles         -> the receiver's authoritative candle set
+  POST <base>/candles/ingest  -> deliver a batch, returns per-candle state
+
+The ingest response is only trusted when it names each candle's unique id and
+states whether it was newly stored or already present. A bare 200 that does not
+name the candle is treated as "unconfirmed" and the candle stays pending.
+"""
+
+from __future__ import annotations
+
+import http.client
+import json
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence
+
+from .store import StoredCandle
+
+HEALTH_PATH = "/health"
+CANDLES_PATH = "/candles"
+INGEST_PATH = "/candles/ingest"
+#: Authenticated read route. Used to prove a credential is accepted without
+#: delivering anything, because ``/health`` is deliberately unauthenticated.
+SYNC_PATH = "/sync/latest"
+
+# Per-candle states a receiver may report. "stored_new" and "already_stored"
+# both mean "persisted"; anything else is not a confirmation.
+STATE_STORED_NEW = "stored_new"
+STATE_ALREADY_STORED = "already_stored"
+CONFIRMED_STATES = frozenset({STATE_STORED_NEW, STATE_ALREADY_STORED})
+
+#: Version prefix the ASTRA server serves every route under.
+API_PREFIX = "/api/v1"
+
+
+def normalize_api_base(base_url: str) -> str:
+    """Return `base_url` with the API version prefix present.
+
+    The collector appends fixed relative paths, so the prefix has to live in
+    the base. Accepting a bare host makes the configuration forgiving without
+    making it ambiguous: a URL that already carries any "/api/<n>" segment is
+    left alone, so a future version or a differently-prefixed receiver still
+    works and this never appends a second prefix.
+    """
+    url = (base_url or "").strip().rstrip("/")
+    if not url:
+        return ""
+    lowered = url.lower()
+    if not (lowered.startswith("http://") or lowered.startswith("https://")):
+        # Not a URL at all (empty-ish or a typo). Leave it untouched so the
+        # caller's validation reports it, rather than silently rewriting it
+        # into something that looks valid.
+        return url
+    path = urllib.parse.urlsplit(url).path
+    if "/api/" in path:
+        return url
+    return url + API_PREFIX
+
+
+class ReceiverError(Exception):
+    """A transport or protocol failure. Carries a stable code, never a token."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+@dataclass
+class IngestOutcome:
+    """Per-candle result of one ingest request."""
+
+    confirmed: List[str]              # uids the receiver confirmed persisted
+    rejected: Dict[str, str]          # uid -> reason
+    unconfirmed: List[str]            # uids the response did not account for
+    received_at: int = 0
+
+    @property
+    def ok(self) -> bool:
+        return not self.unconfirmed
+
+
+class ReceiverClient:
+    """Authenticated HTTPS client for one receiver endpoint."""
+
+    def __init__(self, base_url: str, token: str,
+                 timeout_seconds: float = 30.0,
+                 verify_tls: bool = True):
+        # Every request path below is relative ("/health", "/candles/ingest"),
+        # and the ASTRA server serves them under a version prefix. A base URL
+        # that omits "/api/v1" therefore 404s on every call, which the sender
+        # reports only as an opaque HTTP error — the owner sees a configured,
+        # apparently valid URL that silently never delivers. Normalise here so
+        # the form the owner types does not have to be exact.
+        self.base_url = normalize_api_base(base_url)
+        self._token = token or ""
+        self._timeout = timeout_seconds
+        self._context: Optional[ssl.SSLContext] = None
+        if self.base_url.lower().startswith("https://") and not verify_tls:
+            self._context = ssl.create_default_context()
+            self._context.check_hostname = False
+            self._context.verify_mode = ssl.CERT_NONE
+
+    # -- transport ----------------------------------------------------------
+
+    def _request(self, path: str, method: str = "GET",
+                 body: Optional[bytes] = None,
+                 params: Optional[Dict[str, str]] = None,
+                 no_data_on_503: bool = False) -> Dict[str, Any]:
+        if not self.base_url:
+            raise ReceiverError("NO_DESTINATION", "no receiver URL configured")
+        url = self.base_url + path
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "astra-collector/1.0",
+        }
+        if self._token:
+            headers["Authorization"] = "Bearer " + self._token
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(url, data=body, headers=headers,
+                                         method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout,
+                                        context=self._context) as response:
+                payload = response.read().decode("utf-8", "replace")
+                status = response.status
+        except urllib.error.HTTPError as exc:
+            payload = exc.read().decode("utf-8", "replace")
+            if exc.code in (401, 403):
+                raise ReceiverError("AUTH_REJECTED",
+                                    "receiver rejected the credential") from None
+            if exc.code == 429:
+                raise ReceiverError("RATE_LIMITED",
+                                    "receiver rate limit reached") from None
+            if exc.code == 503 and no_data_on_503:
+                # The ASTRA server answers a candle query for a stream it holds
+                # nothing for with 503 `dependency_unavailable`, not 200 with an
+                # empty array. That is an authoritative "this stream is empty",
+                # which the caller must be able to tell apart from an
+                # unreachable receiver.
+                raise ReceiverError("NO_DATA",
+                                    "receiver holds no data for this stream") \
+                    from None
+            raise ReceiverError("HTTP_ERROR",
+                                f"receiver returned HTTP {exc.code}: "
+                                f"{_safe_message(payload)}") from None
+        except urllib.error.URLError as exc:
+            reason = getattr(exc, "reason", exc)
+            raise ReceiverError("UNREACHABLE",
+                                f"cannot reach receiver: {reason}") from None
+        except TimeoutError:
+            raise ReceiverError("TIMEOUT", "receiver request timed out") from None
+        except (http.client.HTTPException, ConnectionError, OSError) as exc:
+            # A dropped connection after the request was sent is the classic
+            # uncertain delivery: the receiver may or may not have committed.
+            # Reported as TIMEOUT so the candle stays pending and is retried
+            # with the same unique id, which is what makes that safe.
+            raise ReceiverError("TIMEOUT",
+                                f"connection lost before a response: "
+                                f"{type(exc).__name__}") from None
+
+        if status != 200:
+            raise ReceiverError("HTTP_ERROR",
+                                f"receiver returned HTTP {status}: "
+                                f"{_safe_message(payload)}")
+        if not payload.strip():
+            return {}
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            raise ReceiverError("BAD_RESPONSE",
+                                "receiver response was not JSON") from None
+        return parsed if isinstance(parsed, dict) else {"data": parsed}
+
+    # -- endpoints ----------------------------------------------------------
+
+    def health(self) -> Dict[str, Any]:
+        return self._request(HEALTH_PATH)
+
+    def verify_token(self) -> None:
+        """Prove the stored credential is accepted, without sending a candle.
+
+        ``/health`` is unauthenticated by design, so a 200 from it says nothing
+        about the token. This calls an authenticated read route instead: a
+        wrong or missing token raises ``AUTH_REJECTED`` here rather than being
+        discovered on the first delivery, when a failure looks like silence.
+
+        Nothing is written, so this is safe to call at any time.
+        """
+        self._request(SYNC_PATH)
+
+    def remote_open_times(self, symbol: str,
+                          timeframe: str) -> Optional[List[int]]:
+        """The receiver's authoritative open times for one stream.
+
+        Returns a sorted list when the receiver answered, and ``None`` when it
+        could not be asked. An empty list is a real answer meaning the receiver
+        holds nothing for this stream — that distinction is the whole point of
+        the return type, because a caller that treats "no answer" and "answered
+        empty" alike will suppress the repair of a stream the receiver lost.
+
+        The ASTRA server signals an empty stream with HTTP 503
+        ``dependency_unavailable``; that is translated to an empty list here.
+
+        The ASTRA server answers ``/candles`` with ``data.bars[]`` where each bar
+        carries ``time`` (the open time in epoch seconds). A summary form
+        (``open_times``) and a generic ``candles`` list are also accepted so the
+        client is not welded to one receiver build.
+        """
+        try:
+            response = self._request(CANDLES_PATH, params={
+                "symbol": symbol, "timeframe": timeframe, "limit": "100000"},
+                no_data_on_503=True)
+        except ReceiverError as exc:
+            if exc.code == "NO_DATA":
+                return []
+            raise
+        data = response.get("data", response)
+        if not isinstance(data, dict):
+            return []
+        if isinstance(data.get("open_times"), list):
+            return sorted({int(t) for t in data["open_times"]})
+        bars = data.get("bars")
+        if bars is None:
+            bars = data.get("candles")
+        if not isinstance(bars, list):
+            return []
+        times = []
+        for candle in bars:
+            if not isinstance(candle, dict):
+                continue
+            if candle.get("symbol") not in (None, symbol):
+                continue
+            if candle.get("timeframe") not in (None, timeframe):
+                continue
+            value = candle.get("open_time_utc", candle.get("time"))
+            if value is not None:
+                times.append(int(value))
+        return sorted(set(times))
+
+    def ingest(self, symbol: str, timeframe: str,
+               candles: Sequence[StoredCandle],
+               source_id: str = "",
+               clock_offset_seconds: int = 0) -> IngestOutcome:
+        """Deliver candles. Only explicitly named, persisted candles confirm.
+
+        `source_id` and `clock_offset_seconds` are both required by the ASTRA
+        server and were both missing here:
+
+          * Without `source_id` the server answers HTTP 400 `missing_fields`
+            before it looks at a single candle.
+          * Without `clock_offset_seconds` the server evaluates its "future"
+            guard in UTC, so every bar a non-UTC broker stamps (the common
+            UTC+2/+3 case) is rejected as future-dated. The sender has always
+            measured this offset; the collector measured it too and then did not
+            send it.
+        """
+        if not candles:
+            return IngestOutcome([], {}, [])
+        payload = {
+            "schema_version": "1.0",
+            "source_id": source_id,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "clock_offset_seconds": int(clock_offset_seconds or 0),
+            "candles": [c.to_payload() for c in candles],
+        }
+        response = self._request(
+            INGEST_PATH, method="POST",
+            body=json.dumps(payload).encode("utf-8"))
+        data = response.get("data", response)
+        # The receiver may name a candle by our uid (echoed back) or by its own
+        # identity string (symbol/timeframe/open_time). Both are acceptable
+        # proof, but the ledger is keyed on our uid, so the receiver's form is
+        # translated here rather than trusted verbatim.
+        by_uid = {c.uid: c for c in candles}
+        by_key = {(c.symbol, c.timeframe, int(c.open_time_utc)): c
+                  for c in candles}
+        confirmed: List[str] = []
+        rejected: Dict[str, str] = {}
+        seen: set = set()
+
+        def resolve(entry: Dict[str, Any]) -> str:
+            """Map an ack entry back to our uid. "" when it names nothing we sent."""
+            named = entry.get("uid")
+            if named and named in by_uid:
+                return named
+            identity = entry.get("identity")
+            if identity:
+                # "symbol=XAUUSD&timeframe=M15&open_time=1792905300"
+                parts = {}
+                for pair in str(identity).split("&"):
+                    if "=" in pair:
+                        key, _, value = pair.partition("=")
+                        parts[key.strip()] = value.strip()
+                try:
+                    key = (parts.get("symbol", ""), parts.get("timeframe", ""),
+                           int(parts.get("open_time", "")))
+                except ValueError:
+                    key = None
+                if key in by_key:
+                    return by_key[key].uid
+            if named:
+                return named
+            return ""
+
+        for entry in data.get("accepted", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            uid = resolve(entry)
+            if uid and entry.get("state", "") in CONFIRMED_STATES:
+                confirmed.append(uid)
+                seen.add(uid)
+        for entry in data.get("duplicates", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            uid = resolve(entry)
+            if uid:
+                confirmed.append(uid)
+                seen.add(uid)
+        for entry in data.get("rejected", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            uid = resolve(entry)
+            if uid:
+                rejected[uid] = str(entry.get("reason") or "rejected")
+                seen.add(uid)
+
+        unconfirmed = [c.uid for c in candles if c.uid not in seen]
+        return IngestOutcome(confirmed=confirmed, rejected=rejected,
+                             unconfirmed=unconfirmed,
+                             received_at=int(data.get("received", 0) or 0))
+
+
+def _safe_message(payload: str) -> str:
+    """Trim a receiver error body to something safe to log.
+
+    Bounded and stripped of anything that looks like a credential, so a
+    diagnostic never leaks a token into the local event log.
+    """
+    text = (payload or "").strip().replace("\n", " ")
+    if len(text) > 200:
+        text = text[:200] + "..."
+    lowered = text.lower()
+    for marker in ("bearer ", "token", "authorization"):
+        index = lowered.find(marker)
+        if index >= 0:
+            text = text[:index] + "[redacted]"
+            break
+    return text

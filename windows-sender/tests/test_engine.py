@@ -427,5 +427,99 @@ class EngineTest(EngineTearDownMixin, unittest.TestCase):
         engine.stop()
 
 
+class PrimeHistoryTest(EngineTearDownMixin, unittest.TestCase):
+    """First contact must seed a decision-grade feature window.
+
+    The analysis engine needs 55 closed bars before it calls a feature window
+    decision-grade (FeatureEngine::minBars). Sending only the latest closed
+    candle left the deployed backend permanently blocked with
+    "data blocked: feature window not decision-grade" until 55 live candles had
+    elapsed. A brand-new sender therefore primes a bounded history window.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), FakeAstraServer)
+        cls.server_thread = threading.Thread(target=cls.httpd.serve_forever)
+        cls.server_thread.daemon = True
+        cls.server_thread.start()
+        cls.port = cls.httpd.server_address[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+
+    def setUp(self):
+        self.directory = tempfile.mkdtemp(prefix="astra_prime_")
+        FakeAstraServer.requests = []
+        FakeAstraServer.count_ingest_calls = 0
+        FakeAstraServer.fail_once = False
+        FakeAstraServer.stored = []
+        FakeAstraServer.sync_paths = []
+        FakeAstraServer.sync_data = []
+        os.environ["FAKE_MT5_AVAILABLE"] = "1"
+        os.environ["FAKE_MT5_LAST_TIME"] = str(int(time.time()))
+        os.environ["FAKE_MT5_TOTAL_BARS"] = "300"
+        self.config = make_config(self.directory)
+        self.config.backend_url = f"http://127.0.0.1:{self.port}"
+        self.config.request_timeout_seconds = 5
+
+    def _make_engine(self, ledger=None):
+        collector = ClosedCandleCollector("XAUUSD")
+        ledger = ledger or DeliveryLedger(self.config.ledger_path)
+        client = ServerClient(self.config.backend_url, self.config.sender_token,
+                              self.config.sender_id, 5)
+        engine = SyncEngine(self.config, collector=collector, ledger=ledger,
+                            client=client)
+        self.engine = engine
+        return engine
+
+    def _sent_times(self):
+        times = []
+        for request in FakeAstraServer.requests:
+            for candle in request.get("candles", []):
+                times.append(candle["time"])
+        return times
+
+    def test_first_run_primes_a_bounded_decision_grade_window(self):
+        self.config.prime_history_bars = 60
+        engine = self._make_engine()
+        engine._sync_once()
+        sent = self._sent_times()
+        # 60 bars is above the engine's 55-bar minimum, so the backend can
+        # evaluate immediately instead of waiting for live candles.
+        self.assertGreaterEqual(len(sent), 55)
+        self.assertLessEqual(len(sent), 60)
+        # Chronological, and the newest closed candle is included.
+        self.assertEqual(sent, sorted(sent))
+        t = latest_fake_candle_time()
+        self.assertIn(t, sent)
+        engine.stop()
+
+    def test_prime_is_one_time_and_does_not_resend_after_ack(self):
+        self.config.prime_history_bars = 60
+        engine = self._make_engine()
+        engine._sync_once()
+        first_count = len(self._sent_times())
+        self.assertGreater(first_count, 1)
+        # A second loop with the ledger already primed must not resend the
+        # acknowledged history: only genuinely new bars may go out.
+        FakeAstraServer.requests = []
+        engine._sync_once()
+        second_count = len(self._sent_times())
+        self.assertLess(second_count, first_count,
+                        "acknowledged prime history must not be resent")
+        engine.stop()
+
+    def test_prime_disabled_sends_only_the_latest_candle(self):
+        self.config.prime_history_bars = 0
+        engine = self._make_engine()
+        engine._sync_once()
+        sent = self._sent_times()
+        self.assertEqual(len(sent), 1,
+                         "prime_history_bars=0 restores latest-candle-only")
+        engine.stop()
+
+
 if __name__ == "__main__":
     unittest.main()

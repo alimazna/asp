@@ -24,6 +24,7 @@
 #include "runtime/AuraRuntime.h"
 #include "telegram/TelegramGateway.h"
 
+#include <algorithm>
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
@@ -79,6 +80,11 @@ std::vector<std::string> splitComma(const std::string& in) {
 // value means a stale feed rather than an exotic clock, and accepting it would
 // mask exactly the staleness this system must never hide.
 constexpr std::int64_t kMaxClockOffsetSeconds = 18 * 3600;
+
+// Closed bars loaded per timeframe at startup to rehydrate the analysis bus.
+// Enough to satisfy the engine's trigger window (9) and context window (200)
+// after a restart, without reading the whole store into memory.
+constexpr std::size_t kRehydrateBars = 300;
 
 // Read the optional broker clock offset from an ingest body, clamped to a
 // plausible timezone band. Absent or unparseable values mean "unknown", which
@@ -327,8 +333,6 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
-    std::cout << "  candle store: " << dbPath << std::endl;
-
     // The runtime runs in remote-fed mode: no local bridge launch. It resolves
     // executable-relative paths, then we override the writable root so the
     // FilePersistenceStore ledger lands on the same durable volume as the
@@ -337,6 +341,7 @@ int main(int argc, char** argv) {
     startupOptions.launchBridgeProcess = false;   // no local MT5 on the server
     startupOptions.userRootOverride = dataDir;   // durable volume for all state
     AuraRuntime runtime(startupOptions);
+
     {
         std::string resolveError;
         runtime.resolveAsync(resolveError);
@@ -345,6 +350,58 @@ int main(int argc, char** argv) {
         std::cout << "  runtime stage: "
                   << toString(runtime.startupReport().stage) << " ("
                   << resolveError << ")" << std::endl;
+    }
+
+    // Rehydrate the analysis bus from the durable store. The store survives a
+    // redeploy; the in-memory bus does not. Without this the engine starts with
+    // an empty bus, the multi-timeframe gate (three closed bars per stream)
+    // cannot pass, and the API serves no decision until enough live candles
+    // accumulate. History is read oldest-first so the bus stays causal.
+    {
+        Timestamp seedNow = Timestamp::now();
+        std::int64_t newestSeen = 0;
+        for (Timeframe tf : allTimeframes()) {
+            const std::string tfName = toString(tf);
+            std::vector<StoredCandle> rows;
+            for (const auto& symbol : store.distinctSymbols()) {
+                const auto part = store.recent(symbol, tfName,
+                                               static_cast<int>(kRehydrateBars));
+                rows.insert(rows.end(), part.begin(), part.end());
+            }
+            if (rows.empty()) continue;
+            std::sort(rows.begin(), rows.end(),
+                      [](const StoredCandle& a, const StoredCandle& b) {
+                          return a.openTimeUtc < b.openTimeUtc;
+                      });
+            std::vector<Bar> bars;
+            BarNormalizer normalizer;
+            for (const auto& row : rows) {
+                BridgeCandle bridgeCandle;
+                bridgeCandle.openTime = row.openTimeUtc;
+                bridgeCandle.open = row.open;
+                bridgeCandle.high = row.high;
+                bridgeCandle.low = row.low;
+                bridgeCandle.close = row.close;
+                bridgeCandle.tickVolume = row.tickVolume;
+                bridgeCandle.spread = row.spread;
+                bridgeCandle.realVolume = row.realVolume;
+                bars.push_back(normalizer.normalize(bridgeCandle, tf,
+                                                    row.symbol, row.sourceId,
+                                                    seedNow));
+                newestSeen = std::max(newestSeen, row.openTimeUtc);
+            }
+            runtime.seedHistory(tf, bars, rows.front().symbol, seedNow);
+        }
+        if (newestSeen > 0) {
+            // Evaluate once from the seeded history so a restart serves the
+            // objective the persisted data already implies, rather than waiting
+            // for the next live candle to close.
+            RuntimeCycleReport seedReport;
+            seedReport.at = seedNow;
+            runtime.evaluateFromHistory(seedNow, seedReport);
+            std::cout << "  rehydrated history: newest candle open="
+                      << newestSeen << std::endl;
+        }
     }
 
     // Build the facade deps (same wiring as the desktop host).

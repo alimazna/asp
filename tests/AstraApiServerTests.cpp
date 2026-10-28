@@ -878,3 +878,75 @@ TEST_CASE(astra_server_admin_purge_requires_admin_token_and_deletes_one_row) {
     std::string stopError; supervisor.stop(2000, stopError);
     fs::remove_all(dataDir);
 }
+
+// The documented query key is `tf`, but the response field, the ingestion
+// request and the MT5 bridge all spell it `timeframe`. A caller sending
+// `timeframe` used to be silently answered with M15 instead of its request,
+// which is a wrong answer rather than an error.
+TEST_CASE(astra_server_accepts_timeframe_as_an_alias_for_tf) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+
+    ProcessLaunchSpec spec;
+    spec.executable = exe;
+    spec.args = {"--host", "127.0.0.1", "--port", std::to_string(port),
+                 "--data-dir", dataDir, "--sender-token", "s3cret-tok"};
+    ProcessSupervisor supervisor(spec);
+    std::string error;
+    REQUIRE(supervisor.start(error));
+
+    bool bound = false;
+    for (int i = 0; i < 60 && !bound; ++i) {
+        HttpRequest health;
+        health.host = "127.0.0.1";
+        health.port = port;
+        health.path = "/api/v1/health";
+        health.connectTimeoutMillis = 300;
+        health.readTimeoutMillis = 500;
+        if (httpGet(health).ok) bound = true;
+        else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    REQUIRE(bound);
+
+    // One closed M15 candle on the grid, so `tf` and `timeframe` must agree.
+    const std::string body =
+        "{\"source_id\":\"alias-src\",\"symbol\":\"XAUUSD\","
+        "\"timeframe\":\"M15\",\"candles\":[{\"time\":1792068300,"
+        "\"open\":2654.05,\"high\":2655.0,\"low\":2653.0,\"close\":2654.5,"
+        "\"tick_volume\":10}]}";
+    const HttpResponse ing = postIngest(port, "s3cret-tok", body);
+    CHECK_EQ(ing.statusCode, 200);
+
+    HttpRequest canonical;
+    canonical.host = "127.0.0.1";
+    canonical.port = port;
+    canonical.path = "/api/v1/candles?tf=M15&limit=10";
+    const HttpResponse viaTf = httpGet(canonical);
+    CHECK_EQ(viaTf.statusCode, 200);
+    CHECK(contains(viaTf.body, "\"timeframe\":\"M15\""));
+
+    HttpRequest alias;
+    alias.host = "127.0.0.1";
+    alias.port = port;
+    alias.path = "/api/v1/candles?timeframe=M15&limit=10";
+    const HttpResponse viaTimeframe = httpGet(alias);
+    CHECK_EQ(viaTimeframe.statusCode, 200);
+    // Identical body: the alias must resolve to the same series, not a default.
+    CHECK_EQ(viaTimeframe.body, viaTf.body);
+
+    // An alias pointing at a series with no data must not fall back to M15.
+    HttpRequest aliasEmpty;
+    aliasEmpty.host = "127.0.0.1";
+    aliasEmpty.port = port;
+    aliasEmpty.path = "/api/v1/candles?timeframe=M30&limit=10";
+    const HttpResponse emptyTf = httpGet(aliasEmpty);
+    CHECK(!(emptyTf.is2xx() && contains(emptyTf.body, "\"timeframe\":\"M15\"")));
+
+    std::string stopError; supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}

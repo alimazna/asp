@@ -93,6 +93,13 @@ class SenderConfig:
     poll_interval_seconds: int = 30
     catchup_max_bars: int = 200          # bound on offline gap catch-up
     catchup_bar_limit: int = 1000        # max bars fetched per catch-up read
+    # One-time history prime, per timeframe, on the first sync of a brand-new
+    # install. The analysis engine needs 55 closed bars before it will call a
+    # feature window decision-grade, so sending only the latest candle leaves
+    # the backend with a permanent "feature window not decision-grade" block
+    # until 55 live candles have elapsed. 0 disables priming (send only the
+    # latest closed candle, the previous behaviour).
+    prime_history_bars: int = 300
     request_timeout_seconds: int = 30
     ledger_path: str = ""                # resolved; empty -> default
     # Explicit path to the broker's terminal64.exe. Optional: without it MT5
@@ -128,6 +135,8 @@ class SenderConfig:
             problems.append("Poll interval must be at least 5 seconds.")
         if self.catchup_max_bars < 0 or self.catchup_bar_limit <= 0:
             problems.append("Catch-up bounds must be non-negative.")
+        if self.prime_history_bars < 0 or self.prime_history_bars > 5000:
+            problems.append("prime_history_bars must be between 0 and 5000.")
         if self.mt5_path and not self.mt5_path.lower().endswith(".exe"):
             problems.append("MT5 terminal path must point at terminal64.exe.")
         if self.mt5_timeout_ms <= 0:

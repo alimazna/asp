@@ -1,0 +1,257 @@
+"""End-to-end CLI test: run the real CLI against the doubles.
+
+Verifies the whole path — argument parsing, config persistence, token handling,
+MT5 read, planning, delivery, and the printed status — with only the MT5
+terminal and the receiving endpoint replaced by test doubles.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+sys.path.insert(0, HERE)
+
+from doubles import FakeReceiver  # noqa: E402
+
+
+def _make_mt5_shim(directory: str) -> None:
+    """A fake MetaTrader5 module so the real reader runs against the double."""
+    source = f'''"""Fake MetaTrader5 for the end-to-end CLI test. Test data only."""
+import sys
+sys.path.insert(0, {HERE!r})
+from doubles import FakeMt5Terminal
+
+_terminal = FakeMt5Terminal(symbol="XAUUSD", total_bars=300)
+
+TIMEFRAME_M1 = 1
+TIMEFRAME_M5 = 5
+TIMEFRAME_M15 = 15
+TIMEFRAME_M30 = 30
+TIMEFRAME_H1 = 16385
+TIMEFRAME_H4 = 16388
+TIMEFRAME_D1 = 16408
+TIMEFRAME_W1 = 32769
+TIMEFRAME_MN1 = 49153
+
+
+def initialize(*args, **kwargs):
+    return _terminal.available
+
+
+def shutdown():
+    return None
+
+
+def last_error():
+    return _terminal.last_error()
+
+
+def symbol_info(symbol):
+    return _terminal.symbol_info(symbol)
+
+
+def symbol_info_tick(symbol):
+    return _terminal.symbol_info_tick(symbol)
+
+
+def copy_rates_from_pos(symbol, timeframe, start_pos, count):
+    return _terminal.copy_rates_from_pos(symbol, timeframe, start_pos, count)
+'''
+    with open(os.path.join(directory, "MetaTrader5.py"), "w",
+              encoding="utf-8") as handle:
+        handle.write(source)
+
+
+class CliEndToEndTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.receiver = FakeReceiver(token="cli-token")
+        cls.shim_dir = tempfile.mkdtemp(prefix="astra_shim_")
+        _make_mt5_shim(cls.shim_dir)
+        cls.data_dir = tempfile.mkdtemp(prefix="astra_cli_")
+        cls.env = dict(os.environ)
+        cls.env["PYTHONPATH"] = cls.shim_dir + os.pathsep + ROOT
+        cls.env["ASTRA_COLLECTOR_DIR"] = cls.data_dir
+        cls.env["ASTRA_COLLECTOR_TOKEN"] = "cli-token"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.receiver.stop()
+
+    def _run(self, *args, stdin: str = ""):
+        return subprocess.run(
+            [sys.executable, "-m", "collector", *args],
+            cwd=ROOT, env=self.env, capture_output=True, text=True,
+            input=stdin, timeout=120)
+
+    def test_01_version(self):
+        result = self._run("--version")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("astra-collector", result.stdout)
+
+    def test_02_configure_destination(self):
+        result = self._run("--set-destination", self.receiver.url,
+                           "--set-sender-id", "cli-sender",
+                           "--set-symbol", "XAUUSD")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.data_dir, "config.json")))
+
+    def test_03_show_config_never_prints_the_token(self):
+        result = self._run("--show-config", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("cli-token", result.stdout,
+                         "the token must never be printed")
+        self.assertIn("token_configured", result.stdout)
+
+    def test_04_single_pass_delivers_and_reports(self):
+        result = self._run("--once", "--json", "--allow-insecure-http")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertGreater(len(self.receiver.state.stored), 0,
+                           "the receiver must have received candles")
+        self.assertIn("acknowledged", result.stdout)
+
+    def test_05_second_pass_never_resends_an_older_candle(self):
+        """A repeat pass may only add genuinely newer candles.
+
+        The invariant is per timeframe, not across all of them. Each timeframe
+        has its own grid and its own newest closed bar, so an M5 bar that closes
+        during the gap between the two passes is legitimately newer than the
+        previous M5 bar while still being older than the newest M1 bar. A single
+        cross-timeframe maximum compares two different grids and reports that
+        correct delivery as a re-send, which is how this test flaked on Windows
+        (a slower job widens the gap and makes the M1 bar outrun the M5 one).
+        """
+        before = dict(self.receiver.state.stored)
+        newest_before: dict = {}
+        for candle in before.values():
+            scope = (candle.get("symbol"), candle.get("timeframe"))
+            newest_before[scope] = max(newest_before.get(scope, 0),
+                                       int(candle["open_time_utc"]))
+        self.receiver.state.requests = []
+        result = self._run("--once", "--json", "--allow-insecure-http")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        added = {uid: c for uid, c in self.receiver.state.stored.items()
+                 if uid not in before}
+        for uid, candle in added.items():
+            scope = (candle.get("symbol"), candle.get("timeframe"))
+            previous = newest_before.get(scope, 0)
+            self.assertGreater(
+                int(candle["open_time_utc"]), previous,
+                f"{uid} is not newer than the previous newest {scope[1]} candle; "
+                f"a repeat pass must never re-deliver an already-acknowledged "
+                f"candle")
+        for uid in before:
+            self.assertIn(uid, self.receiver.state.stored,
+                          "an existing record must not be removed")
+
+    def test_06_status_reports_real_state(self):
+        result = self._run("--status", "--json", "--allow-insecure-http")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("destination", result.stdout)
+
+
+class EntryPointRoutingTest(unittest.TestCase):
+    """The frozen app's entry point must dispatch on argv.
+
+    The packaged executable is what the owner runs. It previously always
+    opened the window and ignored every argument, so `--version`,
+    `--show-config`, and the CI smoke checks were silently no-ops: the process
+    would hang on a window instead of printing and exiting. These pin the
+    dispatch, using the same module the spec freezes.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="astra-entry-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.env = dict(os.environ)
+        self.env["ASTRA_COLLECTOR_DIR"] = self.tmp
+
+    def _run_entry(self, *args):
+        return subprocess.run(
+            [sys.executable, str(Path(ROOT) / "astra_collector_app.py"), *args],
+            cwd=ROOT, env=self.env, capture_output=True, text=True, timeout=120)
+
+    def test_version_argument_prints_and_exits(self):
+        result = self._run_entry("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("astra-collector", result.stdout,
+                      "an argument must not open the window")
+
+    def test_show_config_argument_prints_config(self):
+        result = self._run_entry("--show-config")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("backend_url", result.stdout)
+
+    def test_set_destination_argument_saves(self):
+        result = self._run_entry("--set-destination", "https://example.test")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "config.json")),
+            "the entry point must reach the CLI, which persists the change")
+
+    def test_selfcheck_imports_every_runtime_module(self):
+        # The result must reach stdout, where a console run and CI read it, and
+        # must also be written to selfcheck.txt for a windowed exe that has no
+        # stdout at all. The Linux CI image has no tkinter, so it appears as the
+        # one missing component; the status line is checked either way so this
+        # test does not depend on which host runs it.
+        result = self._run_entry("--selfcheck")
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("selfcheck", result.stdout,
+                      "selfcheck must report on stdout, not only on stderr")
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "selfcheck.txt")),
+            "selfcheck must also write a durable report for a windowed build")
+        if result.returncode == 0:
+            self.assertIn("import cleanly", result.stdout)
+        else:
+            self.assertEqual(result.returncode, 4)
+            self.assertIn("FAIL", result.stdout)
+
+    def test_windowed_mode_does_not_hang(self):
+        """A windowed exe has no stdout; arguments must still return.
+
+        PyInstaller windowed builds set sys.stdout and sys.stderr to None. A
+        run that writes to them, or that raises, pops a native message box
+        that waits for a click forever - which is what hung the CI smoke run
+        for 25 minutes instead of printing the version. This runs the entry
+        point with both streams set to None and a hard timeout: a hang fails
+        the test instead of stalling the suite.
+        """
+        wrapper = (
+            "import sys, runpy\n"
+            "sys.stdout = None\n"
+            "sys.stderr = None\n"
+            "sys.argv = ['ASTRA-Collector.exe', '--version']\n"
+            f"sys.path.insert(0, {ROOT!r})\n"
+            "try:\n"
+            "    runpy.run_path('astra_collector_app.py', run_name='__main__')\n"
+            "except SystemExit as exc:\n"
+            "    raise SystemExit(exc.code or 0)\n"
+        )
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", wrapper], cwd=ROOT, env=self.env,
+                capture_output=True, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            self.fail("the entry point hung with stdout/stderr set to None; a "
+                      "windowed exe would show a blocking message box here")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Output is discarded, but the run must leave evidence on disk.
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.tmp, "console.log")),
+            "a windowed run must route output to a log, not to None")
+
+
+if __name__ == "__main__":
+    unittest.main()

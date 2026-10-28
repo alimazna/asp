@@ -1,0 +1,231 @@
+name: Collector - tests and Windows build
+
+# Standalone CI for the windows-collector app. It is independent of the ASTRA
+# backend workflows: this app has no server component.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'windows-collector/**'
+      - '.github/workflows/collector-windows-build.yml'
+    tags:
+      - 'collector-v*'
+  pull_request:
+    paths:
+      - 'windows-collector/**'
+      - '.github/workflows/collector-windows-build.yml'
+
+permissions:
+  contents: write   # attach the .exe to a GitHub Release on tag push
+
+defaults:
+  run:
+    working-directory: windows-collector
+
+jobs:
+  tests:
+    name: Test suite (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # tkinter is not needed: the window is never constructed in the tests,
+      # only its pure display helpers are exercised.
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -v
+
+  build:
+    name: Build executable (Windows)
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Confirm tkinter is present
+        run: python -c "import tkinter; print('tkinter', tkinter.TkVersion)"
+
+      - name: Run the test suite on Windows
+        run: python -m unittest discover -s tests
+
+      - name: Install PyInstaller and the MT5 package
+        run: |
+          python -m pip install "pyinstaller>=6.0"
+          # The collector reads candles through this package. Without it the
+          # frozen app starts and then fails on the first read, so it is
+          # installed here and bundled by the spec.
+          python -m pip install MetaTrader5
+
+      - name: Build the executable
+        run: python -m PyInstaller --clean --noconfirm packaging/astra_collector.spec
+
+      - name: Report the artifact
+        shell: pwsh
+        run: |
+          $exe = "dist/ASTRA-Collector.exe"
+          if (-not (Test-Path $exe)) { throw "missing $exe" }
+          $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
+          "Built $exe ($size MB)"
+          Get-FileHash $exe -Algorithm SHA256 | Format-List
+
+      - name: Smoke-run the frozen app (headless)
+        shell: pwsh
+        env:
+          # A frozen windowed exe shows a native message box on setup errors,
+          # which blocks forever with no user to click it.
+          ASTRA_COLLECTOR_NO_DIALOG: "1"
+        run: |
+          # A windowed-subsystem exe does not set $LASTEXITCODE; read the real
+          # exit code through Start-Process. Every run is bounded: an exe that
+          # pops a blocking message box would otherwise hang the job until it
+          # times out, which is exactly what happened once already.
+          function Invoke-Frozen($exe, $arg, $seconds) {
+            $p = Start-Process -FilePath $exe -ArgumentList $arg -PassThru
+            if (-not $p.WaitForExit($seconds * 1000)) {
+              Stop-Process -Id $p.Id -Force
+              Write-Error "$arg did not exit within ${seconds}s (a blocking dialog?)"
+              exit 1
+            }
+            return $p.ExitCode
+          }
+
+          $code = Invoke-Frozen ".\dist\ASTRA-Collector.exe" "--version" 60
+          if ($code -ne 0) {
+            Write-Error "--version failed with $code"
+            exit 1
+          }
+          Write-Host "frozen app --version passed"
+
+          # --version returns before the collector package is imported, so it
+          # cannot catch a missing module or a broken relative import.
+          # --selfcheck imports every runtime module and must exit 0.
+          $code = Invoke-Frozen ".\dist\ASTRA-Collector.exe" "--selfcheck" 120
+
+          # Read the report BEFORE judging the exit code: a windowed exe has no
+          # stdout, so this file is the only record of which module failed. It
+          # is printed even when the run succeeded, so the log shows what the
+          # bundle actually contains.
+          $report = Join-Path $env:LOCALAPPDATA "AstraCollector\selfcheck.txt"
+          if (-not (Test-Path $report)) {
+            Write-Error "selfcheck did not write $report"
+            exit 1
+          }
+          Write-Host "----- selfcheck.txt -----"
+          Get-Content $report | Write-Host
+          Write-Host "-------------------------"
+
+          if ($code -ne 0) {
+            Write-Error "--selfcheck failed with $code"
+            exit 1
+          }
+          if (Select-String -Path $report -Pattern "FAIL" -Quiet) {
+            Write-Error "selfcheck reported missing components (see above)"
+            exit 1
+          }
+          # A positive assertion, not only the absence of FAIL: an exe that
+          # silently dropped MetaTrader5 would still pass every check above and
+          # then be unable to read a single candle on the owner's PC.
+          if (-not (Select-String -Path $report -Pattern "ok   MetaTrader5" -Quiet)) {
+            Write-Error "MetaTrader5 is not importable in the frozen exe"
+            exit 1
+          }
+          Write-Host "frozen app --selfcheck passed (all runtime modules import)"
+
+      - name: Upload the executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASTRA-Collector-windows
+          path: windows-collector/dist/ASTRA-Collector.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/collector-v')
+    runs-on: ubuntu-latest
+    # This job never checks out the repository, so the workflow-level
+    # `working-directory: windows-collector` points at a path that does not
+    # exist here and bash fails to start ("No such file or directory"). The
+    # only run step below sets its own working-directory, which is
+    # unambiguous, rather than relying on job-level override semantics.
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ASTRA-Collector-windows
+          path: dist
+
+      - name: Locate the executable
+        id: locate
+        working-directory: .
+        # The artifact keeps the path relative to the uploaded file's parent,
+        # but that layout has changed between upload-artifact versions. Search
+        # for the exe instead of assuming a directory, so a layout change fails
+        # the build here with a listing rather than in the release step.
+        run: |
+          find . -name 'ASTRA-Collector.exe' -type f -print
+          exe=$(find . -name 'ASTRA-Collector.exe' -type f -print -quit)
+          if [ -z "$exe" ]; then
+            echo "the artifact did not contain ASTRA-Collector.exe"
+            echo "--- artifact contents ---"
+            find . -type f | head -50
+            exit 1
+          fi
+          ls -l "$exe"
+          echo "exe=$exe" >> "$GITHUB_OUTPUT"
+
+      - name: Hash the executable
+        id: hash
+        working-directory: .
+        # Printed here so the release body can carry the digest. The owner
+        # should not have to open a build log to check a download.
+        run: |
+          digest=$(sha256sum "${{ steps.locate.outputs.exe }}" | cut -d' ' -f1)
+          echo "sha256=${digest^^}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          # A public, world-readable release asset. The executable carries NO
+          # credential: the receiver URL and token are settings the owner
+          # enters, and the token lives in a separate owner-only file. Nothing
+          # secret can be extracted from this binary.
+          files: ${{ steps.locate.outputs.exe }}
+          name: "ASTRA Collector ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            Standalone ASTRA Collector for Windows.
+
+            **Download:** `ASTRA-Collector.exe` below. No Python or build tools
+            are required — it is a single self-contained executable.
+
+            The MetaTrader5 package is bundled, so the app reads your existing
+            MT5 terminal with no extra setup. It contains no credentials: enter
+            your receiver URL and token in the app.
+
+            Verify the download (PowerShell):
+
+            ```powershell
+            Get-FileHash .\ASTRA-Collector.exe -Algorithm SHA256
+            ```
+
+            For this release the expected SHA256 is:
+
+            ```
+            ${{ steps.hash.outputs.sha256 }}
+            ```
+
+            Windows SmartScreen may warn about an unsigned application;
+            choose "More info" then "Run anyway" only after the hash matches.
+
+            Setup instructions: `windows-collector/docs/SETUP.md` in the
+            repository.

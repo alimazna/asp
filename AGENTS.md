@@ -93,17 +93,46 @@ hardcode a timeframe as untrusted.
   (`4605ca78-b54a-4688-934d-45b37f54a7a8`) mounted at `/opt/astra/data`.
 - Frontend: `https://astra-dia.pages.dev` (Cloudflare Pages project `astra`).
 - All five synthetic deployment-verification rows were purged on 2026-10-16.
-  Production now holds the owner's **real** MT5 data for the multi-hour
-  timeframes (H4/D1/W1/MN1); the intraday timeframes are empty because the
-  pre-`f92075e` guard rejected them (see the broker-clock section below).
-  `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
-  for a backend with no bridge and partial timeframe coverage.
-- **2026-10-19:** the deployed container still runs the pre-`f92075e` ingest
-  guard (see below). The broker-clock fix is merged to `main` (`5afe44d`,
-  PR #15) but **not deployed**, because no Railway credential exists in the
-  agent environment. The owner's "only 4 timeframes" symptom persists until
-  `Deploy backend to Railway` runs (needs a `RAILWAY_TOKEN` secret) or
-  `railway up` runs with a token.
+- **2026-10-26 (verified live):** the deployed container now runs the
+  post-`f92075e` ingest guard. `/api/v1/health` reports all **nine** timeframes
+  with a closed bar, so the owner's "only 4 timeframes" symptom is resolved in
+  production. The store still holds only the candles the sender actually pushed
+  (M1/M5/M15/M30/D1/W1/MN1 had a single closed bar; H1 nine; H4 four) — the
+  system never fabricates coverage.
+- **2026-10-26 (open gap):** the deployed container does **not** yet run the
+  analysis-bus rehydration from `606aa74` **nor the two honesty fixes that
+  followed it** (`0ee0817` symbol reporting, `cd586bd` health publication), so
+  `/api/v1/analysis/latest` still reports `mtf_core_gate_passed:false` with
+  `block_reasons:["multi-timeframe core gate: M15 and H4 streams unavailable"]`
+  even though both streams are present in the durable store. The gate needs
+  three closed bars on each of M15 and H4; the in-memory bus starts empty on
+  every container start and is only fed by live ingestion. Until the rehydration
+  commit is deployed, a fresh container serves no objective until live candles
+  accumulate on their own.
+- **Deploy blocker (confirmed 2026-10-26 by dispatching the workflow):** all
+  three deploy workflows stop at their credential preflight. The Railway run
+  fails at "Fail with an actionable message if the token is missing"
+  (`RAILWAY_TOKEN` absent); the Cloudflare runs fail at "Preflight — Cloudflare
+  credentials present" (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` absent).
+  No token exists in the agent environment and there is no `~/.railway`, so a
+  deploy cannot be performed from here. Owner must add the three repository
+  secrets, then re-run the workflows on `feat/standalone-collector`.
+- **Re-verified live 2026-10-27:** the deployed container still serves
+  `analysis.symbol:""` and `mtf_core_gate_passed:false` with
+  `block_reasons:["multi-timeframe core gate: M15 and H4 streams unavailable"]`.
+  The rehydration commits `606aa74`, `0ee0817`, `cd586bd` are all present on
+  `feat/standalone-collector`, so the remaining work is a deploy, not a code
+  change. Still blocked on `RAILWAY_TOKEN`. Health and readiness both answer:
+  `/api/v1/health` and `/api/v1/readyz` return 200 (`ready:true`,
+  `startup_stage:DEGRADED`); the readiness route is `/api/v1/readyz`, **not**
+  `/readyz` or `/api/v1/ready`.
+- **Local verification of the un-deployed fixes (2026-10-26):** fresh ingest
+  into an empty data dir, then restart with no new ingestion, yields
+  `analysis.symbol:"XAUUSD"`, `mtf_core_gate_passed:true`, and a `/health` that
+  reports `observed_at` as a real timestamp with fault-accurate per-timeframe
+  reasons. Asserted by `RuntimeRehydrationTests`; 27/27 CTest pass.
+- `readyz` reports `ready:true` with `mode:DEGRADED`, which is the honest state
+  for a backend with no bridge.
 - Admin inspection: `GET /api/v1/admin/candles?tf=...` (admin token only).
   `scripts/quarantine_admin.py list --all` flags misaligned rows and prints
   the exact purge command.
@@ -153,6 +182,191 @@ hardcode a timeframe as untrusted.
   `__main__.py` had a second literal (`VERSION = "0.4.4"`) that drifted; it now
   imports the package value.
 
+## Windows collector packaging (2026-10-27, release collector-v1.0.2)
+
+The packaged collector shipped twice unable to read a single candle. Both faults
+were in the bundle, not the collection logic, and neither is visible from a
+successful `PyInstaller` exit code:
+
+- **`numpy` in `excludes` breaks the bundled `MetaTrader5`.** The spec bundled
+  `MetaTrader5` as a hidden import but listed `numpy` under `excludes`, and
+  excludes wins over hiddenimports. The frozen exe then failed with
+  `ImportError: numpy._core.multiarray failed to import` on the owner's first
+  read. The sender spec never excluded numpy for exactly this reason. A spec
+  that bundles a package must not exclude that package's dependencies.
+- **A windowed exe turns an unhandled exception into a blocking dialog.** With
+  `console=False` and `disable_windowed_traceback=False`, an escaping exception
+  opens a native message box that waits for a click. In a headless run nobody
+  clicks it, so the job hung for 25 minutes until cancelled. The collector now
+  routes `sys.stdout`/`sys.stderr` to `console.log` in the data dir when they are
+  `None`, and `ASTRA_COLLECTOR_NO_DIALOG=1` converts an escaping exception into a
+  logged non-zero exit (mirroring the sender's `ASTRA_SENDER_NO_DIALOG`).
+- **Diagnostics must be written, not only printed.** A windowed exe has no
+  stdout, so `--selfcheck` writes `selfcheck.txt` in the data dir. CI reads that
+  file and asserts a positive `ok   MetaTrader5`, because "no FAIL line" also
+  passes for an exe that dropped MT5 entirely.
+- **Bound every headless smoke run with a timeout.** `WaitForExit(ms)` plus an
+  explicit "did not exit (a blocking dialog?)" error turns a future hang into a
+  one-minute failure instead of burning the job.
+- **`upload-artifact` stores paths relative to the uploaded file's parent**, so a
+  release job that assumes `dist/ASTRA-Collector.exe` fails even though the build
+  and smoke test passed. The release job now searches for the file and prints a
+  listing when it is absent.
+- Tests that pass on one host and fail on another usually branch on a missing
+  dependency: the selfcheck test passed locally (no tkinter, so it read stderr)
+  and failed in CI (tkinter present, so stdout was empty). Assert the contract
+  that holds on both hosts.
+
+## Collector GUI: verify before saving, connect on demand (v1.0.4+)
+
+The owner-facing window had two design faults that only showed up when someone
+who is not the author used it. Both are worth preserving as rules.
+
+- **A "test" that tests the wrong thing is worse than no test.** The setup
+  button originally confirmed the URL via `/health`, which is unauthenticated on
+  the real server by design. It returned 200 for a wrong token, so the dialog
+  saved a configuration that could not deliver a single candle. The fix is
+  `ReceiverClient.verify_token()`, which calls the authenticated
+  `/api/v1/sync/latest`. Whenever a check is meant to prove a credential, it
+  must hit a route that requires that credential.
+- **The test double must not be more permissive than the server.** `FakeReceiver`
+  required a token on `/health` while the real server does not. A client that
+  never sent one would pass the double and fail in production. When the two
+  disagree, the double is wrong — check the C++ handler
+  (`src/api/AstraApiServer.cpp`) rather than assuming.
+- **Nothing connects on its own.** The MT5 connection is a separate button. A
+  probe that silently attaches on startup hides a misconfigured terminal and
+  makes the window's own status meaningless.
+- **Never call Tk's `after()` from a worker thread.** It raised "main thread is
+  not in main loop" under load. Worker results go through a `queue.Queue`
+  drained by `_drain_events` on the main thread. This is the pattern to follow
+  for any new background work.
+- **`/sync/latest` without `?source_id=` is an aggregate across senders and is
+  not delivery proof for any one sender.** The C++ handler says so in a comment.
+  Use it to prove a token; use the scoped form to reconcile a ledger.
+- GUI logic tests must not construct a window: the Linux CI job in
+  `collector-windows-build.yml` does not install tkinter. Test the pure helpers,
+  and drive the real window under `xvfb-run` locally instead.
+
+## A state change the user cannot see is not a state change (v1.0.5+)
+
+Two more faults, both found by driving the real window rather than reading it.
+Neither is visible in a diff, which is why they survived review.
+
+- **Failure rendered as the idle text.** `_on_probe_fail` set the state to
+  `DISCONNECTED`, whose label is "Terminal: not connected" — exactly what was
+  shown *before* the click. The owner pressed **Connect to MT5**, the button
+  greyed, then everything returned to how it looked before, with no reason
+  given. A failure must produce text the user did not already have. It now sets
+  `FAILED` and carries the reader's own message.
+- **A colour map silently has no default for a new state.** Adding `FAILED` was
+  not enough: `CONNECTED`, `CONNECTING`, `NO_DATA` and `DISCONNECTED` were
+  absent too, so every one of them fell through to the neutral grey — a
+  *successful* connection looked the same as a stopped one. When adding a state,
+  add it to `STATE_COLOURS` as well as the text map, and assert the colour is
+  not the fallback.
+- **Keep the mapping out of the widget code.** It now lives in
+  `display.probe_text`, a pure function, so the rule "an unknown state never
+  reads as connected" is a unit test that runs on Linux CI with no display.
+- **Cancel `after()` timers from a `<Destroy>` binding.** Closing the main window
+  while the setup dialog was open left a pending timer that fired against the
+  destroyed widget and printed `invalid command name "..._drain"` into the
+  owner's log. `_close` alone is not enough: the *parent* can be destroyed
+  first, so the binding is what makes it hold in both directions.
+- **Order of `pack()` calls is the layout, and it is not obvious from a diff.**
+  "Run setup again" was packed after the setup-text panel, so expanding the
+  panel pushed the button past the bottom edge. Packed tkinter has no
+  scrollbar: the control is simply gone. Anything the owner needs to reach must
+  be packed *above* the collapsible panel.
+- **`minsize()` does not rescue a computed geometry.** `_resize_for_brief` set
+  the window to `min(needed + 8, screen_h - 80)`. On a 768px screen that is 688,
+  which is *below* the 820 the window already had — expanding the panel shrank
+  the window and clipped the row. Growing must take `max(target, current)`.
+  Assert this with the pure function; the bug only appears at a screen size the
+  developer is not using.
+
+## A release job that only runs on tags is untested until you run it on a tag
+
+`if: startsWith(github.ref, 'refs/tags/collector-v')` means the publish step is
+**skipped on every branch push**, so green CI on a PR says nothing about it. The
+step that renders the SHA256 into the release body was added that way. A dry-run
+tag (`collector-v1.0.6-hashtest`) run confirmed the digest in the body matched
+the asset digest exactly; the tag and its release were deleted immediately after.
+Do this before trusting any change to the release job.
+
+## The live deployment is not the branch
+
+`https://astra-server-production.up.railway.app` serves the **pre-fix** build.
+Verified 2026-10-27, after the fixes were committed:
+
+- `/api/v1/health` -> `aggregate: DEGRADED`, `decision_grade_data: false`, and
+  `degraded_reasons` lists all nine timeframes as `"closed bar present"` - the
+  healthy-looking sentence the fix replaced. `observed_at` is a real timestamp,
+  so the STARTING-stuck variant is not what is deployed.
+- `/api/v1/analysis/latest` -> `symbol: ""` for real XAUUSD candles, and no
+  `streams`/`data_quality` keys at all.
+
+Both are the exact symptoms `cd586bd` and `0ee0817` address. Never report the
+backend as fixed on the strength of a green CI run; curl the deployment.
+
+## Probe the live server before reasoning about the contract
+
+Routes are `/api/v1/...` and the ingest route is `/api/v1/candles/ingest`, not
+`/api/v1/ingest`. `/health`, `/healthz` and `/readyz` do not exist; the health
+route is `/api/v1/health`. Auth is enforced on ingest and sync: no token and a
+bogus token both return `401 {"code":"unauthorized"}`. `GET /api/v1/candles`
+returns one bar even though the analysis payload reports no streams.
+
+## The collector has no tkinter on Linux CI
+
+`probe_text` and `resolve_brief_height` live in `collector/display.py` precisely
+so their rules are testable without a window. Anything that needs a real widget
+must be driven under `xvfb-run` by hand, and that is how the v1.0.5 and v1.0.6
+faults were found - both were invisible to the suite.
+
+## The owner's four requirements, and how each is verified
+
+1. Setup dialog on first run: driven under `xvfb` with a temp config dir; one
+   `Toplevel` titled "ASTRA Collector setup" opens, and closing the main window
+   with it open raises nothing.
+2. A separate **Connect to MT5** button, no auto-connect: `ast.parse` over
+   `__init__` and `_build` confirms neither `on_connect_mt5` nor `start` is
+   called; the button's `command` is the only caller.
+3. English only: a scan for non-ASCII outside `•–—…·≥≤×→` across
+   `collector/*.py` returns zero files.
+4. Brief text at the bottom: `brief_frame` is packed last; the setup row was
+   moved *above* it to stay reachable.
+
+## The collector's wire contract must be tested against the real server
+
+The collector shipped twice (v1.0.0, v1.0.2) unable to deliver **a single
+candle**, while its own suite reported 99 passing tests. Three independent
+wire-contract bugs, each invisible to the test double:
+
+1. **No `source_id`.** The server validates the batch envelope before reading
+   any candle and answers `HTTP 400 missing_fields`. The double never required
+   the field, so the client never sent it.
+2. **The open time was sent as `open_time_utc`.** `parseCandle` reads `time`.
+   The server accepts the batch (HTTP 200) and returns every candle in its
+   `rejected` array with `ingested: 0` — a *silent* failure, the worst kind,
+   because a sender that only checks the status code reads it as success and a
+   sender that requires a named ack reads it as "nothing confirmed" forever.
+3. **No `clock_offset_seconds`.** Same broker-time trap as the sender (below),
+   but the collector measured the offset and then dropped it before sending, so
+   every intraday bar from a UTC+2/+3 broker was rejected as future-dated.
+
+The lesson is not "be careful"; it is that **a hand-written test double is a
+second implementation of the contract, and it will drift.** A double that is
+more permissive than the server converts real production failures into green
+tests. The double now enforces the same envelope check, reads `time`, and
+applies the broker-frame future guard, and `tests/test_core.py::RealServerContractTest`
+drives the actual C++ `astra_server` binary (skipped when no build is present).
+When you change an endpoint, extend that class — do not only extend the double.
+
+Corollary: a passing `HTTP 200` is not delivery. The only proof is a per-candle
+ack naming the candle (`stored_new` / `already_stored`). The collector is
+already built that way; the tests now prove it against the real server.
+
 ## Security: never publish a token-bearing installer
 
 The repository is **public**, so any GitHub Release asset is world-readable. The
@@ -195,4 +409,30 @@ Rules:
   this system must never hide. A genuinely future bar must still be rejected.
 - Deploying the sender alone is **not** enough — the server-side guard is the
   half that rejected the bars. Ship both, or the symptom persists.
+
+## The receiver base URL must carry /api/v1 (v1.0.8+)
+
+- `collector/receiver.py` appends fixed relative paths (`/health`, `/candles`,
+  `/candles/ingest`, `/sync/latest`) to the configured base URL. There is no
+  `/api/v1` in those constants, so the prefix has to live in the base.
+- A base URL without it returns **404 `not_found` on every route**. The owner
+  sees a configured, plausible URL and the only symptom is silence — no error
+  that points at the cause.
+- `normalize_api_base()` now adds the prefix when it is absent and never
+  doubles an existing one, so a bare host, a trailing slash and a future
+  `/api/v2` all behave. `ReceiverClient` applies it in `__init__`, so callers
+  cannot bypass it.
+- `tests/doubles.py` serves under the prefix, matching the real server and
+  `tools/hiding_receiver.py`. It previously answered bare paths, which is why
+  the bug reached a release: a client pointed at a bare host passed the suite
+  and failed in production. **Keep the double's paths faithful to the real
+  server** — a double that is more forgiving than production hides exactly the
+  configuration bugs that matter.
+- `docs/BACKEND_CONTRACT.md` is the contract for any new backend. It was
+  extracted by running the binary and calling it, not from the docs, and it
+  records the traps: `clock_offset_seconds` is effectively mandatory (the
+  broker-time trap above), the batch cap is 500, an empty stream answers 503
+  `dependency_unavailable` rather than 200-with-`[]`, and `/candles` pages
+  oldest-first with a clamp, so **partial** stream loss is undetectable until
+  a cursor parameter exists.
 

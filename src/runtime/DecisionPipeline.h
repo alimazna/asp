@@ -156,6 +156,7 @@ public:
     }
 
     void setSymbol(std::string symbol) { symbol_ = std::move(symbol); }
+    const std::string& symbol() const noexcept { return symbol_; }
 
 private:
     DecisionPipelineConfig config_;
