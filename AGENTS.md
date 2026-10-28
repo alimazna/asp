@@ -274,4 +274,35 @@ Rules:
   INTERNET permission only). Shared analysis rendering is
   `lib/ui/widgets/analysis_view.dart`, used by both news detail and event turns.
   Build: `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/tools/jdk17
-  flutter build apk --debug`. Tests: `flutter test` (79 pass).
+  flutter build apk --debug`. Tests: `flutter test` (86 pass).
+
+## Multi-provider LLM failover (2026-10-27)
+
+- `ASTRA_LLM_PROVIDER=auto` (default) builds an ordered chain from
+  `ASTRA_LLM_ORDER` (default `gemini,zai,mistral,llm7`); a provider whose key is
+  empty is skipped. Pinning the var to one name selects exactly that provider —
+  it must never silently become a chain, or a test pointed at a dead port would
+  be rescued by the others.
+- `FailoverLlmProvider::health()` folds per-provider outcomes into
+  `ok | degraded | all_quota_exhausted | all_unavailable | no_provider`. Only
+  **hard** outcomes (`auth_failure`, `quota_exhausted`, `bad_request`) mark a
+  provider down; a timeout/5xx/transport/rate-limit may clear and must not be
+  reported as down. `GET /api/v1/news/quota` carries this plus per-provider
+  rows (labels/counts only, never key material).
+- **Gemini maps every 429 to RateLimited at the status level.** A spent daily
+  budget and a temporary burst limit are both HTTP 429 + `RESOURCE_EXHAUSTED`,
+  so the body must be inspected: only an exhaustion marker
+  (`insufficient_quota`, `quota_exceeded`, `exceeded your current quota`, `check
+  your plan and billing`) is `quota_exhausted`. A bare rate limit stays
+  `rate_limited`. Reset comes from `Retry-After` or
+  `google.rpc.RetryInfo.retryDelay`; absent both, it is reported unknown.
+- Provider env names (authoritative): `GEMINI_API_KEY`, `ZAI_API_KEY`,
+  `MISTRAL_API_KEY` (all `*_API_KEY`), but `LLM7_API_TOKEN`. Each also has
+  `*_BASE_URL`, `*_MODEL`, `*_READ_TIMEOUT_MS`.
+- **E2E-proving the chain needs a TLS stub.** `OutboundHttpClient` is
+  HTTPS-only, so a plain-HTTP stub fails with "Unsupported protocol" and a
+  self-signed leaf with "SSL peer certificate ... not OK". Install the stub CA
+  into the system trust store (`/usr/local/share/ca-certificates` +
+  `update-ca-certificates`) rather than passing `CURL_CA_BUNDLE` to the server
+  process; then point `*_BASE_URL` at `https://127.0.0.1:<port>/...` and read
+  `/api/v1/news/quota` back over real HTTP. Remove the CA afterwards.
