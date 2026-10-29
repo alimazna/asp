@@ -101,7 +101,7 @@ Per file:
 | `test/activity_models_test.dart` | 7 | all passed |
 | `test/events_test.dart` | 14 | all passed |
 | `test/widget_test.dart` | 23 | all passed |
-| **Total** | **97** | **97 passed / 0 failed** |
+| **Total** | **98** | **98 passed / 0 failed** |
 
 Tests use a real `MockClient` at the HTTP boundary so the actual parsing, state
 machine and widget code run. Key assertions: an uncalibrated signal renders a
