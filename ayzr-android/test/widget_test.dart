@@ -457,6 +457,44 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(Ar.newsResultsEmpty), findsOneWidget);
     });
+
+    testWidgets('a filter chip sends that direction to the server',
+        (tester) async {
+      final seen = <String?>[];
+      await pumpApp(
+        tester,
+        (req) async {
+          if (req.url.path == '/api/v1/news/results') {
+            seen.add(req.url.queryParameters['direction']);
+            return enveloped(newsResults);
+          }
+          const routes = {
+            '/api/v1/health/v1': healthOk,
+            '/api/v1/analysis/latest': analysisCalibrated,
+            '/api/v1/news': newsList,
+            '/api/v1/history': historyList,
+          };
+          final payload = routes[req.url.path];
+          if (payload != null) return enveloped(payload);
+          return errorBody('not_found', 'unknown route', 404);
+        },
+      );
+
+      await tester.tap(find.byIcon(Icons.fact_check_outlined));
+      await tester.pumpAndSettle();
+      // First load carries no filter: "all" must not send a direction token.
+      expect(seen, [null]);
+
+      await tester.tap(find.text(Ar.dirBearish));
+      await tester.pumpAndSettle();
+      expect(seen.last, 'bearish');
+
+      // Returning to "all" drops the filter again rather than sending an empty
+      // token the server would treat as a bogus value.
+      await tester.tap(find.text(Ar.filterAll));
+      await tester.pumpAndSettle();
+      expect(seen.last, isNull);
+    });
   });
 
   group('Degraded and stale states', () {

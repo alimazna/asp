@@ -89,7 +89,7 @@ flutter build apk --debug
 
 `flutter analyze` → **No issues found!**
 
-`flutter test` → **+97: All tests passed!** (0 failed)
+`flutter test` → **+98: All tests passed!** (0 failed)
 
 Per file:
 
@@ -100,7 +100,7 @@ Per file:
 | `test/app_state_test.dart` | 15 | all passed |
 | `test/activity_models_test.dart` | 7 | all passed |
 | `test/events_test.dart` | 14 | all passed |
-| `test/widget_test.dart` | 22 | all passed |
+| `test/widget_test.dart` | 23 | all passed |
 | **Total** | **97** | **97 passed / 0 failed** |
 
 Tests use a real `MockClient` at the HTTP boundary so the actual parsing, state
