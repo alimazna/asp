@@ -133,9 +133,28 @@ fails, the status stays `invalid_model_output` — never a coerced recommendatio
 |---|---|---|---|
 | `/api/v1/news` | GET | client | list, newest first; `?category=`, `?gold_only=`, `?limit=` |
 | `/api/v1/news/analyze?id=` | GET | client | article + latest analysis; 400 missing id, 404 unknown id |
+| `/api/v1/news/results` | GET | client | news-results log: each analysis joined to its article's source metadata; `?limit=` (1..500, default 50), `?direction=` (one of the four tokens; anything else = no filter), `?since=` (unix seconds, 0 = all) |
 | `/api/v1/news/quota` | GET | client | AI provider availability snapshot (secret-free) |
 | `/api/v1/history` | GET | client | persisted analyses, newest first; `?limit=` |
 | `/api/v1/news/ingest` | POST | **sender** | write path; per-article outcomes |
+
+### Analysis classifier fields (`gold_channel`, `impact_horizon`)
+
+Two additive classifiers ride on every analysis object. Both are **closed
+vocabularies**: the prompt names the allowed values, the parser rejects an
+out-of-set value outright (`invalid gold_channel: '...'`) rather than coercing it
+to a channel the model never named, and an absent/empty field reads back as
+`unknown` — the honest value, not a guess.
+
+| Field | Allowed values | Meaning |
+|---|---|---|
+| `gold_channel` | `monetary_policy`, `inflation`, `usd_rates`, `safe_haven`, `physical_demand`, `positioning`, `other`, `unknown` | the single most direct channel by which the news reaches gold |
+| `impact_horizon` | `immediate`, `short`, `medium`, `long`, `unknown` | how soon the effect is expected; qualitative on purpose — a horizon in minutes would be a fabricated precision |
+
+Both persist in `news_analyses` (`gold_channel` / `impact_horizon`, `NOT NULL
+DEFAULT 'unknown'`) and are added by an **additive** migration: `ADD COLUMN`
+behind a `hasColumn` probe, so it is idempotent and a row written before the
+columns existed reads back as `unknown` (it was genuinely never classified).
 
 ### Daily-quota monitoring (`GET /api/v1/news/quota`)
 
@@ -239,7 +258,8 @@ the provider.
 **Credential separation is deliberate and tested:**
 
 - The **client token** (`ASTRA_CLIENT_TOKEN`) is read-only and ships inside the
-  Android app. It authorizes `GET /news`, `/news/analyze`, `/history` **only**.
+  Android app. It authorizes `GET /news`, `/news/analyze`, `/news/results`,
+  `/news/quota`, `/history` **only**.
 - The **sender token** authorizes the news *write* path (`/news/ingest`) and
   candle ingestion. A leaked client token therefore cannot write anything.
 - The **admin token** authorizes the purge routes and nothing on the news surface.
