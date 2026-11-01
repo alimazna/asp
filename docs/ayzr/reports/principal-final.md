@@ -387,3 +387,25 @@ New tests: `AyzrNewsImpactTests` (27 cases — supportive/contradicting/neutral,
 non-directional, other-instrument, ordering, no-mutation, no-outcome-wording);
 3 Flutter parsing cases; the 20-scenario runner now asserts the linkage's shape
 and its direction-against-seed verdict (240 checks total).
+
+### 11.6 APK reproducibility (2026-11-01)
+
+Both APKs were rebuilt from the current tree (debug ~102 MB, release 23.0 MB)
+and the release APK's reproducibility was measured, not assumed:
+
+- **Incremental rebuild → byte-identical.** Two consecutive
+  `flutter build apk --release` runs gave the same full-file SHA-256
+  (`c46c4995…`).
+- **Clean rebuild → identical payload, different signature.** After
+  `flutter clean`, the full-file SHA-256 changed (`dc1ebd87…`) but the payload
+  SHA-256 was unchanged (`c76bf38f…`, 22 925 025 B). Byte-level comparison
+  confirms every local file header, compressed stream and central-directory
+  entry is identical; the only differing bytes are the 5 117 bytes inside the
+  APK Signing Block, where the ECDSA signature's random nonce lives.
+- `tool/apk_payload_hash.py` isolates that payload hash; `tool/build_apk.sh`
+  runs the full chain and prints size + full hash + payload hash.
+- Release signing now reads `android/key.properties` when present and falls back
+  to the debug key otherwise, so a privately signed build needs no Gradle edit.
+
+Not claimed: no device/emulator install; the release APK is debug-signed until a
+real keystore is supplied.

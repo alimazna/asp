@@ -5,6 +5,15 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// A real keystore, when supplied, lives in android/key.properties (git-ignored).
+// Without it the release build falls back to the debug key so the build works
+// locally; see docs/ayzr/ANDROID.md.
+def keyPropsFile = rootProject.file("key.properties")
+def keyProps = new Properties()
+if (keyPropsFile.exists()) {
+    keyProps.load(new FileInputStream(keyPropsFile))
+}
+
 android {
     namespace = "com.ayzr.ayzr_app"
     compileSdk = 34
@@ -33,16 +42,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (keyPropsFile.exists()) {
+                storeFile file(keyProps["storeFile"])
+                storePassword keyProps["storePassword"]
+                keyAlias keyProps["keyAlias"]
+                keyPassword keyProps["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signed with the debug key so `flutter build apk --release` works
-            // out of the box for local testing. A private distribution replaces
-            // this with a real keystore (see docs/ayzr/ANDROID.md).
-            signingConfig = signingConfigs.debug
+            // A private distribution supplies android/key.properties (git-ignored)
+            // pointing at a real keystore; the build then signs with it. Without
+            // that file it falls back to the debug key so `flutter build apk
+            // --release` still works locally. See docs/ayzr/ANDROID.md.
+            signingConfig = keyPropsFile.exists() ? signingConfigs.release
+                                                  : signingConfigs.debug
         }
     }
 }
-
 flutter {
     source = "../.."
 }

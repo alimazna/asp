@@ -161,12 +161,49 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 cd ayzr-android
 flutter pub get
 flutter analyze
-flutter test
+LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test   # journal tests need libsqlite3.so
 flutter build apk --debug
 ```
 
 The debug APK is written to
 `ayzr-android/build/app/outputs/flutter-apk/app-debug.apk`.
+
+### Reproducible build
+
+`tool/build_apk.sh` runs the whole chain — `pub get`, `analyze`, `test`, then
+`build apk` — and prints each APK's size, full-file SHA-256, and payload
+SHA-256 so two builds can be compared. It also creates the `libsqlite3.so`
+symlink the journal tests need and warns if the Flutter/Dart version differs
+from the one verified here.
+
+```bash
+tool/build_apk.sh            # both APKs
+tool/build_apk.sh release    # release only
+```
+
+Verified toolchain: Flutter **3.24.5** (stable), Dart **3.5.4**, JDK 17,
+Android SDK build-tools 34.0.0, NDK 27.0.12077973, compileSdk 34, minSdk 21.
+
+**What "reproducible" means here.** The APK *payload* — every local file
+header, every compressed entry, and the central directory — is byte-identical
+across builds. The only bytes that differ between two builds are inside the APK
+Signing Block, because an ECDSA signature embeds a random nonce. So:
+
+- `tool/apk_payload_hash.py <apk>` hashes everything up to the signing block.
+  Two builds of the same source produce the same value; this is the number to
+  compare across machines.
+- The full-file SHA-256 is stable for the *same signed artifact* (e.g. a
+  verified incremental rebuild) but not across independent signings.
+
+Observed: a clean `flutter clean` rebuild and an incremental rebuild of the same
+tree gave identical payload hashes (`c76bf38f…`, 22 925 025 B) with differing
+full-file hashes.
+
+Release signing: the release build signs with the debug keystore unless
+`ayzr-android/android/key.properties` exists (it is git-ignored). Supplying that
+file — `storeFile`, `storePassword`, `keyAlias`, `keyPassword` — makes the same
+`flutter build apk --release` produce a privately signed APK with no other
+change. **Never commit the keystore or `key.properties`.**
 
 To run against a specific backend without editing settings:
 
