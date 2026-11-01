@@ -119,6 +119,15 @@ public:
     std::function<ApiResponse()> providersHandler;
     std::function<ApiResponse(const std::string&)> eventsHandler;
     std::function<ApiResponse(const std::string&)> eventDetailHandler;
+    // AYZR-API-001 — read-only multi-horizon surface. ADDITIVE: these routes
+    // are served only when the handler is installed, so a backend that does
+    // not build the AYZR layer is unaffected.
+    //   GET /api/v1/ayzr/engines          -> ayzrEnginesHandler()
+    //   GET /api/v1/ayzr/trades           -> ayzrTradesHandler(query)
+    //   GET /api/v1/ayzr/trades/detail    -> ayzrTradeDetailHandler(query)
+    std::function<ApiResponse()> ayzrEnginesHandler;
+    std::function<ApiResponse(const std::string&)> ayzrTradesHandler;
+    std::function<ApiResponse(const std::string&)> ayzrTradeDetailHandler;
     //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
     std::function<ApiResponse(const std::string&)> newsIngestHandler;
 

@@ -810,6 +810,39 @@ ApiResponse AstraApiServer::handleRequest(
                              "history handler not configured");
     }
 
+    // AYZR-API-001 — multi-horizon read surface. Purely additive: when the
+    // AYZR layer is not installed the handler is empty and we fall through to
+    // the facade, so no existing route changes behaviour.
+    if (path == "/api/v1/ayzr/engines") {
+        if (method != "GET") {
+            return errorResponse(405, "method_not_allowed",
+                                 "ayzr engines route requires GET");
+        }
+        if (ayzrEnginesHandler) return ayzrEnginesHandler();
+        return errorResponse(503, "dependency_unavailable",
+                             "ayzr engines handler not configured");
+    }
+
+    if (path == "/api/v1/ayzr/trades") {
+        if (method != "GET") {
+            return errorResponse(405, "method_not_allowed",
+                                 "ayzr trades route requires GET");
+        }
+        if (ayzrTradesHandler) return ayzrTradesHandler(query);
+        return errorResponse(503, "dependency_unavailable",
+                             "ayzr trades handler not configured");
+    }
+
+    if (path == "/api/v1/ayzr/trades/detail") {
+        if (method != "GET") {
+            return errorResponse(405, "method_not_allowed",
+                                 "ayzr trade detail route requires GET");
+        }
+        if (ayzrTradeDetailHandler) return ayzrTradeDetailHandler(query);
+        return errorResponse(503, "dependency_unavailable",
+                             "ayzr trade detail handler not configured");
+    }
+
     // Everything else is the frozen read surface served by the facade.
     (void)body;
     (void)hasCorsOrigin;
