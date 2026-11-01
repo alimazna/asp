@@ -1,0 +1,56 @@
+{
+  "spec": {
+    "entry_tf": "H4",
+    "context_tfs": [
+      "D1"
+    ],
+    "status": "promising_unproven",
+    "verdict": "long_bias_not_symmetric_edge",
+    "geometry": {
+      "stop_mult": 2.0,
+      "target_mult": 2.0
+    },
+    "gate": "trend",
+    "evidence": "reports/overfitting_audit.json, reports/long_deepdive.json, reports/holdout_2026.json",
+    "note": "Positive pooled expectancy (+0.031R corrected) but Deflated Sharpe prob 0.035, PBO 0.50, 0/90 Holm survivors, 74% of profit from 10 trades, BUY-only, and cost-fragile. Frozen spec is used unchanged by validation/holdout_2026.py."
+  },
+  "m1_bars": 100008,
+  "h4_bars": 456,
+  "window": [
+    "2026-06-24 11:08:00",
+    "2026-10-08 10:30:00"
+  ],
+  "results": {
+    "spread_0.2": {
+      "n": 23,
+      "win": 0.522,
+      "expR": 0.0897,
+      "pf": 1.205,
+      "totalR": 2.06
+    },
+    "spread_0.4": {
+      "n": 23,
+      "win": 0.522,
+      "expR": 0.0869,
+      "pf": 1.198,
+      "totalR": 2.0
+    },
+    "spread_0.8": {
+      "n": 23,
+      "win": 0.522,
+      "expR": 0.0815,
+      "pf": 1.185,
+      "totalR": 1.87
+    }
+  },
+  "side_LONG": {
+    "n": 9,
+    "expR": 0.0297,
+    "win": 0.444
+  },
+  "side_SHORT": {
+    "n": 14,
+    "expR": 0.1237,
+    "win": 0.571
+  }
+}

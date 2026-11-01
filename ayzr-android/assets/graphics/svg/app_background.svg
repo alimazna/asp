@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="AYZR background">
+  <title>AYZR app background texture</title>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#070B18"/>
+      <stop offset="1" stop-color="#0C1428"/>
+    </linearGradient>
+    <pattern id="grid2" width="81" height="81" patternUnits="userSpaceOnUse">
+      <path d="M81 0 H0 V81" fill="none" stroke="#22304F" stroke-width="1" stroke-opacity="0.22"/>
+    </pattern>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#bg2)"/>
+  <rect width="1080" height="1920" fill="url(#grid2)"/>
+</svg>

@@ -868,6 +868,41 @@ ApiResponse BackendFacade::handle(const std::string& method,
     if (path == "/api/v1/bridge/status") return bridgeStatus();
     if (path == "/api/v1/audit/recent") return recentAudit();
 
+    // A browser that opens the API base (or the bare host) is not calling an
+    // endpoint, so a bare "unknown route" reads as "the server is down". Return
+    // a small human-readable landing page instead: it proves the service is up
+    // and lists the routes the private AYZR client actually uses.
+    if (path == "/api/v1" || path == "/api/v1/" || path == "/" ||
+        path == "/api/v1/index.html") {
+        ApiResponse page;
+        page.status = 200;
+        page.contentType = "text/html; charset=utf-8";
+        page.body =
+            "<!doctype html><html lang=\"ar\" dir=\"rtl\"><head>"
+            "<meta charset=\"utf-8\"><meta name=\"viewport\" "
+            "content=\"width=device-width,initial-scale=1\">"
+            "<title>AYZR — الخادم يعمل</title></head>"
+            "<body style=\"font-family:system-ui,Segoe UI,Tahoma,sans-serif;"
+            "background:#0b1220;color:#e7ecf3;margin:0;padding:2rem\">"
+            "<h1 style=\"color:#d4af37\">AYZR — الخادم يعمل ✅</h1>"
+            "<p>هذا هو العنوان الأساسي لواجهة البرمجة، وليس نقطة نهاية. "
+            "استخدم أحد المسارات التالية مع ترويسة "
+            "<code>Authorization: Bearer &lt;client-token&gt;</code>.</p>"
+            "<ul>"
+            "<li><code>GET /api/v1/health</code></li>"
+            "<li><code>GET /api/v1/analysis/latest</code></li>"
+            "<li><code>GET /api/v1/news?limit=20</code></li>"
+            "<li><code>GET /api/v1/news/results?limit=20</code></li>"
+            "<li><code>GET /api/v1/history?limit=20</code></li>"
+            "<li><code>GET /api/v1/candles?symbol=XAUUSD&amp;tf=H4&amp;limit=20</code></li>"
+            "</ul>"
+            "<p>مثال سريع: "
+            "<code>GET /api/v1/health</code> (متاح أيضاً بدون توكن).</p>"
+            "</body></html>";
+        page.ok = true;
+        return page;
+    }
+
     // Decision-support analysis surface (Phase 4.0 / T16).
     if (path == "/api/v1/analysis/latest") return latestAnalysis();
     if (path == "/api/v1/analysis/history") {

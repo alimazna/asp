@@ -26,17 +26,28 @@ std::string misalignedExpr(const std::string& a) {
            "   WHEN 'H4' THEN 14400 END))<>0)";
 }
 // Series keyed by (symbol, timeframe) across all sources.
+//
+// The quarantine set is computed once as a DISTINCT derived table and probed
+// with a keyed NOT EXISTS. Writing it as a correlated subquery over the outer
+// row (NOT EXISTS (... WHERE bad.symbol=candles.symbol AND ...)) is logically
+// identical but makes SQLite re-evaluate the misalignment predicate once per
+// candidate row, which is quadratic in the series length: on a 50k-row series a
+// sync call took ~500 ms and held the store mutex long enough to starve the
+// ingest writer (AyzrConcurrencyTests hung). The derived form is ~15 ms and
+// returns exactly the same rows.
 std::string cleanSeriesExpr() {
-    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
-           " bad.symbol=candles.symbol AND bad.timeframe=candles.timeframe AND "
-           + misalignedExpr("bad") + ")";
+    return "NOT EXISTS (SELECT 1 FROM (SELECT DISTINCT symbol, timeframe"
+           " FROM candles b WHERE "
+           + misalignedExpr("b") + ") bad WHERE"
+           " bad.symbol=candles.symbol AND bad.timeframe=candles.timeframe)";
 }
 // Series keyed by (source_id, symbol, timeframe).
 std::string cleanSourceSeriesExpr() {
-    return "NOT EXISTS (SELECT 1 FROM candles bad WHERE"
+    return "NOT EXISTS (SELECT 1 FROM (SELECT DISTINCT source_id, symbol,"
+           " timeframe FROM candles b WHERE "
+           + misalignedExpr("b") + ") bad WHERE"
            " bad.source_id=candles.source_id AND bad.symbol=candles.symbol"
-           " AND bad.timeframe=candles.timeframe AND "
-           + misalignedExpr("bad") + ")";
+           " AND bad.timeframe=candles.timeframe)";
 }
 }  // namespace
 
@@ -45,6 +56,7 @@ constexpr char kSchema[] =
     "CREATE TABLE IF NOT EXISTS candles ("
     "  source_id    TEXT NOT NULL,"
     "  symbol       TEXT NOT NULL,"
+    "  raw_symbol   TEXT NOT NULL DEFAULT '',"
     "  timeframe    TEXT NOT NULL,"
     "  open_time    INTEGER NOT NULL,"
     "  open         REAL NOT NULL,"
@@ -83,8 +95,9 @@ bool CandleStore::open(const std::string& path, std::string& error) {
         return false;
     }
 
-    int timeoutResult = sqlite3_busy_timeout(db_, 5000);
-    (void)timeoutResult;
+    // Wait rather than fail when another writer holds the lock. Paired with WAL
+    // (set below) this makes the single-writer / many-reader model robust.
+    sqlite3_busy_timeout(db_, 5000);
 
     char* errMsg = nullptr;
     if (sqlite3_exec(db_, kSchema, nullptr, nullptr, &errMsg) != SQLITE_OK) {
@@ -95,11 +108,56 @@ bool CandleStore::open(const std::string& path, std::string& error) {
         db_ = nullptr;
         return false;
     }
-    // WAL makes reads non-blocking against writes on the same DB file.
+    // WAL makes reads non-blocking against writes on the same DB file. The
+    // journal mode is a property of the file, so it survives reopen; the pragma
+    // is idempotent and cheap. `synchronous` is left at its default (FULL) so a
+    // committed batch is durable, which is the store's contract; this store is
+    // low-throughput, so the extra fsyncs are not worth trading away.
     char* walMsg = nullptr;
     sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &walMsg);
     if (walMsg != nullptr) sqlite3_free(walMsg);
+
+    // Additive migration: a database created before raw_symbol existed gains the
+    // column here. ADD COLUMN is safe and non-destructive and the existence
+    // probe makes it idempotent, so reopening is a no-op. Existing rows read
+    // back as '' (unknown sender name), which is the honest value: they predate
+    // the field, so the canonical symbol is the only name that was ever known
+    // for them.
+    if (!hasColumn("candles", "raw_symbol")) {
+        char* migMsg = nullptr;
+        if (sqlite3_exec(db_,
+                         "ALTER TABLE candles ADD COLUMN "
+                         "raw_symbol TEXT NOT NULL DEFAULT '';",
+                         nullptr, nullptr, &migMsg) != SQLITE_OK) {
+            error = std::string("cannot migrate candle store: ") +
+                    (migMsg != nullptr ? migMsg : "unknown");
+            if (migMsg != nullptr) sqlite3_free(migMsg);
+            sqlite3_close(db_);
+            db_ = nullptr;
+            return false;
+        }
+    }
     return true;
+}
+
+bool CandleStore::hasColumn(const std::string& table,
+                            const std::string& column) const {
+    const std::string sql = "PRAGMA table_info(" + table + ");";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    bool found = false;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        if (name != nullptr && column == name) {
+            found = true;
+            break;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return found;
 }
 
 bool CandleStore::exec(const std::string& sql, std::string& error) const {
@@ -124,7 +182,27 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
         return false;
     }
 
-    sqlite3_exec(db_, "BEGIN IMMEDIATE;", nullptr, nullptr, nullptr);
+    // A batch is atomic. If BEGIN cannot start a transaction (locked past the
+    // busy timeout, or any error) we must not run the INSERTs outside a
+    // transaction and then report success: that would ack a write we cannot
+    // prove is durable. Fail fast instead.
+    {
+        char* beginMsg = nullptr;
+        const int beginRc =
+            sqlite3_exec(db_, "BEGIN IMMEDIATE;", nullptr, nullptr, &beginMsg);
+        if (beginRc != SQLITE_OK) {
+            error = std::string("cannot begin candle transaction: ") +
+                    (beginMsg != nullptr ? beginMsg : sqlite3_errmsg(db_));
+            if (beginMsg != nullptr) sqlite3_free(beginMsg);
+            return false;
+        }
+        if (beginMsg != nullptr) sqlite3_free(beginMsg);
+    }
+
+    const int faultAfter = faultAfterInserts_;
+    faultAfterInserts_ = -1;  // one-shot: a fault must never poison later batches
+    int insertedSoFar = 0;
+
     std::string txError;
     bool ok = true;
     for (const auto& c : candles) {
@@ -161,9 +239,9 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
         sqlite3_stmt* stmt = nullptr;
         const char* sql =
             "INSERT INTO candles"
-            " (source_id, symbol, timeframe, open_time, open, high, low, close,"
-            "  tick_volume, spread, real_volume, received_at)"
-            " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12);";
+            " (source_id, symbol, raw_symbol, timeframe, open_time, open, high,"
+            "  low, close, tick_volume, spread, real_volume, received_at)"
+            " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13);";
         if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             txError = std::string("prepare failed: ") + sqlite3_errmsg(db_);
             ok = false;
@@ -171,24 +249,35 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
         }
         sqlite3_bind_text(stmt, 1, c.sourceId.c_str(), -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, 2, c.symbol.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, c.timeframe.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 4, c.openTimeUtc);
-        sqlite3_bind_double(stmt, 5, c.open);
-        sqlite3_bind_double(stmt, 6, c.high);
-        sqlite3_bind_double(stmt, 7, c.low);
-        sqlite3_bind_double(stmt, 8, c.close);
-        sqlite3_bind_int64(stmt, 9, c.tickVolume);
-        sqlite3_bind_int64(stmt, 10, c.spread);
-        sqlite3_bind_int64(stmt, 11, c.realVolume);
-        sqlite3_bind_int64(stmt, 12, c.receivedAtUtc);
+        sqlite3_bind_text(stmt, 3, c.rawSymbol.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, c.timeframe.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 5, c.openTimeUtc);
+        sqlite3_bind_double(stmt, 6, c.open);
+        sqlite3_bind_double(stmt, 7, c.high);
+        sqlite3_bind_double(stmt, 8, c.low);
+        sqlite3_bind_double(stmt, 9, c.close);
+        sqlite3_bind_int64(stmt, 10, c.tickVolume);
+        sqlite3_bind_int64(stmt, 11, c.spread);
+        sqlite3_bind_int64(stmt, 12, c.realVolume);
+        sqlite3_bind_int64(stmt, 13, c.receivedAtUtc);
         const int rc = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
 
         if (rc == SQLITE_DONE) {
             result.state = "stored_new";
+            ++insertedSoFar;
+            if (faultAfter > 0 && insertedSoFar >= faultAfter) {
+                // Test-only abort: force a mid-batch failure to prove the whole
+                // batch rolls back rather than persisting a partial prefix.
+                txError = "injected failure after " +
+                          std::to_string(insertedSoFar) + " insert(s)";
+                ok = false;
+                break;
+            }
         } else if (rc == SQLITE_CONSTRAINT) {
-            // Race with a concurrent insert of the same candle; treat as a
-            // duplicate, not an error.
+            // The row already existed at INSERT time. We check existence first,
+            // so this only happens when another writer inserted the same
+            // identity after our check; treat it as a duplicate, not an error.
             result.state = "already_stored";
         } else {
             txError = std::string("insert failed: ") + sqlite3_errmsg(db_);
@@ -201,9 +290,34 @@ bool CandleStore::insertBatch(const std::vector<StoredCandle>& candles,
     }
 
     if (ok) {
-        sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
+        char* commitMsg = nullptr;
+        const int commitRc =
+            sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, &commitMsg);
+        if (commitRc != SQLITE_OK) {
+            // A COMMIT that does not return SQLITE_OK (SQLITE_BUSY past the busy
+            // timeout, SQLITE_FULL, I/O error) means the batch may be rolled
+            // back. Reporting success here would be a false durability ack, so
+            // surface the failure and make sure the transaction is unwound.
+            error = std::string("candle commit failed: ") +
+                    (commitMsg != nullptr ? commitMsg : sqlite3_errmsg(db_));
+            if (commitMsg != nullptr) sqlite3_free(commitMsg);
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return false;
+        }
+        if (commitMsg != nullptr) sqlite3_free(commitMsg);
     } else {
-        sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+        char* rollbackMsg = nullptr;
+        const int rollbackRc =
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, &rollbackMsg);
+        if (rollbackMsg != nullptr) sqlite3_free(rollbackMsg);
+        if (rollbackRc != SQLITE_OK) {
+            // ROLLBACK only fails when there was no transaction to unwind. We
+            // started one above, so this is unexpected; report it rather than
+            // hide a possibly still-open transaction.
+            error = txError + " (rollback also failed: " +
+                    sqlite3_errmsg(db_) + ")";
+            return false;
+        }
         error = txError;
         return false;
     }
@@ -216,14 +330,24 @@ std::vector<StoredCandle> CandleStore::recent(const std::string& symbol,
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<StoredCandle> out;
     if (db_ == nullptr) return out;
+    // A non-positive limit would be read by SQLite as "no limit" and turn this
+    // into an unbounded scan of the whole series. Return nothing instead.
+    if (limit <= 0) return out;
 
     sqlite3_stmt* stmt = nullptr;
+    // The caller wants the NEWEST `limit` bars, still in ascending order. Taking
+    // the oldest `limit` rows would make the candles route publish a stale
+    // watermark as `newest_closed_time`. Select the newest N by descending open
+    // time in an inner query, then re-sort ascending for the response. The
+    // quarantine predicate stays inside the inner query so LIMIT sees only a
+    // clean series (a contaminated series yields no rows, not a truncated one).
     const std::string sql =
-        std::string("SELECT source_id, symbol, timeframe, open_time, open, high,"
-                    "       low, close, tick_volume, spread, real_volume,"
-                    "       received_at"
+        std::string("SELECT * FROM (SELECT source_id, symbol, timeframe,"
+                    " open_time, open, high, low, close, tick_volume, spread,"
+                    " real_volume, received_at"
                     " FROM candles WHERE symbol=?1 AND timeframe=?2 AND ") +
-        cleanSeriesExpr() + " ORDER BY open_time ASC LIMIT ?3;";
+        cleanSeriesExpr() +
+        " ORDER BY open_time DESC LIMIT ?3) AS candles ORDER BY open_time ASC;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
@@ -287,8 +411,13 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
     if (db_ == nullptr) return out;
 
     sqlite3_stmt* stmt = nullptr;
+    // MAX(raw_symbol) picks the sender's own name for the series. The alias is
+    // stable per (source, symbol, timeframe) in practice, and a row that
+    // predates raw_symbol carries '' which COALESCE folds back to the canonical
+    // symbol, so a source-scoped reconcile always reports a usable name.
     const std::string sql =
-        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*)"
+        std::string("SELECT symbol, timeframe, MAX(open_time), COUNT(*),"
+                    " COALESCE(MAX(raw_symbol), '')"
                     " FROM candles WHERE source_id=?1 AND ") +
         cleanSourceSeriesExpr() + " GROUP BY symbol, timeframe;";
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -302,6 +431,9 @@ std::vector<CandleSyncPoint> CandleStore::syncPointsForSource(
         sp.timeframe = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         sp.lastOpenTimeUtc = sqlite3_column_int64(stmt, 2);
         sp.count = sqlite3_column_int64(stmt, 3);
+        const char* raw =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        sp.senderSymbol = (raw != nullptr && *raw != '\0') ? raw : sp.symbol;
         out.push_back(std::move(sp));
     }
     sqlite3_finalize(stmt);
@@ -340,11 +472,14 @@ std::int64_t CandleStore::latestOpenTime(const std::string& sourceId,
     std::lock_guard<std::mutex> lock(mutex_);
     if (db_ == nullptr) return 0;
     sqlite3_stmt* stmt = nullptr;
-    const char* sql =
-        "SELECT COALESCE(MAX(open_time),0) FROM candles"
-        " WHERE source_id=?1 AND symbol=?2 AND timeframe=?3;";
+    // Same grid-alignment quarantine as every other read: a series contaminated
+    // by a misaligned row yields no watermark rather than a fabricated one.
+    const std::string sql =
+        std::string("SELECT COALESCE(MAX(open_time),0) FROM candles"
+                    " WHERE source_id=?1 AND symbol=?2 AND timeframe=?3 AND ") +
+        cleanSourceSeriesExpr() + ";";
     std::int64_t out = 0;
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         if (stmt != nullptr) sqlite3_finalize(stmt);
         return out;
     }
@@ -424,6 +559,10 @@ std::vector<StoredCandle> CandleStore::allRows(const std::string& symbol,
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<StoredCandle> out;
     if (db_ == nullptr) return out;
+    // Oldest-first is deliberate: the quarantine view must expose the earliest
+    // (often legacy) rows so the operator can find and purge the offending one.
+    // Guard the limit so a non-positive value cannot become an unbounded scan.
+    if (limit <= 0) return out;
 
     sqlite3_stmt* stmt = nullptr;
     const char* sql =

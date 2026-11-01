@@ -1,0 +1,8 @@
+{
+  "source": "FRED",
+  "series": "DGS10",
+  "description": "10-Year Treasury Constant Maturity Rate (% , daily)",
+  "license": "US federal data, public domain",
+  "url": "https://fred.stlouisfed.org/series/DGS10",
+  "fetched": "2026-11-01T17:45:44Z"
+}

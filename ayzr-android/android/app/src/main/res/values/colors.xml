@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AyzrColors.gold (#D4AF37). -->
+    <color name="ayzr_gold">#D4AF37</color>
+    <!-- AyzrColors.navyDeep (#070B18). -->
+    <color name="ayzr_navy">#070B18</color>
+</resources>

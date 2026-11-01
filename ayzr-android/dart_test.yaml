@@ -1,0 +1,7 @@
+# `live` tests talk to a real running backend and are skipped unless
+# AYZR_LIVE_BASE_URL is set. Run them with:
+#   AYZR_LIVE_BASE_URL=http://127.0.0.1:12001 AYZR_LIVE_TOKEN=<token> \
+#     flutter test --tags live
+tags:
+  live:
+    skip: false

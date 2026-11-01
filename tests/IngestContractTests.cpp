@@ -98,6 +98,42 @@ HttpResponse postIngest(std::uint16_t port, const std::string& body,
     return httpRequest(req);
 }
 
+// Read the chart route with the client credential. Used to prove a stored
+// candle is actually visible to a reader, not merely accepted.
+HttpResponse getCandles(std::uint16_t port, const std::string& query,
+                        const std::string& token = "ingest-test-token") {
+    HttpRequest req;
+    req.port = port;
+    req.path = "/api/v1/candles" + query;
+    req.headers = "Authorization: Bearer " + token + "\r\n";
+    req.connectTimeoutMillis = 1000;
+    req.readTimeoutMillis = 3000;
+    return httpGet(req);
+}
+
+// GET an arbitrary path with a bearer credential. Used to exercise the sync
+// reconciliation route exactly as the standalone sender calls it.
+HttpResponse getPath(std::uint16_t port, const std::string& path,
+                     const std::string& token) {
+    HttpRequest req;
+    req.port = port;
+    req.path = path;
+    if (!token.empty()) req.headers = "Authorization: Bearer " + token + "\r\n";
+    req.connectTimeoutMillis = 1000;
+    req.readTimeoutMillis = 3000;
+    return httpGet(req);
+}
+
+// Locate the built server binary under the conventional build directories.
+fs::path findServerBinary() {
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) return candidate;
+    }
+    return {};
+}
+
 #endif  // !_WIN32
 
 }  // namespace
@@ -333,6 +369,422 @@ TEST_CASE(broker_clock_offset_is_honored_for_intraday_bars) {
                         "/api/v1/candles?tf=M15&limit=100"});
         CHECK(candles.is2xx());
         CHECK(candles.body.find("\"count\":1") != std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
+// INGEST-ACK-0001 - every entry in the ingest ack must name the candle it
+// refers to, and a sender-supplied `uid` must be echoed back unchanged.
+//
+// A sender reconciles its local ledger against the ack: an accepted/duplicate/
+// rejected entry it cannot correlate is a candle it can never mark confirmed,
+// so it retries forever. Two defects were found against the real binary:
+//   * `uid` was parsed off the wire and then dropped, so the sender's own
+//     correlation id never came back; and
+//   * validation-level rejections (bad OHLC, misaligned grid, missing `time`)
+//     emitted only a free-text `reason` with no `identity`, so a rejected
+//     candle was indistinguishable from an unconfirmed one.
+//
+// This runs the REAL astra_server binary over real HTTP, so either regression
+// fails the test. Linux-only.
+TEST_CASE(ingest_folds_broker_gold_alias_and_rejects_other_symbols) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    fs::path exe;
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) {
+            exe = candidate;
+            break;
+        }
+    }
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-sym-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t openM15 = (now / 900) * 900 - 900;
+
+        // A broker names gold "GOLD"; the sender sends that verbatim. It must be
+        // folded to XAUUSD so the candle is readable, not stored under "GOLD"
+        // where no read route would ever serve it.
+        const std::string gold =
+            "{\"source_id\":\"sym-src\",\"symbol\":\"GOLD\","
+            "\"timeframe\":\"M15\",\"candles\":[{\"uid\":\"G-1\",\"time\":" +
+            std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse g = postIngest(port, gold);
+        CHECK(g.is2xx());
+        CHECK(g.body.find("\"state\":\"stored_new\"") != std::string::npos);
+        // The ack echoes the canonical symbol, so the sender sees what was stored.
+        CHECK(g.body.find("symbol=XAUUSD&timeframe=M15&open_time=") !=
+              std::string::npos);
+
+        // ...and it is visible through the chart route that serves XAUUSD.
+        const HttpResponse read = getCandles(port, "?tf=M15&limit=10");
+        CHECK(read.is2xx());
+        CHECK(read.body.find("\"time\":" + std::to_string(openM15)) !=
+              std::string::npos);
+
+        // A genuinely different instrument is refused up front instead of being
+        // accepted into a store no reader can reach.
+        const std::string eur =
+            "{\"source_id\":\"sym-src\",\"symbol\":\"EURUSD\","
+            "\"timeframe\":\"M15\",\"candles\":[{\"uid\":\"E-1\",\"time\":" +
+            std::to_string(openM15 + 900) +
+            ",\"open\":1.1,\"high\":1.2,\"low\":1.0,\"close\":1.15,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse e = postIngest(port, eur);
+        CHECK(e.statusCode == 400);
+        CHECK(e.body.find("unsupported_symbol") != std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
+TEST_CASE(ingest_ack_correlates_every_candle_by_identity_and_echoes_uid) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    fs::path exe;
+    for (const char* dir : {"build-verify", "build-linux", "build", "out"}) {
+        const fs::path candidate =
+            fs::path(AURA_SOURCE_DIR) / dir / "astra_server";
+        if (fs::exists(candidate)) {
+            exe = candidate;
+            break;
+        }
+    }
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-ack-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t offset = 3 * 3600;   // a UTC+3 broker
+        const std::int64_t openM15 = ((now + offset) / 900) * 900 - 900;
+
+        // 1. A stored candle echoes the sender's uid verbatim.
+        const std::string withUid =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-42\","
+            "\"time\":" + std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse stored = postIngest(port, withUid);
+        CHECK(stored.is2xx());
+        CHECK(stored.body.find("\"state\":\"stored_new\"") != std::string::npos);
+        CHECK(stored.body.find("\"uid\":\"SENDER-42\"") != std::string::npos);
+        // The uid field must be well-formed JSON, not a double-quoted literal.
+        CHECK(stored.body.find("\"uid\":\"\"SENDER-42\"\"") ==
+              std::string::npos);
+
+        // 2. The dedupe ack carries the same uid, so a replay is matchable too.
+        const HttpResponse dup = postIngest(port, withUid);
+        CHECK(dup.is2xx());
+        CHECK(dup.body.find("\"state\":\"already_stored\"") != std::string::npos);
+        CHECK(dup.body.find("\"uid\":\"SENDER-42\"") != std::string::npos);
+
+        // 3. A validation-level rejection names the candle by identity (here an
+        //    OHLC-ordering violation, where `time` is present and usable).
+        const std::string badOhlc =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-43\","
+            "\"time\":" + std::to_string(openM15 + 900) +
+            ",\"open\":1900,\"high\":1880,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse rej = postIngest(port, badOhlc);
+        CHECK(rej.is2xx());
+        CHECK(rej.body.find("\"state\":\"rejected\"") != std::string::npos);
+        CHECK(rej.body.find("\"identity\":\"symbol=XAUUSD&timeframe=M15&"
+                            "open_time=" +
+                            std::to_string(openM15 + 900) + "\"") !=
+              std::string::npos);
+
+        // 4. When `time` itself is missing the derived key is meaningless, so
+        //    the uid is the only correlate and must be used instead of an
+        //    empty identity.
+        const std::string noTime =
+            "{\"source_id\":\"ack-src\",\"symbol\":\"XAUUSD\","
+            "\"timeframe\":\"M15\",\"clock_offset_seconds\":" +
+            std::to_string(offset) + ",\"candles\":[{\"uid\":\"SENDER-44\","
+            "\"open_time_utc\":" + std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905}]}";
+        const HttpResponse rejNoTime = postIngest(port, noTime);
+        CHECK(rejNoTime.is2xx());
+        CHECK(rejNoTime.body.find("\"state\":\"rejected\"") != std::string::npos);
+        CHECK(rejNoTime.body.find("\"identity\":\"uid=SENDER-44\"") !=
+              std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
+// INGEST-0003 - a sender that reconciles its local ledger by the broker name it
+// actually sent must be able to correlate the server's answer.
+//
+// The standalone sender resolves gold to a broker house name ("GOLD",
+// "XAUUSD.vx", "XAUUSDm") and keys its delivery ledger on that name. The store
+// folds the alias to XAUUSD, and the source-scoped sync route used to report
+// only the folded name, so a sender that had lost its ledger could never
+// recognize the server's watermark as its own: it re-primed its whole history
+// window on every restart. The scoped sync must report the sender's own name in
+// `symbol` (and the folded one in `canonical_symbol`), while the aggregate,
+// unscoped response stays canonical.
+TEST_CASE(sync_reports_the_senders_own_symbol_for_reconciliation) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    const fs::path exe = findServerBinary();
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-recon-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int64_t openM15 = (now / 900) * 900 - 900;
+
+        // The sender sends the broker alias verbatim, exactly as the real
+        // standalone sender does after resolving the instrument at the broker.
+        const std::string alias =
+            "{\"source_id\":\"recon-src\",\"symbol\":\"XAUUSD.vx\","
+            "\"timeframe\":\"M15\",\"candles\":[{\"uid\":\"R-1\",\"time\":" +
+            std::to_string(openM15) +
+            ",\"open\":1900,\"high\":1910,\"low\":1890,\"close\":1905,"
+            "\"tick_volume\":100}]}";
+        const HttpResponse ing = postIngest(port, alias);
+        CHECK(ing.is2xx());
+        CHECK(ing.body.find("\"state\":\"stored_new\"") != std::string::npos);
+
+        // The source-scoped reconcile reports the name THIS sender used, so its
+        // ledger key (source, symbol, timeframe, open_time) matches.
+        const HttpResponse scoped =
+            getPath(port, "/api/v1/sync/latest?source_id=recon-src",
+                    "ingest-test-token");
+        CHECK(scoped.is2xx());
+        CHECK(scoped.body.find("\"symbol\":\"XAUUSD.vx\"") != std::string::npos);
+        CHECK(scoped.body.find("\"canonical_symbol\":\"XAUUSD\"") !=
+              std::string::npos);
+        CHECK(scoped.body.find("\"last_open_time_utc\":" +
+                               std::to_string(openM15)) != std::string::npos);
+
+        // The aggregate (unscoped) response carries no delivery proof, so it
+        // keeps the canonical symbol only.
+        const HttpResponse aggregate =
+            getPath(port, "/api/v1/sync/latest", "ingest-test-token");
+        CHECK(aggregate.is2xx());
+        CHECK(aggregate.body.find("\"symbol\":\"XAUUSD\"") != std::string::npos);
+    }
+
+    ::kill(-pid, SIGTERM);
+    int status = 0;
+    for (int i = 0; i < 40; ++i) {
+        const pid_t done = ::waitpid(pid, &status, WNOHANG);
+        if (done == pid) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ::kill(-pid, SIGKILL);
+    ::waitpid(pid, &status, 0);
+
+    fs::remove_all(tmp, ec);
+#endif
+}
+
+// INGEST-0004 - a rejected credential must be classifiable as an auth failure.
+//
+// The standalone sender distinguishes a bad/rotated token (AUTH_FAILED, with
+// the fix "put the current token in config.json") from a generic error by
+// looking for the word "authorization" in the server's message (it also accepts
+// a dedicated code). The route answered with a message that contained neither
+// that word nor that code, so a wrong token surfaced as an opaque ERROR and the
+// operator was sent chasing the wrong problem. The message must remain
+// classifiable while the stable `unauthorized` code and 401 status hold.
+TEST_CASE(auth_failure_message_is_classifiable_by_the_sender) {
+#ifdef _WIN32
+    std::cout << "  [SKIP] process-level server test is Linux-only\n";
+    return;
+#else
+    const fs::path exe = findServerBinary();
+    if (exe.empty()) {
+        std::cout << "  [SKIP] astra_server binary not found under any build dir\n";
+        return;
+    }
+
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("astra-authmsg-" + std::to_string(::getpid()));
+    std::error_code ec;
+    fs::remove_all(tmp, ec);
+    fs::create_directories(tmp / "data", ec);
+    REQUIRE(fs::exists(tmp / "data"));
+
+    const std::uint16_t port = freePort();
+    REQUIRE(port != 0);
+
+    const pid_t pid = ::fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ::setsid();
+        const std::string dataDir = (tmp / "data").string();
+        ::setenv("ASTRA_DATA_DIR", dataDir.c_str(), 1);
+        ::setenv("ASTRA_SENDER_TOKEN", "ingest-test-token", 1);
+        const std::string hostArg = "--host=127.0.0.1";
+        const std::string portArg = "--port=" + std::to_string(port);
+        const std::string exeStr = exe.string();
+        ::execl(exeStr.c_str(), exeStr.c_str(), hostArg.c_str(), portArg.c_str(),
+                static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    const bool healthy = waitForHealth(port, 15000);
+    CHECK(healthy);
+
+    if (healthy) {
+        const std::string body =
+            "{\"source_id\":\"s\",\"symbol\":\"XAUUSD\",\"timeframe\":\"M15\","
+            "\"candles\":[]}";
+        const HttpResponse denied = postIngest(port, body, "wrong-token");
+        CHECK(denied.statusCode == 401);
+        // Stable code and status are preserved...
+        CHECK(denied.body.find("\"code\":\"unauthorized\"") != std::string::npos);
+        // ...and the message is classifiable as an auth failure by the sender's
+        // own rule: it must contain the word "authorization".
+        CHECK(denied.body.find("authorization") != std::string::npos);
+
+        // The sync route carries the same classifiable message.
+        const HttpResponse syncDenied =
+            getPath(port, "/api/v1/sync/latest", "wrong-token");
+        CHECK(syncDenied.statusCode == 401);
+        CHECK(syncDenied.body.find("authorization") != std::string::npos);
     }
 
     ::kill(-pid, SIGTERM);

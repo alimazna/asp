@@ -1,0 +1,8 @@
+{
+  "source": "FRED",
+  "series": "DTWEXBGS",
+  "description": "Nominal Broad US Dollar Index (daily)",
+  "license": "US federal data, public domain",
+  "url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+  "fetched": "2026-11-01T17:45:45Z"
+}
