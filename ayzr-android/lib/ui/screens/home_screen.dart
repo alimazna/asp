@@ -7,6 +7,7 @@ import '../../state/app_state.dart';
 import '../widgets/info_widgets.dart';
 import '../widgets/quota_banner.dart';
 import '../widgets/state_panel.dart';
+import '../widgets/upcoming_news_section.dart';
 
 /// الرئيسية — a calm overview: system health, market state and the latest
 /// signal summary. Every value that the backend cannot source is shown as
@@ -35,6 +36,11 @@ class HomeScreen extends StatelessWidget {
           _MarketStateCard(state: state),
           const SizedBox(height: 4),
           _SignalSummaryCard(state: state),
+          const SizedBox(height: 4),
+          // The nearest scheduled release, with its countdown and preparation
+          // button. On the landing screen so the owner sees the next news
+          // without navigating to الأخبار first.
+          UpcomingNewsSection(state: state),
         ],
       ),
     );

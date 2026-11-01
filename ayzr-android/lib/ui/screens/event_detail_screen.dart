@@ -6,6 +6,7 @@ import '../../data/models/events.dart';
 import '../../data/models/news.dart';
 import '../../state/app_state.dart';
 import '../widgets/analysis_view.dart';
+import '../widgets/countdown.dart';
 import '../widgets/info_widgets.dart';
 import '../widgets/state_panel.dart';
 
@@ -99,6 +100,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
           const SizedBox(height: 10),
           InfoRow(label: Ar.eventScheduledAt, value: Fmt.isoToLocal(e.scheduledAtIso)),
+          // A live countdown while the event is still ahead. Shown here too so
+          // the preparation view carries the same "time remaining" the list does.
+          if (!e.isReleased && e.scheduledAtUtc != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: EventCountdown(targetUtcSeconds: e.scheduledAtUtc),
+            ),
+            const SizedBox(height: 4),
+          ],
           InfoRow(label: Ar.source, value: Fmt.text(e.country)),
           InfoRow(
             label: Ar.eventConsensus,

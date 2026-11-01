@@ -55,6 +55,15 @@ class Ar {
   static const entry = 'الدخول';
   static const stopLoss = 'وقف الخسارة';
   static const takeProfit = 'الهدف';
+  // Relative, price-free guidance. A distance in points is honest where an
+  // absolute price would be fabricated; the labels say so explicitly.
+  static const expectedMove = 'الحركة المتوقعة';
+  static const stopDistance = 'مسافة وقف الخسارة';
+  static const levelsUnknown =
+      'لم يتمكن الذكاء الاصطناعي من تحديد مستويات دقيقة لعدم توفر سعر حقيقي. '
+      'لن يُعرض أي سعر مُخترع.';
+  static const pointsSuffix = 'نقطة';
+  static String pointsValue(int p) => '$p $pointsSuffix';
   static const rewardRisk = 'المخاطرة/المكافأة';
   static const suggestedRisk = 'المخاطرة المقترحة';
   static const coverageTier = 'مستوى التغطية';
@@ -121,6 +130,69 @@ class Ar {
   static const horizonMedium = 'متوسط';
   static const horizonLong = 'طويل';
   static const horizonUnknown = 'غير محدَّد';
+
+  // Tone, framing and subtext — the reading of HOW a story is told, as
+  // distinct from what it says. Each classifier is a closed vocabulary; an
+  // unrecognised value renders as the neutral "غير محدَّد" rather than a guess.
+  static const toneSection = 'نبرة الخبر وما وراءه';
+  static const toneSectionHint =
+      'قراءة أسلوب صياغة الخبر: كيف قيل، لا ماذا قيل فقط.';
+  static const toneLabel = 'النبرة';
+  static const toneHint = 'الانطباع العاطفي الذي تحمله الصياغة نفسها.';
+  static const toneVeryNegative = 'سلبية جداً';
+  static const toneNegative = 'سلبية';
+  static const toneNeutral = 'محايدة';
+  static const tonePositive = 'إيجابية';
+  static const toneVeryPositive = 'إيجابية جداً';
+  static const toneUnknown = 'غير محدَّدة';
+  static const toneStrengthLabel = 'قوة النبرة';
+  static const strengthWeak = 'ضعيفة';
+  static const strengthModerate = 'متوسطة';
+  static const strengthStrong = 'قوية';
+  static const strengthUnknown = 'غير محدَّدة';
+  static const toneEvidenceLabel = 'العبارة الحاملة للنبرة';
+  static const toneEvidenceHint =
+      'النص الذي استند إليه النموذج في تحديد النبرة، حتى تتحقق منه بنفسك.';
+  static const sourceRegisterLabel = 'نوع المصدر';
+  static const registerOfficial = 'رسمي';
+  static const registerWire = 'وكالة أنباء';
+  static const registerAnalytical = 'تحليلي';
+  static const registerOpinion = 'رأي';
+  static const registerOther = 'أخرى';
+  static const registerUnknown = 'غير محدَّد';
+  static const sensationalismLabel = 'المبالغة في الصياغة';
+  static const sensationalismHint =
+      'مدى تضخيم اللغة للوقائع، منفصل عن النبرة نفسها.';
+  static const sensationalismNone = 'لا مبالغة';
+  static const sensationalismLow = 'منخفضة';
+  static const sensationalismMedium = 'متوسطة';
+  static const sensationalismHigh = 'مرتفعة';
+  static const sensationalismUnknown = 'غير محدَّدة';
+  static const noveltyLabel = 'حداثة المعلومة';
+  static const noveltyHint =
+      'هل المعلومة جديدة فعلاً أم استُهلكت أم إعادة نشر؟';
+  static const noveltyNew = 'جديدة';
+  static const noveltyPartlyPriced = 'مستهلكة جزئياً';
+  static const noveltyAlreadyPriced = 'مستهلكة';
+  static const noveltyUnknown = 'غير محدَّدة';
+  static const uncertaintyLabel = 'تحفّظ المصدر';
+  static const uncertaintyHint =
+      'مدى تردد الخبر نفسه (مثل «قد»، «يُقال»، «مصادر»)، وهو غير يقيننا نحن.';
+  static const uncertaintyLow = 'منخفض';
+  static const uncertaintyMedium = 'متوسط';
+  static const uncertaintyHigh = 'مرتفع';
+  static const uncertaintyUnknown = 'غير محدَّد';
+  static const hiddenContextLabel = 'ما وراء الخبر';
+  static const hiddenContextHint =
+      'ما يدور فعلاً خلف العنوان بعد استبعاد طريقة الصياغة.';
+  static const hiddenContextEmpty =
+      'لم يجد النموذج قراءة واضحة تحت سطح الخبر.';
+  static const framingBiasLabel = 'اتجاه الصياغة';
+  static const framingBiasHint =
+      'كيف صيغ الخبر، ولمصلحة من تميل هذه الصياغة.';
+  static const framingBiasEmpty = 'لا يظهر اتجاه واضح في الصياغة.';
+  static const toneCaveat =
+      'قراءة النبرة والصياغة لا تغيّر الوقائع ولا اتجاه التحليل.';
 
   // News results log — persisted analyses joined to their article's source
   // metadata. Distinct from the ASTRA analysis history.
@@ -199,6 +271,17 @@ class Ar {
   static const eventDetails = 'تفاصيل الحدث';
   static const eventScheduledAt = 'موعد الإصدار';
   static const eventGoldRelevant = 'ذو صلة بالذهب';
+  // Countdown to a scheduled release: the list is ordered nearest-first, and
+  // each upcoming event carries a live countdown so the owner can prepare.
+  static const eventCountdownNow = 'الآن';
+  static const eventCountdownPassed = 'انقضى';
+  static const eventIn = 'بعد';
+  static const eventPrepareNext = 'تحضير للخبر القادم';
+  static const eventPrepareSection = 'التحضير للخبر القادم';
+  static const eventPrepareHint =
+      'الخبر الاقتصادي الأقرب إلى الحدوث، مع توقعه وتحضيره.';
+  static const eventNearest = 'الأقرب حدوثاً';
+  static const eventNoUpcoming = 'لا يوجد خبر قادم حالياً';
 
   // Activity log — the durable record of what the backend did.
   static const activityTitle = 'سجل النشاط';

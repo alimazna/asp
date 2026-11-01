@@ -7,6 +7,7 @@ import 'test_helpers.dart';
 void main() {
   _aiGoldTests();
   _classifierTests();
+  _toneTests();
   _newsResultsTests();
 
   group('AnalysisLatest parsing', () {
@@ -311,6 +312,70 @@ void _classifierTests() {
       });
       expect(a.aiGoldChannel, 'unknown');
       expect(a.aiImpactHorizon, 'unknown');
+    });
+  });
+}
+
+/// Tone, framing and subtext. Each classifier defaults to "unknown" when the
+/// model asserted none, and an unrecognised value passes through verbatim so the
+/// label helper can render it as "غير محدَّد". The subtext prose is empty unless
+/// the model supplied a reading.
+void _toneTests() {
+  group('NewsAnalysis tone / framing / subtext', () {
+    test('parses a full tone classification', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+        'tone': 'very_negative',
+        'tone_strength': 'strong',
+        'tone_evidence_ar': 'انهيار حاد في الأسعار',
+        'source_register': 'wire',
+        'sensationalism': 'high',
+        'novelty': 'partly_priced',
+        'uncertainty': 'medium',
+        'hidden_context_ar': 'الخبر يخدم مصالح المنتجين.',
+        'framing_bias_ar': 'تركيز على الجانب السلبي.',
+      });
+      expect(a.tone, 'very_negative');
+      expect(a.toneStrength, 'strong');
+      expect(a.toneEvidenceAr, 'انهيار حاد في الأسعار');
+      expect(a.sourceRegister, 'wire');
+      expect(a.sensationalism, 'high');
+      expect(a.novelty, 'partly_priced');
+      expect(a.uncertainty, 'medium');
+      expect(a.hiddenContextAr, 'الخبر يخدم مصالح المنتجين.');
+      expect(a.framingBiasAr, 'تركيز على الجانب السلبي.');
+    });
+
+    test('absent tone fields are "unknown"/empty, never guessed', () {
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+      });
+      expect(a.tone, 'unknown');
+      expect(a.toneStrength, 'unknown');
+      expect(a.sourceRegister, 'unknown');
+      expect(a.sensationalism, 'unknown');
+      expect(a.novelty, 'unknown');
+      expect(a.uncertainty, 'unknown');
+      expect(a.toneEvidenceAr, isEmpty);
+      expect(a.hiddenContextAr, isEmpty);
+      expect(a.framingBiasAr, isEmpty);
+    });
+
+    test('an unrecognised tone is passed through, not coerced', () {
+      // The label helper renders anything outside the vocabulary as
+      // "غير محدَّدة"; the model must not be able to smuggle in a friendly
+      // default by sending a value we do not recognise.
+      final a = NewsAnalysis.fromJson({
+        'article_id': 'x',
+        'status': 'ok',
+        'direction': 'no_trade',
+        'tone': 'extremely_bullish',
+      });
+      expect(a.tone, 'extremely_bullish');
     });
   });
 }

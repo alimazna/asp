@@ -7,11 +7,16 @@ import '../../state/app_state.dart';
 import '../widgets/info_widgets.dart';
 import '../widgets/quota_banner.dart';
 import '../widgets/state_panel.dart';
+import '../widgets/upcoming_news_section.dart';
 import 'news_detail_screen.dart';
 
 /// الأخبار — the news list with a gold-only filter. Each row shows the latest
 /// analysis status so the user knows whether an article has been analysed
 /// without opening it.
+///
+/// Above the feed sits a dedicated "preparation for the upcoming news" section:
+/// the nearest scheduled release, whatever its impact level, with a live
+/// countdown and a button to open its preparation view.
 class NewsScreen extends StatelessWidget {
   const NewsScreen({super.key, required this.state});
 
@@ -28,19 +33,27 @@ class NewsScreen extends StatelessWidget {
         if (state.quota.data != null) QuotaBanner(quota: state.quota.data!),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => state.loadNews(),
+            onRefresh: () async {
+              await state.loadNews();
+              await state.loadUpcomingEvents();
+            },
             child: SectionBuilder<List<NewsListItem>>(
               section: state.news,
               onRetry: () => state.loadNews(),
               emptyTitle: Ar.empty,
-              builder: (context, items) => ListView.separated(
+              builder: (context, items) => ListView(
                 padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, i) => _NewsTile(
-                  item: items[i],
-                  onTap: () => _openDetail(context, items[i]),
-                ),
+                children: [
+                  UpcomingNewsSection(state: state),
+                  const SizedBox(height: 14),
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 10),
+                    _NewsTile(
+                      item: items[i],
+                      onTap: () => _openDetail(context, items[i]),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),

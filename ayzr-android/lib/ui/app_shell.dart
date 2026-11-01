@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -12,6 +14,9 @@ import 'screens/home_screen.dart';
 import 'screens/news_screen.dart';
 import 'screens/news_results_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/trades_screen.dart';
+import '../data/journal.dart';
+import '../data/models/engines.dart';
 
 /// The RTL shell: a bottom navigation bar over the four Arabic sections, with a
 /// settings entry point for the backend URL and client token.
@@ -27,7 +32,13 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  static const _titles = [Ar.navHome, Ar.navAnalysis, Ar.navNews, Ar.navHistory];
+  static const _titles = [
+    Ar.navHome,
+    Ar.navAnalysis,
+    'الصفقات',
+    Ar.navNews,
+    Ar.navHistory,
+  ];
 
   @override
   void initState() {
@@ -41,6 +52,35 @@ class _AppShellState extends State<AppShell> {
     await widget.state.loadNews();
     await widget.state.loadHistory();
     await widget.state.loadEvents();
+    await widget.state.loadUpcomingEvents();
+    await widget.state.loadTrades();
+  }
+
+  TradeJournal? _journal;
+
+  /// Record a signal in the LOCAL journal. Nothing leaves the device.
+  Future<void> _takeTrade(Trade t) async {
+    _journal ??= await TradeJournal.open();
+    final targets = t.targets.map((x) => x.price).toList();
+    final id = await _journal!.add(JournalEntry(
+      tradeId: t.id,
+      source: t.source,
+      sourceLabelAr: t.sourceLabelAr,
+      direction: t.direction,
+      directionLabelAr: t.directionLabelAr,
+      signalEntry: t.entry,
+      stop: t.stop,
+      targetsJson: jsonEncode(targets),
+      entryTimeframe: t.entryTimeframe,
+      takenAt: DateTime.now(),
+      signalPublishedAt: t.publishedAt ?? DateTime.now(),
+    ));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(id == null
+          ? 'هذه الصفقة مسجّلة مسبقاً في دفترك'
+          : 'أُضيفت الصفقة إلى دفترك المحلي'),
+    ));
   }
 
   void _onSelect(int i) {
@@ -54,9 +94,9 @@ class _AppShellState extends State<AppShell> {
         widget.state.loadAnalysis();
         break;
       case 2:
-        widget.state.loadNews();
+        widget.state.loadTrades();
         break;
-      case 3:
+      case 4:
         widget.state.loadHistory();
         break;
     }
@@ -72,6 +112,13 @@ class _AppShellState extends State<AppShell> {
           final screens = [
             HomeScreen(state: widget.state),
             AnalysisScreen(state: widget.state),
+            TradesScreen(
+              trades: widget.state.trades.data ?? const [],
+              loading: widget.state.trades.phase == LoadPhase.loading,
+              error: widget.state.trades.failure?.message,
+              onRetry: widget.state.loadTrades,
+              onTakeTrade: _takeTrade,
+            ),
             NewsScreen(state: widget.state),
             HistoryScreen(state: widget.state),
           ];
@@ -144,6 +191,11 @@ class _AppShellState extends State<AppShell> {
                   icon: Icon(Icons.insights_outlined),
                   selectedIcon: Icon(Icons.insights_rounded),
                   label: Ar.navAnalysis,
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.candlestick_chart_outlined),
+                  selectedIcon: Icon(Icons.candlestick_chart_rounded),
+                  label: 'الصفقات',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.newspaper_outlined),

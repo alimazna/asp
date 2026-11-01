@@ -4,6 +4,7 @@ import '../../core/strings_ar.dart';
 import '../../core/theme.dart';
 import '../../data/models/events.dart';
 import '../../state/app_state.dart';
+import '../widgets/countdown.dart';
 import '../widgets/info_widgets.dart';
 import '../widgets/state_panel.dart';
 import 'event_detail_screen.dart';
@@ -198,6 +199,18 @@ class _EventTile extends StatelessWidget {
                   _StageChip(item: item),
                 ],
               ),
+              // A live countdown for an event still ahead. A past event shows
+              // none: there is nothing to count down to.
+              if (!item.event.isReleased &&
+                  item.event.scheduledAtUtc != null) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: EventCountdown(
+                    targetUtcSeconds: item.event.scheduledAtUtc,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -77,15 +77,20 @@ struct Counters {
     std::atomic<int> newsList{0};
     std::atomic<int> newsAnalyze{0};
     std::atomic<int> history{0};
+    std::atomic<int> ayzrEngines{0};
+    std::atomic<int> ayzrTrades{0};
+    std::atomic<int> ayzrTradeDetail{0};
 
     int total() const {
         return ingest.load() + sync.load() + newsIngest.load() +
                adminList.load() + adminDelete.load() + newsList.load() +
-               newsAnalyze.load() + history.load();
+               newsAnalyze.load() + history.load() + ayzrEngines.load() +
+               ayzrTrades.load() + ayzrTradeDetail.load();
     }
     void reset() {
         ingest = 0; sync = 0; newsIngest = 0; adminList = 0;
         adminDelete = 0; newsList = 0; newsAnalyze = 0; history = 0;
+        ayzrEngines = 0; ayzrTrades = 0; ayzrTradeDetail = 0;
     }
 };
 
@@ -118,6 +123,9 @@ struct Fixture {
         server->newsListHandler = [this](const std::string&) { ++calls.newsList; return ok200(); };
         server->newsAnalyzeHandler = [this](const std::string&) { ++calls.newsAnalyze; return ok200(); };
         server->historyHandler = [this](const std::string&) { ++calls.history; return ok200(); };
+        server->ayzrEnginesHandler = [this]() { ++calls.ayzrEngines; return ok200(); };
+        server->ayzrTradesHandler = [this](const std::string&) { ++calls.ayzrTrades; return ok200(); };
+        server->ayzrTradeDetailHandler = [this](const std::string&) { ++calls.ayzrTradeDetail; return ok200(); };
     }
 
     ~Fixture() { if (server) server->stop(); }
@@ -295,6 +303,35 @@ TEST_CASE(sec_client_credential_cannot_write_or_reach_admin) {
     CHECK_EQ(fx.calls.newsList.load(), 1);
     CHECK_EQ(fx.calls.newsAnalyze.load(), 1);
     CHECK_EQ(fx.calls.history.load(), 1);
+}
+
+// The AYZR read surface is private: the engines and trades routes describe
+// live strategy state and must require the same client credential as the rest
+// of the mobile surface. A missing or foreign token must never reach them, and
+// the client token must not be able to POST to them.
+TEST_CASE(sec_ayzr_read_routes_require_client_credential) {
+    Fixture fx;
+    REQUIRE(fx.start(baseConfig()));
+
+    // No token at all: fail closed on all three.
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/engines", "").statusCode, 401);
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/trades", "").statusCode, 401);
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/trades/detail?id=t1", "").statusCode, 401);
+
+    // A sender or admin credential is not a client credential.
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/engines", kSender).statusCode, 401);
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/engines", kAdmin).statusCode, 401);
+
+    // The client credential reads, and only via GET.
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/engines", kClient).statusCode, 200);
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/trades?state=all", kClient).statusCode, 200);
+    CHECK_EQ(call(fx.port, "GET", "/api/v1/ayzr/trades/detail?id=t1", kClient).statusCode, 200);
+    CHECK_EQ(call(fx.port, "POST", "/api/v1/ayzr/engines", kClient, "{}").statusCode, 405);
+    CHECK_EQ(call(fx.port, "DELETE", "/api/v1/ayzr/trades", kClient).statusCode, 405);
+
+    CHECK_EQ(fx.calls.ayzrEngines.load(), 1);
+    CHECK_EQ(fx.calls.ayzrTrades.load(), 1);
+    CHECK_EQ(fx.calls.ayzrTradeDetail.load(), 1);
 }
 
 // The admin credential is confined to the admin candle surface. A leaked admin

@@ -11,6 +11,7 @@ import 'models/events.dart';
 import 'models/health.dart';
 import 'models/activity.dart';
 import 'models/news.dart';
+import 'models/engines.dart';
 
 /// Authenticated client for the AYZR mobile read surface.
 ///
@@ -303,5 +304,30 @@ class ApiClient {
             .toList(growable: false),
       );
     });
+  }
+
+  /// GET /api/v1/ayzr/engines — the three horizon engines and their profiles.
+  Future<ApiResult<List<EngineInfo>>> engines() async {
+    final r = await _getData('/api/v1/ayzr/engines');
+    return r.map((d) => _rows(d, 'engines')
+        .whereType<Map>()
+        .map((e) => EngineInfo.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  /// GET /api/v1/ayzr/trades — published trades.
+  /// [state] is open | closed | all.
+  Future<ApiResult<List<Trade>>> trades({String state = 'all'}) async {
+    final r = await _getData('/api/v1/ayzr/trades', query: {'state': state});
+    return r.map((d) => _rows(d, 'trades')
+        .whereType<Map>()
+        .map((t) => Trade.fromJson(t.cast<String, dynamic>()))
+        .toList(growable: false));
+  }
+
+  /// GET /api/v1/ayzr/trades/detail?id= — one trade with its event log.
+  Future<ApiResult<Trade>> tradeDetail(String id) async {
+    final r = await _getData('/api/v1/ayzr/trades/detail', query: {'id': id});
+    return r.map((d) => Trade.fromJson((d as Map).cast<String, dynamic>()));
   }
 }

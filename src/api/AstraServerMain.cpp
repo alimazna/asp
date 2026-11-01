@@ -15,6 +15,9 @@
 #include "activity/ActivityLog.h"
 #include "api/ActivityApi.h"
 #include "api/AstraApiServer.h"
+#include "ayzr/AyzrJson.h"
+#include "ayzr/HorizonEngine.h"
+#include "ayzr/TradeLifecycle.h"
 #include "api/BackendFacade.h"
 #include "api/AnalysisApi.h"
 #include "api/NewsApi.h"
@@ -37,7 +40,9 @@
 #include "runtime/AuraRuntime.h"
 #include "telegram/TelegramGateway.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <ctime>
@@ -446,6 +451,53 @@ int main(int argc, char** argv) {
     BackendFacade facade(aura::FacadeDependencies{
         &runtime, &runtime.health(), &runtime.ledger(), &runtime.positions(),
         &incidents, &approvals, &telegram, &probability, &analysis});
+
+    // --- Warm the decision engine from the durable store -------------------
+    // The engine builds its multi-timeframe context (M15 trigger + H4/D1
+    // structural authority) from bars held on the in-memory data bus. Ingestion
+    // publishes bars as they arrive, but that state lives only in RAM, so a
+    // freshly started server reported "M15 and H4 streams unavailable" and
+    // produced no analysis until a sender re-pushed history. Rehydrating from
+    // the persisted store on boot means the server derives its analysis from
+    // the data it already owns, with no external collector involved. Highest
+    // timeframes are published first so H4/D1 are on the bus before the
+    // operational M15 bar triggers a decision cycle.
+    {
+        const std::string warmSymbol = "XAUUSD";
+        const std::vector<Timeframe> warmOrder = {
+            Timeframe::MN1, Timeframe::W1,  Timeframe::D1, Timeframe::H4,
+            Timeframe::H1,  Timeframe::M30, Timeframe::M15, Timeframe::M5,
+            Timeframe::M1};
+        std::size_t warmed = 0;
+        for (Timeframe tf : warmOrder) {
+            const std::vector<StoredCandle> rows =
+                store.recent(warmSymbol, toString(tf), 500);
+            if (rows.empty()) continue;
+            std::vector<Bar> bars;
+            bars.reserve(rows.size());
+            for (const auto& r : rows) {
+                Bar b;
+                b.timeframe = tf;
+                b.openTimeSec = r.openTimeUtc;
+                b.open = r.open;
+                b.high = r.high;
+                b.low = r.low;
+                b.close = r.close;
+                b.tickVolume = r.tickVolume;
+                b.realVolume = r.realVolume;
+                b.spread = r.spread;
+                b.receivedAt = Timestamp::now();
+                b.quality = DataQualityState::VALID;
+                bars.push_back(b);
+            }
+            runtime.ingestExternalBars(warmSymbol, warmSymbol, tf, bars,
+                                       Timestamp::now());
+            warmed += bars.size();
+        }
+        std::cout << "  engine warmup: " << warmed
+                  << " stored candle(s) rehydrated from the durable store"
+                  << std::endl;
+    }
 
     AstraApiServerConfig apiConfig;
     apiConfig.host = host;
@@ -1055,6 +1107,37 @@ int main(int argc, char** argv) {
         return out.str();
     };
 
+    // The real market the model's optional levels are checked against. Built
+    // from the same quarantined M15 series the prompt is shown, so a level the
+    // model invents (or a stale one from memory) cannot survive validation.
+    // `referencePrice` is the newest closed close; `atr` is the mean true range
+    // of the last bars. Both stay 0 when no trustworthy candle exists, which
+    // makes the parser drop every level — with no market there is nothing to be
+    // near, and a guessed price must never be shown.
+    auto marketGrounding = [&]() -> PriceGrounding {
+        PriceGrounding g;
+        g.strict = true;
+        const std::vector<StoredCandle> rows = store.recent("XAUUSD", "M15", 20);
+        if (rows.empty()) return g;
+        g.referencePrice = rows.back().close;
+        double trSum = 0.0;
+        std::size_t n = 0;
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            const double high = rows[i].high;
+            const double low = rows[i].low;
+            double tr = high - low;
+            if (i > 0) {
+                const double prevClose = rows[i - 1].close;
+                tr = std::max(tr, std::fabs(high - prevClose));
+                tr = std::max(tr, std::fabs(low - prevClose));
+            }
+            trSum += tr;
+            ++n;
+        }
+        if (n > 0) g.atr = trSum / static_cast<double>(n);
+        return g;
+    };
+
     server.newsListHandler = [&](const std::string& query) -> ApiResponse {
         int limit = 50;
         const std::string limitRaw = queryParam(query, "limit");
@@ -1106,6 +1189,7 @@ int main(int argc, char** argv) {
         // The existing ASTRA analysis, verbatim and read-only. This is the real
         // backend payload, never a paraphrase.
         ctx.astraSummary = facade.latestAnalysis().body;
+        ctx.grounding = marketGrounding();
 
         const std::int64_t analyzeStartMs = Timestamp::now().epochMillis();
         NewsAnalysis analysis =
@@ -1241,6 +1325,44 @@ int main(int argc, char** argv) {
         return ActivityApi::list(entries, activityLog.tally(since));
     };
 
+    // AYZR multi-horizon layer. Read-only from the API's point of view: the
+    // engines publish trades, the lifecycle manager tracks them, and the
+    // routes below only serialise the current state. Nothing here can write
+    // candles or alter an ASTRA decision.
+    static aura::ayzr::HorizonRegistry ayzrRegistry;
+    static aura::ayzr::TradeLifecycleManager ayzrTrades;
+
+    server.ayzrEnginesHandler = []() -> ApiResponse {
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::enginesJson(ayzrRegistry);
+        return r;
+    };
+
+    server.ayzrTradesHandler = [&queryParam](const std::string& query) -> ApiResponse {
+        const std::string state = queryParam(query, "state");
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::tradesJson(
+            ayzrTrades, state.empty() ? std::string("all") : state);
+        return r;
+    };
+
+    server.ayzrTradeDetailHandler = [&queryParam](const std::string& query) -> ApiResponse {
+        const std::string id = queryParam(query, "id");
+        if (id.empty()) {
+            return errorResponse(400, "missing_id",
+                                 "trade detail requires an id");
+        }
+        ApiResponse r;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::tradeDetailJson(ayzrTrades, id);
+        r.status = r.body.find("\"not_found\"") != std::string::npos ? 404 : 200;
+        return r;
+    };
+
     // GET /api/v1/providers — which AI credentials are configured and how each
     // has performed. Secret-free: only labels and counts, never key material.
     server.providersHandler = [&]() -> ApiResponse {
@@ -1353,6 +1475,7 @@ int main(int argc, char** argv) {
         };
         // The existing ASTRA analysis, verbatim and read-only.
         eventCtx.astraSummary = [&facade]() { return facade.latestAnalysis().body; };
+        eventCtx.grounding = marketGrounding;
         eventCtx.candleAsOfUtc = [&store]() {
             return store.latestOpenTimeAnySource("XAUUSD", "M15");
         };

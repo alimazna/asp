@@ -90,10 +90,22 @@ class NewsAnalysis {
     required this.aiGoldRelevance,
     required this.aiGoldChannel,
     required this.aiImpactHorizon,
+    required this.tone,
+    required this.toneStrength,
+    required this.toneEvidenceAr,
+    required this.sourceRegister,
+    required this.sensationalism,
+    required this.novelty,
+    required this.uncertainty,
+    required this.hiddenContextAr,
+    required this.framingBiasAr,
     required this.direction,
     required this.entry,
     required this.stopLoss,
     required this.takeProfit,
+    required this.expectedMovePoints,
+    required this.stopDistancePoints,
+    required this.relativeLevelsNoteAr,
     required this.astraAgreement,
     required this.disagreementNoteAr,
     required this.invalidatingConditionsAr,
@@ -129,10 +141,52 @@ class NewsAnalysis {
   /// How soon the model expects the effect to be felt
   /// (`immediate|short|medium|long|unknown`).
   final String aiImpactHorizon;
+
+  /// The emotional colour of the coverage itself
+  /// (`very_negative|negative|neutral|positive|very_positive|unknown`). This is
+  /// how the story is TOLD, not the market direction: a bearish article can be
+  /// written in a neutral tone.
+  final String tone;
+
+  /// How forcefully that colour is expressed (`weak|moderate|strong|unknown`).
+  final String toneStrength;
+
+  /// The exact wording that carries the tone. Empty when the model gave none —
+  /// in which case the backend has already downgraded the tone to `unknown`, so
+  /// a non-neutral tone here is always attributable.
+  final String toneEvidenceAr;
+
+  /// The kind of outlet (`official|wire|analytical|opinion|other|unknown`).
+  final String sourceRegister;
+
+  /// How much the language overstates the facts (`none|low|medium|high|unknown`).
+  final String sensationalism;
+
+  /// Whether this is genuinely new information or a re-telling
+  /// (`new|partly_priced|already_priced|unknown`).
+  final String novelty;
+
+  /// How much the SOURCE itself hedges (`low|medium|high|unknown`). Distinct
+  /// from our own confidence.
+  final String uncertainty;
+
+  /// What the story is really about once the framing is set aside. Empty when
+  /// the model found no reading beneath the surface.
+  final String hiddenContextAr;
+
+  /// How the story is framed, and whose interest that framing tends to serve.
+  final String framingBiasAr;
   final String direction;
   final double? entry;
   final double? stopLoss;
   final double? takeProfit;
+
+  /// Relative, price-free guidance. When the model cannot know the absolute
+  /// price it states the expected move and the protective stop as DISTANCES in
+  /// points instead of inventing a price. Null means the model gave none.
+  final int? expectedMovePoints;
+  final int? stopDistancePoints;
+  final String relativeLevelsNoteAr;
   final String astraAgreement;
   final String disagreementNoteAr;
   final String invalidatingConditionsAr;
@@ -166,10 +220,22 @@ class NewsAnalysis {
       aiGoldRelevance: _s(j['ai_gold_relevance'], 'unknown'),
       aiGoldChannel: _s(j['gold_channel'], 'unknown'),
       aiImpactHorizon: _s(j['impact_horizon'], 'unknown'),
+      tone: _s(j['tone'], 'unknown'),
+      toneStrength: _s(j['tone_strength'], 'unknown'),
+      toneEvidenceAr: _s(j['tone_evidence_ar']),
+      sourceRegister: _s(j['source_register'], 'unknown'),
+      sensationalism: _s(j['sensationalism'], 'unknown'),
+      novelty: _s(j['novelty'], 'unknown'),
+      uncertainty: _s(j['uncertainty'], 'unknown'),
+      hiddenContextAr: _s(j['hidden_context_ar']),
+      framingBiasAr: _s(j['framing_bias_ar']),
       direction: _s(j['direction'], 'no_trade'),
       entry: _d(levels['entry']),
       stopLoss: _d(levels['stop_loss']),
       takeProfit: _d(levels['take_profit']),
+      expectedMovePoints: _i(levels['expected_move_points']),
+      stopDistancePoints: _i(levels['stop_distance_points']),
+      relativeLevelsNoteAr: _s(levels['relative_levels_note_ar']),
       astraAgreement: _s(j['astra_agreement'], 'unknown'),
       disagreementNoteAr: _s(j['disagreement_note_ar']),
       invalidatingConditionsAr: _s(j['invalidating_conditions_ar']),

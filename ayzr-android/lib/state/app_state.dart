@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/app_config.dart';
 import '../data/api_client.dart';
+import '../data/models/engines.dart';
 import '../data/api_result.dart';
 import '../data/models/analysis.dart';
 import '../data/models/events.dart';
@@ -66,6 +67,15 @@ class AppState extends ChangeNotifier {
   Section<ActivityPage> activity = const Section<ActivityPage>();
   Section<ProviderPage> providers = const Section<ProviderPage>();
   Section<List<EventListItem>> events = const Section<List<EventListItem>>();
+  /// Upcoming events regardless of impact, for the "prepare for the next news"
+  /// section. Distinct from [events] (which the user may filter to gold-relevant
+  /// only): this list must show the nearest release whatever its impact level.
+  Section<List<EventListItem>> upcomingEvents =
+      const Section<List<EventListItem>>();
+  // AYZR multi-horizon surface (read-only).
+  Section<List<EngineInfo>> engines = const Section<List<EngineInfo>>();
+  Section<List<Trade>> trades = const Section<List<Trade>>();
+  Section<List<Trade>> openTrades = const Section<List<Trade>>();
 
   bool goldOnly = false;
 
@@ -233,6 +243,44 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads upcoming events regardless of impact, for the "prepare for the next
+  /// news" section. The section must not hide a low-impact release, so
+  /// `goldOnly` is false here. A failure is not fatal to the rest of the app:
+  /// the section simply shows its unavailable state.
+  Future<void> loadUpcomingEvents() async {
+    upcomingEvents = upcomingEvents.loading();
+    notifyListeners();
+    final r = await _client.events(scope: 'upcoming', goldOnly: false);
+    if (!r.isSuccess) {
+      upcomingEvents = Section<List<EventListItem>>.failed(r.failure!);
+    } else {
+      final items = r.value!;
+      upcomingEvents = items.isEmpty
+          ? const Section<List<EventListItem>>.empty()
+          : Section<List<EventListItem>>.ready(items);
+    }
+    notifyListeners();
+  }
+
+  /// The nearest upcoming event by scheduled time, or null when none is known.
+  /// The backend already returns upcoming events nearest-first, but the client
+  /// does not rely on that ordering: it selects the minimum itself so a change
+  /// in server ordering cannot silently surface the wrong "next news".
+  EventListItem? get nearestUpcomingEvent {
+    final items = upcomingEvents.data;
+    if (items == null || items.isEmpty) return null;
+    EventListItem? best;
+    for (final it in items) {
+      final t = it.event.scheduledAtUtc;
+      if (t == null) continue;
+      if (best == null ||
+          t < (best.event.scheduledAtUtc ?? 1 << 62)) {
+        best = it;
+      }
+    }
+    return best;
+  }
+
   /// Loads one event's expectation/result turns on demand (detail screen).
   Future<ApiResult<EventDetail>> loadEventDetail(String key) =>
       _client.eventDetail(key);
@@ -256,5 +304,38 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _client.dispose();
     super.dispose();
+  }
+
+  /// GET /api/v1/ayzr/engines — the three horizon engines.
+  Future<void> loadEngines() async {
+    engines = engines.loading();
+    notifyListeners();
+    final r = await _client.engines();
+    engines = r.isSuccess
+        ? Section<List<EngineInfo>>.ready(r.value!)
+        : Section<List<EngineInfo>>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// GET /api/v1/ayzr/trades — every published trade.
+  Future<void> loadTrades() async {
+    trades = trades.loading();
+    notifyListeners();
+    final r = await _client.trades(state: 'all');
+    trades = r.isSuccess
+        ? Section<List<Trade>>.ready(r.value!)
+        : Section<List<Trade>>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// GET /api/v1/ayzr/trades?state=open — the currently active trades.
+  Future<void> loadOpenTrades() async {
+    openTrades = openTrades.loading();
+    notifyListeners();
+    final r = await _client.trades(state: 'open');
+    openTrades = r.isSuccess
+        ? Section<List<Trade>>.ready(r.value!)
+        : Section<List<Trade>>.failed(r.failure!);
+    notifyListeners();
   }
 }

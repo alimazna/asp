@@ -1,5 +1,7 @@
 import 'package:ayzr_app/core/strings_ar.dart';
+import 'package:ayzr_app/data/models/news.dart';
 import 'package:ayzr_app/ui/app_shell.dart';
+import 'package:ayzr_app/ui/widgets/analysis_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -23,6 +25,7 @@ Future<void> pumpApp(
 }
 
 void main() {
+  _toneWidgetTests();
   group('App shell', () {
     testWidgets('renders Arabic RTL navigation with four sections',
         (tester) async {
@@ -577,6 +580,70 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.config.normalizedBase, 'https://new.test');
+    });
+  });
+}
+
+// --- Tone / framing card ---------------------------------------------------
+// The tone section is the "understanding" layer: it must render the Arabic
+// label for a classified tone, show the quoted wording that carries it, and
+// stay absent entirely when the model classified nothing (a card of five
+// "غير محدَّدة" rows would be noise, not understanding).
+
+Widget _analysisHost(NewsAnalysis a) => MaterialApp(
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          body: SingleChildScrollView(child: AnalysisView(analysis: a)),
+        ),
+      ),
+    );
+
+NewsAnalysis _toneAnalysis(Map<String, dynamic> extra) =>
+    NewsAnalysis.fromJson({
+      'article_id': 'x',
+      'status': 'ok',
+      'direction': 'no_trade',
+      ...extra,
+    });
+
+void _toneWidgetTests() {
+  group('AnalysisView tone card', () {
+    testWidgets('renders the Arabic tone label and the quoted wording',
+        (tester) async {
+      await tester.pumpWidget(_analysisHost(_toneAnalysis({
+        'tone': 'very_negative',
+        'tone_strength': 'strong',
+        'tone_evidence_ar': 'انهيار حاد في الأسعار',
+        'hidden_context_ar': 'الخبر يخدم مصالح المنتجين.',
+      })));
+      await tester.pumpAndSettle();
+      expect(find.text(Ar.toneSection), findsOneWidget);
+      expect(find.text(Ar.toneVeryNegative), findsOneWidget);
+      expect(find.text(Ar.strengthStrong), findsOneWidget);
+      expect(find.text('انهيار حاد في الأسعار'), findsOneWidget);
+      expect(find.text(Ar.hiddenContextLabel), findsOneWidget);
+      expect(find.text('الخبر يخدم مصالح المنتجين.'), findsOneWidget);
+      expect(find.text(Ar.toneCaveat), findsOneWidget);
+    });
+
+    testWidgets('omits the card entirely when nothing was classified',
+        (tester) async {
+      await tester.pumpWidget(_analysisHost(_toneAnalysis({})));
+      await tester.pumpAndSettle();
+      expect(find.text(Ar.toneSection), findsNothing);
+      expect(find.text(Ar.toneCaveat), findsNothing);
+    });
+
+    testWidgets('an unrecognised tone renders as unknown, not a guess',
+        (tester) async {
+      await tester.pumpWidget(_analysisHost(_toneAnalysis({
+        'tone': 'extremely_bullish',
+      })));
+      await tester.pumpAndSettle();
+      expect(find.text(Ar.toneSection), findsOneWidget);
+      expect(find.text(Ar.toneUnknown), findsOneWidget);
+      expect(find.text(Ar.toneVeryPositive), findsNothing);
     });
   });
 }

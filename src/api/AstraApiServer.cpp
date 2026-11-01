@@ -739,7 +739,9 @@ ApiResponse AstraApiServer::handleRequest(
         path == "/api/v1/news/results" ||
         path == "/api/v1/news/quota" || path == "/api/v1/history" ||
         path == "/api/v1/activity" || path == "/api/v1/providers" ||
-        path == "/api/v1/events" || path == "/api/v1/events/detail") {
+        path == "/api/v1/events" || path == "/api/v1/events/detail" ||
+        path == "/api/v1/ayzr/engines" || path == "/api/v1/ayzr/trades" ||
+        path == "/api/v1/ayzr/trades/detail") {
         if (method == "OPTIONS") {
             return ApiResponse{204, "application/json", "", true, ""};
         }
@@ -804,6 +806,21 @@ ApiResponse AstraApiServer::handleRequest(
             if (providersHandler) return providersHandler();
             return errorResponse(503, "dependency_unavailable",
                                  "providers handler not configured");
+        }
+        if (path == "/api/v1/ayzr/engines") {
+            if (ayzrEnginesHandler) return ayzrEnginesHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "ayzr engines handler not configured");
+        }
+        if (path == "/api/v1/ayzr/trades") {
+            if (ayzrTradesHandler) return ayzrTradesHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "ayzr trades handler not configured");
+        }
+        if (path == "/api/v1/ayzr/trades/detail") {
+            if (ayzrTradeDetailHandler) return ayzrTradeDetailHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "ayzr trade detail handler not configured");
         }
         if (historyHandler) return historyHandler(query);
         return errorResponse(503, "dependency_unavailable",

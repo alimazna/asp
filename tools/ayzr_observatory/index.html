@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AYZR — مركز مراقبة النظام</title>
+<style>
+  :root{
+    --navy-deep:#070B18; --navy:#0C1428; --navy-raised:#131E3A;
+    --border:#22304F; --gold:#D4AF37; --gold-soft:#E6C766;
+    --text:#EDF0F7; --muted:#97A0B5; --up:#3FA97A; --down:#C25B5B;
+    --warn:#D99A3D; --info:#5B8DC2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--navy-deep); color:var(--text);
+    font-family:"Segoe UI",Tahoma,system-ui,sans-serif;
+    line-height:1.6; padding-bottom:60px;
+  }
+  header{
+    background:linear-gradient(180deg,var(--navy-raised),var(--navy));
+    border-bottom:1px solid var(--border); padding:18px 24px;
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .logo{
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,var(--gold),var(--gold-soft));
+    display:grid;place-items:center;font-weight:900;color:var(--navy-deep);
+    font-size:17px;
+  }
+  h1{font-size:19px;font-weight:800}
+  h1 span{color:var(--muted);font-size:12px;font-weight:400;display:block}
+  .spacer{flex:1}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block}
+  .dot.ok{background:var(--up);box-shadow:0 0 8px var(--up)}
+  .dot.bad{background:var(--down);box-shadow:0 0 8px var(--down)}
+  .dot.warn{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+  #status{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  nav{display:flex;gap:6px;padding:12px 24px;flex-wrap:wrap;
+      border-bottom:1px solid var(--border);background:var(--navy)}
+  nav button{
+    background:transparent;border:1px solid var(--border);color:var(--muted);
+    padding:8px 16px;border-radius:10px;cursor:pointer;font-size:14px;
+    font-family:inherit;font-weight:600;transition:.15s;
+  }
+  nav button:hover{color:var(--text);border-color:var(--gold)}
+  nav button.active{background:var(--gold);color:var(--navy-deep);border-color:var(--gold)}
+  main{padding:22px 24px;max-width:1280px;margin:0 auto}
+  .grid{display:grid;gap:16px}
+  .cols-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .cols-3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .cols-4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{
+    background:var(--navy);border:1px solid var(--border);border-radius:16px;
+    padding:18px;
+  }
+  .card h2{
+    font-size:15px;font-weight:700;margin-bottom:14px;
+    display:flex;align-items:center;gap:9px;color:var(--gold-soft);
+  }
+  .card h2::before{
+    content:"";width:4px;height:16px;background:var(--gold);border-radius:2px;
+  }
+  .stat{font-size:27px;font-weight:800;letter-spacing:-.5px}
+  .stat.up{color:var(--up)} .stat.down{color:var(--down)}
+  .stat.gold{color:var(--gold)}
+  .stat-label{font-size:12px;color:var(--muted);margin-top:3px}
+  .row{display:flex;justify-content:space-between;align-items:center;
+       padding:9px 0;border-bottom:1px solid rgba(34,48,79,.5);font-size:14px}
+  .row:last-child{border-bottom:none}
+  .row .k{color:var(--muted)} .row .v{font-weight:600}
+  .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:11.5px;
+        font-weight:700;border:1px solid}
+  .pill.up{color:var(--up);border-color:rgba(63,169,122,.5);background:rgba(63,169,122,.12)}
+  .pill.down{color:var(--down);border-color:rgba(194,91,91,.5);background:rgba(194,91,91,.12)}
+  .pill.warn{color:var(--warn);border-color:rgba(217,154,61,.5);background:rgba(217,154,61,.12)}
+  .pill.muted{color:var(--muted);border-color:var(--border);background:rgba(151,160,181,.08)}
+  .pill.gold{color:var(--gold);border-color:rgba(212,175,55,.5);background:rgba(212,175,55,.12)}
+  .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}
+  .empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:right;color:var(--muted);font-weight:600;font-size:12px;
+     padding:8px 10px;border-bottom:1px solid var(--border)}
+  td{padding:10px;border-bottom:1px solid rgba(34,48,79,.4)}
+  tr:last-child td{border-bottom:none}
+  .banner{border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13.5px;
+          border:1px solid;display:flex;gap:10px;align-items:flex-start}
+  .banner.warn{background:rgba(217,154,61,.1);border-color:rgba(217,154,61,.4);color:var(--gold-soft)}
+  .banner.bad{background:rgba(194,91,91,.1);border-color:rgba(194,91,91,.4);color:#E0A0A0}
+  .banner.info{background:rgba(91,141,194,.1);border-color:rgba(91,141,194,.4);color:#A8C4E0}
+  .mono{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:12.5px}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:26px;
+         border-top:1px solid var(--border);margin-top:26px}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+  a{color:var(--info)}
+  .badge-shadow{
+    font-size:11px;padding:4px 10px;border-radius:8px;
+    background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.4);
+    color:var(--gold-soft);font-weight:700;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">ع</div>
+  <h1>AYZR — مركز مراقبة النظام
+    <span>نظام ذكاء سوق الذهب XAUUSD · قراءة فقط · لا تنفيذ صفقات</span>
+  </h1>
+  <div class="spacer"></div>
+  <span class="badge-shadow">وضع الظل SHADOW ONLY</span>
+  <div id="status"><span class="dot"></span>جارٍ الاتصال…</div>
+</header>
+
+<nav id="nav">
+  <button data-tab="overview" class="active">نظرة عامة</button>
+  <button data-tab="engines">المحركات</button>
+  <button data-tab="trades">الصفقات</button>
+  <button data-tab="news">الأخبار</button>
+  <button data-tab="activity">السجل</button>
+</nav>
+
+<main id="main"><div class="loading">جارٍ التحميل…</div></main>
+
+<footer>
+  AYZR · مركز مراقبة مستقل · يقرأ من واجهات الباكند الموثّقة فقط<br>
+  لا توجد بيانات وهمية — كل قيمة معروضة مصدرها الخادم.
+</footer>
+
+<script>
+// --- configuration: the backend base URL and the read-only client token.
+// The token is entered by the operator at runtime and kept in sessionStorage;
+// it is never written into this file or sent anywhere except the backend.
+// Priority: ?base=&token= query params (one-off, shareable) > localStorage
+// (persisted) > same-origin default. The token never leaves this browser.
+const QS = new URLSearchParams(location.search);
+const CFG = {
+  base: QS.get('base') || localStorage.getItem('ayzr_base') ||
+        window.location.origin.replace(/:\d+$/, ':8000'),
+  token: QS.get('token') || sessionStorage.getItem('ayzr_token') || '',
+};
+if (QS.get('base')) localStorage.setItem('ayzr_base', QS.get('base'));
+if (QS.get('token')) sessionStorage.setItem('ayzr_token', QS.get('token'));
+
+let CURRENT = 'overview';
+const CACHE = {};
+
+async function api(path){
+  const url = CFG.base.replace(/\/$/,'') + path;
+  const headers = {};
+  if (CFG.token) headers['Authorization'] = 'Bearer ' + CFG.token;
+  const r = await fetch(url, {headers});
+  const text = await r.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch(e) {}
+  return {ok:r.ok, status:r.status, json, text};
+}
+
+function setStatus(kind, text){
+  const el = document.getElementById('status');
+  el.innerHTML = `<span class="dot ${kind}"></span>${text}`;
+}
+
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---- renderers -----------------------------------------------------------
+
+async function renderOverview(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ قراءة حالة النظام…</div>';
+  const [health, ready, engines, trades] = await Promise.all([
+    api('/api/v1/health/v1'), api('/api/v1/readyz'),
+    api('/api/v1/ayzr/engines'), api('/api/v1/ayzr/trades?state=all'),
+  ]);
+  CACHE.engines = engines.json; CACHE.trades = trades.json;
+
+  // The backend nests its payload under `data`; read it defensively so a
+  // schema change degrades to "unavailable" instead of showing a wrong value.
+  const h = (health.json && (health.json.data || health.json)) || {};
+  const rz = (ready.json && (ready.json.data || ready.json)) || {};
+  const eng = (engines.json && engines.json.engines) || [];
+  const tr = (trades.json && trades.json.trades) || [];
+  const open = tr.filter(t=>t.is_open).length;
+
+  let html = '';
+  if (!health.ok){
+    html += `<div class="banner bad">⚠ تعذّر الوصول إلى الخادم (HTTP ${health.status}).
+      تحقق من عنوان الباكند ورمز العميل.</div>`;
+  } else {
+    html += `<div class="banner info">✔ الخادم متاح — البيانات معروضة كما أعادها الخادم.</div>`;
+  }
+
+  html += '<div class="grid cols-4">';
+  const isReady = rz.ready===true;
+  html += statCard(isReady?'جاهز':'غير جاهز', 'حالة النظام', isReady?'up':'warn');
+  html += statCard(rz.mode||h.status||'—', 'الوضع', 'gold');
+  html += statCard(h.bridge==='online'?'متصل':'غير متصل', 'جسر MT5',
+                   h.bridge==='online'?'up':'warn');
+  html += statCard(String(eng.length), 'المحركات', 'gold');
+  html += statCard(String(open)+' / '+String(tr.length), 'صفقات نشطة / الكل', 'gold');
+  html += '</div>';
+
+  html += '<div class="grid cols-2" style="margin-top:16px">';
+  html += '<div class="card"><h2>حالة المحركات</h2>';
+  if (!eng.length) html += emptyBox('لا توجد محركات');
+  else {
+    html += '<table><tr><th>المحرك</th><th>الدخول</th><th>الحالة</th><th>الإشارات</th></tr>';
+    for (const e of eng){
+      html += `<tr><td>${esc(e.label_ar)}</td><td class="mono">${esc(e.entry_timeframe)}</td>
+        <td><span class="pill ${e.busy?'warn':'up'}">${e.busy?'مشغول':'متاح'}</span></td>
+        <td>${esc(e.published_count)}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div>';
+
+  html += '<div class="card"><h2>ملخص الصفقات</h2>';
+  if (!tr.length) html += emptyBox('لم تُصدر أي صفقة بعد');
+  else {
+    html += '<table><tr><th>المصدر</th><th>الاتجاه</th><th>الحالة</th><th>الأهداف</th></tr>';
+    for (const t of tr.slice(0,8)){
+      const hit = (t.targets||[]).filter(x=>x.reached).length;
+      const tot = (t.targets||[]).length;
+      html += `<tr><td>${esc(t.source_label_ar)}</td>
+        <td><span class="pill ${t.direction==='BUY'?'up':'down'}">${esc(t.direction_label_ar)}</span></td>
+        <td>${esc(t.status_label_ar)}</td>
+        <td class="mono">${hit}/${tot}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div></div>';
+  m.innerHTML = html;
+  setStatus(health.ok?'ok':'bad', health.ok?'متصل':'غير متصل');
+}
+
+function statCard(value, label, tone){
+  return `<div class="card"><div class="stat ${tone||''}">${esc(value)}</div>
+    <div class="stat-label">${esc(label)}</div></div>`;
+}
+function emptyBox(msg){
+  return `<div class="empty"><div class="big">◍</div>${esc(msg)}</div>`;
+}
+
+async function renderEngines(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل المحركات…</div>';
+  const r = await api('/api/v1/ayzr/engines');
+  const eng = (r.json && r.json.engines) || [];
+  if (!eng.length){ m.innerHTML = emptyBox('لم يُرجع الخادم أي محرك'); return; }
+  let html = '<div class="grid cols-3">';
+  for (const e of eng){
+    html += `<div class="card">
+      <h2>${esc(e.label_ar)} ${e.busy?'<span class="pill warn">مشغول</span>':''}</h2>
+      <div class="row"><span class="k">إطار الدخول</span><span class="v mono">${esc(e.entry_timeframe)}</span></div>
+      <div class="row"><span class="k">أطر السياق</span><span class="v mono">${esc((e.context_timeframes||[]).join(' · ')||'—')}</span></div>
+      <div class="row"><span class="k">وقف الخسارة</span><span class="v">${esc(e.stop_atr)} × ATR</span></div>
+      <div class="row"><span class="k">الهدف</span><span class="v">${esc(e.target_atr)} × ATR</span></div>
+      <div class="row"><span class="k">نطاق RSI</span><span class="v mono">${esc(e.rsi_short)} – ${esc(e.rsi_long)}</span></div>
+      <div class="row"><span class="k">حد القوة</span><span class="v mono">${esc(e.min_strength)}</span></div>
+      <div class="row"><span class="k">توافق السياق</span><span class="v">${e.require_context_alignment?'مطلوب':'غير مطلوب'}</span></div>
+      <div class="row"><span class="k">يسمح بالتذبذب</span><span class="v">${e.allow_ranging?'نعم':'لا'}</span></div>
+      <div class="row"><span class="k">الإشارات الصادرة</span><span class="v">${esc(e.published_count)}</span></div>
+    </div>`;
+  }
+  html += '</div>';
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
+async function renderTrades(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل الصفقات…</div>';
+  const r = await api('/api/v1/ayzr/trades?state=all');
+  const tr = (r.json && r.json.trades) || [];
+  if (!tr.length){ m.innerHTML = emptyBox('لم تُصدر أي صفقة بعد'); return; }
+  let html = `<div class="banner info">إجمالي ${tr.length} صفقة — تُعرض من سجل الخادم فقط.</div>`;
+  html += '<div class="card"><table><tr><th>المعرّف</th><th>المصدر</th><th>الاتجاه</th>'+
+          '<th>الدخول</th><th>الوقف</th><th>الحالة</th><th>النتيجة</th><th>الأهداف</th></tr>';
+  for (const t of tr){
+    const hit = (t.targets||[]).filter(x=>x.reached).length;
+    const tot = (t.targets||[]).length;
+    html += `<tr>
+      <td class="mono">${esc(t.id)}</td>
+      <td>${esc(t.source_label_ar)}</td>
+      <td><span class="pill ${t.direction==='BUY'?'up':'down'}">${esc(t.direction_label_ar)}</span></td>
+      <td class="mono">${esc(t.entry)}</td>
+      <td class="mono">${esc(t.stop)}</td>
+      <td>${esc(t.status_label_ar)}</td>
+      <td>${esc(t.outcome_label_ar)}</td>
+      <td class="mono">${hit}/${tot}</td>
+    </tr>`;
+  }
+  html += '</table></div>';
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
+async function renderNews(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل الأخبار…</div>';
+  const r = await api('/api/v1/news?limit=40');
+  const items = Array.isArray(r.json) ? r.json : (r.json && (r.json.news||r.json.items)) || [];
+  if (!items.length){ m.innerHTML = emptyBox('لا توجد أخبار'); return; }
+  let html = '<div class="grid cols-2">';
+  for (const n of items.slice(0,30)){
+    html += `<div class="card">
+      <h2>${esc(n.title||n.headline||'بدون عنوان')}</h2>
+      <div class="row"><span class="k">المصدر</span><span class="v">${esc(n.source||'—')}</span></div>
+      <div class="row"><span class="k">وقت النشر</span><span class="v mono">${esc(n.published_at||n.publishedAt||'—')}</span></div>
+      ${n.summary_ar?`<p style="margin-top:10px;color:var(--muted);font-size:13.5px">${esc(n.summary_ar)}</p>`:''}
+    </div>`;
+  }
+  html += '</div>';
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
+async function renderActivity(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل السجل…</div>';
+  const r = await api('/api/v1/activity?limit=80');
+  const items = (r.json && (r.json.entries||r.json.activity||r.json.items)) || [];
+  if (!items.length){ m.innerHTML = emptyBox('السجل فارغ'); return; }
+  let html = '<div class="card"><table><tr><th>الوقت</th><th>النوع</th><th>النتيجة</th>'+
+             '<th>المصدر</th><th>التفصيل</th></tr>';
+  for (const a of items){
+    const cls = a.outcome==='ok'?'up':(a.outcome==='error'?'down':'warn');
+    html += `<tr><td class="mono">${esc(a.at||'—')}</td><td>${esc(a.kind||'')}</td>
+      <td><span class="pill ${cls}">${esc(a.outcome||'')}</span></td>
+      <td>${esc(a.source||'')}</td><td>${esc(a.detail||a.reason||'')}</td></tr>`;
+  }
+  html += '</table></div>';
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
+// ---- router --------------------------------------------------------------
+
+const RENDERERS = {
+  overview: renderOverview, engines: renderEngines,
+  trades: renderTrades, news: renderNews, activity: renderActivity,
+};
+
+function show(tab){
+  CURRENT = tab;
+  document.querySelectorAll('#nav button').forEach(b=>
+    b.classList.toggle('active', b.dataset.tab===tab));
+  RENDERERS[tab]();
+}
+
+document.getElementById('nav').addEventListener('click', e=>{
+  const b = e.target.closest('button');
+  if (b) show(b.dataset.tab);
+});
+
+show('overview');
+setInterval(()=>{ if (CURRENT==='overview') renderOverview(); }, 30000);
+</script>
+</body>
+</html>
