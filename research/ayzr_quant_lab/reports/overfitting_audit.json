@@ -1,0 +1,897 @@
+{
+  "corrected_baseline": {
+    "n": 442,
+    "win": 0.5317,
+    "expR": 0.0314,
+    "pf": 1.0663,
+    "totalR": 13.8577,
+    "ddR": 13.54
+  },
+  "bootstrap": {
+    "iid": {
+      "mean": 0.0314,
+      "ci_low": -0.0573,
+      "ci_high": 0.1174,
+      "crosses_zero": 1
+    },
+    "block10": {
+      "mean": 0.0314,
+      "ci_low": -0.049,
+      "ci_high": 0.1107,
+      "crosses_zero": 1
+    }
+  },
+  "family": [
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 1.0,
+      "n": 852,
+      "expR": -0.0787,
+      "pf": 0.85,
+      "totalR": -67.06
+    },
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 1.5,
+      "n": 734,
+      "expR": -0.0225,
+      "pf": 0.962,
+      "totalR": -16.52
+    },
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 2.0,
+      "n": 644,
+      "expR": 0.0348,
+      "pf": 1.054,
+      "totalR": 22.41
+    },
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 2.5,
+      "n": 580,
+      "expR": 0.0004,
+      "pf": 1.001,
+      "totalR": 0.25
+    },
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 3.0,
+      "n": 520,
+      "expR": 0.0119,
+      "pf": 1.016,
+      "totalR": 6.19
+    },
+    {
+      "gate": "trend",
+      "stop": 1.0,
+      "target": 4.0,
+      "n": 479,
+      "expR": 0.0828,
+      "pf": 1.106,
+      "totalR": 39.65
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 1.0,
+      "n": 707,
+      "expR": -0.0348,
+      "pf": 0.914,
+      "totalR": -24.6
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 1.5,
+      "n": 597,
+      "expR": 0.0118,
+      "pf": 1.024,
+      "totalR": 7.03
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 2.0,
+      "n": 510,
+      "expR": 0.0422,
+      "pf": 1.078,
+      "totalR": 21.53
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 2.5,
+      "n": 451,
+      "expR": 0.0507,
+      "pf": 1.085,
+      "totalR": 22.86
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 3.0,
+      "n": 411,
+      "expR": 0.0484,
+      "pf": 1.076,
+      "totalR": 19.89
+    },
+    {
+      "gate": "trend",
+      "stop": 1.5,
+      "target": 4.0,
+      "n": 368,
+      "expR": 0.1159,
+      "pf": 1.169,
+      "totalR": 42.67
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 1.0,
+      "n": 634,
+      "expR": -0.0143,
+      "pf": 0.957,
+      "totalR": -9.09
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 1.5,
+      "n": 529,
+      "expR": 0.0063,
+      "pf": 1.015,
+      "totalR": 3.32
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 2.0,
+      "n": 442,
+      "expR": 0.0314,
+      "pf": 1.066,
+      "totalR": 13.86
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 2.5,
+      "n": 387,
+      "expR": 0.0368,
+      "pf": 1.07,
+      "totalR": 14.26
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 3.0,
+      "n": 349,
+      "expR": 0.0654,
+      "pf": 1.117,
+      "totalR": 22.84
+    },
+    {
+      "gate": "trend",
+      "stop": 2.0,
+      "target": 4.0,
+      "n": 305,
+      "expR": 0.0927,
+      "pf": 1.149,
+      "totalR": 28.28
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 1.0,
+      "n": 583,
+      "expR": -0.0044,
+      "pf": 0.984,
+      "totalR": -2.55
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 1.5,
+      "n": 481,
+      "expR": 0.0212,
+      "pf": 1.06,
+      "totalR": 10.17
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 2.0,
+      "n": 399,
+      "expR": 0.0561,
+      "pf": 1.14,
+      "totalR": 22.37
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 2.5,
+      "n": 346,
+      "expR": 0.0435,
+      "pf": 1.093,
+      "totalR": 15.04
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 3.0,
+      "n": 315,
+      "expR": 0.0502,
+      "pf": 1.099,
+      "totalR": 15.81
+    },
+    {
+      "gate": "trend",
+      "stop": 2.5,
+      "target": 4.0,
+      "n": 258,
+      "expR": 0.1156,
+      "pf": 1.208,
+      "totalR": 29.83
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 1.0,
+      "n": 550,
+      "expR": -0.005,
+      "pf": 0.979,
+      "totalR": -2.74
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 1.5,
+      "n": 444,
+      "expR": 0.011,
+      "pf": 1.035,
+      "totalR": 4.87
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 2.0,
+      "n": 369,
+      "expR": 0.03,
+      "pf": 1.081,
+      "totalR": 11.09
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 2.5,
+      "n": 318,
+      "expR": 0.0672,
+      "pf": 1.165,
+      "totalR": 21.37
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 3.0,
+      "n": 277,
+      "expR": 0.0273,
+      "pf": 1.058,
+      "totalR": 7.57
+    },
+    {
+      "gate": "trend",
+      "stop": 3.0,
+      "target": 4.0,
+      "n": 224,
+      "expR": 0.1084,
+      "pf": 1.212,
+      "totalR": 24.28
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 1.0,
+      "n": 514,
+      "expR": -0.026,
+      "pf": 0.947,
+      "totalR": -13.37
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 1.5,
+      "n": 444,
+      "expR": 0.0334,
+      "pf": 1.059,
+      "totalR": 14.85
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 2.0,
+      "n": 383,
+      "expR": 0.1004,
+      "pf": 1.164,
+      "totalR": 38.45
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 2.5,
+      "n": 348,
+      "expR": 0.1091,
+      "pf": 1.164,
+      "totalR": 37.96
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 3.0,
+      "n": 307,
+      "expR": 0.1269,
+      "pf": 1.18,
+      "totalR": 38.94
+    },
+    {
+      "gate": "up",
+      "stop": 1.0,
+      "target": 4.0,
+      "n": 291,
+      "expR": 0.1701,
+      "pf": 1.226,
+      "totalR": 49.49
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 1.0,
+      "n": 433,
+      "expR": 0.014,
+      "pf": 1.038,
+      "totalR": 6.05
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 1.5,
+      "n": 371,
+      "expR": 0.0487,
+      "pf": 1.107,
+      "totalR": 18.06
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 2.0,
+      "n": 313,
+      "expR": 0.1188,
+      "pf": 1.238,
+      "totalR": 37.18
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 2.5,
+      "n": 277,
+      "expR": 0.1411,
+      "pf": 1.255,
+      "totalR": 39.09
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 3.0,
+      "n": 248,
+      "expR": 0.1043,
+      "pf": 1.17,
+      "totalR": 25.87
+    },
+    {
+      "gate": "up",
+      "stop": 1.5,
+      "target": 4.0,
+      "n": 225,
+      "expR": 0.1973,
+      "pf": 1.301,
+      "totalR": 44.4
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 1.0,
+      "n": 398,
+      "expR": 0.0216,
+      "pf": 1.071,
+      "totalR": 8.61
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 1.5,
+      "n": 333,
+      "expR": 0.0597,
+      "pf": 1.159,
+      "totalR": 19.88
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 2.0,
+      "n": 273,
+      "expR": 0.1011,
+      "pf": 1.233,
+      "totalR": 27.61
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 2.5,
+      "n": 240,
+      "expR": 0.1196,
+      "pf": 1.247,
+      "totalR": 28.71
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 3.0,
+      "n": 214,
+      "expR": 0.1302,
+      "pf": 1.246,
+      "totalR": 27.87
+    },
+    {
+      "gate": "up",
+      "stop": 2.0,
+      "target": 4.0,
+      "n": 190,
+      "expR": 0.1843,
+      "pf": 1.315,
+      "totalR": 35.01
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 1.0,
+      "n": 374,
+      "expR": 0.0343,
+      "pf": 1.139,
+      "totalR": 12.81
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 1.5,
+      "n": 308,
+      "expR": 0.0651,
+      "pf": 1.204,
+      "totalR": 20.06
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 2.0,
+      "n": 247,
+      "expR": 0.1091,
+      "pf": 1.296,
+      "totalR": 26.94
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 2.5,
+      "n": 214,
+      "expR": 0.1543,
+      "pf": 1.379,
+      "totalR": 33.01
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 3.0,
+      "n": 189,
+      "expR": 0.1553,
+      "pf": 1.341,
+      "totalR": 29.35
+    },
+    {
+      "gate": "up",
+      "stop": 2.5,
+      "target": 4.0,
+      "n": 158,
+      "expR": 0.2415,
+      "pf": 1.482,
+      "totalR": 38.16
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 1.0,
+      "n": 358,
+      "expR": 0.0355,
+      "pf": 1.169,
+      "totalR": 12.72
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 1.5,
+      "n": 288,
+      "expR": 0.0698,
+      "pf": 1.257,
+      "totalR": 20.11
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 2.0,
+      "n": 235,
+      "expR": 0.0992,
+      "pf": 1.304,
+      "totalR": 23.31
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 2.5,
+      "n": 202,
+      "expR": 0.1602,
+      "pf": 1.455,
+      "totalR": 32.36
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 3.0,
+      "n": 176,
+      "expR": 0.1544,
+      "pf": 1.382,
+      "totalR": 27.17
+    },
+    {
+      "gate": "up",
+      "stop": 3.0,
+      "target": 4.0,
+      "n": 140,
+      "expR": 0.2837,
+      "pf": 1.667,
+      "totalR": 39.71
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 1.0,
+      "n": 339,
+      "expR": -0.1556,
+      "pf": 0.731,
+      "totalR": -52.75
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 1.5,
+      "n": 291,
+      "expR": -0.1028,
+      "pf": 0.841,
+      "totalR": -29.92
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 2.0,
+      "n": 262,
+      "expR": -0.0538,
+      "pf": 0.923,
+      "totalR": -14.1
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 2.5,
+      "n": 233,
+      "expR": -0.1513,
+      "pf": 0.804,
+      "totalR": -35.25
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 3.0,
+      "n": 214,
+      "expR": -0.1392,
+      "pf": 0.827,
+      "totalR": -29.79
+    },
+    {
+      "gate": "down",
+      "stop": 1.0,
+      "target": 4.0,
+      "n": 190,
+      "expR": -0.0365,
+      "pf": 0.956,
+      "totalR": -6.93
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 1.0,
+      "n": 276,
+      "expR": -0.1004,
+      "pf": 0.779,
+      "totalR": -27.72
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 1.5,
+      "n": 229,
+      "expR": -0.0355,
+      "pf": 0.931,
+      "totalR": -8.14
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 2.0,
+      "n": 201,
+      "expR": -0.0512,
+      "pf": 0.914,
+      "totalR": -10.3
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 2.5,
+      "n": 178,
+      "expR": -0.0536,
+      "pf": 0.917,
+      "totalR": -9.54
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 3.0,
+      "n": 165,
+      "expR": 0.0071,
+      "pf": 1.011,
+      "totalR": 1.16
+    },
+    {
+      "gate": "down",
+      "stop": 1.5,
+      "target": 4.0,
+      "n": 147,
+      "expR": 0.0121,
+      "pf": 1.017,
+      "totalR": 1.78
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 1.0,
+      "n": 240,
+      "expR": -0.0656,
+      "pf": 0.823,
+      "totalR": -15.75
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 1.5,
+      "n": 202,
+      "expR": -0.0604,
+      "pf": 0.869,
+      "totalR": -12.21
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 2.0,
+      "n": 175,
+      "expR": -0.0565,
+      "pf": 0.892,
+      "totalR": -9.88
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 2.5,
+      "n": 153,
+      "expR": -0.061,
+      "pf": 0.895,
+      "totalR": -9.34
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 3.0,
+      "n": 140,
+      "expR": -0.0184,
+      "pf": 0.97,
+      "totalR": -2.57
+    },
+    {
+      "gate": "down",
+      "stop": 2.0,
+      "target": 4.0,
+      "n": 120,
+      "expR": -0.0243,
+      "pf": 0.964,
+      "totalR": -2.92
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 1.0,
+      "n": 219,
+      "expR": -0.0585,
+      "pf": 0.817,
+      "totalR": -12.82
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 1.5,
+      "n": 182,
+      "expR": -0.0424,
+      "pf": 0.893,
+      "totalR": -7.71
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 2.0,
+      "n": 158,
+      "expR": -0.0095,
+      "pf": 0.979,
+      "totalR": -1.51
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 2.5,
+      "n": 135,
+      "expR": -0.1086,
+      "pf": 0.802,
+      "totalR": -14.66
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 3.0,
+      "n": 127,
+      "expR": -0.0779,
+      "pf": 0.865,
+      "totalR": -9.89
+    },
+    {
+      "gate": "down",
+      "stop": 2.5,
+      "target": 4.0,
+      "n": 107,
+      "expR": -0.0442,
+      "pf": 0.929,
+      "totalR": -4.73
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 1.0,
+      "n": 206,
+      "expR": -0.0736,
+      "pf": 0.752,
+      "totalR": -15.16
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 1.5,
+      "n": 168,
+      "expR": -0.0746,
+      "pf": 0.802,
+      "totalR": -12.54
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 2.0,
+      "n": 146,
+      "expR": -0.0644,
+      "pf": 0.851,
+      "totalR": -9.41
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 2.5,
+      "n": 123,
+      "expR": -0.072,
+      "pf": 0.853,
+      "totalR": -8.85
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 3.0,
+      "n": 114,
+      "expR": -0.1335,
+      "pf": 0.763,
+      "totalR": -15.22
+    },
+    {
+      "gate": "down",
+      "stop": 3.0,
+      "target": 4.0,
+      "n": 98,
+      "expR": -0.1052,
+      "pf": 0.829,
+      "totalR": -10.31
+    }
+  ],
+  "deflated_sharpe": {
+    "sharpe_per_trade": 0.0319,
+    "expected_max_sharpe_null": 0.1186,
+    "deflated_sharpe_prob": 0.0346,
+    "skew": -0.1141,
+    "kurtosis": 1.0193,
+    "n_trials": 90
+  },
+  "pbo": {
+    "pbo": 0.5,
+    "n_combos": 70,
+    "median_oos_logit": 0.0674
+  },
+  "holm_survivors": 0,
+  "holm_survivor_examples": [],
+  "per_year": {
+    "2021": {
+      "n": 74,
+      "win": 0.514,
+      "expR": -0.0039,
+      "totalR": -0.29
+    },
+    "2022": {
+      "n": 93,
+      "win": 0.516,
+      "expR": -0.002,
+      "totalR": -0.19
+    },
+    "2023": {
+      "n": 91,
+      "win": 0.538,
+      "expR": 0.0446,
+      "totalR": 4.06
+    },
+    "2024": {
+      "n": 82,
+      "win": 0.512,
+      "expR": -0.0104,
+      "totalR": -0.85
+    },
+    "2025": {
+      "n": 102,
+      "win": 0.569,
+      "expR": 0.1091,
+      "totalR": 11.13
+    }
+  },
+  "by_regime": {
+    "TRENDING_UP": {
+      "n": 271,
+      "expR": 0.102,
+      "win": 0.568,
+      "totalR": 27.65
+    },
+    "TRENDING_DOWN": {
+      "n": 171,
+      "expR": -0.0807,
+      "win": 0.474,
+      "totalR": -13.8
+    }
+  }
+}

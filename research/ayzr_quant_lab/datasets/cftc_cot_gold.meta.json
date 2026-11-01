@@ -1,0 +1,9 @@
+{
+  "source": "CFTC Commitments of Traders (disaggregated futures)",
+  "market": "GOLD - COMMODITY EXCHANGE INC.",
+  "code": "088691",
+  "license": "US federal data, public domain",
+  "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+  "note": "Report date is Tuesday; public release is the following Friday ~15:30 ET.",
+  "rows": 313
+}

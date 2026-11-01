@@ -1,0 +1,8 @@
+{
+  "source": "Yahoo Finance chart API",
+  "symbol": "GC=F",
+  "description": "COMEX Gold front-month futures (daily OHLCV)",
+  "license": "Yahoo ToS, personal/research use",
+  "url": "https://finance.yahoo.com/quote/GC=F",
+  "fetched": "2026-11-01T17:45:45Z"
+}

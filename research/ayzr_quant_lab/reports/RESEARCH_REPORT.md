@@ -1,5 +1,12 @@
 # AYZR Quant Lab — Research Report
 
+> **CORRECTION (Phase II audit).** The LONG figures in this Phase I report were
+> produced on the **pre-fix `align_grid`** (a trailing-bucket lookahead bug caught
+> later by `tests/test_backtest.py`). The corrected LONG is **n=442, +0.031R,
+> PF 1.07** — not n=301, +0.076R, PF 1.12. See `reports/PHASE2_REPORT.md` and
+> `reports/audit_phase1.json`. The SHORT/MEDIUM "no edge" conclusions are
+> unaffected. Treat the LONG numbers below as superseded.
+
 **Question.** Can the SHORT / MEDIUM / LONG XAUUSD horizon engines be built into
 honest, evidence-backed analyzers on top of the unmodified ASTRA CORE?
 
