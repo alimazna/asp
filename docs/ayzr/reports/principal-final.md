@@ -278,3 +278,75 @@ assertions above are unchanged by that fix. See `docs/ayzr/TESTING.md` F-E-3.
 - No device or emulator run; APKs are built and their manifests verified with
   `aapt2`, but not installed on a real device.
 - No deploy, no push, no commit.
+
+## 11. Finalization pass (2026-11-01) — baseline, mock news, no-trade
+
+Branch: `feat/ayzr-finalization`. Two commits:
+
+- `fix(ayzr): stabilize baseline — compile fix, deterministic tests, fault seam`
+- `feat(news): mock news source + 20-scenario pipeline runner, no-trade mode`
+
+### 11.1 What changed
+
+**Compile fix.** The working tree referenced `PriceGrounding` / grounding in
+`src/api/AstraServerMain.cpp` while HEAD did not compile. The working-tree
+changes (news tone/framing analysis, relative levels, biquote feeder, deploy
+docs) were landed so the tree builds clean.
+
+**Deterministic tests.** `AyzrSecurityTests` and `AyzrFailureInjectionTests`
+were the only two failing suites. Neither was a product defect:
+
+- the security case provoked a store failure with `chmod`, which is
+  non-deterministic under SQLite WAL (the write lands in the `-wal` file). It now
+  drives an opt-in seam, `forceStoreFailure("candles")` in
+  `src/api/AstraServerMain.cpp` — the same pattern the repo already uses for
+  `ASTRA_SENDER_TEST_BREAK_BRIDGE`.
+- the failure-injection case asserted on an exact substring of the `levels`
+  object, broken by a legitimate shape change. It now asserts the semantic
+  invariant (the three price levels are `null` on an `unavailable` reply).
+
+**Mock news source + 20-scenario runner** (`tools/ayzr_agents/mock_news_api.py`).
+Replaces the *source* half of the news pipeline with a loopback server speaking
+the exact wire formats the real collectors parse (Google-News RSS item shape;
+forexfactory-style calendar JSON), then drives the *real* backend through 20
+named news shapes with the mock LLM provider. Nothing reaches the network; no AI
+token is spent. `selftest` spawns both backends itself for a one-command run.
+
+**NoTrade mock mode** (`MockLlmProvider::Mode::NoTrade`). The ambiguity →
+`no_trade` invariant was previously asserted against a payload that always
+returned `bullish`, so the assertion could never fire. The new mode returns a
+valid `no_trade` payload that *carries* entry/stop/tp, proving the parser drops
+them rather than merely finding them absent.
+
+### 11.2 Verified totals (commands actually run this pass)
+
+| Suite | Command | Result |
+|-------|---------|--------|
+| C++ CTest | `cd build-ayzr && ctest` | **43/43 passed** |
+| C++ harness binaries | `for t in *Tests; do ./"$t"; done` | **43/43, 0 failed** |
+| `NewsIntelligenceTests` | `./NewsIntelligenceTests` | **55 cases, 0 failed** |
+| Python models | `python3 -m unittest discover -s tests/models` | **308 passed, 0 failed** |
+| Integration scripts | `for f in tests/integration/test_*.py; do python3 "$f"; done` | **8 PASS, 1 out of scope** (`test_bridge_t06`, separate Windows MT5 project) |
+| Quant lab | `for t in research/ayzr_quant_lab/tests/test_*.py; do python3 "$t"; done` | **4/4 passed**; ASTRA CORE digest unchanged (`aee61fa9…`) |
+| Flutter | `cd ayzr-android && flutter test` | **132 passed, 3 skipped, 0 failed** |
+| Flutter analyze | `flutter analyze` | **0 issues** |
+| Lifecycle E2E | `python3 tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed** |
+| Mock news scenarios | `python3 tools/ayzr_agents/mock_news_api.py selftest` | **145/145 passed** |
+| Observatory proxy | `serve.py` → `/api/v1/{health,ayzr/engines,ayzr/trades}` | **200 / 200 / 200** |
+
+### 11.3 Constraints held
+
+- **ASTRA CORE unchanged** — quant-lab digest check passes; the decision engine
+  is not touched. The AI layer is additive and read-only.
+- **Excluded frontend untouched** — no file under the repository's existing
+  frontend or `bridge/` appears in `git diff 0bb9491..HEAD`.
+- **No live LLM call** — every news check ran with `ASTRA_LLM_PROVIDER=mock`.
+- **No deploy, no push, no production write.**
+
+### 11.4 Not claimed
+
+- The APK is built and its manifest verified, but not installed on a real device
+  or emulator.
+- The 20-scenario run uses the mock provider; no live LLM7 call was made.
+- `test_bridge_t06` still reports 24/25 — it exercises the separate Windows MT5
+  bridge, which is out of this scope and unmodified.

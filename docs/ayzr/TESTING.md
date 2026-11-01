@@ -49,17 +49,30 @@ scripts that print their own `N/M checks passed`; two of them
 (`test_contract_t16.py`, `test_e2e_real_host_t13.py`) SKIP unless a `build/`
 directory with `aura_backend_host` exists.
 
-## Totals (verified 2026-10-29, AYZR working tree)
+## Totals (verified 2026-11-01, AYZR working tree)
 
 | Suite | Result |
 |-------|--------|
-| CTest cases | **40/40 passed, 0 failed** |
-| C++ harness test cases (40 binaries) | 0 failed (per-binary `RESULT: PASS`) |
+| CTest cases | **43/43 passed, 0 failed** |
+| C++ harness test cases (43 binaries) | 0 failed (per-binary `RESULT: PASS`) |
 | `SingleInstanceTests` assertions | 10/10 (own printer) |
 | `tests/models` (unittest) | **308 passed, 0 failed** |
-| Flutter (AYZR Android) | **108 passed, 0 failed, 3 skipped** (`flutter test`) |
+| `tests/integration` (9 scripts) | **8 passed, 1 out of scope** (`test_bridge_t06` — separate Windows MT5 project) |
+| `research/ayzr_quant_lab` (4 scripts) | **4 passed, 0 failed** (ASTRA CORE digest unchanged) |
+| Flutter (AYZR Android) | **132 passed, 0 failed, 3 skipped** (`flutter test`) |
 | Flutter live integration (opt-in) | **3 passed** (`flutter test --tags live` against a local server) |
 | Flutter analyze | **0 issues** (`flutter analyze`) |
+| `tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed, 0 failed** |
+| `tools/ayzr_agents/mock_news_api.py selftest` | **145/145 passed, 0 failed** |
+
+The two AYZR suites that previously failed (`AyzrFailureInjectionTests`,
+`AyzrSecurityTests`) now pass. The security case used a `chmod`-based
+store-failure trigger that is non-deterministic under SQLite WAL; it now drives
+a deterministic opt-in seam (`forceStoreFailure("candles")` in
+`src/api/AstraServerMain.cpp`), matching the repository's existing
+`ASTRA_SENDER_TEST_BREAK_BRIDGE` pattern. The failure-injection case asserted on
+an exact substring of the levels object; it now asserts the semantic invariant
+(the three price levels are null).
 
 `MacroEventPipelineTests` gained two cases in this pass (included in the 40/40
 above): `upcoming_events_are_soonest_first` and `past_events_are_newest_first`,
@@ -103,6 +116,38 @@ Additional suites at the same revision: `tests/integration/*.py` — 6 scripts
 PASS, 2 SKIP (no `build/`), 1 pre-existing FAIL (see Findings); mock-sender E2E
 (`tools/ayzr_agents/mock_sender.py`) — PASS (ingest=2, duplicates=2, rejected=1,
 sync=1).
+
+### Mock news source and 20-scenario pipeline run (2026-11-01)
+
+`tools/ayzr_agents/mock_news_api.py` replaces the *news source* half of the
+pipeline (Google-News RSS + the economic calendar) with a loopback server that
+speaks the exact wire formats the real collectors parse, then drives the *real*
+backend — store, dedup, schema validation, analysis — through 20 named news
+shapes with the mock LLM provider. No external request is made and no AI token
+is spent.
+
+```bash
+# one command: spawns a valid-mode and a no_trade-mode backend itself
+python3 tools/ayzr_agents/mock_news_api.py selftest
+# 145 check(s), 0 failed  → RESULT: PASS
+```
+
+The 20 scenarios cover: CPI beat/miss, hawkish/dovish Fed, strong/weak payrolls,
+geopolitical risk, USD strength, a yields spike, central-bank buying, ETF
+outflows, mine supply, Asian jewellery demand, an ECB hold, a BOJ tweak, an oil
+shock, an equity sell-off, an unrelated (non-gold) story, an ambiguous story,
+and a cross-source duplicate. Each article is self-labelled `[TEST]` /
+`(TEST)` so a synthetic story can never be mistaken for a real report.
+
+Assertions exercised per scenario: ingest is HTTP 200; a new article is
+`stored`; a replay is a `duplicate`; the gold-only filter keeps gold items and
+withholds the rest; the duplicate is deduped by canonical key (not by source);
+`/news/analyze` returns a valid direction token and keeps the ASTRA block
+alongside the AI layer; a `no_trade` direction carries no price levels; history
+persists every analysis; and a wrong credential is rejected (401). The
+ambiguity → `no_trade` path uses `MockLlmProvider::Mode::NoTrade` (added in this
+pass), so the "drop the levels" invariant is genuinely exercised rather than
+asserted against a payload that never produced it.
 
 Per-binary C++ harness counts at the same revision:
 
@@ -244,3 +289,24 @@ Resolution: `sudo apt-get install -y libcurl4-openssl-dev` (8.14.1-2+deb13u7),
 then reconfigure. The transport is now compiled and the live-LLM path is
 reachable; the two assertions above are pre-existing and out of scope for this
 increment.
+
+**Status 2026-11-01 — both now pass (root cause was test design, not libcurl).**
+Neither assertion depended on the transport being compiled; both depended on how
+the test *provoked* the condition:
+
+- `AyzrSecurityTests::sec_gap_store_failure_echoes_raw_sqlite_error` used
+  `chmod` to make the store unwritable. Under SQLite WAL the write goes to a
+  `-wal` file, so the trigger was non-deterministic — sometimes the write
+  succeeded, sometimes it failed with a different error. The test now drives a
+  deterministic opt-in seam, `forceStoreFailure("candles")` in
+  `src/api/AstraServerMain.cpp`, the same pattern the repository already uses for
+  `ASTRA_SENDER_TEST_BREAK_BRIDGE`. The handler sanitizes the store error before
+  returning, so the assertion (a `store_failure` code, no raw driver text) holds
+  every run.
+- `AyzrFailureInjectionTests::ayzr_llm_network_interruption_yields_unavailable`
+  asserted on an exact substring of the `levels` object, which a legitimate
+  change to the levels shape had broken. It now asserts the semantic invariant
+  that matters: on an `unavailable` reply the three price levels are `null`.
+
+Both suites pass with `ctest` (43/43). The `libcurl` install is still required
+for the *live*-LLM path to be reachable; it is not required for these cases.
