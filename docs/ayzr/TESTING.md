@@ -53,17 +53,17 @@ directory with `aura_backend_host` exists.
 
 | Suite | Result |
 |-------|--------|
-| CTest cases | **43/43 passed, 0 failed** |
-| C++ harness test cases (43 binaries) | 0 failed (per-binary `RESULT: PASS`) |
+| CTest cases | **44/44 passed, 0 failed** |
+| C++ harness test cases (44 binaries) | 0 failed (per-binary `RESULT: PASS`) |
 | `SingleInstanceTests` assertions | 10/10 (own printer) |
 | `tests/models` (unittest) | **308 passed, 0 failed** |
 | `tests/integration` (9 scripts) | **8 passed, 1 out of scope** (`test_bridge_t06` — separate Windows MT5 project) |
 | `research/ayzr_quant_lab` (4 scripts) | **4 passed, 0 failed** (ASTRA CORE digest unchanged) |
-| Flutter (AYZR Android) | **132 passed, 0 failed, 3 skipped** (`flutter test`) |
+| Flutter (AYZR Android) | **135 passed, 0 failed, 3 skipped** (`LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test`) |
 | Flutter live integration (opt-in) | **3 passed** (`flutter test --tags live` against a local server) |
 | Flutter analyze | **0 issues** (`flutter analyze`) |
 | `tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed, 0 failed** |
-| `tools/ayzr_agents/mock_news_api.py selftest` | **145/145 passed, 0 failed** |
+| `tools/ayzr_agents/mock_news_api.py selftest` | **240/240 passed, 0 failed** |
 
 The two AYZR suites that previously failed (`AyzrFailureInjectionTests`,
 `AyzrSecurityTests`) now pass. The security case used a `chmod`-based

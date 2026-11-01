@@ -156,6 +156,12 @@ ApiResponse NewsApi::list(const std::vector<NewsArticle>& articles,
 
 ApiResponse NewsApi::detail(const NewsArticle& article,
                             const NewsAnalysis* analysis, bool hasAnalysis) {
+    return detail(article, analysis, hasAnalysis, {});
+}
+
+ApiResponse NewsApi::detail(const NewsArticle& article,
+                            const NewsAnalysis* analysis, bool hasAnalysis,
+                            const std::vector<ayzr::TradeImpact>& impacts) {
     std::vector<ApiField> fields;
     fields.push_back(rawField("article", articleJson(article, true)));
     fields.push_back(boolField("has_analysis", hasAnalysis));
@@ -164,6 +170,24 @@ ApiResponse NewsApi::detail(const NewsArticle& article,
     } else {
         fields.push_back(rawField("analysis", "null"));
     }
+    // The news-to-open-trade linkage: a deterministic, read-only comparison of
+    // the news direction against each currently-open trade. Always present (an
+    // empty array when no trade is open) so the client can tell "no open trades"
+    // from "field missing". Alignment is not an outcome and is never labelled as
+    // one.
+    std::vector<std::string> impactEls;
+    impactEls.reserve(impacts.size());
+    for (const auto& ti : impacts) {
+        std::vector<ApiField> f;
+        f.push_back(stringField("trade_id", ti.tradeId));
+        f.push_back(stringField("source_label_ar", ti.sourceLabelAr));
+        f.push_back(stringField("direction_label_ar", ti.directionLabelAr));
+        f.push_back(stringField("relation", ayzr::toString(ti.relation)));
+        f.push_back(stringField("relation_label_ar", ti.relationLabelAr));
+        f.push_back(stringField("explanation_ar", ti.explanationAr));
+        impactEls.push_back(jsonObject(f));
+    }
+    fields.push_back(rawField("open_trade_impacts", jsonArray(impactEls)));
     return ApiResponse{200, "application/json",
                        envelope(jsonObject(fields)), true, ""};
 }

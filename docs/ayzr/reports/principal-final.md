@@ -322,16 +322,16 @@ them rather than merely finding them absent.
 
 | Suite | Command | Result |
 |-------|---------|--------|
-| C++ CTest | `cd build-ayzr && ctest` | **43/43 passed** |
-| C++ harness binaries | `for t in *Tests; do ./"$t"; done` | **43/43, 0 failed** |
+| C++ CTest | `cd build-ayzr && ctest` | **44/44 passed** |
+| C++ harness binaries | `for t in *Tests; do ./"$t"; done` | **44/44, 0 failed** |
 | `NewsIntelligenceTests` | `./NewsIntelligenceTests` | **55 cases, 0 failed** |
 | Python models | `python3 -m unittest discover -s tests/models` | **308 passed, 0 failed** |
 | Integration scripts | `for f in tests/integration/test_*.py; do python3 "$f"; done` | **8 PASS, 1 out of scope** (`test_bridge_t06`, separate Windows MT5 project) |
 | Quant lab | `for t in research/ayzr_quant_lab/tests/test_*.py; do python3 "$t"; done` | **4/4 passed**; ASTRA CORE digest unchanged (`aee61fa9…`) |
-| Flutter | `cd ayzr-android && flutter test` | **132 passed, 3 skipped, 0 failed** |
+| Flutter | `cd ayzr-android && LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test` | **135 passed, 3 skipped, 0 failed** |
 | Flutter analyze | `flutter analyze` | **0 issues** |
 | Lifecycle E2E | `python3 tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed** |
-| Mock news scenarios | `python3 tools/ayzr_agents/mock_news_api.py selftest` | **145/145 passed** |
+| Mock news scenarios | `python3 tools/ayzr_agents/mock_news_api.py selftest` | **240/240 passed** |
 | Observatory proxy | `serve.py` → `/api/v1/{health,ayzr/engines,ayzr/trades}` | **200 / 200 / 200** |
 
 ### 11.3 Constraints held
@@ -350,3 +350,40 @@ them rather than merely finding them absent.
 - The 20-scenario run uses the mock provider; no live LLM7 call was made.
 - `test_bridge_t06` still reports 24/25 — it exercises the separate Windows MT5
   bridge, which is out of this scope and unmodified.
+
+### 11.5 News-to-open-trade impact linkage (2026-11-01)
+
+The news analysis answered "what does this news mean for gold?" but never "what
+does it mean for the positions I already hold?". That question is now answered
+by a deterministic, read-only layer:
+
+- `src/ayzr/NewsTradeImpact.h` — a pure function of (news direction, trade
+  direction). A matching direction is `supportive`, an opposing one
+  `contradicting`; a non-directional news view (`sideways`/`no_trade`) and a
+  trade on another instrument are `neutral`. Every verdict carries an Arabic
+  label and a one-sentence Arabic explanation that says, explicitly, that
+  alignment is not an outcome.
+- `GET /api/v1/news/analyze?id=` now carries `open_trade_impacts` (always a
+  list, empty when no trade is open). The field is additive: an older client
+  ignores it. It never opens, closes, or mutates a trade, and never touches the
+  ASTRA decision engine.
+- The Android news-detail screen renders it as a card, above the analysis, only
+  when at least one trade is open.
+
+Because the AYZR horizon engines are not yet wired to the server's candle bus,
+a fresh process has no open trade to describe. A test-only seam,
+`ASTRA_TEST_SEED_TRADE=BUY|SELL`, seeds one deterministic open trade so the
+linkage can be exercised end to end; it is off unless the env var is set, so
+production never contains a synthetic trade.
+
+Verified end to end against a live server (mock provider):
+
+```
+seed BUY  + bullish news -> relation=supportive   "متوافق مع الخبر"
+seed SELL + no_trade news -> relation=neutral      "محايد"
+```
+
+New tests: `AyzrNewsImpactTests` (27 cases — supportive/contradicting/neutral,
+non-directional, other-instrument, ordering, no-mutation, no-outcome-wording);
+3 Flutter parsing cases; the 20-scenario runner now asserts the linkage's shape
+and its direction-against-seed verdict (240 checks total).

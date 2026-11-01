@@ -108,6 +108,15 @@ class Ar {
   static const noAnalysisYet = 'لا يوجد تحليل لهذا الخبر بعد';
   static const analysisUnavailable = 'تعذّر تحليل الخبر';
 
+  // News-to-open-trade linkage. Shows how the news view relates to the trades
+  // that are open right now. Alignment is not an outcome: the wording never
+  // claims a trade will win or lose.
+  static const openTradeImpact = 'أثر الخبر على الصفقات المفتوحة';
+  static const openTradeImpactNone = 'لا توجد صفقات مفتوحة حالياً.';
+  static const openTradeImpactHint =
+      'مقارنة اتجاه الخبر مع اتجاه الصفقات المفتوحة. التوافق أو التعارض في '
+      'الاتجاه فقط، وليس توقعاً بالربح أو الخسارة.';
+
   // Gold transmission channel and impact horizon — the two closed-vocabulary
   // classifiers the model assigns. Each maps to an Arabic label; an
   // unrecognised value renders as the neutral "غير محدَّد".

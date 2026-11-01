@@ -5,6 +5,7 @@
 // analysis happen here, so the shapes are unit-testable without a database.
 
 #include "api/BackendApiSchema.h"
+#include "ayzr/NewsTradeImpact.h"
 #include "macro/EventStore.h"
 #include "news/FailoverLlmProvider.h"
 #include "news/LlmQuotaMonitor.h"
@@ -27,6 +28,14 @@ public:
     // `hasAnalysis` distinguishes "no analysis yet" from "analysis unavailable".
     static ApiResponse detail(const NewsArticle& article,
                               const NewsAnalysis* analysis, bool hasAnalysis);
+
+    // The same route with the news-to-open-trade impact linkage attached. The
+    // linkage is a deterministic, read-only comparison of the news direction
+    // against each currently-open trade. It is additive (an older client ignores
+    // the field) and never claims an outcome: alignment is not a result.
+    static ApiResponse detail(const NewsArticle& article,
+                              const NewsAnalysis* analysis, bool hasAnalysis,
+                              const std::vector<ayzr::TradeImpact>& impacts);
 
     // GET /api/v1/news/quota — the LLM provider's availability snapshot. Lets
     // the Android app show an honest Arabic banner when the daily AI quota is

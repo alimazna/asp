@@ -94,6 +94,35 @@ bool forceStoreFailure(const char* store) {
     return false;
 }
 
+// Test-only trade seed. The AYZR horizon engines are not wired to the server's
+// candle bus yet, so in a fresh process there is never an open trade for the
+// news-to-open-trade linkage to describe. This seeds one deterministic open
+// trade so the linkage can be exercised end to end. Off unless the env var is
+// set, so production behaviour (no synthetic trade, ever) is unchanged. The
+// origin rationale is marked TEST SEED so a seeded trade is identifiable in any
+// read surface.
+void seedTestTrade(aura::ayzr::TradeLifecycleManager& mgr) {
+    const char* v = std::getenv("ASTRA_TEST_SEED_TRADE");
+    if (v == nullptr || *v == '\0') return;
+    aura::ayzr::TradeOrigin o;
+    o.tradeId = "TEST-SEED-1";
+    o.source = aura::ayzr::TradeSource::HORIZON_SHORT;
+    o.direction = (std::string(v) == "SELL") ? aura::ayzr::TradeDirection::SELL
+                                             : aura::ayzr::TradeDirection::BUY;
+    o.entry = 2650.0;
+    o.stop = 2640.0;
+    o.targets.push_back(aura::ayzr::TargetLevel{2665.0, false, 0});
+    o.publishedAtSec = 0;
+    o.entryTimeframe = "M5";
+    o.contextTimeframes = {"M15"};
+    o.rationale = "TEST SEED — not a real signal";
+    o.engineVersion = "TEST";
+    o.symbol = "XAUUSD";
+    mgr.open(o);
+    std::cerr << "  WARN: seeded TEST trade (ASTRA_TEST_SEED_TRADE=" << v
+              << "); not production state" << std::endl;
+}
+
 std::vector<std::string> splitComma(const std::string& in) {
     std::vector<std::string> out;
     std::stringstream ss(in);
@@ -1156,6 +1185,15 @@ int main(int argc, char** argv) {
         return g;
     };
 
+    // AYZR multi-horizon layer. Declared here (before the news handlers) so the
+    // news analyze route can attach the news-to-open-trade impact linkage. The
+    // API is read-only over this state: the engines publish trades, the
+    // lifecycle manager tracks them, and the routes below only serialise the
+    // current state. Nothing here can write candles or alter an ASTRA decision.
+    static aura::ayzr::HorizonRegistry ayzrRegistry;
+    static aura::ayzr::TradeLifecycleManager ayzrTrades;
+    seedTestTrade(ayzrTrades);
+
     server.newsListHandler = [&](const std::string& query) -> ApiResponse {
         int limit = 50;
         const std::string limitRaw = queryParam(query, "limit");
@@ -1240,7 +1278,16 @@ int main(int argc, char** argv) {
             std::cerr << "  WARN: cannot persist analysis: " << saveError
                       << std::endl;
         }
-        return NewsApi::detail(article, &analysis, true);
+        // News-to-open-trade linkage: compare the news direction against every
+        // currently-open trade. Read-only and deterministic; it never opens,
+        // closes or mutates a trade, and never claims an outcome. A non-OK
+        // analysis carries no direction, so every open trade is Neutral.
+        const std::vector<aura::ayzr::TradeImpact> impacts =
+            aura::ayzr::computeOpenTradeImpacts(
+                ayzrTrades,
+                analysis.status == "ok" ? analysis.proposedDirection
+                                        : std::string());
+        return NewsApi::detail(article, &analysis, true, impacts);
     };
 
     // GET /api/v1/news/quota — honest provider-availability snapshot. The app
@@ -1347,8 +1394,8 @@ int main(int argc, char** argv) {
     // engines publish trades, the lifecycle manager tracks them, and the
     // routes below only serialise the current state. Nothing here can write
     // candles or alter an ASTRA decision.
-    static aura::ayzr::HorizonRegistry ayzrRegistry;
-    static aura::ayzr::TradeLifecycleManager ayzrTrades;
+    // (The registry and lifecycle manager are declared above the news handlers,
+    //  because the news analyze route attaches the news-to-open-trade linkage.)
 
     server.ayzrEnginesHandler = []() -> ApiResponse {
         ApiResponse r;

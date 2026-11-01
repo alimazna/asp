@@ -58,6 +58,8 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             _articleCard(detail.article),
+            if (detail.openTradeImpacts.isNotEmpty)
+              _openTradeImpactCard(detail.openTradeImpacts),
             if (!detail.hasAnalysis || detail.analysis == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -74,6 +76,66 @@ class _NewsDetailScreenState extends State<NewsDetailScreen> {
       ),
     );
   }
+
+  /// How the news view relates to the trades that are open right now. Only
+  /// rendered when at least one trade is open; alignment is never presented as
+  /// an outcome.
+  Widget _openTradeImpactCard(List<TradeImpact> impacts) => SectionCard(
+        title: Ar.openTradeImpact,
+        icon: Icons.link_rounded,
+        children: [
+          for (final ti in impacts) ...[
+            Row(
+              children: [
+                Icon(
+                  ti.isSupportive
+                      ? Icons.trending_up_rounded
+                      : ti.isContradicting
+                          ? Icons.trending_down_rounded
+                          : Icons.remove_rounded,
+                  size: 18,
+                  color: ti.isSupportive
+                      ? AyzrColors.up
+                      : ti.isContradicting
+                          ? AyzrColors.down
+                          : AyzrColors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${ti.sourceLabelAr} · ${ti.directionLabelAr} — '
+                    '${ti.relationLabelAr}',
+                    style: const TextStyle(
+                      color: AyzrColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              ti.explanationAr,
+              style: const TextStyle(
+                color: AyzrColors.textMuted,
+                fontSize: 12,
+                height: 1.6,
+              ),
+            ),
+            if (ti != impacts.last) const Divider(height: 22),
+          ],
+          const SizedBox(height: 6),
+          const Text(
+            Ar.openTradeImpactHint,
+            style: TextStyle(
+              color: AyzrColors.textMuted,
+              fontSize: 11,
+              height: 1.6,
+            ),
+          ),
+        ],
+      );
 
   Widget _articleCard(NewsArticle a) => SectionCard(
         title: Ar.headline,

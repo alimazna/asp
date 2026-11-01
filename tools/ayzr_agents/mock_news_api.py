@@ -320,6 +320,11 @@ def _run_no_trade_check(base: str, sender: str, client: str) -> None:
     check(all(levels.get(k) is None
               for k in ("entry", "stop_loss", "take_profit")),
           "no_trade: all price levels null")
+    # A no_trade view carries no direction, so it cannot support or contradict a
+    # position: any open trade must read as neutral.
+    for it in (unwrap(body).get("open_trade_impacts") or []):
+        check(it.get("relation") == "neutral",
+              "no_trade: open trade impact is neutral")
 
 
 def run_scenarios(base: str, sender: str, client: str,
@@ -405,6 +410,27 @@ def run_scenarios(base: str, sender: str, client: str,
             check(all(levels.get(k) is None
                       for k in ("entry", "stop_loss", "take_profit")),
                   f"{s['id']}: no_trade invents no price levels")
+        # The news-to-open-trade linkage must always be present (a list), so the
+        # client can tell "no open trades" from "field missing". The valid-mode
+        # backend seeds one BUY trade, so this is a populated list here.
+        impacts = data.get("open_trade_impacts")
+        check(isinstance(impacts, list),
+              f"{s['id']}: open_trade_impacts present as a list (got {type(impacts).__name__})")
+        for it in (impacts or []):
+            check(it.get("relation") in ("supportive", "contradicting", "neutral"),
+                  f"{s['id']}: impact relation is a valid token")
+            check(bool(it.get("explanation_ar")),
+                  f"{s['id']}: impact carries an Arabic explanation")
+            check("ربح مؤكد" not in (it.get("explanation_ar") or ""),
+                  f"{s['id']}: impact explanation claims no outcome")
+            # The seeded open trade is BUY, so a bullish news view must read as
+            # supportive and a bearish view as contradicting.
+            if direction == "bullish":
+                check(it.get("relation") == "supportive",
+                      f"{s['id']}: bullish vs seeded BUY is supportive")
+            elif direction == "bearish":
+                check(it.get("relation") == "contradicting",
+                      f"{s['id']}: bearish vs seeded BUY is contradicting")
 
     # History must reflect every persisted analysis, across a restart.
     st, body = http("GET", f"{base}/api/v1/news/results?limit=200", client)
@@ -435,7 +461,7 @@ def run_scenarios(base: str, sender: str, client: str,
 
 
 def _spawn(exe: str, data_dir: str, port: int, mode: str, sender: str,
-           client: str) -> "subprocess.Popen":
+           client: str, seed_trade: str = "") -> "subprocess.Popen":
     import os
     import subprocess
     env = dict(os.environ)
@@ -446,6 +472,10 @@ def _spawn(exe: str, data_dir: str, port: int, mode: str, sender: str,
         "ASTRA_LLM_PROVIDER": "mock",
         "ASTRA_MOCK_LLM_MODE": mode,
     })
+    if seed_trade:
+        # Seed one deterministic open trade so the news-to-open-trade linkage is
+        # exercised with a real trade, not an empty list.
+        env["ASTRA_TEST_SEED_TRADE"] = seed_trade
     log = open(f"/tmp/ayzr-news-{mode}-{port}.log", "w")
     proc = subprocess.Popen(
         [exe, "--host", "127.0.0.1", "--port", str(port),
@@ -477,7 +507,7 @@ def selftest(exe: str) -> int:
         p = s.getsockname()[1]; s.close(); return p
     p1, p2 = free_port(), free_port()
     procs = [
-        _spawn(exe, d1, p1, "valid", "sv", "cv"),
+        _spawn(exe, d1, p1, "valid", "sv", "cv", seed_trade="BUY"),
         _spawn(exe, d2, p2, "no_trade", "sn", "cn"),
     ]
     try:

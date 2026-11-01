@@ -110,6 +110,34 @@ void main() {
       expect(an.statusReason, 'evidence contradictory');
     });
 
+    test('open_trade_impacts defaults to empty when the field is absent', () {
+      // Backward compatibility: an older server that predates the linkage sends
+      // no field at all; the client must read that as "no open trades", not fail.
+      final d = NewsDetail.fromJson(Map<String, dynamic>.from(newsDetail));
+      expect(d.openTradeImpacts, isEmpty);
+    });
+
+    test('parses the news-to-open-trade linkage', () {
+      final d = NewsDetail.fromJson(Map<String, dynamic>.from(
+        newsDetailWithImpacts,
+      ));
+      expect(d.openTradeImpacts, hasLength(2));
+      final first = d.openTradeImpacts.first;
+      expect(first.tradeId, 'SHORT-1');
+      expect(first.isSupportive, isTrue);
+      expect(first.relationLabelAr, 'متوافق مع الخبر');
+      expect(first.directionLabelAr, 'شراء');
+      expect(first.explanationAr, isNotEmpty);
+      expect(d.openTradeImpacts[1].isContradicting, isTrue);
+    });
+
+    test('a linkage entry with an unknown relation is neutral', () {
+      final ti = TradeImpact.fromJson({'relation': 'something_new'});
+      expect(ti.relation, 'something_new');
+      expect(ti.isSupportive, isFalse);
+      expect(ti.isContradicting, isFalse);
+    });
+
     test('parses a history entry joined with its article', () {
       final entries = (historyList['history']! as List)
           .map((e) =>

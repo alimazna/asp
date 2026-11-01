@@ -261,6 +261,49 @@ const newsDetailNoAnalysis = {
   'analysis': null,
 };
 
+/// A detail carrying the news-to-open-trade linkage: one supportive trade and
+/// one contradicting trade.
+const newsDetailWithImpacts = {
+  'article': {
+    'article_id': 'a3',
+    'headline': 'تراجع الدولار يدعم الذهب',
+    'source': 'Reuters',
+    'url': 'https://example.com/a3',
+    'category': 'macro',
+    'published_at': 1760000000,
+    'published_at_iso': '2026-10-16T08:00:00Z',
+    'collected_at': 1760000100,
+    'gold_relevance': 'high',
+    'body_available': true,
+    'body_text': 'نص الخبر',
+  },
+  'has_analysis': true,
+  'analysis': {
+    'article_id': 'a3',
+    'status': 'ok',
+    'direction': 'bullish',
+    'levels': {'entry': 2650.0, 'stop_loss': 2640.0, 'take_profit': 2680.0},
+  },
+  'open_trade_impacts': [
+    {
+      'trade_id': 'SHORT-1',
+      'source_label_ar': 'قصير المدى',
+      'direction_label_ar': 'شراء',
+      'relation': 'supportive',
+      'relation_label_ar': 'متوافق مع الخبر',
+      'explanation_ar': 'اتجاه الخبر يتفق مع اتجاه الصفقة.',
+    },
+    {
+      'trade_id': 'LONG-1',
+      'source_label_ar': 'بعيد المدى',
+      'direction_label_ar': 'بيع',
+      'relation': 'contradicting',
+      'relation_label_ar': 'متعارض مع الخبر',
+      'explanation_ar': 'اتجاه الخبر يخالف اتجاه الصفقة.',
+    },
+  ],
+};
+
 const historyList = {
   'history': [
     {

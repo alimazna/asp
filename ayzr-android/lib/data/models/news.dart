@@ -265,17 +265,55 @@ class NewsListItem {
       );
 }
 
+/// The news-to-open-trade impact linkage: how a news view relates to one open
+/// trade. Deterministic and read-only — alignment is not an outcome.
+class TradeImpact {
+  const TradeImpact({
+    required this.tradeId,
+    required this.sourceLabelAr,
+    required this.directionLabelAr,
+    required this.relation,
+    required this.relationLabelAr,
+    required this.explanationAr,
+  });
+
+  final String tradeId;
+  final String sourceLabelAr;
+  final String directionLabelAr;
+  final String relation; // supportive | contradicting | neutral
+  final String relationLabelAr;
+  final String explanationAr;
+
+  bool get isSupportive => relation == 'supportive';
+  bool get isContradicting => relation == 'contradicting';
+
+  static TradeImpact fromJson(Map<String, dynamic> j) => TradeImpact(
+        tradeId: _s(j['trade_id']),
+        sourceLabelAr: _s(j['source_label_ar']),
+        directionLabelAr: _s(j['direction_label_ar']),
+        relation: _s(j['relation'], 'neutral'),
+        relationLabelAr: _s(j['relation_label_ar']),
+        explanationAr: _s(j['explanation_ar']),
+      );
+}
+
 /// The full payload of `GET /api/v1/news/analyze?id=`.
 class NewsDetail {
   const NewsDetail({
     required this.article,
     required this.hasAnalysis,
     required this.analysis,
+    required this.openTradeImpacts,
   });
 
   final NewsArticle article;
   final bool hasAnalysis;
   final NewsAnalysis? analysis;
+
+  /// The news-to-open-trade linkage, one entry per currently-open trade. Empty
+  /// (not null) when no trade is open, so the UI can tell "no open trades" from
+  /// "field missing".
+  final List<TradeImpact> openTradeImpacts;
 
   static NewsDetail fromJson(Map<String, dynamic> j) => NewsDetail(
         article: NewsArticle.fromJson(
@@ -285,6 +323,12 @@ class NewsDetail {
             ? NewsAnalysis.fromJson(
                 (j['analysis'] as Map).cast<String, dynamic>())
             : null,
+        openTradeImpacts: (j['open_trade_impacts'] is List)
+            ? (j['open_trade_impacts'] as List)
+                .whereType<Map>()
+                .map((m) => TradeImpact.fromJson(m.cast<String, dynamic>()))
+                .toList(growable: false)
+            : const <TradeImpact>[],
       );
 }
 
