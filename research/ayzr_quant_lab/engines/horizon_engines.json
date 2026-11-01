@@ -23,8 +23,9 @@
     "status": "promising_unproven",
     "verdict": "long_bias_not_symmetric_edge",
     "geometry": {"stop_mult": 2.0, "target_mult": 2.0},
+    "max_bars": 12,
     "gate": "trend",
-    "evidence": "reports/overfitting_audit.json, reports/long_deepdive.json, reports/holdout_2026.json",
-    "note": "Positive pooled expectancy (+0.031R corrected) but Deflated Sharpe prob 0.035, PBO 0.50, 0/90 Holm survivors, 74% of profit from 10 trades, BUY-only, and cost-fragile. Frozen spec is used unchanged by validation/holdout_2026.py."
+    "evidence": "reports/overfitting_audit.json, reports/long_deepdive.json, reports/holdout_2026.json, reports/time_stop_optimization.json",
+    "note": "Positive pooled expectancy. With the timeout horizon at max_bars=12 it improves to +0.052R, PF 1.14, top-10 profit share 39% (from +0.031R / PF 1.07 / 74% at max_bars=200), consistent in train and OOS. Still fails significance: block-bootstrap CI [-0.019,+0.121], Deflated Sharpe prob 0.13, BUY-only, cost-fragile. Frozen spec used unchanged by validation/holdout_2026.py."
   }
 }

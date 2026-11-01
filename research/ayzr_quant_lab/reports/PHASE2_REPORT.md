@@ -108,6 +108,26 @@ with the period-dependence finding.
 cost-fragile effect that fails multiple-testing correction. It is **not** a
 validated edge.
 
+### C.1 Engine optimization (exit management)
+
+The concentration finding motivated a trade-management study
+(`experiments/time_stop_optimization.py`, `experiments/engine_optimization.py`).
+Only the timeout horizon helped; breakeven, ATR-trailing, and partial-TP all
+*hurt* (they cap the fat winners the edge depends on).
+
+| max_bars | train expR | OOS expR | pooled expR | PF |
+|---|---|---|---|---|
+| 200 (spec) | +0.014 | +0.056 | +0.031 | 1.07 |
+| 40 | +0.024 | +0.063 | +0.040 | 1.09 |
+| 20 | +0.021 | +0.062 | +0.038 | 1.09 |
+| **12** | **+0.027** | **+0.087** | **+0.052** | **1.14** |
+| 8 | +0.012 | +0.084 | +0.041 | 1.12 |
+
+`max_bars=12` improves every slice and **halves the concentration** (top-10
+profit share 74% → 39%). But it is still **not conclusive**: block-bootstrap CI
+[−0.019,+0.121] crosses zero and Deflated Sharpe prob is 0.13 (up from 0.035).
+It is a genuine robustness improvement, not proof of edge.
+
 ---
 
 ## D. SHORT and MEDIUM results
@@ -167,7 +187,7 @@ New (all under `research/ayzr_quant_lab/`):
 
 | Engine | Classification |
 |---|---|
-| **LONG (H4)** | **Promising but unproven** — positive but fails overfitting correction; long-biased; cost-fragile |
+| **LONG (H4)** | **Promising but unproven** — positive but fails overfitting correction; long-biased; cost-fragile; **max_bars=12 time-stop materially improves it (PF 1.07→1.14, concentration halved) but still not conclusive** |
 | **MEDIUM (M15)** | **No edge currently** — negative across all price, macro, and new hypotheses |
 | **SHORT (M5)** | **No edge currently** — same, and spread makes it structurally hard |
 
