@@ -951,9 +951,13 @@ TEST_CASE(ayzr_llm_network_interruption_yields_unavailable) {
     CHECK_EQ(analyze.statusCode, 200);
     CHECK(contains(analyze.body, "\"status\":\"unavailable\""));
     CHECK(contains(analyze.body, "\"direction\":\"no_trade\""));
-    CHECK(contains(analyze.body,
-                   "\"levels\":{\"entry\":null,\"stop_loss\":null,"
-                   "\"take_profit\":null}"));
+    // The three price levels must be null, not 0 and not invented. Assert on
+    // each level independently rather than one exact object: the levels object
+    // grows additively (relative-guidance fields), so pinning the whole byte
+    // string would fail on every legitimate addition while proving nothing more.
+    CHECK(contains(analyze.body, "\"entry\":null"));
+    CHECK(contains(analyze.body, "\"stop_loss\":null"));
+    CHECK(contains(analyze.body, "\"take_profit\":null"));
     CHECK(contains(analyze.body, "\"limitations_ar\":[\""));
     // The provider credential is never echoed to a client.
     CHECK(!contains(analyze.body, "llm7-secret-token"));

@@ -270,11 +270,25 @@ Rules:
   this with a fixed short retry — the public feed rate-limits (HTTP 429).
 - The outbound client is HTTPS-only; an `http://` fixture calendar is rejected
   by design. Use the real HTTPS feed or a mock source for tests.
+- **Ordering contract (fixed 2026-10-29):** `EventStore::recent` returns
+  *upcoming* events **soonest-first** and *past* events **newest-first**, ordered
+  by `scheduled_at`, never rowid. It was `DESC` for every scope, which made the
+  Android "next news" countdown read the farthest event. Pinned by
+  `MacroEventPipelineTests` (`upcoming_events_are_soonest_first`,
+  `past_events_are_newest_first`). The client also selects the minimum
+  `scheduled_at` itself, so a server reorder cannot surface the wrong event.
 - Android lives in `ayzr-android/` (Flutter, Arabic-only RTL, `com.ayzr.ayzr_app`,
   INTERNET permission only). Shared analysis rendering is
   `lib/ui/widgets/analysis_view.dart`, used by both news detail and event turns.
-  Build: `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/tools/jdk17
-  flutter build apk --debug`. Tests: `flutter test` (86 pass).
+  Home carries the preparation section (`upcoming_news_section.dart` +
+  `countdown.dart`); relative levels (`levels.expected_move_points` /
+  `stop_distance_points` / `relative_levels_note_ar`) render when an absolute
+  price could not be grounded. Build: `ANDROID_HOME=/workspace/tools/android-sdk
+  JAVA_HOME=/workspace/jdk flutter build apk --debug` (release:
+  `flutter build apk --release`). Use `/workspace/tools/android-sdk`, **not**
+  `/workspace/android-sdk`: only the former carries the `ndk/27.0.12077973` that
+  `android/app/build.gradle` pins. Tests: `flutter test` (114 pass, 3 live skipped);
+  opt-in live run: `AYZR_LIVE_BASE_URL=… AYZR_LIVE_TOKEN=… flutter test --tags live`.
 
 ## Multi-provider LLM failover (2026-10-27)
 
@@ -333,3 +347,30 @@ Rules:
   mutex for hundreds of ms, suspect this class of correlated subquery.
 - `AyzrConcurrencyTests` must be stress-run (e.g. 8×), not once: a single pass
   hides the starvation race.
+
+## Railway deploy: the token is `Project-Access-Token`, not `Bearer`
+
+The project token authenticates only as the **`Project-Access-Token`** request
+header. Sent as `Authorization: Bearer <token>` every GraphQL call answers
+`{"errors":[{"message":"Not Authorized"}]}` — which looks like a bad token but
+is a wrong-header error. The `railway` CLI sends the correct header on its own;
+it only appeared "Unauthorized" because a stale `~/.railway/config.json` /
+`.railway/config.json` made it mis-parse its own config ("Unable to parse config
+file, regenerating"). Delete those files and the CLI works.
+
+The live project is **not** the old one. It is `just-success`
+(`e5ef331e-a01b-44af-919e-82d62dbe56bb`), environment `production`
+(`5a81ff63-b1ff-48de-98b9-731c05e9779f`), service `astra-server`
+(`7c55fadb-1d54-45d7-a49d-79502bd10b03`), host
+`astra-server-production-9f1d.up.railway.app`. The project had no services; the
+service, domain and volume were created via the GraphQL API.
+
+`railway.toml` must keep **no** `startCommand`: the image ENTRYPOINT
+(`docker/entrypoint.sh`) starts both `astra_server` and the feeder. A
+`startCommand` overrides the entrypoint and silently drops the feeder, so the
+engine never gets data and the symptom is "no candles" with a healthy container.
+
+Supabase's `sb_secret_…` key is an **API** key, not a database password: it
+cannot run DDL and cannot open a Postgres connection (pooler answers
+`tenant/user not found`). `schema.sql` must be applied by hand in the SQL
+Editor; the feeder logs `PGRST205` and keeps feeding until then.

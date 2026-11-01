@@ -19,7 +19,8 @@ namespace {
 NewsAnalysis runAnalysisTurn(ILlmProvider* provider, int maxAttempts,
                              LlmQuotaMonitor* quotaMonitor,
                              const NewsPrompt& prompt, std::int64_t nowUtc,
-                             NewsAnalysis analysis, int& attemptCount) {
+                             NewsAnalysis analysis, int& attemptCount,
+                             const PriceGrounding& grounding) {
     attemptCount = 0;
     // The null check must come first: dereferencing provider to stamp the
     // identity would crash before the guard could run.
@@ -86,7 +87,7 @@ NewsAnalysis runAnalysisTurn(ILlmProvider* provider, int maxAttempts,
         return analysis;
     }
 
-    ParsedAnalysis parsed = parseAnalysisResponse(result.content);
+    ParsedAnalysis parsed = parseAnalysisResponse(result.content, grounding);
 
     // Bounded schema repair. `nemotron-3-nano:30b` has no JSON mode, so a schema
     // miss on the first turn is expected rather than exceptional. One corrective
@@ -112,7 +113,7 @@ NewsAnalysis runAnalysisTurn(ILlmProvider* provider, int maxAttempts,
         }
         ++attemptCount;
         if (repairResult.ok()) {
-            parsed = parseAnalysisResponse(repairResult.content);
+            parsed = parseAnalysisResponse(repairResult.content, grounding);
         }
     }
 
@@ -149,7 +150,7 @@ NewsAnalysis NewsAnalysisService::analyze(const NewsArticle& article,
     analysis.timeframeContext = context.timeframeContext;
     return runAnalysisTurn(provider_, maxAttempts_, quotaMonitor_,
                            buildNewsPrompt(context), nowUtc, std::move(analysis),
-                           lastAttemptCount_);
+                           lastAttemptCount_, context.grounding);
 }
 
 NewsAnalysis NewsAnalysisService::analyzeEvent(const std::string& eventKey,
@@ -164,7 +165,8 @@ NewsAnalysis NewsAnalysisService::analyzeEvent(const std::string& eventKey,
     analysis.timeframeContext = context.timeframeContext;
     return runAnalysisTurn(provider_, maxAttempts_, quotaMonitor_,
                            buildEventPrompt(turn, context), nowUtc,
-                           std::move(analysis), lastAttemptCount_);
+                           std::move(analysis), lastAttemptCount_,
+                           context.grounding);
 }
 
 }  // namespace aura

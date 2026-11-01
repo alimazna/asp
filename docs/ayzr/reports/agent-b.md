@@ -89,7 +89,7 @@ flutter build apk --debug
 
 `flutter analyze` → **No issues found!**
 
-`flutter test` → **+98: All tests passed!** (0 failed)
+`flutter test` → **+108 ~3: All tests passed!** (0 failed, 3 skipped)
 
 Per file:
 
@@ -100,8 +100,16 @@ Per file:
 | `test/app_state_test.dart` | 15 | all passed |
 | `test/activity_models_test.dart` | 7 | all passed |
 | `test/events_test.dart` | 14 | all passed |
+| `test/relative_levels_and_countdown_test.dart` | 10 | all passed |
 | `test/widget_test.dart` | 23 | all passed |
-| **Total** | **98** | **98 passed / 0 failed** |
+| `test/live_integration_test.dart` | 3 | skipped by default (opt-in) |
+| **Total** | **108 run + 3 skipped** | **108 passed / 0 failed** |
+
+`test/live_integration_test.dart` drives the real `ApiClient` against a running
+backend and is skipped unless `AYZR_LIVE_BASE_URL` is set. Run against a local
+server it reports **3 passed**: the events feed is soonest-first and
+impact-agnostic, and an actionable analysis is priced **or** distanced, never
+faked.
 
 Tests use a real `MockClient` at the HTTP boundary so the actual parsing, state
 machine and widget code run. Key assertions: an uncalibrated signal renders a

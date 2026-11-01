@@ -462,6 +462,44 @@ TEST_CASE(event_turn_uses_real_context_only) {
     CHECK(user.find("EXPECTATION") != std::string::npos);
 }
 
+TEST_CASE(upcoming_events_are_soonest_first) {
+    // The /events endpoint with scope=upcoming must return the nearest release
+    // first. A descending order made the calendar list open on the farthest
+    // date, so a countdown built from row 0 counted to the wrong event.
+    WatcherFixture f("order");
+    const std::int64_t now = 1'000'000;
+    int ins = 0, upd = 0;
+    std::string err;
+    f.store.upsertEvents(
+        {makeEvent("Far", "USD", now + 86400, "low", "1"),
+         makeEvent("Soon", "USD", now + 600, "high", "2"),
+         makeEvent("Middle", "USD", now + 3600, "medium", "3")},
+        now, ins, upd, err);
+
+    const auto upcoming = f.store.recent(10, /*includePast=*/false, false);
+    CHECK(upcoming.size() == 3);
+    CHECK(upcoming[0].title == "Soon");
+    CHECK(upcoming[1].title == "Middle");
+    CHECK(upcoming[2].title == "Far");
+}
+
+TEST_CASE(past_events_are_newest_first) {
+    // The past scope is a log, not a schedule: it opens on the most recent.
+    WatcherFixture f("pastorder");
+    const std::int64_t now = 1'000'000;
+    int ins = 0, upd = 0;
+    std::string err;
+    f.store.upsertEvents(
+        {makeEvent("Older", "USD", now - 7200, "low", "1"),
+         makeEvent("Newest", "USD", now - 60, "high", "2")},
+        now, ins, upd, err);
+
+    const auto past = f.store.recent(10, /*includePast=*/true, false);
+    CHECK(past.size() == 2);
+    CHECK(past[0].title == "Newest");
+    CHECK(past[1].title == "Older");
+}
+
 }  // namespace
 
 

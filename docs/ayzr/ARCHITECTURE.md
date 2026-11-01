@@ -85,6 +85,35 @@ UI renders as "غير محدَّد", not as "medium".
 
 Candle identity (existing, unchanged): `(source_id, symbol, timeframe, open_time)`.
 
+### Macro-event calendar and the preparation section
+
+`scheduled_events` — PK `event_key`; feed-owned columns (title, country, impact,
+`scheduled_at`, forecast, previous) plus lifecycle-owned columns (`stage`,
+`gold_relevant`, analysis). A repeated calendar poll is an idempotent upsert, so
+the feed never clobbers the lifecycle state.
+
+The event watcher turns the calendar into news turns automatically:
+
+- **prepare** — for a `gold_relevant` event with `impact in (high, medium)` that
+  is still ahead of its release time, an *expectation* turn is written before the
+  release (`dueForPrepare`, soonest-first, capped per tick);
+- **release** — once `scheduled_at` passes, a *result* turn fires
+  (`dueForRelease`).
+
+Low-impact notes and holidays are never prepared: they cannot move gold, and
+spending quota on them would waste the daily budget.
+
+**Ordering contract (fixed 2026-10-29).** `EventStore::recent` orders *upcoming*
+events **soonest-first** and *past* events **newest-first**. Both are ordered by
+the event's own `scheduled_at`, never by rowid. This matters because the client's
+"next news" countdown reads row 0: a descending upcoming list made the countdown
+count to the farthest date. The mobile client additionally selects the minimum
+itself, so a server ordering change cannot silently surface the wrong event.
+
+The `/events` route defaults to `gold_only=true` and `scope=upcoming`; the
+preparation section requests `gold_only=false` so the countdown is not limited
+to gold-tagged rows.
+
 ## 4. Authentication boundaries
 
 | Credential | Grants | Cannot |

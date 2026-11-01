@@ -59,7 +59,16 @@ constexpr char kSchema[] =
     "  candle_as_of    INTEGER NOT NULL DEFAULT 0,"
     "  astra_signal    TEXT NOT NULL DEFAULT '',"
     "  gold_channel    TEXT NOT NULL DEFAULT 'unknown',"
-    "  impact_horizon  TEXT NOT NULL DEFAULT 'unknown'"
+    "  impact_horizon  TEXT NOT NULL DEFAULT 'unknown',"
+    "  tone            TEXT NOT NULL DEFAULT 'unknown',"
+    "  tone_strength   TEXT NOT NULL DEFAULT 'unknown',"
+    "  tone_evidence_ar TEXT NOT NULL DEFAULT '',"
+    "  source_register TEXT NOT NULL DEFAULT 'unknown',"
+    "  sensationalism  TEXT NOT NULL DEFAULT 'unknown',"
+    "  novelty         TEXT NOT NULL DEFAULT 'unknown',"
+    "  uncertainty     TEXT NOT NULL DEFAULT 'unknown',"
+    "  hidden_context_ar TEXT NOT NULL DEFAULT '',"
+    "  framing_bias_ar TEXT NOT NULL DEFAULT ''"
     ");"
     "CREATE INDEX IF NOT EXISTS idx_news_analysis_at "
     "  ON news_analyses(analyzed_at);";
@@ -200,6 +209,20 @@ bool NewsStore::open(const std::string& path, std::string& error) {
     const char* kNewAnalysisColumns[][2] = {
         {"gold_channel", "gold_channel TEXT NOT NULL DEFAULT 'unknown'"},
         {"impact_horizon", "impact_horizon TEXT NOT NULL DEFAULT 'unknown'"},
+        // Tone/framing columns. Same contract as the two above: ADD COLUMN is
+        // non-destructive and the existence probe keeps it idempotent. A row
+        // written before these existed reads back as 'unknown'/empty, which is
+        // the honest value -- that analysis genuinely never read the tone, and
+        // presenting a default as a finding would be a fabrication.
+        {"tone", "tone TEXT NOT NULL DEFAULT 'unknown'"},
+        {"tone_strength", "tone_strength TEXT NOT NULL DEFAULT 'unknown'"},
+        {"tone_evidence_ar", "tone_evidence_ar TEXT NOT NULL DEFAULT ''"},
+        {"source_register", "source_register TEXT NOT NULL DEFAULT 'unknown'"},
+        {"sensationalism", "sensationalism TEXT NOT NULL DEFAULT 'unknown'"},
+        {"novelty", "novelty TEXT NOT NULL DEFAULT 'unknown'"},
+        {"uncertainty", "uncertainty TEXT NOT NULL DEFAULT 'unknown'"},
+        {"hidden_context_ar", "hidden_context_ar TEXT NOT NULL DEFAULT ''"},
+        {"framing_bias_ar", "framing_bias_ar TEXT NOT NULL DEFAULT ''"},
     };
     for (const auto& col : kNewAnalysisColumns) {
         if (hasColumn("news_analyses", col[0])) continue;
@@ -383,9 +406,12 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
         "  take_profit, invalidating_ar, astra_agreement, disagreement_ar,"
         "  limitations_ar, provider_id, model_id, analyzed_at, timeframe_ctx,"
         "  candle_as_of, astra_signal, gold_relevance, gold_channel,"
-        "  impact_horizon)"
+        "  impact_horizon, tone, tone_strength, tone_evidence_ar,"
+        "  source_register, sensationalism, novelty, uncertainty,"
+        "  hidden_context_ar, framing_bias_ar)"
         " VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,"
-        "         ?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29)"
+        "         ?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,"
+        "         ?33,?34,?35,?36,?37,?38)"
         " ON CONFLICT(article_id) DO UPDATE SET"
         "  status=excluded.status, status_reason=excluded.status_reason,"
         "  summary_ar=excluded.summary_ar, facts_json=excluded.facts_json,"
@@ -404,7 +430,14 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
         "  astra_signal=excluded.astra_signal,"
         "  gold_relevance=excluded.gold_relevance,"
         "  gold_channel=excluded.gold_channel,"
-        "  impact_horizon=excluded.impact_horizon;";
+        "  impact_horizon=excluded.impact_horizon,"
+        "  tone=excluded.tone, tone_strength=excluded.tone_strength,"
+        "  tone_evidence_ar=excluded.tone_evidence_ar,"
+        "  source_register=excluded.source_register,"
+        "  sensationalism=excluded.sensationalism, novelty=excluded.novelty,"
+        "  uncertainty=excluded.uncertainty,"
+        "  hidden_context_ar=excluded.hidden_context_ar,"
+        "  framing_bias_ar=excluded.framing_bias_ar;";
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         error = std::string("prepare analysis failed: ") + sqlite3_errmsg(db_);
         return false;
@@ -445,6 +478,15 @@ bool NewsStore::saveAnalysis(const NewsAnalysis& a, std::string& error) {
     sqlite3_bind_text(stmt, 27, a.goldRelevance.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 28, a.goldChannel.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 29, a.impactHorizon.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 30, a.tone.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 31, a.toneStrength.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 32, a.toneEvidenceAr.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 33, a.sourceRegister.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 34, a.sensationalism.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 35, a.novelty.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 36, a.uncertainty.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 37, a.hiddenContextAr.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 38, a.framingBiasAr.c_str(), -1, SQLITE_TRANSIENT);
     const int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (rc != SQLITE_DONE) {
@@ -610,6 +652,15 @@ NewsAnalysis readAnalysisRow(sqlite3_stmt* stmt) {
     a.goldRelevance = columnText(stmt, 26);
     a.goldChannel = columnText(stmt, 27);
     a.impactHorizon = columnText(stmt, 28);
+    a.tone = columnText(stmt, 29);
+    a.toneStrength = columnText(stmt, 30);
+    a.toneEvidenceAr = columnText(stmt, 31);
+    a.sourceRegister = columnText(stmt, 32);
+    a.sensationalism = columnText(stmt, 33);
+    a.novelty = columnText(stmt, 34);
+    a.uncertainty = columnText(stmt, 35);
+    a.hiddenContextAr = columnText(stmt, 36);
+    a.framingBiasAr = columnText(stmt, 37);
     return a;
 }
 
@@ -619,7 +670,9 @@ const char* kAnalysisColumns =
     " has_entry, entry, has_stop, stop_loss, has_target, take_profit,"
     " invalidating_ar, astra_agreement, disagreement_ar, limitations_ar,"
     " provider_id, model_id, analyzed_at, timeframe_ctx, candle_as_of,"
-    " astra_signal, gold_relevance, gold_channel, impact_horizon";
+    " astra_signal, gold_relevance, gold_channel, impact_horizon,"
+    " tone, tone_strength, tone_evidence_ar, source_register, sensationalism,"
+    " novelty, uncertainty, hidden_context_ar, framing_bias_ar";
 }  // namespace
 
 bool NewsStore::getAnalysis(const std::string& articleId, NewsAnalysis& out) const {

@@ -342,7 +342,11 @@ std::vector<ScheduledEvent> EventStore::recent(int limit, bool includePast,
                       " FROM scheduled_events WHERE 1=1";
     if (!includePast) sql += " AND stage != 'released'";
     if (goldOnly) sql += " AND gold_relevant = 1";
-    sql += " ORDER BY scheduled_at DESC LIMIT ?1;";
+    // Upcoming events are a schedule: soonest-first, so the nearest release is
+    // the first row. The past scope is a log: newest-first. Both are ordered by
+    // the event's own timestamp, never by rowid.
+    sql += includePast ? " ORDER BY scheduled_at DESC LIMIT ?1;"
+                       : " ORDER BY scheduled_at ASC LIMIT ?1;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         return out;

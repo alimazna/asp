@@ -49,7 +49,7 @@ scripts that print their own `N/M checks passed`; two of them
 (`test_contract_t16.py`, `test_e2e_real_host_t13.py`) SKIP unless a `build/`
 directory with `aura_backend_host` exists.
 
-## Totals (verified 2026-10-27, AYZR working tree)
+## Totals (verified 2026-10-29, AYZR working tree)
 
 | Suite | Result |
 |-------|--------|
@@ -57,10 +57,20 @@ directory with `aura_backend_host` exists.
 | C++ harness test cases (40 binaries) | 0 failed (per-binary `RESULT: PASS`) |
 | `SingleInstanceTests` assertions | 10/10 (own printer) |
 | `tests/models` (unittest) | **308 passed, 0 failed** |
-| Flutter (AYZR Android) | **86 passed, 0 failed** (`flutter test`) |
+| Flutter (AYZR Android) | **108 passed, 0 failed, 3 skipped** (`flutter test`) |
+| Flutter live integration (opt-in) | **3 passed** (`flutter test --tags live` against a local server) |
 | Flutter analyze | **0 issues** (`flutter analyze`) |
 
-Two AYZR suites were added or extended in this pass and are included in the
+`MacroEventPipelineTests` gained two cases in this pass (included in the 40/40
+above): `upcoming_events_are_soonest_first` and `past_events_are_newest_first`,
+which pin the calendar ordering contract fixed on 2026-10-29 (a descending
+upcoming list had made the client's "next news" countdown count to the farthest
+date). `NewsIntelligenceTests` covers the relative-level fields
+(`relative_levels_are_kept_without_a_reference_price`,
+`relative_levels_reject_implausible_values`,
+`relative_levels_ignored_for_a_non_actionable_direction`).
+
+Two AYZR suites were added or extended in an earlier pass and are included in the
 40/40 above:
 
 - `GeminiProviderTests` (new, 9 cases) — locks the Gemini 429 refinement: a
@@ -102,7 +112,7 @@ AnalyticalFeatureBoundsTests 8 JsonParserTests 4
 AnalyticalFeatureLeakageTests 8 LoopbackConcurrencyTests 1
 AnalyticalFeatureRuleATests 7  NewsApiIntegrationTests 6
 AnalyticalFeatureTests 9       NewsIntelligenceAgentCTests 34
-AstraApiServerTests 9          NewsIntelligenceTests 32
+AstraApiServerTests 9          NewsIntelligenceTests 54
 AyzrFailureInjectionTests 18   PackageSmokeTests 6
 BackendApiContractTests 11     PersistenceRestartTests 8
 BridgeRecoveryTests 3          ProbabilityApiTests 18
@@ -210,3 +220,27 @@ concurrent process held 8799; the test passes when the port is free.
 Resolution for future work (not applied): allocate an ephemeral port, as the
 newer `CandlesApiTests` and `AyzrFailureInjectionTests` cases already do. Not a
 product defect — a test-isolation weakness.
+
+### F-E-3 — Two suites fail on a stock image without `libcurl4-openssl-dev` (environmental, resolved by install)
+
+`CMakeCache.txt` showed `CURL_DIR:PATH=CURL_DIR-NOTFOUND`, so the outbound HTTP
+transport was **not compiled** (the server logged `outbound HTTP transport not
+compiled (libcurl missing)`). With no transport, the provider can never be
+reached and two suites fail for environmental reasons, not product reasons:
+
+| Suite | Case | Assertion |
+|---|---|---|
+| `AyzrFailureInjectionTests` (18) | `ayzr_llm_network_interruption_yields_unavailable` | `levels` object shape on the `unavailable` reply |
+| `AyzrSecurityTests` (19) | `sec_gap_store_failure_echoes_raw_sqlite_error` | `store_failure` code + no raw driver error |
+
+Both failures are **identical on the pre-change binaries** (`build-local/`, built
+before this increment) and were reproduced after installing the header, so
+neither is a regression from the tone work. The security case is a *deliberate*
+failing assertion: its own comment reads "This fails today (F-D-8)" and it is
+guarded by `AYZR_SECURITY_ENFORCE_FIXES=1` (the sibling `F-D-3` case prints
+`[KNOWN GAP F-D-3] skipped`).
+
+Resolution: `sudo apt-get install -y libcurl4-openssl-dev` (8.14.1-2+deb13u7),
+then reconfigure. The transport is now compiled and the live-LLM path is
+reachable; the two assertions above are pre-existing and out of scope for this
+increment.

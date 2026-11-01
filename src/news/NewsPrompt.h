@@ -7,6 +7,8 @@
 // no_trade when the evidence is insufficient. It also states that the model
 // must not invent prices or probabilities.
 
+#include "news/NewsModels.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -24,6 +26,8 @@ struct NewsPromptContext {
     // Existing ASTRA analysis, verbatim from the backend (may be "unavailable").
     std::string astraSummary;
     std::string timeframeContext;
+    // The real market the model's optional levels are validated against.
+    PriceGrounding grounding;
 };
 
 struct NewsPrompt {
@@ -56,6 +60,8 @@ struct EventPromptContext {
     // Existing ASTRA analysis, verbatim from the backend.
     std::string astraSummary;
     std::string timeframeContext;
+    // The real market the model's optional levels are validated against.
+    PriceGrounding grounding;
 };
 
 NewsPrompt buildEventPrompt(EventTurn turn, const EventPromptContext& context);

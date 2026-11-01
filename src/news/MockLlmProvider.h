@@ -111,8 +111,16 @@ public:
                R"("opposing_evidence_ar":["زخم M15 ضعيف"],)"
                R"("gold_impact_ar":"إيجابي على المدى القصير","gold_relevance":"high",)"
                R"("gold_channel":"inflation","impact_horizon":"short",)"
+               R"("tone":"positive","tone_strength":"moderate",)"
+               R"("tone_evidence_ar":"تجاوز الذهب التوقعات بفارق واضح",)"
+               R"("source_register":"wire","sensationalism":"low",)"
+               R"("novelty":"new","uncertainty":"medium",)"
+               R"("hidden_context_ar":"الخبر يشير إلى توقع خفض الفائدة قريباً.",)"
+               R"("framing_bias_ar":"صياغة تميل إلى إبراز ضعف الدولار.",)"
                R"("direction":"bullish","entry":2650.5,"stop_loss":2640.0,)"
                R"("take_profit":2680.0,"astra_agreement":"agree",)"
+               R"("expected_move_points":300,"stop_distance_points":120,)"
+               R"("relative_levels_note_ar":"قد يتحرك السعر نحو 300 نقطة.",)"
                R"("invalidating_conditions_ar":"إغلاق M15 دون 2640",)"
                R"("limitations_ar":["لا تتوفر بيانات التضخم التفصيلية"]})";
     }

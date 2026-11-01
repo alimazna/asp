@@ -41,6 +41,9 @@ struct EventContextProvider {
     // Newest closed candle open time, for the data-version stamp.
     std::function<std::int64_t()> candleAsOfUtc;
     std::string timeframeContext = "M15,H4";
+    // The real market an optional event-turn level is validated against. A
+    // std::function so it is recomputed per turn against the current store.
+    std::function<PriceGrounding()> grounding;
 };
 
 class EventWatcher {

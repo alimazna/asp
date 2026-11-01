@@ -84,6 +84,20 @@ std::string NewsApi::analysisJson(const NewsAnalysis& a) {
     fields.push_back(stringField("ai_gold_relevance", a.goldRelevance));
     fields.push_back(stringField("gold_channel", a.goldChannel));
     fields.push_back(stringField("impact_horizon", a.impactHorizon));
+
+    // Tone/framing/subtext: the reading of HOW the story is told. Each value is
+    // a closed-vocabulary token; the client maps it to an Arabic label and
+    // renders `unknown` as "غير محدَّد" rather than guessing. `tone_evidence_ar`
+    // is the wording that carries the tone, so the reader can check it.
+    fields.push_back(stringField("tone", a.tone));
+    fields.push_back(stringField("tone_strength", a.toneStrength));
+    fields.push_back(stringField("tone_evidence_ar", a.toneEvidenceAr));
+    fields.push_back(stringField("source_register", a.sourceRegister));
+    fields.push_back(stringField("sensationalism", a.sensationalism));
+    fields.push_back(stringField("novelty", a.novelty));
+    fields.push_back(stringField("uncertainty", a.uncertainty));
+    fields.push_back(stringField("hidden_context_ar", a.hiddenContextAr));
+    fields.push_back(stringField("framing_bias_ar", a.framingBiasAr));
     fields.push_back(stringField("direction", a.proposedDirection));
 
     // Levels: each is independently optional. An absent level is null, never 0,
@@ -95,6 +109,16 @@ std::string NewsApi::analysisJson(const NewsAnalysis& a) {
                                : rawField("stop_loss", "null"));
     levels.push_back(a.hasTarget ? rawField("take_profit", jsonNumber(a.takeProfit))
                                  : rawField("take_profit", "null"));
+    // Relative, price-free guidance. Null (not 0) when the model gave none, so
+    // the client can tell "no distance stated" from "a distance of zero".
+    levels.push_back(a.hasExpectedMove
+                         ? intField("expected_move_points", a.expectedMovePoints)
+                         : rawField("expected_move_points", "null"));
+    levels.push_back(a.hasStopDistance
+                         ? intField("stop_distance_points", a.stopDistancePoints)
+                         : rawField("stop_distance_points", "null"));
+    levels.push_back(stringField("relative_levels_note_ar",
+                                 a.relativeLevelsNoteAr));
     fields.push_back(rawField("levels", jsonObject(levels)));
 
     fields.push_back(stringField("astra_agreement", a.astraAgreement));

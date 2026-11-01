@@ -723,6 +723,10 @@ TEST_CASE(sec_gap_store_failure_echoes_raw_sqlite_error) {
     spec.environment["ASTRA_DATA_DIR"] = dataDir;
     spec.environment["ASTRA_SENDER_TOKEN"] = "sender-cred-aaa";
     spec.environment["ASTRA_LLM_PROVIDER"] = "mock";
+    // Force the candle write to fail deterministically. chmod cannot do it:
+    // the store holds its sqlite fd open (chmod does not revoke an open fd) and
+    // WAL keeps a read-only file writable. The seam is inert in production.
+    spec.environment["ASTRA_TEST_FORCE_STORE_FAILURE"] = "candles";
     ProcessSupervisor supervisor(spec);
     std::string error;
     REQUIRE(supervisor.start(error));
@@ -740,31 +744,21 @@ TEST_CASE(sec_gap_store_failure_echoes_raw_sqlite_error) {
     }
     REQUIRE(ready);
 
-    // Make the data directory unwritable so the next insert must fail. The
-    // process holds the sqlite handle open, so the failure is on write, not open.
-    std::error_code ec;
-    const auto original = std::filesystem::status(dataDir, ec).permissions();
-    std::filesystem::permissions(dataDir,
-                                 std::filesystem::perms::owner_read |
-                                     std::filesystem::perms::owner_exec,
-                                 std::filesystem::perm_options::replace, ec);
-
     const HttpResponse r = call(port, "POST", "/api/v1/candles/ingest",
                                 "sender-cred-aaa", kIngestBody);
+    // A persistence failure must be a generic 500 store_failure. The response
+    // must never carry the raw driver text or the data directory path (F-D-8).
     CHECK_EQ(r.statusCode, 500);
     CHECK(contains(r.body, "\"code\":\"store_failure\""));
-    // The secure expectation: the body must not carry the raw driver error or
-    // the data directory path. This fails today (F-D-8).
-    if (enforceFixes()) {
-        CHECK(!contains(r.body, "database"));
-        CHECK(!contains(r.body, "insert failed"));
-        CHECK(!contains(r.body, dataDir));
-    }
+    CHECK(!contains(r.body, "database"));
+    CHECK(!contains(r.body, "insert failed"));
+    CHECK(!contains(r.body, "readonly"));
+    CHECK(!contains(r.body, dataDir));
+    CHECK(!contains(r.body, "sqlite3"));
 
-    std::filesystem::permissions(dataDir, original,
-                                 std::filesystem::perm_options::replace, ec);
     std::string stopError;
     supervisor.stop(2000, stopError);
+    std::error_code ec;
     std::filesystem::remove_all(dataDir, ec);
 }
 

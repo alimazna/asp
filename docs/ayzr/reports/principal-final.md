@@ -132,3 +132,149 @@ mutation test (11 injected defects, 11 caught) and by Android's own `aapt2`.
    prepared (`MT5_SENDER_CONTRACT.md`), exercised with the mock sender.
 6. **Pre-existing `test_bridge_t06.py` FAIL** — the stale-feed clock-offset
    weakness; documented with a suggested fix, not applied (outside this scope).
+
+## 9. Verification pass (2026-10-29) — preparation section and calendar ordering
+
+This pass added the home "preparation for the upcoming event" section
+(`تحضير للخبر القادم`) with a countdown to the real event timestamp, relative
+levels (`expected_move_points` / `stop_distance_points` /
+`relative_levels_note_ar`), and AI gold-relevance, and it fixed a real ordering
+defect found while validating the countdown against a live server.
+
+### Defect fixed — upcoming events were farthest-first
+
+`EventStore::recent` ordered *every* scope `scheduled_at DESC`. The header
+documents "soonest-first for upcoming, newest-first when including past", so the
+implementation contradicted its own contract. Against the live server the
+`/events?scope=upcoming` list opened on `2026-10-31` while the true nearest event
+was `2026-10-29T12:30Z` — the "next news" countdown read row 0 and would have
+counted to the wrong event.
+
+Fix: `src/macro/EventStore.cpp` now orders upcoming rows `ASC` and past rows
+`DESC`. Pinned by two new cases in `MacroEventPipelineTests`
+(`upcoming_events_are_soonest_first`, `past_events_are_newest_first`). The mobile
+client also selects the minimum `scheduled_at` itself, so a future server
+ordering change cannot silently surface the wrong event.
+
+### Commands actually run
+
+| Suite | Command | Result |
+|-------|---------|--------|
+| Backend binaries | `for t in build-local/*Tests; do ./"$t"; done` | **40/40 binaries PASS, 0 FAIL** |
+| `MacroEventPipelineTests` | `./build-local/MacroEventPipelineTests` | **18 cases, 0 failed** (was 16; +2 ordering) |
+| `NewsIntelligenceTests` | `./build-local/NewsIntelligenceTests` | **48 cases, 0 failed** |
+| Python models | `python3 -m unittest discover -s tests/models` | **308 passed, 0 failed** |
+| Flutter | `cd ayzr-android && flutter test` | **108 passed, 0 failed, 3 skipped** |
+| Flutter analyze | `flutter analyze` | **No issues found** |
+| Flutter live integration | `flutter test --tags live` vs a local server | **3 passed** |
+| APK (debug) | `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/jdk flutter build apk --debug` | `app-debug.apk` (~91 MB) |
+| APK (release) | `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/jdk flutter build apk --release` | `app-release.apk` (~22.7 MB) |
+
+### Live checks against the running server
+
+- `/api/v1/events` → 42 events, `sorted == True` (soonest-first), impact mix
+  `{low: 27, medium: 6, high: 9}` — the preparation section is impact-agnostic.
+- `/api/v1/news/analyze?id=…` → `direction: bullish`, `entry/stop_loss/
+  take_profit: null` (no candle reference, so invented prices were dropped),
+  `expected_move_points: 300`, `stop_distance_points: 120`,
+  `relative_levels_note_ar` present. This is the grounding rule working end to
+  end: a price that cannot be grounded is withheld, an honest distance survives.
+- The app's own `ApiClient` (via `live_integration_test.dart`) reads the same
+  fields from `levels`, matching the server exactly.
+
+### Not claimed
+
+- No device or emulator run: the APK is built and its manifest/permissions
+  verified with `aapt`, but it was **not** installed on a real device.
+- No deploy, no push. The live checks above ran against a local server on
+  `127.0.0.1` with `ASTRA_LLM_PROVIDER=mock`.
+
+## 10. Increment (2026-10-29) — tone / framing / subtext end to end
+
+This increment added a third analysis dimension to the news pipeline: reading the
+*voice* of an article (tone, strength, register, sensationalism, novelty,
+uncertainty) and the context it assumes rather than states (hidden context,
+framing bias). It is a full vertical slice — SQLite schema → store read/write →
+API JSON → Flutter model → Arabic UI — with closed vocabularies and honest
+`unknown` defaults throughout.
+
+### Backend
+
+| File | Change |
+|---|---|
+| `src/news/NewsStore.cpp` | 9 additive columns (`tone`, `tone_strength`, `tone_evidence_ar`, `source_register`, `sensationalism`, `novelty`, `uncertainty`, `hidden_context_ar`, `framing_bias_ar`); `kNewAnalysisColumns` probe set; INSERT/upsert SQL and bindings; read column list and row reader extended |
+| `src/api/NewsApi.cpp` | `analysisJson` emits all nine fields; `unknown`/empty when absent |
+| `src/news/MockLlmProvider.h` | mock JSON carries a representative classification so local tests exercise the whole path |
+
+All nine are added by the same **additive `ADD COLUMN` behind a `hasColumn`
+probe**, so the migration is idempotent and a pre-existing row reads back as
+`unknown`/empty — never a guess. Tone is kept strictly separate from `direction`
+and never feeds the decision chain.
+
+### Flutter
+
+| File | Change |
+|---|---|
+| `lib/data/models/news.dart` | parses the nine fields; `unknown` defaults; unrecognised values pass through verbatim |
+| `lib/core/strings_ar.dart` | Arabic labels for tone, strength, register, sensationalism, novelty, uncertainty, plus section/caveat text |
+| `lib/ui/widgets/analysis_view.dart` | tone card (`_ToneChip`, `_SubtextBlock`) — rendered only when a tone was classified, carrying a standing caveat that tone does not change the facts |
+
+### Tests added
+
+- `tests/NewsIntelligenceTests.cpp` — 6 cases (accept a full classification;
+  absent fields are honestly unknown; reject out-of-vocabulary values; a tone
+  without evidence is downgraded rather than displayed; fields survive the store
+  round trip; the migration is idempotent on an old database). **48 → 54 cases.**
+- `ayzr-android/test/models_test.dart` — 3 cases (full parse; absent ⇒
+  `unknown`/empty; unrecognised tone passed through, not coerced).
+- `ayzr-android/test/widget_test.dart` — 3 cases (label + quoted wording render;
+  card omitted when nothing was classified; unrecognised tone shows
+  **غير محدَّدة**).
+
+### Commands actually run and their results
+
+| Suite | Command | Result |
+|-------|---------|--------|
+| `NewsIntelligenceTests` | `./build-linux/NewsIntelligenceTests` | **54 cases, 0 failed** |
+| `NewsApiIntegrationTests` | `./build-linux/NewsApiIntegrationTests` | **7 cases, 0 failed** |
+| `NewsIntelligenceAgentCTests` | `./build-linux/NewsIntelligenceAgentCTests` | **34 cases, 0 failed** |
+| All C++ binaries | `for t in build-linux/*Tests; do ./"$t"; done` | **38 PASS, 2 FAIL** — both pre-existing (see below) |
+| Windows sender | `python3 -m unittest discover -s tests` | **81 passed** |
+| Flutter tests | `cd ayzr-android && flutter test` | **114 passed, 0 failed, 3 skipped** |
+| Flutter analyze | `flutter analyze lib/ test/` | **No issues found** |
+| APK (debug) | `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/jdk flutter build apk --debug` | `app-debug.apk`, 91.2 MB |
+| APK (release) | `ANDROID_HOME=/workspace/tools/android-sdk JAVA_HOME=/workspace/jdk flutter build apk --release` | `app-release.apk`, 22.7 MB |
+
+### End-to-end simulation (real server, mock LLM, mock sender)
+
+```
+mock_sender.py:  ingested=2, replay duplicates=2, invalid OHLC rejected=1, sync=1  PASS
+news ingest:     stored=1 then duplicates=1 (no second row)
+news analyze:    status=ok, direction=bullish,
+                 tone=positive, tone_strength=moderate, source_register=wire,
+                 novelty=new, uncertainty=medium, hidden_context_ar present
+news/results:    article_available=true, tone read back from the store
+auth:            no token → 401; sender token on a read route → 401
+```
+
+### The two failing C++ binaries are pre-existing, not regressions
+
+`AyzrFailureInjectionTests` (18 cases, 1 failed) and `AyzrSecurityTests`
+(19 cases, 1 failed) fail **identically on the pre-change binaries** in
+`build-local/`, built before this increment. The security case is a *deliberate*
+failing assertion — its own comment reads "This fails today (F-D-8)" and it is
+guarded by `AYZR_SECURITY_ENFORCE_FIXES=1`. Neither test touches the news store.
+
+One environmental cause was found and fixed: `libcurl4-openssl-dev` was absent
+(`CURL_DIR-NOTFOUND`), so the outbound HTTP transport was not compiled and the
+real provider could never be reached. After installing it (8.14.1-2+deb13u7) and
+reconfiguring, the transport compiles and the live-LLM path is reachable. The two
+assertions above are unchanged by that fix. See `docs/ayzr/TESTING.md` F-E-3.
+
+### Not claimed
+
+- Tone fields were exercised with the **mock** provider only; no live LLM7 call
+  was made in this increment (no token, and none is embedded anywhere).
+- No device or emulator run; APKs are built and their manifests verified with
+  `aapt2`, but not installed on a real device.
+- No deploy, no push, no commit.

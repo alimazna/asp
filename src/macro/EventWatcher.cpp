@@ -136,6 +136,7 @@ EventPromptContext EventWatcher::buildContext(const ScheduledEvent& event) const
     ctx.timeframeContext = context_.timeframeContext;
     if (context_.candleSummary) ctx.candleSummary = context_.candleSummary();
     if (context_.astraSummary) ctx.astraSummary = context_.astraSummary();
+    if (context_.grounding) ctx.grounding = context_.grounding();
     return ctx;
 }
 

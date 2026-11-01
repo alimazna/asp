@@ -77,6 +77,23 @@ int parseIntEnv(const char* name, int fallback) {
     }
 }
 
+// Test-only fault injection. A store write failure is otherwise hard to force
+// deterministically: chmod on the data dir does not revoke an already-open
+// sqlite fd, and WAL means a read-only file still opens. This lets a test
+// assert the *response* to a persistence failure (generic code, no raw driver
+// text, no path) without depending on filesystem races. Off unless the env var
+// names the store, so production behaviour is unchanged.
+bool forceStoreFailure(const char* store) {
+    const char* v = std::getenv("ASTRA_TEST_FORCE_STORE_FAILURE");
+    if (v == nullptr || *v == '\0') return false;
+    std::stringstream ss(v);
+    std::string part;
+    while (std::getline(ss, part, ',')) {
+        if (part == store) return true;
+    }
+    return false;
+}
+
 std::vector<std::string> splitComma(const std::string& in) {
     std::vector<std::string> out;
     std::stringstream ss(in);
@@ -623,7 +640,8 @@ int main(int argc, char** argv) {
 
         std::vector<CandleInsertResult> results;
         std::string storeError;
-        if (!store.insertBatch(candles, results, storeError)) {
+        if (forceStoreFailure("candles") ||
+            !store.insertBatch(candles, results, storeError)) {
             return storeFailureResponse("candle ingest persistence", storeError);
         }
 

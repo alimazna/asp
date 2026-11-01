@@ -828,3 +828,374 @@ TEST_CASE(news_service_full_pipeline_fields) {
     CHECK(!a.invalidatingConditionsAr.empty());
     CHECK(!a.limitationsAr.empty());
 }
+
+// --- Price grounding: an invented level must be dropped, not shown ----------
+// The model is forbidden to invent a price, but a small model still will. The
+// live pipeline grounds every optional level against the real market it was
+// shown; a number far from that market is dropped so it can never reach the UI
+// as a suggestion.
+TEST_CASE(grounded_levels_near_market_are_kept) {
+    // Reference 2650, ATR 10, band 8 bars = 80 points. 2650/2640/2680 are all
+    // inside the band, so the legitimate proposal survives.
+    PriceGrounding g;
+    g.strict = true;
+    g.referencePrice = 2650.0;
+    g.atr = 10.0;
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bullish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2650,"stop_loss":2640,"take_profit":2680})",
+        g);
+    CHECK(parsed.valid);
+    CHECK(parsed.analysis.hasEntry);
+    CHECK(parsed.analysis.hasStop);
+    CHECK(parsed.analysis.hasTarget);
+}
+
+TEST_CASE(grounded_levels_far_from_market_are_dropped) {
+    // The reported bug: the model returned a price it could not have known
+    // (1900 when the real market is 2650). Every level is dropped.
+    PriceGrounding g;
+    g.strict = true;
+    g.referencePrice = 2650.0;
+    g.atr = 10.0;
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bullish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":1900,"stop_loss":1890,"take_profit":1950})",
+        g);
+    CHECK(parsed.valid);            // the analysis itself is still usable
+    CHECK(!parsed.analysis.hasEntry);
+    CHECK(!parsed.analysis.hasStop);
+    CHECK(!parsed.analysis.hasTarget);
+}
+
+TEST_CASE(grounded_levels_without_reference_price_are_dropped) {
+    // No candle collector was ever connected: referencePrice is 0. With no
+    // market there is nothing for a level to be near, so every level is
+    // dropped. This is the exact production condition the user hit.
+    PriceGrounding g;
+    g.strict = true;   // referencePrice stays 0
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bullish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2650,"stop_loss":2640,"take_profit":2680})",
+        g);
+    CHECK(parsed.valid);
+    CHECK(!parsed.analysis.hasEntry);
+    CHECK(!parsed.analysis.hasStop);
+    CHECK(!parsed.analysis.hasTarget);
+}
+
+TEST_CASE(grounding_is_opt_in_and_lenient_by_default) {
+    // The ungrounded overload (and the default PriceGrounding) keep the
+    // historical behaviour, so a caller with no market reference is unaffected.
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bullish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2650,"stop_loss":2640,"take_profit":2680})");
+    CHECK(parsed.valid);
+    CHECK(parsed.analysis.hasEntry);
+}
+
+TEST_CASE(grounded_level_without_atr_uses_price_fraction_band) {
+    // With a reference price but no ATR (e.g. a single candle), the band falls
+    // back to 5% of price: 2600 +/- 130 keeps 2700 but drops 2800.
+    PriceGrounding g;
+    g.strict = true;
+    g.referencePrice = 2600.0;   // atr stays 0
+    const ParsedAnalysis near = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bearish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2700,"stop_loss":2710,"take_profit":2500})",
+        g);
+    CHECK(near.analysis.hasEntry);
+    const ParsedAnalysis far = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bearish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2800,"stop_loss":2900,"take_profit":2400})",
+        g);
+    CHECK(!far.analysis.hasEntry);
+    CHECK(!far.analysis.hasStop);
+    CHECK(!far.analysis.hasTarget);
+}
+
+// --- Relative, price-free levels: a distance is honest where a price is not ---
+// When the model cannot know the absolute price it may state the expected move
+// and the protective stop as DISTANCES in points. These need no market
+// reference (a distance is not a price), so they survive even with no candles.
+TEST_CASE(relative_levels_are_kept_without_a_reference_price) {
+    PriceGrounding g;
+    g.strict = true;   // no reference price: absolute levels are dropped...
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"bullish",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("entry":2650,"expected_move_points":300,"stop_distance_points":120,)"
+        R"("relative_levels_note_ar":"قد يتحرك نحو 300 نقطة"})",
+        g);
+    CHECK(parsed.valid);
+    CHECK(!parsed.analysis.hasEntry);            // ...but the distances are kept
+    CHECK(parsed.analysis.hasExpectedMove);
+    CHECK_EQ(parsed.analysis.expectedMovePoints, 300);
+    CHECK(parsed.analysis.hasStopDistance);
+    CHECK_EQ(parsed.analysis.stopDistancePoints, 120);
+    CHECK(!parsed.analysis.relativeLevelsNoteAr.empty());
+}
+
+TEST_CASE(relative_levels_reject_implausible_values) {
+    // A negative, zero, fractional or runaway distance is dropped, so a model
+    // that echoes a price into the distance field cannot smuggle it through.
+    const auto parseWith = [](const std::string& extra) {
+        return parseAnalysisResponse(
+            R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+            R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+            R"("gold_impact_ar":"x","direction":"bearish",)"
+            R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+            R"("invalidating_conditions_ar":"c","limitations_ar":[],)" +
+                extra + "}");
+    };
+    CHECK(!parseWith(R"("expected_move_points":-50})").analysis.hasExpectedMove);
+    CHECK(!parseWith(R"("expected_move_points":0})").analysis.hasExpectedMove);
+    CHECK(!parseWith(R"("expected_move_points":12.5})").analysis.hasExpectedMove);
+    CHECK(!parseWith(R"("stop_distance_points":999999999})")
+               .analysis.hasStopDistance);
+}
+
+TEST_CASE(relative_levels_ignored_for_a_non_actionable_direction) {
+    // A no_trade proposal must not carry a move or a stop: there is no trade.
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"no_trade",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("expected_move_points":300,"stop_distance_points":120})");
+    CHECK(parsed.valid);
+    CHECK(!parsed.analysis.hasExpectedMove);
+    CHECK(!parsed.analysis.hasStopDistance);
+}
+
+// --- Tone / framing / subtext ---------------------------------------------
+// The reading of HOW a story is told. Every classifier is a closed vocabulary
+// (an out-of-set value is rejected, never coerced), an absent value is
+// honestly "unknown", and a non-neutral tone with no quoted wording is dropped
+// because an unattributed tone is an assertion the reader cannot check.
+
+TEST_CASE(tone_accepts_a_full_valid_classification) {
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"no_trade",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)"
+        R"("tone":"very_negative","tone_strength":"strong",)"
+        R"("tone_evidence_ar":"انهيار حاد في الأسعار",)"
+        R"("source_register":"wire","sensationalism":"high",)"
+        R"("novelty":"partly_priced","uncertainty":"medium",)"
+        R"("hidden_context_ar":"الخبر يخدم مصالح المنتجين.",)"
+        R"("framing_bias_ar":"تركيز على الجانب السلبي."})");
+    CHECK(parsed.valid);
+    CHECK_EQ(std::string("very_negative"), parsed.analysis.tone);
+    CHECK_EQ(std::string("strong"), parsed.analysis.toneStrength);
+    CHECK_EQ(std::string("wire"), parsed.analysis.sourceRegister);
+    CHECK_EQ(std::string("high"), parsed.analysis.sensationalism);
+    CHECK_EQ(std::string("partly_priced"), parsed.analysis.novelty);
+    CHECK_EQ(std::string("medium"), parsed.analysis.uncertainty);
+    CHECK_EQ(std::string("انهيار حاد في الأسعار"),
+             parsed.analysis.toneEvidenceAr);
+    CHECK(!parsed.analysis.hiddenContextAr.empty());
+    CHECK(!parsed.analysis.framingBiasAr.empty());
+}
+
+TEST_CASE(tone_fields_absent_are_honestly_unknown) {
+    // A payload that never mentions tone must not be given one by default.
+    const ParsedAnalysis parsed = parseAnalysisResponse(
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"no_trade",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[]})");
+    CHECK(parsed.valid);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.tone);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.toneStrength);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.sourceRegister);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.sensationalism);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.novelty);
+    CHECK_EQ(std::string("unknown"), parsed.analysis.uncertainty);
+    CHECK(parsed.analysis.hiddenContextAr.empty());
+    CHECK(parsed.analysis.framingBiasAr.empty());
+}
+
+TEST_CASE(tone_rejects_out_of_vocabulary_values) {
+    // Coercing an unrecognised tone to "neutral" would put a reading the model
+    // never made in front of the user. It must be rejected instead.
+    const std::string base =
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"no_trade",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)";
+    CHECK(!parseAnalysisResponse(base + R"("tone":"bullish"})").valid);
+    CHECK(!parseAnalysisResponse(base + R"("tone_strength":"extreme"})").valid);
+    CHECK(!parseAnalysisResponse(base + R"("source_register":"blog"})").valid);
+    CHECK(!parseAnalysisResponse(base + R"("sensationalism":"extreme"})").valid);
+    CHECK(!parseAnalysisResponse(base + R"("novelty":"stale"})").valid);
+    CHECK(!parseAnalysisResponse(base + R"("uncertainty":"very_high"})").valid);
+}
+
+TEST_CASE(tone_without_evidence_is_downgraded_not_displayed) {
+    // A strong tone the model cannot attribute to any wording is an unchecked
+    // assertion. It is dropped to "unknown" rather than shown, exactly as an
+    // ungrounded price is dropped.
+    const std::string base =
+        R"({"summary_ar":"س","facts":[],"market_implications_ar":[],)"
+        R"("supporting_evidence_ar":[],"opposing_evidence_ar":[],)"
+        R"("gold_impact_ar":"x","direction":"no_trade",)"
+        R"("astra_agreement":"unknown","disagreement_note_ar":"",)"
+        R"("invalidating_conditions_ar":"c","limitations_ar":[],)";
+    const ParsedAnalysis noEvidence = parseAnalysisResponse(
+        base + R"("tone":"very_positive","tone_strength":"strong"})");
+    CHECK(noEvidence.valid);
+    CHECK_EQ(std::string("unknown"), noEvidence.analysis.tone);
+    CHECK_EQ(std::string("unknown"), noEvidence.analysis.toneStrength);
+
+    // With evidence the tone survives untouched.
+    const ParsedAnalysis withEvidence = parseAnalysisResponse(
+        base + R"("tone":"very_positive","tone_strength":"strong",)"
+               R"("tone_evidence_ar":"قفزة قياسية"})");
+    CHECK(withEvidence.valid);
+    CHECK_EQ(std::string("very_positive"), withEvidence.analysis.tone);
+    CHECK_EQ(std::string("strong"), withEvidence.analysis.toneStrength);
+
+    // A neutral or unknown tone claims nothing, so it needs no evidence.
+    const ParsedAnalysis neutral = parseAnalysisResponse(
+        base + R"("tone":"neutral"})");
+    CHECK(neutral.valid);
+    CHECK_EQ(std::string("neutral"), neutral.analysis.tone);
+}
+
+TEST_CASE(tone_fields_survive_the_store_round_trip) {
+    // The new columns must persist and read back, including on a database that
+    // predates them (the additive migration path).
+    const std::string path = tempDbPath();
+    NewsAnalysis a;
+    a.articleId = "art-tone-1";
+    a.status = "ok";
+    a.summaryAr = "ملخص";
+    a.tone = "negative";
+    a.toneStrength = "moderate";
+    a.toneEvidenceAr = "ضغط بيعي واضح";
+    a.sourceRegister = "analytical";
+    a.sensationalism = "low";
+    a.novelty = "already_priced";
+    a.uncertainty = "high";
+    a.hiddenContextAr = "سياق خفي";
+    a.framingBiasAr = "تحيز صياغة";
+    a.analyzedAtUtc = 1782299280;
+
+    {
+        NewsStore store;
+        std::string error;
+        REQUIRE(store.open(path, error));
+        REQUIRE(store.saveAnalysis(a, error));
+    }
+    {
+        NewsStore store;
+        std::string error;
+        REQUIRE(store.open(path, error));
+        NewsAnalysis out;
+        REQUIRE(store.getAnalysis("art-tone-1", out));
+        CHECK_EQ(std::string("negative"), out.tone);
+        CHECK_EQ(std::string("moderate"), out.toneStrength);
+        CHECK_EQ(std::string("ضغط بيعي واضح"), out.toneEvidenceAr);
+        CHECK_EQ(std::string("analytical"), out.sourceRegister);
+        CHECK_EQ(std::string("low"), out.sensationalism);
+        CHECK_EQ(std::string("already_priced"), out.novelty);
+        CHECK_EQ(std::string("high"), out.uncertainty);
+        CHECK_EQ(std::string("سياق خفي"), out.hiddenContextAr);
+        CHECK_EQ(std::string("تحيز صياغة"), out.framingBiasAr);
+    }
+    fs::remove(path);
+}
+
+TEST_CASE(tone_migration_is_idempotent_on_an_old_database) {
+    // Simulate a database created before the tone columns existed: create the
+    // table without them, then let open() migrate it. The migration must be
+    // additive, must not lose the existing row, and must be a no-op on a second
+    // open.
+    const std::string path = tempDbPath();
+    {
+        sqlite3* db = nullptr;
+        REQUIRE(sqlite3_open(path.c_str(), &db) == SQLITE_OK);
+        const char* ddl =
+            "CREATE TABLE news_analyses ("
+            " article_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL,"
+            " status_reason TEXT NOT NULL DEFAULT '',"
+            " summary_ar TEXT NOT NULL DEFAULT '',"
+            " facts_json TEXT NOT NULL DEFAULT '[]',"
+            " implications_ar TEXT NOT NULL DEFAULT '[]',"
+            " supporting_ar TEXT NOT NULL DEFAULT '[]',"
+            " opposing_ar TEXT NOT NULL DEFAULT '[]',"
+            " gold_impact_ar TEXT NOT NULL DEFAULT '',"
+            " direction TEXT NOT NULL DEFAULT 'no_trade',"
+            " has_entry INTEGER NOT NULL DEFAULT 0, entry REAL NOT NULL DEFAULT 0,"
+            " has_stop INTEGER NOT NULL DEFAULT 0, stop_loss REAL NOT NULL DEFAULT 0,"
+            " has_target INTEGER NOT NULL DEFAULT 0, take_profit REAL NOT NULL DEFAULT 0,"
+            " invalidating_ar TEXT NOT NULL DEFAULT '',"
+            " astra_agreement TEXT NOT NULL DEFAULT 'unknown',"
+            " disagreement_ar TEXT NOT NULL DEFAULT '',"
+            " limitations_ar TEXT NOT NULL DEFAULT '[]',"
+            " provider_id TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL DEFAULT '',"
+            " analyzed_at INTEGER NOT NULL DEFAULT 0,"
+            " timeframe_ctx TEXT NOT NULL DEFAULT '',"
+            " candle_as_of INTEGER NOT NULL DEFAULT 0,"
+            " astra_signal TEXT NOT NULL DEFAULT '',"
+            " gold_relevance TEXT NOT NULL DEFAULT 'unknown');"
+            "INSERT INTO news_analyses (article_id, status, summary_ar, analyzed_at)"
+            " VALUES ('legacy-1','ok','قديم',1782299280);";
+        REQUIRE(sqlite3_exec(db, ddl, nullptr, nullptr, nullptr) == SQLITE_OK);
+        sqlite3_close(db);
+    }
+    {
+        NewsStore store;
+        std::string error;
+        REQUIRE(store.open(path, error));  // migrates the tone columns in
+        NewsAnalysis out;
+        REQUIRE(store.getAnalysis("legacy-1", out));
+        CHECK_EQ(std::string("قديم"), out.summaryAr);
+        // The pre-existing row was never tone-classified, so it reads back as
+        // unknown/empty -- not as a default presented as a finding.
+        CHECK_EQ(std::string("unknown"), out.tone);
+        CHECK(out.toneEvidenceAr.empty());
+    }
+    {
+        NewsStore store;
+        std::string error;
+        REQUIRE(store.open(path, error));  // second open is a no-op
+        NewsAnalysis out;
+        REQUIRE(store.getAnalysis("legacy-1", out));
+        CHECK_EQ(std::string("unknown"), out.tone);
+    }
+    fs::remove(path);
+}

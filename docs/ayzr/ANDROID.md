@@ -12,7 +12,8 @@ API and presents it in Arabic, right-to-left.
 
 - Flutter 3.24.5 / Dart 3.5.4, Android only.
 - Four sections, all user-facing text Arabic:
-  - **الرئيسية** (Home) — system health, market state, latest-signal summary.
+  - **الرئيسية** (Home) — system health, market state, latest-signal summary,
+    and the **preparation section** ("تحضير للخبر القادم").
   - **التحليل** (Analysis) — context, signal, suggested levels, metadata.
   - **الأخبار** (News) — article list with a gold-only filter + detail view.
   - **السجل** (History) — persisted analyses, newest first.
@@ -45,6 +46,8 @@ Routes called (all GET, all client-token gated in
 | `/api/v1/news?limit=&gold_only=` | article list with analysis status |
 | `/api/v1/news/analyze?id=` | one article + its Arabic analysis |
 | `/api/v1/news/results?limit=&direction=` | news-results log: each analysis joined to its article's source metadata |
+| `/api/v1/events?scope=upcoming&gold_only=false` | the macro-event calendar for the preparation section |
+| `/api/v1/events/detail?key=` | one event + its expectation/result turns |
 | `/api/v1/history?limit=` | persisted analyses |
 
 Ingestion (`/candles/ingest`), `/sync/latest` and `/admin/candles` are
@@ -80,6 +83,42 @@ the flat `{error,code,message}` object and are mapped to typed failures.
   **غير متاح** for those rather than inventing a headline. The two classifiers the
   model assigns — `gold_channel` and `impact_horizon` — are closed vocabularies:
   an unrecognised value shows as **غير محدَّد**, never a friendlier guess.
+- **Tone card (`_ToneChip` / `_SubtextBlock`).** When an analysis carries a tone
+  classification, `AnalysisView` renders a separate card reading the *wording*:
+  the tone label and strength, the quoted `tone_evidence_ar`, plus
+  `source_register`, `sensationalism`, `novelty` and `uncertainty`, then the
+  `hidden_context_ar` / `framing_bias_ar` prose under their own headings. The
+  card carries a standing caveat that tone does not change the facts, and is
+  **omitted entirely** when the model classified nothing — a card of five
+  **غير محدَّدة** rows would be noise, not understanding. An unrecognised tone
+  value renders as **غير محدَّدة**. Tone is shown separately from `direction`
+  because the same tone can sit on opposite market implications.
+- **Relative levels when a price cannot be grounded.** An actionable analysis
+  whose absolute levels were dropped (no candle reference) still carries the
+  model's honest *distances* — `levels.expected_move_points`,
+  `levels.stop_distance_points`, `levels.relative_levels_note_ar`. The client
+  renders the absolute levels when present and these relative distances
+  otherwise, and says plainly when neither exists rather than printing a number.
+
+### Preparation for the upcoming event ("تحضير للخبر القادم")
+
+Home carries a preparation section built from the macro-event calendar:
+
+- it lists the nearest upcoming events, each with a **countdown** to its real
+  `scheduled_at` (see `lib/ui/widgets/countdown.dart`);
+- the **nearest** event is selected client-side as the minimum `scheduled_at`
+  (never "row 0"), so a server ordering change cannot surface the wrong event;
+- it requests `gold_only=false`, so the countdown is not silently limited to
+  gold-tagged rows;
+- opening an event shows its **expectation** turn (pre-release) and **result**
+  turn (post-release) from `/api/v1/events/detail`, each marked as prepared,
+  released, or failed — an event with no turn yet shows that state, not an
+  invented analysis.
+
+The countdown here is *not* the rejected per-article "remaining validity"
+countdown of §8: it counts down to a timestamp the backend actually stores
+(`scheduled_events.scheduled_at`), so nothing is invented. §8 still stands — no
+notification, no invented validity window.
 
 ## 4. Layout of the code
 
@@ -93,9 +132,10 @@ ayzr-android/
       theme.dart                  dark-navy + gold tokens, Cairo font
     data/
       api_result.dart             ApiResult<T> + typed ApiFailure
-      api_client.dart             authenticated client for the 6 routes
+      api_client.dart             authenticated client for the 8 routes
       models/analysis.dart        analysis surface models (RULE C aware)
       models/news.dart            news + history + news-results models
+      models/events.dart          macro-event calendar models
       models/health.dart          health model
     state/
       app_state.dart              ChangeNotifier: sections, phases, flags
@@ -103,8 +143,10 @@ ayzr-android/
     ui/
       app_shell.dart              RTL shell, bottom nav, MaterialApp
       screens/                    home, analysis, news, news_detail,
-                                  news_results, history, settings
-      widgets/                    state panels, banners, info rows, chips
+                                  news_results, history, settings,
+                                  event_detail
+      widgets/                    state panels, banners, info rows, chips,
+                                  upcoming_news_section, countdown
   test/                           see §6
   assets/                         owned by Agent D (icons, fonts, graphics)
 ```
@@ -144,6 +186,28 @@ Widget/unit tests use a `MockClient` (from `package:http/testing.dart`) so the
 They assert, among other things, that an uncalibrated signal renders a score and
 never a probability, that a network failure renders the offline panel (not an
 empty state), and that empty lists render the empty state (not an error).
+`test/relative_levels_and_countdown_test.dart` covers the relative-level fields,
+the `EventCountdown` formatting, nearest-event selection, and the preparation
+section.
+
+```bash
+flutter analyze                 # No issues found
+flutter test                    # 108 passed, 3 skipped (live)
+```
+
+### Live integration test (opt-in)
+
+`test/live_integration_test.dart` drives the app's real `ApiClient` against a
+running backend. It is **skipped** unless `AYZR_LIVE_BASE_URL` is set, so the
+default run stays hermetic:
+
+```bash
+AYZR_LIVE_BASE_URL=http://127.0.0.1:12001 AYZR_LIVE_TOKEN=<client token> \
+  flutter test --tags live      # 3 passed
+```
+
+It asserts the events feed is soonest-first and impact-agnostic, and that an
+actionable analysis is priced **or** distanced (never faked).
 
 See `docs/ayzr/reports/agent-b.md` for the exact pass/fail totals from the last
 run.
@@ -193,9 +257,17 @@ request the notification permissions explicitly.
 ## 9. Out of scope / not done
 
 - No order execution, no write path, no ingestion, no admin route.
-- No backend, `astra-frontend/` or Windows-sender changes.
+- No `astra-frontend/` or Windows-sender changes; backend changes are additive
+  and documented in `docs/ayzr/BACKEND.md`.
 - Not deployed; no store submission.
-- Debug APK is the artifact used for testing. A release build is reproducible
-  (`flutter build apk --release`) but is signed with the debug keystore until the
-  owner supplies `android/key.properties` and a keystore; that signing config is
-  the only thing standing between this tree and a distributable release.
+- Both APKs are built and verified locally:
+  - debug — `build/app/outputs/flutter-apk/app-debug.apk` (~91 MB);
+  - release — `build/app/outputs/flutter-apk/app-release.apk` (~22.7 MB),
+    built with `flutter build apk --release`.
+  The release build is currently signed with the debug keystore (see
+  `android/app/build.gradle`) so it is reproducible without owner secrets; a
+  distributable release replaces that with `android/key.properties` and a real
+  keystore — the only thing standing between this tree and a signed release.
+- No device or emulator run was possible in this environment: the APK is built
+  and its manifest/permissions verified with `aapt`, but it has **not** been
+  installed on a real device.

@@ -28,6 +28,13 @@ struct ParsedAnalysis {
 // `analyzedAtUtc` are stamped by the caller onto the returned analysis.
 ParsedAnalysis parseAnalysisResponse(const std::string& text);
 
+// Parse with price grounding: every optional level must sit near the real
+// market described by `grounding` (see PriceGrounding in NewsModels.h). This is
+// the overload the live pipeline calls; the plain overload above keeps the
+// historical lenient behaviour for callers with no market reference.
+ParsedAnalysis parseAnalysisResponse(const std::string& text,
+                                     const PriceGrounding& grounding);
+
 // Extract the first balanced JSON object from arbitrary text. Returns false when
 // none is found. Exposed for tests.
 bool extractFirstJsonObject(const std::string& text, std::string& out);

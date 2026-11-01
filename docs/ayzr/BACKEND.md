@@ -78,6 +78,33 @@ A failure never becomes a recommendation. Levels (`entry`/`stop_loss`/
 and positive; they are dropped for `no_trade`/`sideways` (they would imply an
 order that does not exist). In the API an absent level is JSON `null`, never `0`.
 
+### Price grounding (hardening)
+
+A small model will invent a price even when the prompt forbids it. The parser
+therefore **grounds** every absolute level against the market the model was
+actually shown (`PriceGrounding`: `referencePrice`, `atr`, `strict`):
+
+- when `strict` and a `referencePrice` exists, a level is kept only if it is
+  within a band of the reference (8×ATR, or 5% of price when no ATR is known);
+- when `strict` and there is **no** reference price (no candle collector
+  connected, stale feed), **every** absolute level is dropped.
+
+The model is still allowed to say what it cannot price. Two additive fields carry
+a **distance** instead of a price — a distance is honest where a price would be
+fabricated:
+
+| Field (inside `levels`) | Type | Meaning |
+|---|---|---|
+| `expected_move_points` | positive whole number \| null | how far the price could travel, in points |
+| `stop_distance_points` | positive whole number \| null | how far the protective stop should sit, in points |
+| `relative_levels_note_ar` | string | the model's Arabic explanation of those distances |
+
+Distances need no market reference (they are not prices), so they survive even
+with no candles; they are honoured only for an actionable direction and only as a
+bounded positive integer, so a runaway or fractional value is dropped. The mobile
+client renders the absolute levels when present and the relative distances
+otherwise, and says plainly when neither exists rather than showing a number.
+
 ### Provider neutrality
 
 Business logic depends only on `ILlmProvider`. `Llm7Provider` classifies HTTP
@@ -155,6 +182,39 @@ Both persist in `news_analyses` (`gold_channel` / `impact_horizon`, `NOT NULL
 DEFAULT 'unknown'`) and are added by an **additive** migration: `ADD COLUMN`
 behind a `hasColumn` probe, so it is idempotent and a row written before the
 columns existed reads back as `unknown` (it was genuinely never classified).
+
+### Tone, framing and subtext (`tone`, `source_register`, `novelty`, …)
+
+A third additive group reads the *wording* of the article, separately from what
+it says. Every field is a closed vocabulary except the two Arabic prose fields.
+As with the classifiers, the prompt names the allowed values, the parser rejects
+an out-of-set value outright, and an absent field reads back as `unknown` — or,
+for the prose fields, as the empty string, which the UI renders as nothing at all
+rather than as an empty card.
+
+| Field | Allowed values | Meaning |
+|---|---|---|
+| `tone` | `very_negative`, `negative`, `neutral`, `positive`, `very_positive`, `mixed`, `unknown` | the emotional colour of the reporting, not the market effect |
+| `tone_strength` | `weak`, `moderate`, `strong`, `unknown` | how emphatic that colour is |
+| `tone_evidence_ar` | free Arabic prose | the exact wording that carries the tone, quoted so the reader can check it |
+| `source_register` | `wire`, `broadsheet`, `tabloid`, `official`, `blog`, `social`, `unknown` | the kind of outlet, which sets how much weight the wording deserves |
+| `sensationalism` | `low`, `medium`, `high`, `unknown` | how much the wording is inflated beyond the facts |
+| `novelty` | `new`, `partly_priced`, `fully_priced`, `recycled`, `unknown` | whether the market has already had this information |
+| `uncertainty` | `low`, `medium`, `high`, `unknown` | how much the article itself hedges |
+| `hidden_context_ar` | free Arabic prose | context the article assumes but does not state (audience, sponsor, timing) |
+| `framing_bias_ar` | free Arabic prose | which side the article's framing leans toward, and how |
+
+All nine persist in `news_analyses` (`NOT NULL DEFAULT 'unknown'` for the
+vocabularies, `NOT NULL DEFAULT ''` for the prose), added by the same additive
+`ADD COLUMN` behind a `hasColumn` probe. `kNewAnalysisColumns` in `NewsStore.cpp`
+lists the probe set, so the migration is idempotent and a row written before the
+columns existed reads back honestly: `unknown` / empty, never a guess.
+
+Tone is deliberately kept **separate from `direction`**: a negative-toned article
+about falling gold prices and a negative-toned article about rising ones carry
+the same tone but opposite implications. The UI shows tone in its own card, under
+a caveat that tone does not change the facts, so a reader cannot mistake an
+emotional reading for a market conclusion. Tone never feeds the decision chain.
 
 ### Daily-quota monitoring (`GET /api/v1/news/quota`)
 
