@@ -254,6 +254,28 @@ TEST_CASE(news_service_valid_analysis) {
     CHECK_EQ(service.lastAttemptCount(), 1);
 }
 
+// --- Service: an ambiguous story must yield an explicit no-trade state, and
+// the model's stray levels must be discarded rather than surfaced ------------
+TEST_CASE(news_service_no_trade_drops_levels) {
+    MockLlmProvider provider(MockLlmProvider::Mode::NoTrade);
+    NewsAnalysisService service(&provider, 2);
+    NewsArticle article = makeArticle("s9", "srcA", "Dollar rises either way", 4600);
+    NewsPromptContext ctx;
+    ctx.headline = article.headline;
+    ctx.source = article.source;
+    ctx.bodyAvailable = true;
+    ctx.bodyText = "Ambiguous dollar move.";
+    const NewsAnalysis a = service.analyze(article, ctx, 4700);
+    CHECK_EQ(a.status, std::string("ok"));
+    CHECK_EQ(a.proposedDirection, std::string("no_trade"));
+    // The payload carried entry/stop/tp; a no-trade direction must drop them so
+    // the client can never render a tradeable level for a non-trade.
+    CHECK(!a.hasEntry);
+    CHECK(!a.hasStop);
+    CHECK(!a.hasTarget);
+    CHECK(!a.summaryAr.empty());
+}
+
 // --- Service: malformed output is a clear invalid state, not a recommendation
 TEST_CASE(news_service_invalid_output_state) {
     MockLlmProvider provider(MockLlmProvider::Mode::Malformed);

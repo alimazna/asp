@@ -20,7 +20,10 @@ public:
                       QuotaExhausted,
                       // First call returns schema-invalid output, subsequent calls
                       // return a valid payload. Models the repair turn.
-                      MalformedThenValid };
+                      MalformedThenValid,
+                      // A valid payload that chooses no trade: the analyzer must
+                      // drop any levels and report an explicit no-trade state.
+                      NoTrade };
 
     explicit MockLlmProvider(Mode mode = Mode::Valid) : mode_(mode) {}
 
@@ -34,6 +37,7 @@ public:
         if (value == "quota_exhausted") return Mode::QuotaExhausted;
         if (value == "auth_failure") return Mode::AuthFailure;
         if (value == "malformed_then_valid") return Mode::MalformedThenValid;
+        if (value == "no_trade") return Mode::NoTrade;
         return Mode::Valid;
     }
 
@@ -98,8 +102,39 @@ public:
                     result.content = validPayload();
                 }
                 break;
+            case Mode::NoTrade:
+                result.outcome = LlmOutcome::Ok;
+                result.httpStatus = 200;
+                result.content = noTradePayload();
+                break;
         }
         return result;
+    }
+
+    // A valid payload whose direction is no_trade. The parser must drop any
+    // levels and the analyzer must surface an explicit "no trade" state rather
+    // than inventing an entry. Levels are deliberately present to prove they
+    // are discarded, not merely absent.
+    static std::string noTradePayload() {
+        return R"({"summary_ar":"الخبر متضارب ولا يكفي لاتخاذ قرار.",)"
+               R"("facts":[{"text":"ارتفع الدولار وتراجعت عوائد السندات","kind":"fact"}],)"
+               R"("market_implications_ar":["اتجاه الذهب غير واضح"],)"
+               R"("supporting_evidence_ar":["طلب على الملاذ الآمن"],)"
+               R"("opposing_evidence_ar":["قوة الدولار"],)"
+               R"("gold_impact_ar":"محايد","gold_relevance":"medium",)"
+               R"("gold_channel":"usd_rates","impact_horizon":"short",)"
+               R"("tone":"neutral","tone_strength":"weak",)"
+               R"("tone_evidence_ar":"لا ميل واضح في الصياغة",)"
+               R"("source_register":"wire","sensationalism":"low",)"
+               R"("novelty":"partly_priced","uncertainty":"high",)"
+               R"("hidden_context_ar":"لا سياق مخفي واضح.",)"
+               R"("framing_bias_ar":"صياغة متوازنة.",)"
+               R"("direction":"no_trade","entry":2650.5,"stop_loss":2640.0,)"
+               R"("take_profit":2680.0,"astra_agreement":"disagree",)"
+               R"("expected_move_points":300,"stop_distance_points":120,)"
+               R"("relative_levels_note_ar":"لا توجد مستويات موثوقة.",)"
+               R"("invalidating_conditions_ar":"تأكيد الاتجاه بإغلاق H4",)"
+               R"("limitations_ar":["الأدلة متضاربة"]})";
     }
 
     // A valid payload that passes parseAnalysisResponse unchanged.
