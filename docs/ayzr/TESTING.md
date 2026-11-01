@@ -27,10 +27,30 @@ new `TEST_CASE(...)` needs no build-graph edit.
 ## Running the suite
 
 ```bash
-cd build-linux && ctest --output-on-failure          # 30 CTest cases
+cd build-ayzr && ctest --output-on-failure           # 44 CTest cases
 # or, per binary, for the harness totals:
-cd build-linux && for t in *Tests; do ./"$t"; done
+cd build-ayzr && for t in *Tests; do ./"$t"; done
 ```
+
+The Flutter suite needs the system SQLite shared object on the loader path:
+
+```bash
+cd ayzr-android && LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test   # 135 pass
+```
+
+`/tmp/sqlite-lib/libsqlite3.so` is a symlink to the system
+`libsqlite3.so.0`; the journal tests use `sqflite_common_ffi`, which loads
+`libsqlite3.so` by that exact name.
+
+### Test-only seams
+
+Two environment variables exist solely to make a condition deterministic in a
+test. Both are inert unless set, so production behaviour is unchanged:
+
+| Variable | Effect | Used by |
+|---|---|---|
+| `ASTRA_TEST_FORCE_STORE_FAILURE=candles` | forces the named store write to fail, so a persistence-failure response can be asserted without a filesystem race | `AyzrSecurityTests` |
+| `ASTRA_TEST_SEED_TRADE=BUY\|SELL` | seeds one deterministic open trade so the news-to-open-trade linkage is exercised with a real trade | `mock_news_api.py selftest` |
 
 Each C++ test binary prints one `[PASS]`/`[FAIL]` line per case and a summary
 line (`N test case(s), F failed, A assertion failure(s)`). A non-zero exit means
