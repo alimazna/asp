@@ -128,28 +128,22 @@
 </footer>
 
 <script>
-// --- configuration: the backend base URL and the read-only client token.
-// The token is entered by the operator at runtime and kept in sessionStorage;
-// it is never written into this file or sent anywhere except the backend.
-// Priority: ?base=&token= query params (one-off, shareable) > localStorage
-// (persisted) > same-origin default. The token never leaves this browser.
-const QS = new URLSearchParams(location.search);
-const CFG = {
-  base: QS.get('base') || localStorage.getItem('ayzr_base') ||
-        window.location.origin.replace(/:\d+$/, ':8000'),
-  token: QS.get('token') || sessionStorage.getItem('ayzr_token') || '',
-};
-if (QS.get('base')) localStorage.setItem('ayzr_base', QS.get('base'));
-if (QS.get('token')) sessionStorage.setItem('ayzr_token', QS.get('token'));
+// --- configuration --------------------------------------------------------
+// This page talks ONLY to its own origin. The same-origin proxy (serve.py)
+// holds the read-only client token in its environment and adds the
+// Authorization header upstream, so this page never sees a token, never reads
+// one from the URL, and never stores one. There is deliberately no ?token=,
+// ?base=, localStorage or sessionStorage path: a credential in a URL leaks via
+// history, referrer and logs, and one in browser storage leaks to any script.
+const API_ORIGIN = window.location.origin;
 
 let CURRENT = 'overview';
 const CACHE = {};
 
 async function api(path){
-  const url = CFG.base.replace(/\/$/,'') + path;
-  const headers = {};
-  if (CFG.token) headers['Authorization'] = 'Bearer ' + CFG.token;
-  const r = await fetch(url, {headers});
+  // Relative to this origin only; the proxy owns the credential.
+  const url = API_ORIGIN.replace(/\/$/,'') + path;
+  const r = await fetch(url, {headers: {'Accept': 'application/json'}});
   const text = await r.text();
   let json = null;
   try { json = JSON.parse(text); } catch(e) {}
