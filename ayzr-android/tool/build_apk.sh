@@ -77,6 +77,7 @@ case "$MODE" in
 esac
 
 echo
-echo "Release APKs here are signed with the debug keystore (android/app/build.gradle)."
-echo "For a private distribution, add android/key.properties + a real keystore; the"
-echo "build then signs with it instead, with no other change. See docs/ayzr/ANDROID.md."
+echo "Release signing is fail-closed: a release APK is produced only when"
+echo "android/key.properties and a real keystore exist. The build refuses rather"
+echo "than sign with the debug key. See android/key.properties.example and"
+echo "docs/ayzr/ANDROID.md."
