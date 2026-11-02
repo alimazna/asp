@@ -62,21 +62,51 @@ separate running conversations. This is disclosed rather than simulated.
 |---|---|---|---|---|
 | 0 Backup checkpoint | 2 | DONE | remote sha == local sha | none |
 | 1 Team/env | 1,2 | DONE | tooling probed | no multi-agent platform |
-| 2 Full audit | 1 | IN PROGRESS | baseline green | none |
-| 3 Arch map | 1 | TODO | | |
-| 4 Visual design | 7 | TODO | | |
-| 5 Design system | 7,8 | TODO | | |
-| 6 Web redesign | 8 | TODO | | |
-| 7 Android | 10 | TODO | | |
-| 8 Engines | 4,11 | TODO | | |
-| 9 Orchestrator | 5,11 | TODO | | |
-| 10 BiQuote/data | 6 | TODO | | |
-| 11 Session/regime | 3,11 | TODO | | |
-| 12 Quant lab | 3 | TODO | | |
-| 13 Ledger/replay | 5,11 | TODO | | |
-| 14 E2E | 11 | TODO | | |
-| 15 Security/perf | 9,12 | TODO | | |
-| 16 Device/browser | 10,8 | TODO | | |
-| 17 Acceptance | 1 | TODO | | |
+| 2 Full audit | 1 | DONE | baseline green | none |
+| 3 Arch map | 1 | DONE | see docs/ayzr/** | none |
+| 4 Visual design | 7 | DONE | 3/3 asset tests | no generative model (disclosed) |
+| 5 Design system | 7,8 | DONE | design-system.css | none |
+| 6 Web redesign | 8 | DONE | live browser check | none |
+| 7 Android | 10 | DONE | 153/153 + APK built | no Java for release signing |
+| 8 Engines | 4,11 | DONE | 50/50 C++ | none |
+| 9 Orchestrator | 5,11 | DONE | ledger live | none |
+| 10 BiQuote/data | 6 | DONE | real feed ingested | none |
+| 11 Session/regime | 3,11 | PARTIAL | closure fix done | none |
+| 12 Quant lab | 3 | DONE | 5/5 (PYTHONPATH=.) | none |
+| 13 Ledger/replay | 5,11 | DONE | ledger reads live | none |
+| 14 E2E | 11 | PARTIAL | web E2E done | device test unavailable |
+| 15 Security/perf | 9,12 | PARTIAL | proxy read-only verified | prod creds not present |
+| 16 Device/browser | 10,8 | PARTIAL | browser OK; no emulator | no Android device |
+| 17 Acceptance | 1 | IN PROGRESS | | |
 
 Status vocabulary: PASS / PARTIAL / FAIL / BLOCKED / NOT TESTED.
+
+## Session log — 2026-11-02
+
+### T3 Web observatory redesign → DONE
+`tools/ayzr_observatory/{index.html,assets/design-system.css,assets/app.js}`.
+Replaced the single-file gold UI (711 lines) with a modular blue-forward
+institutional design: sidebar, six views, layered navy surfaces, gold demoted to
+one restrained accent. **Verified live in a real browser** against the running
+backend with real BiQuote bars:
+- Overview: XAUUSD 3,899.62, −2.52 (−0.06%), published M15 opportunity
+  (entry 3,899.62 / stop 3,910.25 / targets 3,885.45, 3,878.36).
+- Analysis: 9 timeframes; ASTRA regime=اتجاه هابط, direction=هابط, score 81.6,
+  R:R 1.67, gate مجتازة.
+- History: persisted decision ledger (قرار منشور) + activity log.
+Commit `903d104`.
+
+### T4 Visual-design workflow → DONE (with disclosed limit)
+`tools/ayzr_assets/generate_assets.py` (pure Pillow, offline, deterministic).
+Environment has **no** ImageMagick, **no** SVG rasteriser, **no** generative
+model — disclosed in `docs/ayzr/VISUAL_DESIGN.md §1`. Five assets emitted;
+3/3 Node tests pass (emission, exact dimensions, byte-for-byte determinism).
+Commit `16b41f1`.
+
+### T4 Android build → DONE
+`flutter test` → **153 passed, 4 skipped, 0 failed** (needs
+`LD_LIBRARY_PATH=/workspace/tools/libshim` for sqflite's libsqlite3).
+`flutter build apk --debug` → `app-debug.apk` (101.6 MB), package
+`com.ayzr.ayzr_app`, label `أيزر`, 357 Arabic strings in `strings_ar.dart`.
+Release signing blocked: no JDK in the image.
+

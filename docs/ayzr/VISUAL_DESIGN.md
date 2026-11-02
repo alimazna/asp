@@ -352,3 +352,24 @@ Recorded because they were real bugs in generated output, not hypotheticals.
 - **No deployment.** No push, no release, no store upload.
 - **Font licensing.** Cairo ships under the SIL OFL 1.1; the licence text is
   included next to the font and asserted present by the verifier.
+
+---
+
+## 8. Web/observatory asset generator (added 2026-10-27)
+
+The Android launcher-icon ladder above is produced by the earlier toolchain.
+For the **web observatory** a second, independent generator was added so the
+browser surface and the app share one palette without coupling to the Android
+resource layout.
+
+- **Tool:** `tools/ayzr_assets/generate_assets.py` (pure Pillow, offline).
+- **Output dir:** `tools/ayzr_observatory/assets/`.
+- **Assets:** `logo-mark.png` (256²), `favicon.png` (64²), `app-icon.png`
+  (512², transparent), `og-card.png` (1200×630), `wordmark-ar.png` (1200×260).
+- **Tests:** `tools/ayzr_assets/tests/assets.test.mjs` — 3 Node tests covering
+  emission, exact dimensions and byte-for-byte determinism.
+
+Same capability boundary as §1: this is **deterministic programmatic drawing,
+not generative AI**. The generator reads no network, no model weights and no
+external service. Colours are taken from `design-system.css` so the observatory
+and the app never drift.
