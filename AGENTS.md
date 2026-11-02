@@ -283,12 +283,21 @@ Rules:
   Home carries the preparation section (`upcoming_news_section.dart` +
   `countdown.dart`); relative levels (`levels.expected_move_points` /
   `stop_distance_points` / `relative_levels_note_ar`) render when an absolute
-  price could not be grounded. Build: `ANDROID_HOME=/workspace/tools/android-sdk
-  JAVA_HOME=/workspace/jdk flutter build apk --debug` (release:
-  `flutter build apk --release`). Use `/workspace/tools/android-sdk`, **not**
+  price could not be grounded.
+- Android build env in this image: `ANDROID_HOME=/workspace/tools/android-sdk`,
+  `JAVA_HOME=/workspace/tools/jdk17`, Flutter on `PATH` from
+  `/workspace/tools/flutter/bin`. Use `/workspace/tools/android-sdk`, **not**
   `/workspace/android-sdk`: only the former carries the `ndk/27.0.12077973` that
-  `android/app/build.gradle` pins. Tests: `flutter test` (114 pass, 3 live skipped);
-  opt-in live run: `AYZR_LIVE_BASE_URL=… AYZR_LIVE_TOKEN=… flutter test --tags live`.
+  `android/app/build.gradle` pins.
+- **Release signing is fail-closed.** `flutter build apk --release` refuses
+  (GradleException) unless `ayzr-android/android/key.properties` and a real
+  keystore exist; it no longer falls back to the debug key. `tool/build_apk.sh
+  release` skips with a message. `--debug` is unaffected. Template:
+  `android/key.properties.example`.
+- `flutter test` needs `LD_LIBRARY_PATH` to a dir holding `libsqlite3.so` for the
+  journal/sqflite tests (e.g. symlink `/lib/x86_64-linux-gnu/libsqlite3.so.0`).
+  Expected: **135 passed, 3 skipped**. `flutter analyze` → 0 issues.
+  `tool/build_apk.sh both` runs analyze + test + debug build + release skip.
 
 ## Multi-provider LLM failover (2026-10-27)
 
