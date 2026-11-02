@@ -35,9 +35,10 @@ BIQUOTE_INTERVAL: dict[str, str] = {
     "H1": "1h",
     "H4": "4h",
     "D1": "1d",
-    "MN1": "1M",
-    # W1 is intentionally absent: biquote returns an empty series for `1w`, so
-    # the timeframe is reported as unsupported rather than served wrong.
+    # W1 and MN1 are intentionally absent. biquote returns an empty series for
+    # `1w`, and `1M` is worse than empty: it answers with *minute* bars while
+    # echoing the label "1M" back. Both are reported as unsupported rather than
+    # served wrong.
 }
 
 YAHOO_INTERVAL: dict[str, str] = {
@@ -101,7 +102,16 @@ def is_aligned(open_time: int, tf: str) -> bool:
 
 
 def supported_timeframes() -> list[str]:
-    return list(BIQUOTE_INTERVAL)
+    """Timeframes the service can actually deliver, in chart order.
+
+    This is the union of both sources, not just biquote. Reporting only the
+    primary feed hid W1/MN1, which the fallback serves fine — the UI was
+    hiding timeframes that work. Each candle carries the source that answered,
+    so a caller can always see where a series came from.
+    """
+    order = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+    available = set(BIQUOTE_INTERVAL) | set(YAHOO_INTERVAL)
+    return [tf for tf in order if tf in available]
 
 
 def _valid_ohlc(o: float, h: float, l: float, c: float) -> bool:
@@ -145,8 +155,6 @@ async def _fetch_biquote(timeframe: str, limit: int, timeout_s: float) -> list[C
     except (KeyError, TypeError, ValueError) as exc:
         raise DataUnavailable(f"unexpected biquote shape: {exc}") from exc
 
-    # Guard against silent substitution: if biquote ignored our interval it
-    # answers with a different one, and serving that would mislabel every bar.
     if returned != interval:
         raise DataUnavailable(
             f"biquote answered interval {returned!r} but {interval!r} was requested"
@@ -185,6 +193,41 @@ async def _fetch_biquote(timeframe: str, limit: int, timeout_s: float) -> list[C
     out = closed if closed else out[:-1]
     out.sort(key=lambda c: c.open_time)
     return out[-limit:]
+
+
+def _median_gap(bars: list[Candle]) -> float:
+    """Median spacing between consecutive bars, independent of feed order.
+
+    Feeds differ: biquote sends newest-first, Yahoo oldest-first. Sorting here
+    means the guard judges the data's spacing, which is what matters, instead of
+    failing on an ordering convention that fetch_candles normalises anyway.
+    """
+    times = sorted(c.open_time for c in bars)
+    gaps = sorted(b - a for a, b in zip(times, times[1:]))
+    if not gaps:
+        return 0.0
+    mid = len(gaps) // 2
+    return float(gaps[mid] if len(gaps) % 2 else (gaps[mid - 1] + gaps[mid]) / 2)
+
+
+def _assert_spacing(bars: list[Candle], timeframe: str, source: str) -> None:
+    """Reject a series whose real bar spacing contradicts its timeframe.
+
+    This is the guard that matters: it catches a feed that labels data with one
+    timeframe while serving another, which a label comparison cannot see.
+    """
+    step = TIMEFRAME_SECONDS[timeframe]
+    if len(bars) < 3:
+        return
+    gap = _median_gap(bars)
+    if gap <= 0:
+        raise DataUnavailable(f"{source} returned duplicated {timeframe} bars")
+    # Half to double the expected step. Real markets gap, but not by 1000x.
+    if not (step * 0.5 <= gap <= step * 2.0):
+        raise DataUnavailable(
+            f"{source} served {timeframe} bars spaced {gap:.0f}s apart; "
+            f"expected about {step}s"
+        )
 
 
 async def _fetch_yahoo(timeframe: str, limit: int, timeout_s: float) -> list[Candle]:
@@ -258,8 +301,15 @@ async def fetch_candles(
     for name, fn in (("biquote", _fetch_biquote), ("yahoo", _fetch_yahoo)):
         try:
             bars = await fn(timeframe, limit, timeout_s)
-            if bars:
-                return bars
+            if not bars:
+                continue
+            # Verified here, at the one place every source passes through, so a
+            # new or swapped fetcher cannot bypass it.
+            _assert_spacing(bars, timeframe, source=name)
+            # Ascending is part of the contract callers rely on, so it is
+            # enforced here instead of assumed of each feed. biquote sends
+            # newest-first and Yahoo oldest-first.
+            return sorted(bars, key=lambda c: c.open_time)
         except DataUnavailable as exc:
             errors.append(f"{name}: {exc}")
     raise DataUnavailable("; ".join(errors))

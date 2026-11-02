@@ -135,12 +135,127 @@ def test_unsupported_timeframe_raises():
     with pytest.raises(DataUnavailable):
         asyncio.run(ds.fetch_candles("X9"))
 
-def test_w1_is_not_offered_because_biquote_returns_nothing():
-    assert "W1" not in ds.supported_timeframes()
+def test_biquote_returns_nothing_for_w1():
+    """biquote's `1w` is empty, which is why W1 comes from the fallback."""
+    assert "W1" not in ds.BIQUOTE_INTERVAL
 
-def test_supported_timeframes_are_the_documented_eight():
+def test_w1_is_still_served_by_the_fallback():
+    assert "W1" in ds.supported_timeframes()
+
+def test_biquote_does_not_offer_mn1():
+    """biquote answers `1M` with minute bars while echoing the label "1M"."""
+    assert "MN1" not in ds.BIQUOTE_INTERVAL
+
+def test_mn1_is_still_served_by_the_fallback():
+    """Removing it from biquote must not remove it from the service."""
+    assert "MN1" in ds.supported_timeframes()
+
+def test_supported_timeframes_covers_both_sources():
+    assert ds.supported_timeframes() == [
+        "M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+
+def test_every_offered_timeframe_has_at_least_one_source():
+    for tf in ds.supported_timeframes():
+        assert tf in ds.BIQUOTE_INTERVAL or tf in ds.YAHOO_INTERVAL
+
+def test_mn1_from_the_fallback_is_monthly_not_minutely():
+    """The regression that mattered: MN1 must never carry minute data."""
+    monthly = [Candle(1_700_000_000 + i * 2592000, 2000.0, 2001.0, 1999.0,
+                      2000.5, 10.0, "MN1") for i in range(12)]
+    ds._assert_spacing(monthly, "MN1", "yahoo")
+
+def test_mn1_carrying_minute_data_is_rejected():
+    minutely = [Candle(1_700_000_000 + i * 60, 2000.0, 2001.0, 1999.0,
+                       2000.5, 10.0, "MN1") for i in range(12)]
+    with pytest.raises(DataUnavailable):
+        ds._assert_spacing(minutely, "MN1", "biquote")
+
+
+# --- structural spacing guard ------------------------------------------------
+# This is the guard that catches a feed labelling data with one timeframe while
+# serving another. A label comparison cannot see that.
+
+def test_spacing_guard_accepts_correctly_spaced_bars():
+    ds._assert_spacing(mk(50), "M15", "test")  # 900s apart, as M15 should be
+
+def test_spacing_guard_rejects_minute_bars_labelled_monthly():
+    """The real defect: minute bars served under a monthly label."""
+    minute_bars = [Candle(1_700_000_000 + i * 60, 2000.0, 2001.0, 1999.0,
+                          2000.5, 10.0, "MN1") for i in range(50)]
+    with pytest.raises(DataUnavailable):
+        ds._assert_spacing(minute_bars, "MN1", "biquote")
+
+def test_spacing_guard_rejects_hour_bars_labelled_daily():
+    hourly = [Candle(1_700_000_000 + i * 3600, 2000.0, 2001.0, 1999.0,
+                     2000.5, 10.0, "D1") for i in range(50)]
+    with pytest.raises(DataUnavailable):
+        ds._assert_spacing(hourly, "D1", "test")
+
+def test_spacing_guard_tolerates_real_weekend_gaps():
+    """A gap must not make a correct series look wrong; the median is used."""
+    bars = []
+    t = 1_700_000_000
+    for i in range(40):
+        if i == 20:
+            t += 3 * 86400  # a weekend of missing daily bars
+        bars.append(Candle(t, 2000.0, 2001.0, 1999.0, 2000.5, 10.0, "D1"))
+        t += 86400
+    ds._assert_spacing(bars, "D1", "test")
+
+def test_spacing_guard_is_skipped_for_tiny_series():
+    ds._assert_spacing(mk(2), "M15", "test")  # too short to judge
+
+def test_median_gap_is_order_independent():
+    """biquote sends newest-first; the guard must not read that as unordered.
+
+    This was a real outage: the guard rejected every biquote series and the
+    service silently served the fallback for all nine timeframes.
+    """
+    asc = mk(20)
+    desc = list(reversed(asc))
+    assert ds._median_gap(asc) == ds._median_gap(desc) == 900
+
+def test_spacing_guard_accepts_a_newest_first_series():
+    ds._assert_spacing(list(reversed(mk(50))), "M15", "biquote")
+
+def test_fetch_returns_bars_in_ascending_order(monkeypatch):
+    async def newest_first(tf, limit, timeout_s):
+        return list(reversed(mk(50)))
+    monkeypatch.setattr(ds, "_fetch_biquote", newest_first)
+    async def down(*a, **k):
+        raise DataUnavailable("fallback down")
+    monkeypatch.setattr(ds, "_fetch_yahoo", down)
+    bars = asyncio.run(ds.fetch_candles("M15"))
+    assert all(a.open_time < b.open_time for a, b in zip(bars, bars[1:]))
+
+def test_biquote_is_preferred_over_the_fallback(monkeypatch):
+    async def primary(tf, limit, timeout_s):
+        return [Candle(1_700_000_000 + i * 900, 2000.0, 2001.0, 1999.0,
+                       2000.5, 10.0, tf, "biquote:XAUUSD") for i in range(20)]
+    async def fallback(tf, limit, timeout_s):
+        raise DataUnavailable("should not be reached")
+    monkeypatch.setattr(ds, "_fetch_biquote", primary)
+    monkeypatch.setattr(ds, "_fetch_yahoo", fallback)
+    bars = asyncio.run(ds.fetch_candles("M15"))
+    assert "biquote" in bars[0].source
+
+def test_median_gap_ignores_a_single_outlier():
+    bars = mk(21)              # 900s apart
+    bars[10].open_time += 4000  # one disturbance
+    assert ds._median_gap(bars) == 900
+
+def test_fetch_rejects_a_source_serving_the_wrong_spacing(monkeypatch):
+    async def wrong(tf, limit, timeout_s):
+        return [Candle(1_700_000_000 + i * 60, 2000.0, 2001.0, 1999.0,
+                       2000.5, 10.0, tf) for i in range(50)]
+    monkeypatch.setattr(ds, "_fetch_biquote", wrong)
+    monkeypatch.setattr(ds, "_fetch_yahoo", wrong)
+    with pytest.raises(DataUnavailable):
+        asyncio.run(ds.fetch_candles("M15"))
+
+def test_supported_timeframes_are_the_documented_nine():
     assert set(ds.supported_timeframes()) == {
-        "M1", "M5", "M15", "M30", "H1", "H4", "D1", "MN1"}
+        "M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"}
 
 def test_fetch_raises_when_both_sources_fail(monkeypatch):
     async def boom(*a, **k):

@@ -13,6 +13,7 @@ Two hard rules:
 from __future__ import annotations
 
 import json
+import re
 
 import httpx
 
@@ -43,6 +44,85 @@ _SYSTEM = """أنت محلل أسواق مالية متخصص في الذهب. �
 
 class AiUnavailable(RuntimeError):
     pass
+
+
+def _norm_number(tok: str) -> str:
+    """Normalise a numeric token for comparison.
+
+    Only trailing zeros *after a decimal point* are dropped. Stripping them from
+    the integer part would collapse 10, 100 and 1000 into "1", which would let an
+    invented "100" pass as grounded whenever a "1" appeared in the input.
+    """
+    t = tok.replace(",", "")
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return t or "0"
+
+
+def _numbers_in(text: str) -> set[str]:
+    """Numeric tokens in a string, normalised for comparison."""
+    # Thousands separators are matched as part of one token. Splitting
+    # "3,954.79" into "3954" and "79" would flag both as invented and suppress a
+    # perfectly grounded analysis.
+    pattern = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
+    return {_norm_number(t) for t in re.findall(pattern, text)}
+
+
+def _grounded_numbers(facts: dict) -> tuple[set[str], list[float]]:
+    """Every number the model was shown, from both keys and values.
+
+    Keys count: the fact names carry period lengths ("مؤشر القوة النسبية 14",
+    "المتوسط السريع 20"), so a model that names the indicator is quoting its
+    input, not inventing a figure.
+
+    Returns the normalised tokens and the same values as floats, so a rounded
+    restatement can be recognised as quoting rather than inventing.
+    """
+    tokens: set[str] = set()
+    floats: list[float] = []
+    for k, v in facts.items():
+        for text in (str(k), str(v)):
+            tokens |= _numbers_in(text)
+            for tok in re.findall(r"\d+(?:\.\d+)?", text.replace(",", "")):
+                try:
+                    floats.append(float(tok))
+                except ValueError:
+                    pass
+    return tokens, floats
+
+
+def _decimals(tok: str) -> int:
+    return len(tok.split(".")[1]) if "." in tok else 0
+
+
+def _ungrounded_numbers(analysis: dict, facts: dict) -> list[str]:
+    """Numbers the model wrote that were never in its input.
+
+    The model has no basis for any figure beyond the ones it was handed, so an
+    unknown number is an invention — the "10% loss" derived from a 2.0
+    risk/reward ratio is the case that motivated this.
+    """
+    allowed, allowed_floats = _grounded_numbers(facts)
+    found: set[str] = set()
+    for field in ("summary_ar", "risk_ar", "watch_ar"):
+        found |= _numbers_in(analysis.get(field, ""))
+
+    invented = []
+    for tok in found:
+        if tok in allowed:
+            continue
+        # The model may restate a supplied figure at lower precision ("55.7"
+        # for 55.66). Accept that, but only if some supplied number really does
+        # round to what was written — otherwise a figure was invented.
+        d = _decimals(tok)
+        try:
+            value = float(tok)
+        except ValueError:
+            invented.append(tok)
+            continue
+        if not any(round(av, d) == round(value, d) for av in allowed_floats):
+            invented.append(tok)
+    return sorted(invented)
 
 
 async def analyze(
@@ -123,11 +203,23 @@ async def analyze(
         # than showing raw model text as if it were an analysis.
         raise AiUnavailable(f"model output was not valid JSON: {exc}") from exc
 
-    return {
-        "status": "ok",
+    analysis = {
         "summary_ar": str(parsed.get("summary_ar", "")).strip(),
         "risk_ar": str(parsed.get("risk_ar", "")).strip(),
         "watch_ar": str(parsed.get("watch_ar", "")).strip(),
+    }
+
+    invented = _ungrounded_numbers(analysis, facts)
+    if invented:
+        # Withhold the text rather than show a fabricated figure. The technical
+        # proposal is unaffected and remains on screen.
+        raise AiUnavailable(
+            "النموذج ذكر أرقاماً لم تُعطَ له: " + ", ".join(invented[:5])
+        )
+
+    return {
+        "status": "ok",
+        **analysis,
         "model": "qwen2.5-1.5b-instruct-q4_k_m",
         "provider": "local",
         "grounded_on": facts,

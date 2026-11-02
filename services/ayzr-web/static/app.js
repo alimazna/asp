@@ -3,9 +3,12 @@
    view renders an explicit Arabic state — it never falls back to a plausible
    placeholder. */
 
+// Labels for timeframes we know how to name. The buttons themselves are built
+// from /api/timeframes, so the UI can never offer a timeframe the backend will
+// reject — and can never hide one it supports.
 const TF_LABELS = {
   M1: "دقيقة", M5: "5 دقائق", M15: "15 دقيقة", M30: "30 دقيقة",
-  H1: "ساعة", H4: "4 ساعات", D1: "يومي", MN1: "شهري",
+  H1: "ساعة", H4: "4 ساعات", D1: "يومي", W1: "أسبوعي", MN1: "شهري",
 };
 
 const state = {
@@ -260,16 +263,28 @@ function newsRow(e) {
 
 async function viewAnalysis() {
   const el = document.getElementById("view");
-  el.innerHTML = `
-    <section class="card">
+  el.innerHTML = `<section class="card">
       <div class="card-title">الإطار الزمني</div>
-      <div class="tf-bar" id="tfBar">
-        ${Object.keys(TF_LABELS).map((tf) =>
-          `<button class="tf-btn ${tf === state.timeframe ? "active" : ""}" data-tf="${tf}">
-            ${TF_LABELS[tf]} <span style="opacity:.6">${tf}</span></button>`).join("")}
-      </div>
-      <div id="analysisBody">${loading("جارٍ تحميل الشموع…")}</div>
+      <div class="tf-bar" id="tfBar">${loading("")}</div>
+      <div id="analysisBody"></div>
     </section>`;
+
+  let timeframes;
+  try {
+    const d = await api("/api/timeframes");
+    timeframes = d.timeframes;
+  } catch (e) {
+    document.getElementById("tfBar").innerHTML = "";
+    document.getElementById("analysisBody").innerHTML =
+      errorState("تعذّر تحميل الإطارات الزمنية", e.message);
+    return;
+  }
+
+  if (!timeframes.includes(state.timeframe)) state.timeframe = timeframes[0];
+
+  document.getElementById("tfBar").innerHTML = timeframes.map((tf) =>
+    `<button class="tf-btn ${tf === state.timeframe ? "active" : ""}" data-tf="${tf}">
+      ${esc(TF_LABELS[tf] || tf)} <span style="opacity:.6">${esc(tf)}</span></button>`).join("");
 
   document.getElementById("tfBar").addEventListener("click", (ev) => {
     const btn = ev.target.closest(".tf-btn");

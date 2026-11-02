@@ -144,12 +144,7 @@ async def news(limit: int = Query(30, ge=1, le=200)):
 
 @app.get("/api/timeframes")
 async def timeframes():
-    return {
-        "timeframes": [
-            {"code": tf, "label": tf}
-            for tf in datasource.supported_timeframes()
-        ]
-    }
+    return {"timeframes": datasource.supported_timeframes()}
 
 
 @app.exception_handler(DataUnavailable)
