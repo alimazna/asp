@@ -143,7 +143,34 @@ limitation text instead of a fabricated analysis.
 analysis needs `LLM7_READ_TIMEOUT_MS>=120000` and a paid/quota-sufficient
 balance. No live LLM7 call is made by any test.
 
-## 6. Web observatory
+## 6. End-to-end simulation (mocked provider, real server)
+
+Run against `ASTRA_LLM_PROVIDER=mock ASTRA_MOCK_LLM_MODE=valid` on port 8082,
+script `/tmp/e2e_test.py`. No external service was contacted.
+
+| Step | Request | Result |
+|---|---|---|
+| 1 | `POST /api/v1/news/ingest` (new article) | `200`, `state: stored_new` |
+| 1b | same article again | `200`, `state: duplicate_content` — deduped across sources |
+| 2 | `POST /api/v1/candles/ingest` (10 M15 bars) | `200`, `ingested: 10`, `rejected: []` |
+| 3 | identical batch again | `200`, `ingested: 0`, all 10 `already_stored` — idempotent |
+| 4 | `GET /api/v1/candles?tf=M15&limit=5` | `200`, `bars` count = 5, real OHLC |
+| 5 | `GET /api/v1/news/analyze?id=…` | `200`, `status: ok`, `direction: bullish`, `provider: mock`, Arabic summary |
+| 6 | ingest with no `Authorization` | **`401` `unauthorized`** |
+| 7 | ingest with `high < low` | `200`, candle `rejected` with OHLC-ordering reason |
+
+Schema facts confirmed against the running server (the docs and any future
+sender must match these exactly):
+
+- Candle batch body needs **`source_id`**, `symbol`, `timeframe`, `candles[]`
+  (not `source`).
+- Each candle needs **`time`** (epoch seconds), not `open_time`.
+- `GET /api/v1/candles` takes **`tf`** and **`limit`** only (no `symbol`), and
+  returns its array under **`bars`**, not `candles`.
+- News dedup is content-based: a second article with the same story returns
+  `duplicate_content` plus `canonical_article_id`.
+
+## 7. Web observatory
 
 Redesign verified live in a browser against the running backend:
 overview `XAUUSD 3,899.62 / −2.52 / −0.06%` with the published M15 opportunity
