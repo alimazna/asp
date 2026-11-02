@@ -404,8 +404,13 @@ and the release APK's reproducibility was measured, not assumed:
   APK Signing Block, where the ECDSA signature's random nonce lives.
 - `tool/apk_payload_hash.py` isolates that payload hash; `tool/build_apk.sh`
   runs the full chain and prints size + full hash + payload hash.
-- Release signing now reads `android/key.properties` when present and falls back
-  to the debug key otherwise, so a privately signed build needs no Gradle edit.
+- Release signing is fail-closed (2026-11-02): `flutter build apk --release`
+  **refuses** unless `android/key.properties` and a real keystore are present.
+  This replaced an earlier fallback that signed a release APK with the debug key,
+  which is not distributable and hides that fact behind a release filename.
+  `tool/build_apk.sh release` skips with an explanatory message instead; a
+  template is at `android/key.properties.example`.
 
-Not claimed: no device/emulator install; the release APK is debug-signed until a
-real keystore is supplied.
+Not claimed: no device/emulator install. The debug APK builds and its payload is
+secret-clean; a distributable release APK is not produced in this environment
+because no keystore exists here — the release build correctly refuses.

@@ -199,11 +199,17 @@ Observed: a clean `flutter clean` rebuild and an incremental rebuild of the same
 tree gave identical payload hashes (`c76bf38f…`, 22 925 025 B) with differing
 full-file hashes.
 
-Release signing: the release build signs with the debug keystore unless
+Release signing is fail-closed: `flutter build apk --release` **refuses** unless
 `ayzr-android/android/key.properties` exists (it is git-ignored). Supplying that
 file — `storeFile`, `storePassword`, `keyAlias`, `keyPassword` — makes the same
-`flutter build apk --release` produce a privately signed APK with no other
-change. **Never commit the keystore or `key.properties`.**
+command produce a privately signed APK. A template with the `keytool` command is
+at `android/key.properties.example`.
+
+The check is scoped to release tasks, so `flutter build apk --debug` still works
+without a keystore. This replaced an earlier behaviour that silently signed a
+release APK with the debug key: a debug-signed artifact is not distributable,
+and shipping one under a release name hides that. **Never commit the keystore or
+`key.properties`.**
 
 To run against a specific backend without editing settings:
 
@@ -297,14 +303,17 @@ request the notification permissions explicitly.
 - No `astra-frontend/` or Windows-sender changes; backend changes are additive
   and documented in `docs/ayzr/BACKEND.md`.
 - Not deployed; no store submission.
-- Both APKs are built and verified locally:
-  - debug — `build/app/outputs/flutter-apk/app-debug.apk` (~91 MB);
-  - release — `build/app/outputs/flutter-apk/app-release.apk` (~22.7 MB),
-    built with `flutter build apk --release`.
-  The release build is currently signed with the debug keystore (see
-  `android/app/build.gradle`) so it is reproducible without owner secrets; a
-  distributable release replaces that with `android/key.properties` and a real
-  keystore — the only thing standing between this tree and a signed release.
+- Both APKs are buildable and verified locally:
+  - debug — `build/app/outputs/flutter-apk/app-debug.apk` (~91 MB, built and
+    payload-hashed in this pass);
+  - release — `build/app/outputs/flutter-apk/app-release.apk`, produced by
+    `flutter build apk --release` **only when** `android/key.properties` and a
+    real keystore are present. Without them the release build refuses with an
+    explanatory message rather than emitting a debug-signed APK.
+  The release build is therefore not produced in this environment; the debug APK
+  is the tested artifact. A distributable release needs `android/key.properties`
+  and a real keystore — the only thing standing between this tree and a signed
+  release.
 - No device or emulator run was possible in this environment: the APK is built
   and its manifest/permissions verified with `aapt`, but it has **not** been
   installed on a real device.

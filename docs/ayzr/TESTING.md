@@ -50,7 +50,7 @@ test. Both are inert unless set, so production behaviour is unchanged:
 | Variable | Effect | Used by |
 |---|---|---|
 | `ASTRA_TEST_FORCE_STORE_FAILURE=candles` | forces the named store write to fail, so a persistence-failure response can be asserted without a filesystem race | `AyzrSecurityTests` |
-| `ASTRA_TEST_SEED_TRADE=BUY\|SELL` | seeds one deterministic open trade so the news-to-open-trade linkage is exercised with a real trade | `mock_news_api.py selftest` |
+| `ASTRA_TEST_SEED_TRADE=BUY\|SELL` | seeds one deterministic open trade so the news-to-open-trade linkage is exercised with a real trade | `NewsApiIntegrationTests` (linkage cases), `mock_news_api.py selftest` |
 
 Each C++ test binary prints one `[PASS]`/`[FAIL]` line per case and a summary
 line (`N test case(s), F failed, A assertion failure(s)`). A non-zero exit means
@@ -69,12 +69,12 @@ scripts that print their own `N/M checks passed`; two of them
 (`test_contract_t16.py`, `test_e2e_real_host_t13.py`) SKIP unless a `build/`
 directory with `aura_backend_host` exists.
 
-## Totals (verified 2026-11-01, AYZR working tree)
+## Totals (C++ and Flutter re-verified 2026-11-02; others 2026-11-01)
 
 | Suite | Result |
 |-------|--------|
-| CTest cases | **44/44 passed, 0 failed** |
-| C++ harness test cases (44 binaries) | 0 failed (per-binary `RESULT: PASS`) |
+| C++ test binaries | **44/44 passed, 0 failed** (`build-ayzr`, all 44 built and run) |
+| C++ harness test cases (43 reporting binaries) | **509 cases, 0 failed** (per-binary exit 0) |
 | `SingleInstanceTests` assertions | 10/10 (own printer) |
 | `tests/models` (unittest) | **308 passed, 0 failed** |
 | `tests/integration` (9 scripts) | **8 passed, 1 out of scope** (`test_bridge_t06` — separate Windows MT5 project) |
@@ -82,9 +82,11 @@ directory with `aura_backend_host` exists.
 | Flutter (AYZR Android) | **135 passed, 0 failed, 3 skipped** (`LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test`) |
 | Flutter live integration (opt-in) | **3 passed** (`flutter test --tags live` against a local server) |
 | Flutter analyze | **0 issues** (`flutter analyze`) |
+| `tools/ayzr_agents` (unittest) | **22 passed, 0 failed** (`python3 -m unittest discover -s tools/ayzr_agents/tests`) |
+| `tools/ayzr_observatory` (unittest) | **19 passed, 0 failed** (`python3 -m unittest discover -s tools/ayzr_observatory/tests`) |
 | `tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed, 0 failed** |
 | `tools/ayzr_agents/mock_news_api.py selftest` | **240/240 passed, 0 failed** |
-| Release APK payload | `tool/apk_payload_hash.py app-release.apk` | **`c76bf38f…`, identical across clean + incremental builds** |
+| Debug APK | `build/app/outputs/flutter-apk/app-debug.apk`, payload `0fc43721…`, secret-clean |
 
 The two AYZR suites that previously failed (`AyzrFailureInjectionTests`,
 `AyzrSecurityTests`) now pass. The security case used a `chmod`-based
@@ -176,7 +178,7 @@ Per-binary C++ harness counts at the same revision:
 AnalysisApiTests 10            IngestContractTests 2
 AnalyticalFeatureBoundsTests 8 JsonParserTests 4
 AnalyticalFeatureLeakageTests 8 LoopbackConcurrencyTests 1
-AnalyticalFeatureRuleATests 7  NewsApiIntegrationTests 6
+AnalyticalFeatureRuleATests 7  NewsApiIntegrationTests 11
 AnalyticalFeatureTests 9       NewsIntelligenceAgentCTests 34
 AstraApiServerTests 9          NewsIntelligenceTests 54
 AyzrFailureInjectionTests 18   PackageSmokeTests 6
