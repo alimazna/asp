@@ -86,7 +86,7 @@ directory with `aura_backend_host` exists.
 | `tools/ayzr_observatory` (unittest) | **19 passed, 0 failed** (`python3 -m unittest discover -s tools/ayzr_observatory/tests`) |
 | `tools/ayzr_agents/lifecycle_e2e.py` | **29/29 passed, 0 failed** |
 | `tools/ayzr_agents/mock_news_api.py selftest` | **240/240 passed, 0 failed** |
-| Debug APK | `build/app/outputs/flutter-apk/app-debug.apk`, payload `0fc43721…`, secret-clean |
+| Debug APK | `build/app/outputs/flutter-apk/app-debug.apk`, secret-clean (payload `51b80ecd…` as built 2026-11-02) |
 
 The two AYZR suites that previously failed (`AyzrFailureInjectionTests`,
 `AyzrSecurityTests`) now pass. The security case used a `chmod`-based

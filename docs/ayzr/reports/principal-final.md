@@ -451,7 +451,7 @@ python3 -m unittest discover -s tools/ayzr_agents/tests        # Ran 22 tests �
 python3 -m unittest discover -s tools/ayzr_observatory/tests   # Ran 19 tests — OK
 flutter analyze                                 # No issues found
 LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test    # 135 passed, 3 skipped
-flutter build apk --debug                       # app-debug.apk, payload 0fc43721…
+flutter build apk --debug                       # app-debug.apk, payload 51b80ecd… (this build)
 flutter build apk --release                     # BUILD FAILED: needs a real signing keystore (expected)
 bash tool/build_apk.sh both                     # analyze + test + debug build + release skip
 ```
