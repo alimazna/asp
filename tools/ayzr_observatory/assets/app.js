@@ -9,7 +9,9 @@
 
 const API = {
   async get(path) {
-    const url = path.startsWith('http') ? path : path;
+    // Same-origin only: the proxy in front of this page holds the client
+    // token, so the browser must never be pointed at another origin.
+    const url = path.startsWith('http') ? path : window.location.origin + path;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     const text = await res.text();
     let json = null;

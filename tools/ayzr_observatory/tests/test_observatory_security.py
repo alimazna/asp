@@ -25,6 +25,26 @@ sys.path.insert(0, ROOT)
 import serve  # noqa: E402  (path set above)
 
 INDEX_HTML = os.path.join(ROOT, "index.html")
+ASSETS_DIR = os.path.join(ROOT, "assets")
+
+
+def load_page_source():
+    """The page markup plus every shipped asset script, concatenated.
+
+    The UI was split into index.html + assets/app.js (design system in CSS).
+    Security assertions must cover the *rendered* surface, so we read all of
+    it rather than index.html alone, otherwise a rule silently stops being
+    enforced the moment code moves out of the markup.
+    """
+    parts = []
+    with open(INDEX_HTML, encoding="utf-8") as fh:
+        parts.append(fh.read())
+    if os.path.isdir(ASSETS_DIR):
+        for name in sorted(os.listdir(ASSETS_DIR)):
+            if name.endswith(".js"):
+                with open(os.path.join(ASSETS_DIR, name), encoding="utf-8") as fh:
+                    parts.append(fh.read())
+    return "\n".join(parts)
 
 SENTINEL_TOKEN = "sentinel-client-token-do-not-log"
 
@@ -228,8 +248,7 @@ class PageHasNoCredentialHandling(unittest.TestCase):
     """
 
     def setUp(self):
-        with open(INDEX_HTML, encoding="utf-8") as fh:
-            raw = fh.read()
+        raw = load_page_source()
         # Drop HTML comments and whole-line JS comments.
         raw = re.sub(r"<!--.*?-->", "", raw, flags=re.S)
         self.code = "\n".join(
