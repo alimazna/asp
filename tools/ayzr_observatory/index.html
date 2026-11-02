@@ -116,6 +116,7 @@
   <button data-tab="overview" class="active">نظرة عامة</button>
   <button data-tab="engines">المحركات</button>
   <button data-tab="trades">الصفقات</button>
+  <button data-tab="ecosystem">المنظومة</button>
   <button data-tab="news">الأخبار</button>
   <button data-tab="activity">السجل</button>
 </nav>
@@ -331,11 +332,154 @@ async function renderActivity(){
   setStatus('ok','متصل');
 }
 
+// ---- ecosystem -----------------------------------------------------------
+// Four ecosystem routes, fetched together. Each payload is read defensively
+// from the `data` envelope; a route that fails degrades to an inline note
+// rather than blanking the whole tab. No value is fabricated: a null stays
+// "—", and an uncalibrated confidence is never shown as a probability.
+async function renderEcosystem(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل المنظومة…</div>';
+
+  const [sessR, engR, oppR, ledR] = await Promise.all([
+    api('/api/v1/ayzr/ecosystem/sessions'),
+    api('/api/v1/ayzr/ecosystem/engines'),
+    api('/api/v1/ayzr/ecosystem/opportunities'),
+    api('/api/v1/ayzr/ecosystem/ledger?limit=100'),
+  ]);
+  const unwrap = (r) => (r.json && (r.json.data || r.json)) || {};
+  const sess = unwrap(sessR), eng = unwrap(engR);
+  const opp = unwrap(oppR), led = unwrap(ledR);
+
+  let html = '<div class="banner info">وضع الظل فقط — لا تنفيذ لعمليات تداول. '+
+             'كل قيمة معروضة مصدرها الخادم.</div>';
+
+  // Sessions
+  html += '<div class="card"><h2>الجلسات</h2>';
+  const sessions = sess.sessions || [];
+  if (!sessions.length){
+    html += '<div class="row"><span class="k">لا تتوفر بيانات الجلسات</span></div>';
+  } else {
+    if (sess.londonNewYorkOverlap)
+      html += '<div class="row"><span class="k">تداخل لندن ونيويورك</span>'+
+              '<span class="v"><span class="pill up">نشط</span></span></div>';
+    for (const s of sessions){
+      const cls = s.error ? 'warn' : (s.phase==='OPEN' ? 'up' : '');
+      html += `<div class="row"><span class="k">${esc(s.nameAr||s.id)} `+
+              `<span class="mono">${esc(s.zoneId)}</span></span>`+
+              `<span class="v"><span class="pill ${cls}">${esc(s.phaseAr)}</span> `+
+              `${s.localTime?('<span class="mono">'+esc(s.localTime)+'</span>'):'—'}`+
+              `${s.inDst?' <span class="pill warn">توقيت صيفي</span>':''}</span></div>`;
+      if (s.error)
+        html += `<div class="row"><span class="k">خطأ المنطقة الزمنية</span>`+
+                `<span class="v">${esc(s.error)}</span></div>`;
+    }
+  }
+  html += '</div>';
+
+  // Engines
+  html += '<div class="card"><h2>المحركات المتخصصة</h2>'+
+          `<div class="row"><span class="k">إصدار العقد</span>`+
+          `<span class="v mono">${esc(eng.contractSchemaVersion)}</span></div>`;
+  const engines = eng.engines || [];
+  if (!engines.length){
+    html += '<div class="row"><span class="k">لا توجد محرّكات مسجّلة</span></div>';
+  } else {
+    for (const e of engines){
+      const cls = e.health==='HEALTHY'?'up':(e.health==='UNAVAILABLE'?'warn':'');
+      html += `<div class="row"><span class="k">${esc(e.strategyFamilyAr)} `+
+              `<span class="mono">${esc(e.engineId)}</span></span>`+
+              `<span class="v"><span class="pill ${cls}">${esc(e.healthAr)}</span></span></div>`;
+      if (e.noteAr)
+        html += `<div class="row"><span class="k"></span><span class="v">${esc(e.noteAr)}</span></div>`;
+    }
+  }
+  html += '</div>';
+
+  // Opportunities
+  html += '<div class="card"><h2>الفرص</h2>';
+  const opps = opp.opportunities || [];
+  if ((opp.dataQualityWarnings||[]).length){
+    html += '<div class="banner warn">تحذيرات جودة البيانات: '+
+            opp.dataQualityWarnings.map(esc).join(' · ')+'</div>';
+  }
+  if ((opp.engineFailures||[]).length){
+    html += '<div class="banner warn">أعطال المحرّكات: '+
+            opp.engineFailures.map(esc).join(' · ')+'</div>';
+  }
+  if (!opps.length){
+    html += '<div class="row"><span class="k">لا توجد فرص موثوقة حالياً — '+
+            'لا يتم اختلاق فرص عند غياب البيانات.</span></div>';
+  } else {
+    for (const o of opps){
+      const cls = o.state==='PUBLISH'?'up':(o.state==='WATCH'?'warn':'');
+      html += `<div class="row"><span class="k">${esc(o.symbol)} · `+
+              `${esc(o.timeframe)} · ${esc(o.directionAr)}</span>`+
+              `<span class="v"><span class="pill ${cls}">${esc(o.stateAr)}</span></span></div>`;
+      html += `<div class="row"><span class="k">التبرير</span>`+
+              `<span class="v">${esc(o.rationaleAr)}</span></div>`;
+      if (o.entry)
+        html += `<div class="row"><span class="k">الدخول</span>`+
+                `<span class="v mono">${esc(o.entry.price)} (${esc(o.entry.source)})</span></div>`;
+      if (o.stopLoss)
+        html += `<div class="row"><span class="k">وقف الخسارة</span>`+
+                `<span class="v mono">${esc(o.stopLoss.price)}</span></div>`;
+      for (let i=0;i<(o.takeProfits||[]).length;i++)
+        html += `<div class="row"><span class="k">هدف ${i+1}</span>`+
+                `<span class="v mono">${esc(o.takeProfits[i].price)}</span></div>`;
+      if ((o.agreeingEngines||[]).length)
+        html += `<div class="row"><span class="k">محرّكات متوافقة</span>`+
+                `<span class="v">${o.agreeingEngines.map(esc).join(' · ')}</span></div>`;
+      if ((o.disagreeingEngines||[]).length)
+        html += `<div class="row"><span class="k">محرّكات معارضة</span>`+
+                `<span class="v">${o.disagreeingEngines.map(esc).join(' · ')}</span></div>`;
+      if ((o.conflictNotesAr||[]).length)
+        html += `<div class="row"><span class="k">تعارضات</span>`+
+                `<span class="v">${o.conflictNotesAr.map(esc).join(' · ')}</span></div>`;
+      html += `<div class="row"><span class="k">نواة ASTRA</span><span class="v">`+
+              `${o.astraCorePresent?'مساهمة موجودة':'لا مساهمة'}</span></div>`;
+      for (const ev of (o.contributingEvents||[])){
+        const prob = (ev.confidence && ev.confidence.calibrated &&
+                      ev.confidence.probability!=null)
+          ? (ev.confidence.probability*100).toFixed(1)+'%'
+          : 'غير معاير — لا يُعرض كاحتمال';
+        html += `<div class="row"><span class="k">&nbsp;&nbsp;${esc(ev.strategyFamilyAr)} · `+
+                `${esc(ev.directionAr)}</span><span class="v">${esc(ev.explanationAr)} — `+
+                `${esc(prob)}</span></div>`;
+      }
+    }
+  }
+  html += '</div>';
+
+  // Ledger
+  html += '<div class="card"><h2>سجل القرارات</h2>'+
+          `<div class="row"><span class="k">عدد الصفوف</span>`+
+          `<span class="v mono">${esc(led.count)}</span></div>`;
+  const entries = led.entries || [];
+  if (!entries.length){
+    html += '<div class="row"><span class="k">لا توجد قرارات مسجّلة بعد</span></div>';
+  } else {
+    html += '<table><tr><th>#</th><th>النوع</th><th>المحرّك</th>'+
+            '<th>السبب</th><th>التفصيل</th></tr>';
+    for (const en of entries){
+      html += `<tr><td class="mono">${esc(en.seq)}</td><td>${esc(en.typeAr||en.type)}</td>`+
+              `<td class="mono">${esc(en.engineId||'—')}</td>`+
+              `<td class="mono">${esc(en.reasonCode)}</td><td>${esc(en.detailAr)}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div>';
+
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
 // ---- router --------------------------------------------------------------
 
 const RENDERERS = {
   overview: renderOverview, engines: renderEngines,
-  trades: renderTrades, news: renderNews, activity: renderActivity,
+  trades: renderTrades, ecosystem: renderEcosystem,
+  news: renderNews, activity: renderActivity,
 };
 
 function show(tab){

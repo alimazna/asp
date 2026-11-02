@@ -122,9 +122,23 @@ class PathAllowlist(unittest.TestCase):
     def test_read_paths_allowed(self):
         for p in ("/api/v1/health/v1", "/api/v1/readyz", "/api/v1/livez",
                   "/api/v1/ayzr/trades?state=all", "/api/v1/news?limit=40",
-                  "/api/v1/candles?tf=M15&limit=100", "/api/v1/activity?limit=80"):
+                  "/api/v1/candles?tf=M15&limit=100", "/api/v1/activity?limit=80",
+                  "/api/v1/ayzr/ecosystem/sessions",
+                  "/api/v1/ayzr/ecosystem/engines",
+                  "/api/v1/ayzr/ecosystem/opportunities",
+                  "/api/v1/ayzr/ecosystem/ledger",
+                  "/api/v1/ayzr/ecosystem/ledger?limit=100"):
             with self.subTest(path=p):
                 self.assertTrue(serve.path_is_allowed(p))
+
+    def test_ecosystem_write_like_paths_refused(self):
+        # The ecosystem surface is read-only; a write-shaped sibling must not
+        # be reachable through the proxy.
+        for p in ("/api/v1/ayzr/ecosystem/sessions/ingest",
+                  "/api/v1/ayzr/ecosystem/opportunities/publish",
+                  "/api/v1/ayzr/ecosystem/ledger/append"):
+            with self.subTest(path=p):
+                self.assertFalse(serve.path_is_allowed(p))
 
     def test_write_paths_refused(self):
         for p in ("/api/v1/candles/ingest", "/api/v1/news/ingest",
@@ -246,6 +260,20 @@ class PageHasNoCredentialHandling(unittest.TestCase):
         self.assertIn("window.location.origin", self.code)
         self.assertNotIn("http://localhost", self.code)
         self.assertNotIn("http://127.0.0.1", self.code)
+
+    def test_ecosystem_tab_and_routes_present(self):
+        # The observatory surfaces the ecosystem read routes.
+        self.assertIn('data-tab="ecosystem"', self.html)
+        for route in ("/api/v1/ayzr/ecosystem/sessions",
+                      "/api/v1/ayzr/ecosystem/engines",
+                      "/api/v1/ayzr/ecosystem/opportunities",
+                      "/api/v1/ayzr/ecosystem/ledger"):
+            with self.subTest(route=route):
+                self.assertIn(route, self.code)
+
+    def test_uncalibrated_confidence_never_shown_as_probability(self):
+        # The page must gate the probability on `calibrated`, mirroring the app.
+        self.assertIn("calibrated", self.code)
 
 
 if __name__ == "__main__":

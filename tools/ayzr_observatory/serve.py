@@ -58,6 +58,10 @@ GET_ALLOWLIST_EXACT = {
     "/api/v1/ayzr/engines",
     "/api/v1/ayzr/trades",
     "/api/v1/ayzr/trades/detail",
+    "/api/v1/ayzr/ecosystem/sessions",
+    "/api/v1/ayzr/ecosystem/engines",
+    "/api/v1/ayzr/ecosystem/opportunities",
+    "/api/v1/ayzr/ecosystem/ledger",
 }
 GET_ALLOWLIST_PREFIX = (
     "/api/v1/candles?",
@@ -69,6 +73,7 @@ GET_ALLOWLIST_PREFIX = (
     "/api/v1/activity?",
     "/api/v1/ayzr/trades?",
     "/api/v1/ayzr/trades/detail?",
+    "/api/v1/ayzr/ecosystem/ledger?",
 )
 
 ALLOWED_METHODS = ("GET", "HEAD")
