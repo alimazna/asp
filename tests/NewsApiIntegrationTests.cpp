@@ -166,6 +166,43 @@ ProcessLaunchSpec newsSpec(const std::string& exe, std::uint16_t port,
     return spec;
 }
 
+/// Same server, but with extra environment: pins the mock's mode
+/// (ASTRA_MOCK_LLM_MODE) and seeds a test trade (ASTRA_TEST_SEED_TRADE).
+ProcessLaunchSpec newsSpecEnv(const std::string& exe, std::uint16_t port,
+                              const std::string& dataDir, bool withClient,
+                              const std::string& mockMode,
+                              const std::string& seedTrade) {
+    ProcessLaunchSpec spec = newsSpec(exe, port, dataDir, withClient);
+    if (!mockMode.empty()) spec.environment["ASTRA_MOCK_LLM_MODE"] = mockMode;
+    if (!seedTrade.empty()) spec.environment["ASTRA_TEST_SEED_TRADE"] = seedTrade;
+    return spec;
+}
+
+/// Ingest one article and return its server-assigned id, or "" on failure.
+std::string ingestOneArticle(std::uint16_t port) {
+    const HttpResponse ingest = request(port, "POST", "/api/v1/news/ingest",
+                                        "sender-tok", kArabicNewsBody);
+    if (ingest.statusCode != 200) return "";
+    const HttpResponse list = request(port, "GET", "/api/v1/news", "client-tok");
+    const std::string marker = "\"article_id\":\"";
+    const std::size_t at = list.body.find(marker);
+    if (at == std::string::npos) return "";
+    const std::size_t start = at + marker.size();
+    const std::size_t end = list.body.find('"', start);
+    if (end == std::string::npos) return "";
+    return list.body.substr(start, end - start);
+}
+
+/// Any of these in the linkage text would be a fabricated outcome claim.
+bool claimsOutcome(const std::string& s) {
+    static const char* banned[] = {"سيربح", "ستربح", "مضمون", "ربح مؤكد",
+                                   "ستخسر", "خسارة مؤكدة"};
+    for (const char* b : banned) {
+        if (contains(s, b)) return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 TEST_CASE(news_routes_require_client_credential) {
@@ -511,6 +548,145 @@ TEST_CASE(news_results_log_joins_analysis_to_article) {
         port, "GET", "/api/v1/news/results?direction=banana", "client-tok");
     CHECK_EQ(bogus.statusCode, 200);
     CHECK(contains(bogus.body, "\"results\""));
+
+    std::string stopError;
+    supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// The news->open-trade linkage, end to end over HTTP. A bullish analysis must be
+// reported as supportive of a seeded BUY trade, the field must always be present
+// (so "no open trades" is distinguishable from "field missing"), and the text
+// must never claim an outcome. This is the linkage's real integration point;
+// the pure-function contract is covered by AyzrNewsImpactTests.
+TEST_CASE(news_analyze_reports_open_trade_impact) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+    // Valid mock payload -> direction "bullish"; seed a BUY trade.
+    ProcessSupervisor supervisor(
+        newsSpecEnv(exe, port, dataDir, true, "valid", "BUY"));
+    std::string error;
+    REQUIRE(supervisor.start(error));
+    REQUIRE(waitReady(port));
+
+    const std::string articleId = ingestOneArticle(port);
+    REQUIRE(!articleId.empty());
+
+    const HttpResponse analyze = request(
+        port, "GET", "/api/v1/news/analyze?id=" + articleId, "client-tok");
+    CHECK_EQ(analyze.statusCode, 200);
+    CHECK(contains(analyze.body, "\"status\":\"ok\""));
+    // The linkage is always present.
+    CHECK(contains(analyze.body, "\"open_trade_impacts\""));
+    // Bullish news vs the seeded BUY trade: supportive, with Arabic labels.
+    CHECK(contains(analyze.body, "\"relation\":\"supportive\""));
+    CHECK(contains(analyze.body, "\"relation_label_ar\":\"متوافق مع الخبر\""));
+    // The trade id is assigned by the lifecycle manager, so assert the stable
+    // fields: the field is present and the direction label is Arabic "buy".
+    CHECK(contains(analyze.body, "\"trade_id\":\""));
+    CHECK(contains(analyze.body, "\"direction_label_ar\":\"شراء\""));
+    // No outcome claim anywhere in the response.
+    CHECK(!claimsOutcome(analyze.body));
+
+    std::string stopError;
+    supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// A non-directional analysis (mock "no_trade") must link every open trade as
+// neutral: a view that makes no directional claim cannot support or contradict a
+// position. The field is still present.
+TEST_CASE(news_analyze_no_trade_links_neutral) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+    ProcessSupervisor supervisor(
+        newsSpecEnv(exe, port, dataDir, true, "no_trade", "BUY"));
+    std::string error;
+    REQUIRE(supervisor.start(error));
+    REQUIRE(waitReady(port));
+
+    const std::string articleId = ingestOneArticle(port);
+    REQUIRE(!articleId.empty());
+
+    const HttpResponse analyze = request(
+        port, "GET", "/api/v1/news/analyze?id=" + articleId, "client-tok");
+    CHECK_EQ(analyze.statusCode, 200);
+    // The analysis carries no direction, so the seeded BUY trade is neutral.
+    CHECK(contains(analyze.body, "\"open_trade_impacts\""));
+    CHECK(contains(analyze.body, "\"relation\":\"neutral\""));
+    CHECK(!contains(analyze.body, "\"relation\":\"supportive\""));
+
+    std::string stopError;
+    supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// A bullish analysis against a SELL trade must be contradicting -- the opposite
+// relation, with the opposing Arabic label and no loss prediction.
+TEST_CASE(news_analyze_bullish_vs_sell_is_contradicting) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+    ProcessSupervisor supervisor(
+        newsSpecEnv(exe, port, dataDir, true, "valid", "SELL"));
+    std::string error;
+    REQUIRE(supervisor.start(error));
+    REQUIRE(waitReady(port));
+
+    const std::string articleId = ingestOneArticle(port);
+    REQUIRE(!articleId.empty());
+
+    const HttpResponse analyze = request(
+        port, "GET", "/api/v1/news/analyze?id=" + articleId, "client-tok");
+    CHECK_EQ(analyze.statusCode, 200);
+    CHECK(contains(analyze.body, "\"relation\":\"contradicting\""));
+    CHECK(contains(analyze.body, "\"relation_label_ar\":\"متعارض مع الخبر\""));
+    // A disagreement is a direction mismatch, never a loss forecast.
+    CHECK(!claimsOutcome(analyze.body));
+
+    std::string stopError;
+    supervisor.stop(2000, stopError);
+    fs::remove_all(dataDir);
+}
+
+// With no seeded trade, the linkage is an empty array -- present, so the client
+// can distinguish "no open trades" from "field missing".
+TEST_CASE(news_analyze_without_open_trades_has_empty_impacts) {
+    const std::string exe = binaryPath();
+    if (!fs::exists(exe)) {
+        std::cout << "  [SKIP] astra_server binary not built\n";
+        return;
+    }
+    const std::uint16_t port = freePort();
+    const std::string dataDir = makeDataDir();
+    // No ASTRA_TEST_SEED_TRADE -> no open trade.
+    ProcessSupervisor supervisor(
+        newsSpecEnv(exe, port, dataDir, true, "valid", ""));
+    std::string error;
+    REQUIRE(supervisor.start(error));
+    REQUIRE(waitReady(port));
+
+    const std::string articleId = ingestOneArticle(port);
+    REQUIRE(!articleId.empty());
+
+    const HttpResponse analyze = request(
+        port, "GET", "/api/v1/news/analyze?id=" + articleId, "client-tok");
+    CHECK_EQ(analyze.statusCode, 200);
+    CHECK(contains(analyze.body, "\"open_trade_impacts\":[]"));
 
     std::string stopError;
     supervisor.stop(2000, stopError);
