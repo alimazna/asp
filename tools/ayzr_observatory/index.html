@@ -114,11 +114,13 @@
 
 <nav id="nav">
   <button data-tab="overview" class="active">نظرة عامة</button>
+  <button data-tab="analysis">التحليل</button>
   <button data-tab="engines">المحركات</button>
   <button data-tab="trades">الصفقات</button>
   <button data-tab="ecosystem">المنظومة</button>
   <button data-tab="news">الأخبار</button>
   <button data-tab="activity">السجل</button>
+  <button data-tab="system">النظام</button>
 </nav>
 
 <main id="main"><div class="loading">جارٍ التحميل…</div></main>
@@ -474,12 +476,220 @@ async function renderEcosystem(){
   setStatus('ok','متصل');
 }
 
+// ---- analysis ------------------------------------------------------------
+// ASTRA analysis, context, signal, probability, risk, and the multi-timeframe
+// matrix. Every field is read defensively from the `data` envelope; a null or
+// unavailable state is shown as "—" or an explicit Arabic note, never as a
+// fabricated number. An uncalibrated probability is never shown as a percent.
+async function renderAnalysis(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل التحليل…</div>';
+
+  const [aR, cR, sR, pR, rR, tfR] = await Promise.all([
+    api('/api/v1/analysis/latest'), api('/api/v1/context/latest'),
+    api('/api/v1/signals/latest'), api('/api/v1/probability/latest'),
+    api('/api/v1/risk/latest'), api('/api/v1/timeframes'),
+  ]);
+  const U = (r)=> (r.json && (r.json.data || r.json)) || {};
+  const a = U(aR), c = U(cR), s = U(sR), p = U(pR), rk = U(rR), tf = U(tfR);
+
+  let html = '<div class="banner info">تحليل ASTRA الأصلي — للقراءة فقط. '+
+             'لا تُعدّل هذه الطبقة قرارات محرّك ASTRA ولا تنفّذ صفقات.</div>';
+
+  // Signal summary
+  const sig = a.signal || {};
+  const dirTone = sig.direction==='BULLISH'?'up':(sig.direction==='BEARISH'?'down':'');
+  html += '<div class="grid cols-4">';
+  html += statCard(a.timestamp ? a.timestamp.replace('T',' ').replace('Z','') : '—',
+                   'وقت التحليل', 'gold');
+  html += statCard(sig.direction||'NONE', 'الاتجاه', dirTone);
+  html += statCard(sig.score==null?'—':String(sig.score), 'النتيجة (score)', 'gold');
+  html += statCard(sig.probability_calibrated && sig.probability!=null
+                     ? (sig.probability*100).toFixed(1)+'%' : 'غير معاير',
+                   'الاحتمال', 'warn');
+  html += '</div>';
+
+  // Context
+  const ctx = a.context || c.context || {};
+  html += '<div class="card"><h2>سياق السوق</h2>';
+  html += `<div class="row"><span class="k">النظام (regime)</span><span class="v mono">${esc(ctx.regime||'UNKNOWN')}</span></div>`;
+  html += `<div class="row"><span class="k">ميل H4</span><span class="v mono">${esc(ctx.h4_bias||'UNKNOWN')}</span></div>`;
+  html += `<div class="row"><span class="k">محفّز M15</span><span class="v mono">${esc(ctx.m15_trigger||'NONE')}</span></div>`;
+  html += `<div class="row"><span class="k">توافق الأطر</span><span class="v mono">${ctx.mtf_agreement==null?'—':esc(ctx.mtf_agreement)}</span></div>`;
+  html += `<div class="row"><span class="k">حالة التذبذب</span><span class="v mono">${esc(ctx.volatility_state||'UNKNOWN')}</span></div>`;
+  html += '</div>';
+
+  // Decision gate
+  const dec = a.decision || {};
+  html += '<div class="card"><h2>بوابة القرار</h2>';
+  html += `<div class="row"><span class="k">متاح</span><span class="v"><span class="pill ${dec.available?'up':'warn'}">${dec.available?'نعم':'لا'}</span></span></div>`;
+  html += `<div class="row"><span class="k">أطر متعددة متاحة</span><span class="v"><span class="pill ${dec.mtf_available?'up':'warn'}">${dec.mtf_available?'نعم':'لا'}</span></span></div>`;
+  html += `<div class="row"><span class="k">بوابة النواة متعددة الأطر</span><span class="v"><span class="pill ${dec.mtf_core_gate_passed?'up':'warn'}">${dec.mtf_core_gate_passed?'عابرة':'غير عابرة'}</span></span></div>`;
+  html += `<div class="row"><span class="k">سلطة H4 البنيوية</span><span class="v mono">${dec.h4_structural_authority==null?'—':esc(dec.h4_structural_authority)}</span></div>`;
+  html += `<div class="row"><span class="k">توافق H4/M15</span><span class="v mono">${dec.h4_m15_agreement==null?'—':esc(dec.h4_m15_agreement)}</span></div>`;
+  html += `<div class="row"><span class="k">توافق H4/D1</span><span class="v mono">${dec.h4_d1_agreement==null?'—':esc(dec.h4_d1_agreement)}</span></div>`;
+  for (const br of (dec.block_reasons||[]))
+    html += `<div class="row"><span class="k">سبب الحجب</span><span class="v">${esc(br)}</span></div>`;
+  html += '</div>';
+
+  // Signal record
+  html += '<div class="card"><h2>آخر إشارة</h2>';
+  if (!s.available && !s.direction){
+    html += `<div class="row"><span class="k">${esc(s.reason||'لا توجد إشارات مسجّلة بعد')}</span></div>`;
+  } else {
+    html += `<div class="row"><span class="k">الاتجاه</span><span class="v mono">${esc(s.direction||'—')}</span></div>`;
+    html += `<div class="row"><span class="k">الأفق</span><span class="v mono">${esc(s.horizon||'—')}</span></div>`;
+  }
+  html += '</div>';
+
+  // Probability record
+  html += '<div class="card"><h2>الاحتمال</h2>';
+  if (!p.available){
+    html += `<div class="row"><span class="k">${esc(p.reason||'لا توجد تنبؤات مسجّلة بعد')}</span></div>`;
+    html += '<div class="row"><span class="k">ملاحظة</span><span class="v">الاحتمال يُعرض فقط عند معايرته صراحةً — لا يتم اختلاق نسب.</span></div>';
+  } else {
+    html += `<div class="row"><span class="k">معاير</span><span class="v">${p.calibrated?'نعم':'لا'}</span></div>`;
+    html += `<div class="row"><span class="k">القيمة</span><span class="v mono">${p.calibrated&&p.probability!=null?(p.probability*100).toFixed(1)+'%':'غير معاير — لا يُعرض كاحتمال'}</span></div>`;
+  }
+  html += '</div>';
+
+  // Risk
+  html += '<div class="card"><h2>المخاطر</h2>';
+  if (!rk.available){
+    html += `<div class="row"><span class="k">${esc(rk.reason||'لا تتوفر بيانات مخاطر')}</span></div>`;
+  } else {
+    html += `<div class="row"><span class="k">مراكز مفتوحة</span><span class="v mono">${esc(rk.open_positions)}</span></div>`;
+    html += `<div class="row"><span class="k">إجمالي المخاطرة المفتوحة</span><span class="v mono">${esc(rk.aggregate_open_risk_fraction)}</span></div>`;
+    html += `<div class="row"><span class="k">محدودة بحاجز الأمان</span><span class="v"><span class="pill ${rk.risk_bounded_by_guardian?'up':'warn'}">${rk.risk_bounded_by_guardian?'نعم':'لا'}</span></span></div>`;
+    html += `<div class="row"><span class="k">اقتراح متاح</span><span class="v">${rk.proposal_available?'نعم':'لا'}</span></div>`;
+    if (rk.proposal_reason)
+      html += `<div class="row"><span class="k">سبب عدم الاقتراح</span><span class="v">${esc(rk.proposal_reason)}</span></div>`;
+  }
+  html += '</div>';
+
+  // Timeframe matrix. `data` is a bare array here, not an object.
+  const frames = Array.isArray(tf) ? tf : (tf.timeframes || []);
+  html += '<div class="card"><h2>مصفوفة الأطر الزمنية</h2>';
+  if (!frames.length){
+    html += '<div class="row"><span class="k">لا تتوفر بيانات الأطر الزمنية</span></div>';
+  } else {
+    html += '<table><tr><th>الإطار</th><th>مشاهد</th><th>شمعدان مغلق</th>'+
+            '<th>الجودة</th><th>آخر تحديث ناجح</th></tr>';
+    for (const f of frames){
+      const q = f.quality || {};
+      const tone = f.decision_grade ? 'up' : (f.observed ? 'warn' : '');
+      html += `<tr><td class="mono">${esc(f.timeframe||'—')}</td>`+
+              `<td><span class="pill ${f.observed?'up':'warn'}">${f.observed?'نعم':'لا'}</span></td>`+
+              `<td>${f.has_closed_bar?'نعم':'لا'}</td>`+
+              `<td><span class="pill ${tone}">${esc(q.state||'UNKNOWN')}</span></td>`+
+              `<td class="mono">${esc(f.last_successful_update||'—')}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div>';
+
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
+// ---- system --------------------------------------------------------------
+// Runtime posture, bridge, shadow book, governance, research, and audit.
+// These are the safety-critical read-outs: shadow_only, live-trading
+// authorisation, and bridge state. Nothing here can execute a trade.
+async function renderSystem(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">جارٍ تحميل حالة النظام…</div>';
+
+  const [stR, brR, spR, soR, goR, reR, auR, prR] = await Promise.all([
+    api('/api/v1/system/state'), api('/api/v1/bridge/status'),
+    api('/api/v1/shadow/positions'), api('/api/v1/shadow/outcomes'),
+    api('/api/v1/governance/status'), api('/api/v1/research/status'),
+    api('/api/v1/audit/recent'), api('/api/v1/providers'),
+  ]);
+  const U = (r)=> (r.json && (r.json.data || r.json)) || {};
+  const st = U(stR), br = U(brR), go = U(goR), re = U(reR), au = U(auR);
+  const sp = (spR.json && (spR.json.data || spR.json)) || [];
+  const so = (soR.json && (soR.json.data || soR.json)) || [];
+  const pr = U(prR);
+
+  let html = '<div class="banner info">وضع الظل فقط — لا تنفيذ. '+
+             'هذه قراءات السلامة والجاهزية كما أعادها الخادم.</div>';
+
+  // Safety posture first
+  html += '<div class="grid cols-4">';
+  html += statCard(st.shadow_only?'مفعّل':'—', 'وضع الظل', st.shadow_only?'up':'warn');
+  html += statCard(go.live_trading_authorised?'مصرّح':'غير مصرّح',
+                   'تداول حي', go.live_trading_authorised?'down':'up');
+  html += statCard(st.mode||'—', 'الوضع', 'gold');
+  html += statCard(st.ready?'جاهز':'غير جاهز', 'الجاهزية', st.ready?'up':'warn');
+  html += '</div>';
+
+  // Bridge
+  html += '<div class="card"><h2>جسر MT5</h2>';
+  html += `<div class="row"><span class="k">حالة الجسر</span><span class="v"><span class="pill ${br.bridge_process_state==='ONLINE'?'up':'warn'}">${esc(br.bridge_process_state||'—')}</span></span></div>`;
+  html += `<div class="row"><span class="k">مرحلة الإقلاع</span><span class="v mono">${esc(br.startup_stage||'—')}</span></div>`;
+  html += `<div class="row"><span class="k">المصافحة</span><span class="v">${br.handshake_ok?'ناجحة':'لم تتم'}</span></div>`;
+  html += `<div class="row"><span class="k">MT5 جاهز</span><span class="v">${br.mt5_ready?'نعم':'لا'}</span></div>`;
+  html += `<div class="row"><span class="k">النقل</span><span class="v mono">${esc(br.transport||'—')}</span></div>`;
+  html += `<div class="row"><span class="k">محلي فقط</span><span class="v">${br.loopback_only?'نعم':'لا'}</span></div>`;
+  html += `<div class="row"><span class="k">الحزمة متوفرة</span><span class="v">${br.package_available?'نعم':'لا'}</span></div>`;
+  if (br.broker) html += `<div class="row"><span class="k">الوسيط</span><span class="v">${esc(br.broker)}</span></div>`;
+  html += '</div>';
+
+  // Governance
+  html += '<div class="card"><h2>الحوكمة</h2>';
+  html += `<div class="row"><span class="k">طلبات معلّقة</span><span class="v mono">${esc(go.pending_count==null?'—':go.pending_count)}</span></div>`;
+  html += `<div class="row"><span class="k">تداول حي مصرّح</span><span class="v"><span class="pill ${go.live_trading_authorised?'down':'up'}">${go.live_trading_authorised?'مصرّح':'غير مصرّح'}</span></span></div>`;
+  html += '</div>';
+
+  // Research
+  html += '<div class="card"><h2>البحث</h2>';
+  html += `<div class="row"><span class="k">متاح</span><span class="v">${re.available?'نعم':'لا'}</span></div>`;
+  html += `<div class="row"><span class="k">الوضع</span><span class="v mono">${esc(re.mode||'—')}</span></div>`;
+  html += `<div class="row"><span class="k">تجارب</span><span class="v mono">${esc(re.experiment_count==null?'—':re.experiment_count)}</span></div>`;
+  if (re.note) html += `<div class="row"><span class="k">ملاحظة</span><span class="v">${esc(re.note)}</span></div>`;
+  html += '</div>';
+
+  // Shadow book
+  html += '<div class="card"><h2>دفتر الظل</h2>';
+  html += `<div class="row"><span class="k">مراكز ظل</span><span class="v mono">${Array.isArray(sp)?sp.length:'—'}</span></div>`;
+  html += `<div class="row"><span class="k">نتائج ظل</span><span class="v mono">${Array.isArray(so)?so.length:'—'}</span></div>`;
+  html += '</div>';
+
+  // Audit
+  html += '<div class="card"><h2>التدقيق</h2>';
+  html += `<div class="row"><span class="k">عدد السجلات</span><span class="v mono">${esc(au.count==null?'—':au.count)}</span></div>`;
+  html += `<div class="row"><span class="k">حجم تدفّق التدقيق</span><span class="v mono">${esc(au.audit_stream_size==null?'—':au.audit_stream_size)}</span></div>`;
+  html += `<div class="row"><span class="k">حوادث نشطة</span><span class="v mono">${Array.isArray(au.active_incidents)?au.active_incidents.length:'—'}</span></div>`;
+  html += '</div>';
+
+  // Providers (secret-free)
+  html += '<div class="card"><h2>مزوّدو الذكاء الاصطناعي</h2>';
+  const provs = pr.providers || [];
+  if (!provs.length){
+    html += '<div class="row"><span class="k">لا توجد بيانات مزوّدين</span></div>';
+  } else {
+    html += '<table><tr><th>المزوّد</th><th>مهيّأ</th><th>نجاح</th><th>فشل</th></tr>';
+    for (const pv of provs){
+      html += `<tr><td class="mono">${esc(pv.name||pv.id||'—')}</td>`+
+              `<td>${pv.configured?'نعم':'لا'}</td>`+
+              `<td class="mono">${esc(pv.success_count==null?'—':pv.success_count)}</td>`+
+              `<td class="mono">${esc(pv.failure_count==null?'—':pv.failure_count)}</td></tr>`;
+    }
+    html += '</table>';
+  }
+  html += '</div>';
+
+  m.innerHTML = html;
+  setStatus('ok','متصل');
+}
+
 // ---- router --------------------------------------------------------------
 
 const RENDERERS = {
-  overview: renderOverview, engines: renderEngines,
+  overview: renderOverview, analysis: renderAnalysis, engines: renderEngines,
   trades: renderTrades, ecosystem: renderEcosystem,
-  news: renderNews, activity: renderActivity,
+  news: renderNews, activity: renderActivity, system: renderSystem,
 };
 
 function show(tab){

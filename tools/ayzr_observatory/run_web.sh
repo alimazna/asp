@@ -18,9 +18,11 @@ ASTRA_LLM_PROVIDER=mock ASTRA_CLIENT_TOKEN="${AYZR_CLIENT_TOKEN:-client-tok}" \
 for i in $(seq 1 80); do curl -sf "http://127.0.0.1:$PORT_BE/api/v1/livez" >/dev/null 2>&1 && break; sleep 0.25; done
 
 python3 - "$PORT_BE" "${AYZR_SENDER_TOKEN:-sender-tok}" <<'PY'
-import json,sys,urllib.request
+import json,sys,time,urllib.request
 port,tok=sys.argv[1],sys.argv[2]
-step=900; end=1793102400; n=60
+step=900; n=120
+# End on the last CLOSED M15 bar so freshness checks pass.
+end=(int(time.time())//step)*step - step
 bars=[{"time":end-(n-1-i)*step,"open":1900.0+i*1.5,"high":1900.0+i*1.5+1.0,
        "low":1900.0+i*1.5-1.0,"close":1900.0+i*1.5+0.5,"tick_volume":100,"spread":10,"real_volume":0}
       for i in range(n)]

@@ -62,6 +62,21 @@ GET_ALLOWLIST_EXACT = {
     "/api/v1/ayzr/ecosystem/engines",
     "/api/v1/ayzr/ecosystem/opportunities",
     "/api/v1/ayzr/ecosystem/ledger",
+    # ASTRA analysis + decision surface (read-only).
+    "/api/v1/analysis/latest",
+    "/api/v1/context/latest",
+    "/api/v1/signals/latest",
+    "/api/v1/probability/latest",
+    "/api/v1/risk/latest",
+    "/api/v1/timeframes",
+    # Runtime + safety posture (read-only).
+    "/api/v1/system/state",
+    "/api/v1/bridge/status",
+    "/api/v1/shadow/positions",
+    "/api/v1/shadow/outcomes",
+    "/api/v1/governance/status",
+    "/api/v1/research/status",
+    "/api/v1/audit/recent",
 }
 GET_ALLOWLIST_PREFIX = (
     "/api/v1/candles?",
@@ -74,6 +89,8 @@ GET_ALLOWLIST_PREFIX = (
     "/api/v1/ayzr/trades?",
     "/api/v1/ayzr/trades/detail?",
     "/api/v1/ayzr/ecosystem/ledger?",
+    "/api/v1/analysis/history",
+    "/api/v1/timeframes/",
 )
 
 ALLOWED_METHODS = ("GET", "HEAD")

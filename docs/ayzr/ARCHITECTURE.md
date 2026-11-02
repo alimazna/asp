@@ -143,6 +143,33 @@ the private observatory (`tools/ayzr_observatory`, "المنظومة" tab). The
 observatory proxy allowlists exactly these read paths and refuses every
 write-shaped sibling.
 
+### 4.1 Observatory read surface
+
+The observatory page has eight tabs and reads only GET routes from an explicit
+allowlist (`tools/ayzr_observatory/serve.py`). The allowlist is intentionally
+explicit, not derived from the router (decision D-08): adding a backend route
+never widens the browser surface by itself.
+
+| Tab | Routes |
+|-----|--------|
+| نظرة عامة | `health/v1`, `readyz`, `ayzr/engines`, `ayzr/trades` |
+| التحليل | `analysis/latest`, `context/latest`, `signals/latest`, `probability/latest`, `risk/latest`, `timeframes` |
+| المحركات | `ayzr/engines` |
+| الصفقات | `ayzr/trades`, `ayzr/trades/detail` |
+| المنظومة | the four `ayzr/ecosystem/*` routes |
+| الأخبار | `news`, `news/results`, `news/quota` |
+| السجل | `activity`, `history`, `events`, `events/detail` |
+| النظام | `system/state`, `bridge/status`, `shadow/positions`, `shadow/outcomes`, `governance/status`, `research/status`, `audit/recent`, `providers` |
+
+Write and admin routes stay refused: `admin/candles`, `candles/ingest`,
+`news/ingest`, `command` (403 on GET, 405 on POST). Every write-shaped path is
+rejected before any upstream call.
+
+`serve.py` binds loopback only. `serve_public.py` reuses the same handler but
+binds every interface for a preview URL; it is gated behind `AYZR_ALLOW_PUBLIC=1`
+so it cannot start by accident. `run_web.sh` brings up the backend (mock LLM),
+seeds a fresh M15 series, and starts the observatory in one command.
+
 ## 5. Failure isolation
 
 - LLM7 down → news list and candles still serve; analyze returns `unavailable`.
