@@ -90,6 +90,39 @@ from the device — verified server-side by the 401s above.
   `(source_id, symbol, timeframe, open_time)` row; there is no bulk delete, so a
   mistake cannot wipe the store.
 
+## Credential rotation
+
+A credential that has appeared in a chat transcript, log, screenshot, or commit
+must be treated as **compromised** and rotated before use. The transcript is
+outside this repository's control, so "the file is not committed" does not make
+the value safe.
+
+Rotation procedure (applies to `LLM7_API_TOKEN`, `ASTRA_SENDER_TOKEN`,
+`ASTRA_ADMIN_TOKEN`, `ASTRA_CLIENT_TOKEN`):
+
+1. Issue a **new** value from the provider's own console (LLM7 account, or a
+   fresh random string for the ASTRA tokens).
+2. Set it through the deployment's secret store — Railway service variables, or
+   the local shell environment — never in a file that is committed. The Android
+   client token is supplied at build time with `--dart-define`, not stored.
+3. Restart the backend so the new value is read.
+4. Revoke the old value at the provider.
+5. Verify: an old value must now be rejected (401) and the new one accepted.
+
+For the ASTRA tokens, `src/api/AstraServerMain.cpp` refuses to start with no
+sender token, so a rotation that clears it fails loudly rather than serving an
+unauthenticated ingest route. The three ASTRA tokens must be distinct; reusing
+one value across roles defeats the cross-role denial in `AyzrSecurityTests`.
+
+### F-E-6 — LLM7 token pasted into a chat transcript (ACTION REQUIRED)
+
+An LLM7 API key was pasted into the agent conversation on 2026-10-27. It is not
+in any tracked file (verified: no credential-shaped string in the tree, and the
+debug APK payload carries none), but it is exposed to whatever retains the
+transcript. **Rotate it before any live LLM7 call**: issue a new key, set
+`LLM7_API_TOKEN` in the backend environment, revoke the old key. No live LLM7
+call has been made with it in this repository.
+
 ## Input validation
 
 All bodies are parsed by a strict, dependency-free JSON parser that reports
