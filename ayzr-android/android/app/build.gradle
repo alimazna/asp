@@ -16,7 +16,7 @@ if (keyPropsFile.exists()) {
 
 android {
     namespace = "com.ayzr.ayzr_app"
-    compileSdk = 34
+    compileSdk = 36
     // Pin to the build-tools actually installed in this environment; the AGP
     // default (33.0.1) is not present and cannot be downloaded here.
     buildToolsVersion = "34.0.0"
@@ -26,12 +26,12 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
