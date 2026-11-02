@@ -49,6 +49,15 @@ LD_LIBRARY_PATH="$SQLITE_LIB_DIR" flutter test
 
 build_one() {
   local kind="$1"
+  if [[ "$kind" == "release" && ! -f android/key.properties ]]; then
+    echo
+    echo "release build skipped: no android/key.properties."
+    echo "A release APK must be signed with the owner's real keystore; this"
+    echo "script will not generate one or fall back to the debug key."
+    echo "Create android/key.properties (see android/key.properties.example"
+    echo "and docs/ayzr/ANDROID.md), then re-run: tool/build_apk.sh release"
+    return 0
+  fi
   echo "== flutter build apk --$kind =="
   flutter build apk "--$kind"
   local apk="build/app/outputs/flutter-apk/app-$kind.apk"

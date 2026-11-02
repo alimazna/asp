@@ -1,0 +1,15 @@
+# Template for a real release signing keystore. Copy to key.properties and fill
+# in with your OWN keystore. key.properties is git-ignored; never commit it, and
+# never commit the .jks it points at.
+#
+# Create a keystore once (choose your own strong passwords, keep them safe):
+#   keytool -genkeypair -v -keystore ~/ayzr-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias ayzr
+#
+# Then set storeFile to that keystore's path. Without this file the release
+# build refuses to run (it will not silently use the debug key).
+
+storeFile=/absolute/path/to/your/ayzr-release.jks
+storePassword=CHANGE_ME
+keyAlias=ayzr
+keyPassword=CHANGE_ME
