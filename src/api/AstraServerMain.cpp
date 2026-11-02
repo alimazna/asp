@@ -1044,7 +1044,10 @@ int main(int argc, char** argv) {
     llm7Config.apiToken = envOr("LLM7_API_TOKEN", "");
     llm7Config.providerLabel = "llm7";
     llm7Config.connectTimeoutMillis = parseIntEnv("LLM7_CONNECT_TIMEOUT_MS", 5000);
-    llm7Config.readTimeoutMillis = parseIntEnv("LLM7_READ_TIMEOUT_MS", 45000);
+    // nemotron-3-nano:30b is a reasoning model: it spends most of its token
+    // budget thinking before emitting content. A real analysis measured ~76 s
+    // against the live endpoint, so the old 45 s default always timed out.
+    llm7Config.readTimeoutMillis = parseIntEnv("LLM7_READ_TIMEOUT_MS", 120000);
     Llm7Provider llm7Provider(llm7Config, outboundHttp);
 
     // z.ai GLM (OpenAI-compatible).

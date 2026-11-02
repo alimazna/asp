@@ -60,13 +60,44 @@ pipeline offline for tests.
 | `ZAI_API_KEY`, `ZAI_BASE_URL`, `ZAI_MODEL` | z.ai (OpenAI-compatible) |
 | `MISTRAL_API_KEY`, `MISTRAL_BASE_URL`, `MISTRAL_MODEL` | Mistral (OpenAI-compatible) |
 | `ASTRA_MOCK_LLM_MODE` | with `ASTRA_LLM_PROVIDER=mock`: `valid` (default), `malformed`, `empty`, `timeout`, `rate_limited`, `quota_exhausted`, `auth_failure`, `malformed_then_valid`. An unknown value falls back to `valid` |
-| `LLM7_CONNECT_TIMEOUT_MS`, `LLM7_READ_TIMEOUT_MS`, `LLM7_MAX_ATTEMPTS` | bounded timeouts/retries |
+| `LLM7_CONNECT_TIMEOUT_MS`, `LLM7_READ_TIMEOUT_MS`, `LLM7_MAX_ATTEMPTS` | bounded timeouts/retries; default read timeout is `120000` ms (see below) |
 | `LLM7_QUOTA_FALLBACK_COOLDOWN_S` | cooldown seconds used when a 429 quota response omits a reset time (default 3600) |
 
 Every provider key is a **server-side secret**; none is ever embedded in the
 APK. `GET /api/v1/news/quota` reports the whole-chain verdict
 (`ok` | `degraded` | `all_quota_exhausted` | `all_unavailable` | `no_provider`)
 so the app shows an honest Arabic banner instead of looking broken.
+
+### `nemotron-3-nano:30b` is a reasoning model — size the read timeout for it
+
+Measured against the live endpoint on 2026-11-02 (one request per sample):
+
+| prompt | `max_tokens` | completion tokens | wall time | content |
+|---|---|---|---|---|
+| "say hello" | unset | 584 | — | non-empty |
+| 120-word gold analysis | unset | 11,264 | **75.6 s** | full Arabic answer |
+| 3-key JSON, one line | 800 | 800 (`finish_reason=length`) | 7.7 s | **empty** |
+
+Two consequences that are easy to misread as a broken integration:
+
+1. **The default `LLM7_READ_TIMEOUT_MS=45000` is too short.** The model spends
+   most of its budget on internal reasoning before emitting any content, so a
+   real analysis exceeds 45 s and the adapter reports `provider unavailable:
+   Timeout was reached`. The analysis then degrades to `status: unavailable`,
+   which is honest but hides that the transport is fine. Set
+   `LLM7_READ_TIMEOUT_MS` to at least `120000` (and up to `300000` for long
+   articles) in any deployment that actually calls LLM7.
+2. **Do not set a small `max_tokens`.** A cap below the model's reasoning
+   budget is consumed entirely by thinking and the response arrives with
+   `finish_reason=length` and empty content. The adapter classifies that as
+   `BadRequest` (`empty message content`), never as a valid analysis — correct
+   behaviour, but the fix is to leave `max_tokens` unset.
+
+A single analysis therefore costs thousands of completion tokens. On the free
+tier this is enough to reach the provider's daily budget quickly; the quota
+monitor then pauses with `provider daily quota exhausted; cooling down` and
+resumes after the provider's own reset window. That pause is the intended
+honest state, not a defect.
 
 ### Cloudflare database
 Not required. No Cloudflare database is used (see `CLOUDFLARE_DATABASE.md`). The
