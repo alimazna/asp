@@ -390,6 +390,11 @@ and its direction-against-seed verdict (240 checks total).
 
 ### 11.6 APK reproducibility (2026-11-01)
 
+> The release measurements below were taken while the release build still fell
+> back to the debug key. That fallback was removed on 2026-11-02 (see 11.7), so a
+> release APK now requires a real keystore. The payload-hash method and
+> `tool/apk_payload_hash.py` are unchanged and still apply.
+
 Both APKs were rebuilt from the current tree (debug ~102 MB, release 23.0 MB)
 and the release APK's reproducibility was measured, not assumed:
 
@@ -404,13 +409,59 @@ and the release APK's reproducibility was measured, not assumed:
   APK Signing Block, where the ECDSA signature's random nonce lives.
 - `tool/apk_payload_hash.py` isolates that payload hash; `tool/build_apk.sh`
   runs the full chain and prints size + full hash + payload hash.
-- Release signing is fail-closed (2026-11-02): `flutter build apk --release`
-  **refuses** unless `android/key.properties` and a real keystore are present.
-  This replaced an earlier fallback that signed a release APK with the debug key,
-  which is not distributable and hides that fact behind a release filename.
-  `tool/build_apk.sh release` skips with an explanatory message instead; a
-  template is at `android/key.properties.example`.
 
 Not claimed: no device/emulator install. The debug APK builds and its payload is
 secret-clean; a distributable release APK is not produced in this environment
 because no keystore exists here — the release build correctly refuses.
+
+### 11.7 Finalization pass (2026-11-02) — HTTP linkage coverage, fail-closed signing
+
+Two gaps closed this pass.
+
+**HTTP coverage for the linkage.** 11.5 wired `open_trade_impacts` into the
+analyze route, but only the pure function and the Flutter parser were tested —
+nothing proved the field reaches the client over HTTP. Four cases were added to
+`tests/NewsApiIntegrationTests.cpp`, against the real `astra_server` binary
+(`ASTRA_LLM_PROVIDER=mock`, `ASTRA_MOCK_LLM_MODE` pinned, trade seeded via
+`ASTRA_TEST_SEED_TRADE`):
+
+| Case | Asserted |
+|------|----------|
+| bullish vs seeded BUY | `relation=supportive`, `relation_label_ar=متوافق مع الخبر`, Arabic "buy" direction label, no outcome wording |
+| mock `no_trade` | every open trade `neutral`, never `supportive` |
+| bullish vs seeded SELL | `relation=contradicting`, `relation_label_ar=متعارض مع الخبر` |
+| no seeded trade | `"open_trade_impacts":[]` — present, so "no open trades" ≠ "field missing" |
+
+`NewsApiIntegrationTests`: **11/11 pass** (7 existing + 4 new).
+
+**Release signing is now fail-closed.** Previously `flutter build apk --release`
+silently signed with the debug key when `android/key.properties` was absent — a
+debug-signed artifact is not distributable, and a release filename hides that.
+The release build now refuses with an explanatory message; the check is scoped
+to release tasks, so `--debug` still builds. `tool/build_apk.sh release` skips
+with the same message. A template is at `android/key.properties.example`.
+
+**Commands run and results (this pass):**
+
+```
+cmake --build build-ayzr -j                     # 44/44 test binaries link
+for t in build-ayzr/*Tests; do ./"$t"; done     # 44/44 exit 0; 509 harness cases, 0 failed
+./build-ayzr/NewsApiIntegrationTests            # 11 test case(s), 0 failed
+python3 -m unittest discover -s tools/ayzr_agents/tests        # Ran 22 tests — OK
+python3 -m unittest discover -s tools/ayzr_observatory/tests   # Ran 19 tests — OK
+flutter analyze                                 # No issues found
+LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test    # 135 passed, 3 skipped
+flutter build apk --debug                       # app-debug.apk, payload 0fc43721…
+flutter build apk --release                     # BUILD FAILED: needs a real signing keystore (expected)
+bash tool/build_apk.sh both                     # analyze + test + debug build + release skip
+```
+
+**APK secret scan (this pass).** `app-debug.apk` payload scanned for
+`LLM7_API_TOKEN`, `ASTRA_SENDER_TOKEN`, `ASTRA_ADMIN_TOKEN`, `CLOUDFLARE`,
+`RAILWAY`, `supabase`, and `Bearer <20+ chars>` markers: none present. The single
+`Bearer ` match is Dart's concatenated kernel symbol table (`...Authorization
+Bearer _getData...`), not a credential. `AppConfig.buildToken` defaults to the
+empty string via `--dart-define`, so no token is compiled in.
+
+**Not claimed this pass:** no device/emulator install; no release APK (no
+keystore here); no production deployment; no live LLM7 call.
