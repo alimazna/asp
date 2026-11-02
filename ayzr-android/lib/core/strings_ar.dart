@@ -328,6 +328,50 @@ class Ar {
   static const providerNoneHint =
       'لم يُضبط أي مفتاح ذكاء اصطناعي على الخادم، لذا لا يمكن توليد تحليل إخباري.';
 
+  // Ecosystem — sessions, engines, opportunities, ledger
+  static const ecoTitle = 'منظومة AYZR';
+  static const ecoSessions = 'الجلسات';
+  static const ecoSessionsSubtitle = 'حالة جلسات التداول بتوقيت كل سوق';
+  static const ecoEngines = 'المحرّكات';
+  static const ecoEnginesSubtitle = 'المحرّكات المتخصصة وحالتها';
+  static const ecoOpportunities = 'الفرص';
+  static const ecoOpportunitiesSubtitle = 'نتيجة دورة التحليل الحالية';
+  static const ecoLedger = 'سجل القرارات';
+  static const ecoLedgerSubtitle = 'سجلّ تدقيقي لا يقبل التعديل';
+  static const ecoOpenNow = 'مفتوحة الآن';
+  static const ecoClosedNow = 'مغلقة';
+  static const ecoOverlap = 'تداخل لندن ونيويورك';
+  static const ecoDst = 'التوقيت الصيفي';
+  static const ecoLocalTime = 'التوقيت المحلي';
+  static const ecoNoSessions = 'لا تتوفر بيانات الجلسات';
+  static const ecoNoEngines = 'لا توجد محرّكات مسجّلة';
+  static const ecoNoOpportunities = 'لا توجد فرص موثوقة حالياً';
+  static const ecoNoOpportunitiesHint =
+      'لم تُصدر المحرّكات قراراً قابلاً للنشر بعد. لا يتم اختلاق فرص عند غياب البيانات.';
+  static const ecoNoLedger = 'لا توجد قرارات مسجّلة بعد';
+  static const ecoDecision = 'القرار';
+  static const ecoAgreeing = 'محرّكات متوافقة';
+  static const ecoDisagreeing = 'محرّكات معارضة';
+  static const ecoConflicts = 'تعارضات';
+  static const ecoRiskFlags = 'تحذيرات المخاطر';
+  static const ecoRationale = 'التبرير';
+  static const ecoLevelSource = 'مصدر المستويات';
+  static const ecoAstraCore = 'نواة ASTRA';
+  static const ecoCorePresent = 'مساهمة نواة ASTRA موجودة';
+  static const ecoCoreAbsent = 'لا مساهمة من نواة ASTRA';
+  static const ecoEntry = 'الدخول';
+  static const ecoStop = 'وقف الخسارة';
+  static const ecoTargets = 'الأهداف';
+  static const ecoReason = 'السبب';
+  static const ecoEngineFailures = 'أعطال المحرّكات';
+  static const ecoDataWarnings = 'تحذيرات جودة البيانات';
+  static const ecoContributing = 'المساهمات';
+  static const ecoCalibrated = 'معاير';
+  static const ecoNotCalibrated = 'غير معاير (لا يُعرض كاحتمال)';
+  static const ecoNoProbability =
+      'لا تُعرض أي نسبة احتمال لأنها غير معايرة من الخادم.';
+  static const ecoShadow = 'وضع الظل فقط — لا تنفيذ لعمليات تداول';
+
   // Settings / config
   static const settings = 'الإعدادات';
   static const backendUrl = 'عنوان الخادم';

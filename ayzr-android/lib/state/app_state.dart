@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../core/app_config.dart';
 import '../data/api_client.dart';
 import '../data/models/engines.dart';
+import '../data/models/ecosystem.dart';
 import '../data/api_result.dart';
 import '../data/models/analysis.dart';
 import '../data/models/events.dart';
@@ -76,6 +77,12 @@ class AppState extends ChangeNotifier {
   Section<List<EngineInfo>> engines = const Section<List<EngineInfo>>();
   Section<List<Trade>> trades = const Section<List<Trade>>();
   Section<List<Trade>> openTrades = const Section<List<Trade>>();
+  // AYZR ecosystem surface (read-only): sessions, engine registry, one
+  // orchestration cycle, and the append-only decision ledger.
+  Section<SessionSnapshot> sessions = const Section<SessionSnapshot>();
+  Section<EngineRegistry> ecosystemEngines = const Section<EngineRegistry>();
+  Section<CycleResult> opportunities = const Section<CycleResult>();
+  Section<LedgerPage> ledger = const Section<LedgerPage>();
 
   bool goldOnly = false;
 
@@ -337,5 +344,63 @@ class AppState extends ChangeNotifier {
         ? Section<List<Trade>>.ready(r.value!)
         : Section<List<Trade>>.failed(r.failure!);
     notifyListeners();
+  }
+
+  // --- AYZR ecosystem surface ---------------------------------------------
+
+  /// GET /api/v1/ayzr/ecosystem/sessions — the live session clock.
+  Future<void> loadSessions() async {
+    sessions = sessions.loading();
+    notifyListeners();
+    final r = await _client.sessions();
+    sessions = r.isSuccess
+        ? Section<SessionSnapshot>.ready(r.value!)
+        : Section<SessionSnapshot>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/engines — the engine registry.
+  Future<void> loadEcosystemEngines() async {
+    ecosystemEngines = ecosystemEngines.loading();
+    notifyListeners();
+    final r = await _client.ecosystemEngines();
+    ecosystemEngines = r.isSuccess
+        ? Section<EngineRegistry>.ready(r.value!)
+        : Section<EngineRegistry>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/opportunities — one orchestration cycle.
+  Future<void> loadOpportunities() async {
+    opportunities = opportunities.loading();
+    notifyListeners();
+    final r = await _client.opportunities();
+    opportunities = r.isSuccess
+        ? Section<CycleResult>.ready(r.value!)
+        : Section<CycleResult>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/ledger — the append-only decision ledger.
+  Future<void> loadLedger({int limit = 200}) async {
+    ledger = ledger.loading();
+    notifyListeners();
+    final r = await _client.ledger(limit: limit);
+    ledger = r.isSuccess
+        ? Section<LedgerPage>.ready(r.value!)
+        : Section<LedgerPage>.failed(r.failure!);
+    notifyListeners();
+  }
+
+  /// Load every ecosystem surface at once, tolerating partial failure: each
+  /// call settles its own section, so one unreachable route cannot blank the
+  /// others.
+  Future<void> loadEcosystem() async {
+    await Future.wait([
+      loadSessions(),
+      loadEcosystemEngines(),
+      loadOpportunities(),
+      loadLedger(),
+    ]);
   }
 }

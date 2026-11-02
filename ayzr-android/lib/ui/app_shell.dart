@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import 'screens/activity_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/events_screen.dart';
+import 'screens/ecosystem_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/news_screen.dart';
@@ -126,6 +127,21 @@ class _AppShellState extends State<AppShell> {
             appBar: AppBar(
               title: Text(_titles[_index]),
               actions: [
+                IconButton(
+                  tooltip: Ar.ecoTitle,
+                  icon: const Icon(Icons.hub_outlined),
+                  onPressed: () {
+                    widget.state.loadEcosystem();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(title: const Text(Ar.ecoTitle)),
+                          body: EcosystemScreen(state: widget.state),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                   tooltip: Ar.newsResultsTitle,
                   icon: const Icon(Icons.fact_check_outlined),

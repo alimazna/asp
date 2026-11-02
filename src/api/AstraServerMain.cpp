@@ -1466,8 +1466,8 @@ int main(int argc, char** argv) {
         ApiResponse r;
         r.status = 200;
         r.contentType = "application/json";
-        r.body = aura::ayzr::eco::sessionsJson(
-            aura::ayzr::eco::computeSessionSnapshot(now));
+        r.body = envelope(aura::ayzr::eco::sessionsJson(
+            aura::ayzr::eco::computeSessionSnapshot(now)));
         return r;
     };
 
@@ -1479,8 +1479,8 @@ int main(int argc, char** argv) {
         ApiResponse r;
         r.status = 200;
         r.contentType = "application/json";
-        r.body = aura::ayzr::eco::enginesJson(
-            ecoRuntime.describeEngines(view, now));
+        r.body = envelope(aura::ayzr::eco::enginesJson(
+            ecoRuntime.describeEngines(view, now)));
         return r;
     };
 
@@ -1495,7 +1495,7 @@ int main(int argc, char** argv) {
         ApiResponse r;
         r.status = 200;
         r.contentType = "application/json";
-        r.body = aura::ayzr::eco::opportunitiesJson(cyc);
+        r.body = envelope(aura::ayzr::eco::opportunitiesJson(cyc));
         return r;
     };
 
@@ -1509,8 +1509,8 @@ int main(int argc, char** argv) {
         ApiResponse r;
         r.status = 200;
         r.contentType = "application/json";
-        r.body = aura::ayzr::eco::ledgerJson(
-            ecoLedger.recent(static_cast<std::size_t>(limit)));
+        r.body = envelope(aura::ayzr::eco::ledgerJson(
+            ecoLedger.recent(static_cast<std::size_t>(limit))));
         return r;
     };
 

@@ -12,6 +12,7 @@ import 'models/health.dart';
 import 'models/activity.dart';
 import 'models/news.dart';
 import 'models/engines.dart';
+import 'models/ecosystem.dart';
 
 /// Authenticated client for the AYZR mobile read surface.
 ///
@@ -329,5 +330,30 @@ class ApiClient {
   Future<ApiResult<Trade>> tradeDetail(String id) async {
     final r = await _getData('/api/v1/ayzr/trades/detail', query: {'id': id});
     return r.map((d) => Trade.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/sessions — the live session clock snapshot.
+  Future<ApiResult<SessionSnapshot>> sessions() async {
+    final r = await _getData('/api/v1/ayzr/ecosystem/sessions');
+    return r.map((d) => SessionSnapshot.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/engines — the ecosystem engine registry.
+  Future<ApiResult<EngineRegistry>> ecosystemEngines() async {
+    final r = await _getData('/api/v1/ayzr/ecosystem/engines');
+    return r.map((d) => EngineRegistry.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/opportunities — one orchestration cycle.
+  Future<ApiResult<CycleResult>> opportunities() async {
+    final r = await _getData('/api/v1/ayzr/ecosystem/opportunities');
+    return r.map((d) => CycleResult.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// GET /api/v1/ayzr/ecosystem/ledger?limit= — the append-only decision ledger.
+  Future<ApiResult<LedgerPage>> ledger({int limit = 200}) async {
+    final r = await _getData('/api/v1/ayzr/ecosystem/ledger',
+        query: {'limit': '$limit'});
+    return r.map((d) => LedgerPage.fromJson((d as Map).cast<String, dynamic>()));
   }
 }

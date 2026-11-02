@@ -14,7 +14,9 @@ class AyzrColors {
   static const Color goldSoft = Color(0xFFE6C766);
 
   static const Color textPrimary = Color(0xFFEDF0F7);
+  static const Color textSecondary = Color(0xFFC4CBDC);
   static const Color textMuted = Color(0xFF97A0B5);
+  static const Color surfaceHigh = Color(0xFF16223F);
 
   static const Color up = Color(0xFF3FA97A);
   static const Color down = Color(0xFFC25B5B);
