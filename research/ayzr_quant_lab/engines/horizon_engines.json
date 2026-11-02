@@ -1,0 +1,31 @@
+{
+  "SHORT": {
+    "entry_tf": "M5",
+    "context_tfs": ["M15", "H1"],
+    "status": "research_only",
+    "verdict": "no_edge_on_price_or_macro_data",
+    "geometry": {"stop_mult": 1.5, "target_mult": 2.5},
+    "evidence": "reports/hypothesis_sweep.json, reports/geometry_grid.json, reports/alt_hypotheses.json, reports/external_ablation.json",
+    "note": "Negative expectancy in train and OOS for every filter, geometry, construction, and macro condition tested. Not deployed."
+  },
+  "MEDIUM": {
+    "entry_tf": "M15",
+    "context_tfs": ["H1", "H4"],
+    "status": "research_only",
+    "verdict": "no_edge_on_price_or_macro_data",
+    "geometry": {"stop_mult": 1.5, "target_mult": 2.5},
+    "evidence": "reports/hypothesis_sweep.json, reports/geometry_grid.json, reports/alt_hypotheses.json, reports/external_ablation.json",
+    "note": "Same result as SHORT. External macro data does not rescue it."
+  },
+  "LONG": {
+    "entry_tf": "H4",
+    "context_tfs": ["D1"],
+    "status": "promising_unproven",
+    "verdict": "long_bias_not_symmetric_edge",
+    "geometry": {"stop_mult": 2.0, "target_mult": 2.0},
+    "max_bars": 12,
+    "gate": "trend",
+    "evidence": "reports/overfitting_audit.json, reports/long_deepdive.json, reports/holdout_2026.json, reports/time_stop_optimization.json",
+    "note": "Positive pooled expectancy. With the timeout horizon at max_bars=12 it improves to +0.052R, PF 1.14, top-10 profit share 39% (from +0.031R / PF 1.07 / 74% at max_bars=200), consistent in train and OOS. Still fails significance: block-bootstrap CI [-0.019,+0.121], Deflated Sharpe prob 0.13, BUY-only, cost-fragile. Frozen spec used unchanged by validation/holdout_2026.py."
+  }
+}

@@ -9,7 +9,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "./astra_server --host=0.0.0.0"
+# No startCommand: the image's ENTRYPOINT (docker/entrypoint.sh) starts BOTH
+# astra_server and the biquote feeder. Setting startCommand here would override
+# the entrypoint and silently drop the feeder, leaving the engine with no data.
+# The entrypoint honors $PORT, so Railway's assigned port is respected.
 # Railway restarts the container when this probe fails. It must therefore probe
 # process liveness, not data readiness: /api/v1/livez never consults the engine
 # or the MT5 bridge, so a container with no sender data yet is still healthy.
@@ -25,7 +28,7 @@ restartPolicyMaxRetries = 5
 [deploy.volumes]
 [deploy.volumes.astra-data]
 mountPath = "/opt/astra/data"
-name = "astra-data"
+name = "astra-server-volume"
 
 # Environment (set values in the Railway dashboard, not here):
 #   PORT            - assigned by Railway automatically.

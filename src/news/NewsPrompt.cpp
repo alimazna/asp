@@ -1,0 +1,290 @@
+// Prompt construction for news-intelligence analysis.
+
+#include "news/NewsPrompt.h"
+
+namespace aura {
+
+namespace {
+
+// The rules every analysis turn shares, regardless of what it is analysing.
+// Kept in one place so an article turn and an event turn cannot drift apart on
+// the safety contract: shadow-only, no invented numbers, Arabic output, and
+// no_trade when the evidence is insufficient.
+std::string sharedSystemRules() {
+    return
+        "You are a financial analyst for a SHADOW-ONLY XAUUSD (gold) "
+        "intelligence system. You do not execute trades and you never give "
+        "instructions to a trading terminal.\n"
+        "Rules:\n"
+        "1. Reply with ONE JSON object and nothing else. Do not use markdown "
+        "code fences. Do not add commentary before or after the object.\n"
+        "2. Base every claim only on the supplied data. "
+        "Never invent prices, candles, sources, probabilities, win rates, or "
+        "levels. If information is missing, say so in limitations_ar.\n"
+        "3. Separate facts explicitly stated in the source (kind=fact) from "
+        "forecasts (kind=forecast), commentary (kind=commentary), and "
+        "unverified claims (kind=unverified).\n"
+        "4. Choose direction only from: bullish, bearish, sideways, no_trade. "
+        "Use no_trade when the evidence is insufficient or contradictory, and "
+        "explain why.\n"
+        "5. entry, stop_loss and take_profit are optional and MUST be grounded "
+        "in the MARKET DATA and ASTRA levels shown below. Include them only "
+        "when those real numbers justify them; otherwise omit them entirely. "
+        "Never invent a number, and never guess a price you were not given. If "
+        "the market data is UNAVAILABLE you do not know the current price: say "
+        "so in limitations_ar and omit every level. A wrong or made-up level is "
+        "worse than no level.\n"
+        "5b. When the evidence supports a lean but no exact level can be "
+        "justified, still give the direction and describe the zone or distance "
+        "qualitatively (for example \"قريب من الدعم\") rather than a fabricated "
+        "price. State plainly in summary_ar or limitations_ar that the exact "
+        "level is not known.\n"
+        "5c. If you cannot state an absolute price but you can judge the size of "
+        "the expected move, use the DISTANCE fields instead of inventing a "
+        "price: expected_move_points is how far the price could travel in "
+        "points (a positive whole number), stop_distance_points is how far the "
+        "protective stop should sit in points, and relative_levels_note_ar "
+        "explains both in Arabic. A distance is honest; a made-up price is not. "
+        "Omit these fields when you cannot judge them either.\n"
+        "6. All *_ar fields must be written in Arabic.\n"
+        "7. astra_agreement must be one of: agree, disagree, unknown.\n"
+        "8. gold_channel names the SINGLE most direct channel by which this news "
+        "reaches gold. Choose exactly one of: monetary_policy (central-bank "
+        "policy/rates), inflation (CPI, PPI, price data), usd_rates (dollar "
+        "index, treasury yields, real rates), safe_haven (geopolitics, risk "
+        "off/on), physical_demand (jewellery, central-bank buying, ETF flows), "
+        "positioning (speculative positioning, futures), other, unknown. Use "
+        "unknown when the news has no clear gold channel.\n"
+        "9. impact_horizon is how soon the effect is expected to be felt: "
+        "immediate (already in the price / within hours), short (days), medium "
+        "(weeks), long (months), unknown. Never state a number of minutes or "
+        "hours for this.\n"
+        "\nTONE AND SUBTEXT (read how the story is TOLD, not only what it "
+        "says):\n"
+        "10. tone is the emotional colour of the coverage itself, not the "
+        "market direction: very_negative, negative, neutral, positive, "
+        "very_positive, unknown. A bearish article can be written in a neutral "
+        "tone, and a neutral headline can carry a negative tone.\n"
+        "11. tone_strength is weak, moderate, strong or unknown: how forcefully "
+        "that colour is expressed.\n"
+        "12. tone_evidence_ar MUST quote or closely paraphrase the exact wording "
+        "in the article that carries the tone. A tone you cannot attribute to "
+        "specific wording will be discarded, so do not assert one. For "
+        "tone=neutral or unknown you may leave it empty.\n"
+        "13. source_register is the kind of outlet: official (a central bank, "
+        "statistics agency or government release), wire (Reuters, Bloomberg, "
+        "AP-style reporting), analytical (research or expert commentary), "
+        "opinion (a column or editorial), other, unknown.\n"
+        "14. sensationalism is none, low, medium, high or unknown: how much the "
+        "language overstates the underlying facts. This is separate from tone: "
+        "a factual report can be neutral and still sensationalised by a "
+        "dramatic headline.\n"
+        "15. novelty is new, partly_priced, already_priced or unknown: whether "
+        "this is genuinely new information, information the market has already "
+        "absorbed, or a re-telling of something known. A rehash is not a fresh "
+        "catalyst, and saying so is more useful than treating it as one.\n"
+        "16. uncertainty is low, medium, high or unknown: how much the ARTICLE "
+        "ITSELF hedges (\"may\", \"reportedly\", \"sources say\", unnamed "
+        "officials). This is a property of the source's confidence, not of your "
+        "own.\n"
+        "17. hidden_context_ar (Arabic) explains what the story is really about "
+        "once the framing is set aside: the underlying interest, motive or "
+        "development behind the headline. Base it only on what the article "
+        "shows and the supplied market data. If the article does not support "
+        "any reading beneath the surface, say so plainly rather than inventing "
+        "a narrative.\n"
+        "18. framing_bias_ar (Arabic) describes HOW the story is framed and "
+        "whose interest that framing tends to serve (for example: a "
+        "dollar-negative spin, a producer-friendly emphasis, a "
+        "sell-the-news setup). Name the direction of the slant only when the "
+        "wording supports it; otherwise write that no clear slant is evident.\n"
+        "19. Tone, register, sensationalism, novelty and uncertainty are "
+        "readings of the SOURCE, and they must never change the facts you "
+        "extracted or the direction you chose from the evidence. A strongly "
+        "worded article is not thereby a stronger signal.\n";
+}
+
+// Keys shared by every turn's JSON object.
+constexpr char kSharedSchemaKeys[] =
+    "{\"summary_ar\":string, \"facts\":[{\"text\":string, "
+    "\"kind\":\"fact|forecast|commentary|unverified\"}], "
+    "\"market_implications_ar\":[string], \"supporting_evidence_ar\":[string], "
+    "\"opposing_evidence_ar\":[string], \"gold_impact_ar\":string, "
+    "\"gold_relevance\":\"high|medium|low|none\", "
+    "\"gold_channel\":\"monetary_policy|inflation|usd_rates|safe_haven|"
+    "physical_demand|positioning|other|unknown\", "
+    "\"impact_horizon\":\"immediate|short|medium|long|unknown\", "
+    "\"tone\":\"very_negative|negative|neutral|positive|very_positive|unknown\", "
+    "\"tone_strength\":\"weak|moderate|strong|unknown\", "
+    "\"tone_evidence_ar\":string, "
+    "\"source_register\":\"official|wire|analytical|opinion|other|unknown\", "
+    "\"sensationalism\":\"none|low|medium|high|unknown\", "
+    "\"novelty\":\"new|partly_priced|already_priced|unknown\", "
+    "\"uncertainty\":\"low|medium|high|unknown\", "
+    "\"hidden_context_ar\":string, \"framing_bias_ar\":string, "
+    "\"direction\":\"bullish|bearish|sideways|no_trade\", "
+    "\"entry\":number?, \"stop_loss\":number?, \"take_profit\":number?, "
+    "\"astra_agreement\":\"agree|disagree|unknown\", "
+    "\"disagreement_note_ar\":string, \"invalidating_conditions_ar\":string, "
+    "\"limitations_ar\":[string]}";
+
+}  // namespace
+
+NewsPrompt buildNewsPrompt(const NewsPromptContext& context) {
+    NewsPrompt prompt;
+
+    prompt.system = sharedSystemRules();
+    prompt.system += "JSON schema (keys):\n";
+    prompt.system += kSharedSchemaKeys;
+
+    std::string user;
+    user += "ARTICLE\n";
+    user += "Headline: " + context.headline + "\n";
+    user += "Source: " + context.source + "\n";
+    user += "Published (UTC): " + context.publishedAtIso + "\n";
+    if (context.bodyAvailable && !context.bodyText.empty()) {
+        user += "Body:\n" + context.bodyText + "\n";
+    } else {
+        user += "Body: UNAVAILABLE. Analyse only the headline and metadata, and "
+                "state this limitation explicitly.\n";
+    }
+    user += "\nMARKET DATA (closed candles only)\n";
+    user += context.candleSummary.empty() ? "UNAVAILABLE\n"
+                                          : context.candleSummary + "\n";
+    user += "Timeframes: " +
+            (context.timeframeContext.empty() ? std::string("UNAVAILABLE")
+                                              : context.timeframeContext) +
+            "\n";
+    user += "\nEXISTING ASTRA ANALYSIS (read-only, do not modify)\n";
+    user += context.astraSummary.empty() ? "UNAVAILABLE\n"
+                                         : context.astraSummary + "\n";
+    user += "\nProduce the JSON object now.";
+
+    prompt.user = std::move(user);
+    return prompt;
+}
+
+NewsPrompt buildEventPrompt(EventTurn turn, const EventPromptContext& context) {
+    NewsPrompt prompt;
+    prompt.system = sharedSystemRules();
+    prompt.system += "JSON schema (keys):\n";
+    prompt.system += kSharedSchemaKeys;
+
+    std::string user;
+    user += "SCHEDULED MACRO EVENT\n";
+    user += "Title: " + context.title + "\n";
+    user += "Currency/region: " + context.country + "\n";
+    user += "Impact (feed rating): " + context.impact + "\n";
+    user += "Scheduled (UTC): " + context.scheduledAtIso + "\n";
+    // A missing consensus is stated as missing. Substituting 0 would be a
+    // fabricated expectation the model would then reason about as real.
+    user += "Consensus (published forecast): " +
+            (context.forecast.empty() ? std::string("UNAVAILABLE")
+                                      : context.forecast) +
+            "\n";
+    user += "Previous reading: " +
+            (context.previous.empty() ? std::string("UNAVAILABLE")
+                                      : context.previous) +
+            "\n";
+
+    user += "\nMARKET DATA (closed candles only)\n";
+    user += context.candleSummary.empty() ? "UNAVAILABLE\n"
+                                          : context.candleSummary + "\n";
+    user += "Timeframes: " +
+            (context.timeframeContext.empty() ? std::string("UNAVAILABLE")
+                                              : context.timeframeContext) +
+            "\n";
+    user += "\nEXISTING ASTRA ANALYSIS (read-only, do not modify)\n";
+    user += context.astraSummary.empty() ? "UNAVAILABLE\n"
+                                         : context.astraSummary + "\n";
+
+    if (turn == EventTurn::Expectation) {
+        user +=
+            "\nTASK: the event has NOT been released yet. Write the EXPECTATION "
+            "turn. Using only the consensus, the previous reading and the market "
+            "data above:\n"
+            "- state what the market is positioned for, in summary_ar;\n"
+            "- list the transmission channels to gold in market_implications_ar;\n"
+            "- state explicitly what would CONFIRM the expectation and what "
+            "would CONTRADICT it, in supporting_evidence_ar and "
+            "opposing_evidence_ar respectively;\n"
+            "- put the conditions that would invalidate the scenario in "
+            "invalidating_conditions_ar;\n"
+            "- direction is a provisional lean only, and must be no_trade when "
+            "the consensus is unavailable or the market data is insufficient;\n"
+            "- do NOT present a released outcome: it does not exist yet. If the "
+            "consensus is unavailable, say so in limitations_ar.\n";
+    } else {
+        user +=
+            "\nTASK: the scheduled time has PASSED. Write the RESULT turn. "
+            "Using only the data above:\n"
+            "- state what actually happened, in summary_ar;\n"
+            "- if the released figure is not present in the data above, you MUST "
+            "say so explicitly in limitations_ar and set direction to no_trade: "
+            "do not guess the outcome from price action alone;\n"
+            "- where a released figure IS present, compare it with the consensus "
+            "and previous reading and describe the surprise;\n"
+            "- put the conditions that would invalidate the scenario in "
+            "invalidating_conditions_ar.\n";
+    }
+    user += "\nProduce the JSON object now.";
+
+    prompt.user = std::move(user);
+    return prompt;
+}
+
+std::string buildRepairUserMessage(const std::string& validationError) {
+    // A concrete example is the highest-signal correction for a small model that
+    // has no JSON mode: it shows the exact nesting, which is precisely what the
+    // model gets wrong (it tends to fold top-level keys into a facts element).
+    std::string user;
+    user += "Your previous reply failed schema validation: " + validationError +
+            "\n"
+            "Reply with ONE JSON object and nothing else. No markdown fences, no "
+            "prose before or after it. It MUST have these keys at the TOP "
+            "level, spelled exactly like this example (replace the values with "
+            "your real analysis; never copy the sample numbers):\n"
+            "{\"summary_ar\":\"ملخص عربي\","
+            "\"facts\":[{\"text\":\"نص الحقيقة\",\"kind\":\"fact\"}],"
+            "\"market_implications_ar\":[\"أثر محتمل\"],"
+            "\"supporting_evidence_ar\":[\"دليل مؤيد\"],"
+            "\"opposing_evidence_ar\":[\"دليل معارض\"],"
+            "\"gold_impact_ar\":\"التأثير على الذهب\","
+            "\"gold_relevance\":\"medium\","
+            "\"gold_channel\":\"monetary_policy\","
+            "\"impact_horizon\":\"short\","
+            "\"tone\":\"neutral\","
+            "\"tone_strength\":\"moderate\","
+            "\"tone_evidence_ar\":\"العبارة التي تحمل النبرة\","
+            "\"source_register\":\"wire\","
+            "\"sensationalism\":\"low\","
+            "\"novelty\":\"new\","
+            "\"uncertainty\":\"medium\","
+            "\"hidden_context_ar\":\"ما وراء الخبر\","
+            "\"framing_bias_ar\":\"اتجاه الصياغة\","
+            "\"direction\":\"no_trade\","
+            "\"astra_agreement\":\"unknown\","
+            "\"disagreement_note_ar\":\"ملاحظة الاختلاف\","
+            "\"expected_move_points\":300,"
+            "\"stop_distance_points\":120,"
+            "\"relative_levels_note_ar\":\"ملاحظة المستويات النسبية\","
+            "\"invalidating_conditions_ar\":\"شرط إبطال السيناريو\","
+            "\"limitations_ar\":[\"قيد\"]}\n"
+            "Rules: each facts element MUST contain both \"text\" and \"kind\", "
+            "where kind is one of fact, forecast, commentary, unverified. "
+            "direction MUST be exactly one of bullish, bearish, sideways, "
+            "no_trade. astra_agreement MUST be exactly one of agree, disagree, "
+            "unknown. tone MUST be exactly one of very_negative, negative, "
+            "neutral, positive, very_positive, unknown. source_register MUST be "
+            "one of official, wire, analytical, opinion, other, unknown. "
+            "sensationalism MUST be one of none, low, medium, high, unknown. "
+            "novelty MUST be one of new, partly_priced, already_priced, "
+            "unknown. uncertainty MUST be one of low, medium, high, unknown. "
+            "Do NOT place any of these keys inside a facts element. "
+            "All *_ar fields must be Arabic. Use no_trade when the evidence is "
+            "insufficient; never invent prices or probabilities.\n\n"
+            "Produce the corrected JSON object now.";
+    return user;
+}
+
+}  // namespace aura

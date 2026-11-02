@@ -1,0 +1,8 @@
+{
+  "source": "Yahoo Finance chart API",
+  "symbol": "SI=F",
+  "description": "COMEX Silver front-month futures (daily OHLCV)",
+  "license": "Yahoo ToS, personal/research use",
+  "url": "https://finance.yahoo.com/quote/SI=F",
+  "fetched": "2026-11-01T17:45:46Z"
+}

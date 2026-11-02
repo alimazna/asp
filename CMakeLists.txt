@@ -26,6 +26,15 @@ endif()
 find_package(Threads REQUIRED)
 find_package(SQLite3 REQUIRED)
 
+# Optional: libcurl powers the outbound HTTPS client used by the news-intelligence
+# provider (LLM7). When absent the build still succeeds; the client reports a
+# clear "transport unavailable" error and news analysis degrades to a
+# deterministic `unavailable` state instead of failing to compile.
+find_package(CURL)
+if(CURL_FOUND)
+  add_compile_definitions(ASTRA_HAVE_CURL=1)
+endif()
+
 # ---------------------------------------------------------------------------
 # Core backend library: every src/**/*.cpp except the host entry point.
 # ---------------------------------------------------------------------------
@@ -42,6 +51,9 @@ list(FILTER AURA_CORE_SOURCES EXCLUDE REGEX
 add_library(aura_core STATIC ${AURA_CORE_SOURCES})
 target_include_directories(aura_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(aura_core PUBLIC Threads::Threads SQLite::SQLite3)
+if(CURL_FOUND)
+  target_link_libraries(aura_core PUBLIC CURL::libcurl)
+endif()
 
 if(WIN32)
   target_link_libraries(aura_core PUBLIC ws2_32)
