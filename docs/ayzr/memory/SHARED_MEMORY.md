@@ -65,6 +65,13 @@ Excluded: `astra-frontend/`, `frontend/` (old UI), `windows-sender/` (separate E
   one row per event, with correlation id and reason codes.
 - **D-06** Confidence/probability is only emitted when a calibration file exists.
   ASTRA `score` is never presented as a probability.
+- **D-07** The ecosystem read surface (`/api/v1/ayzr/ecosystem/{sessions,engines,
+  opportunities,ledger}`) is client-token gated and returns the standard
+  `{api,schema,data}` envelope. Both the Android app and the observatory read
+  the same envelope and gate any probability on `confidence.calibrated`.
+- **D-08** The observatory proxy (`tools/ayzr_observatory/serve.py`) allowlists
+  exactly the read paths it needs and refuses every write-shaped sibling; adding
+  a route to the app does not widen the proxy automatically.
 
 ## 4. Interfaces between layers
 

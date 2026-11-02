@@ -120,10 +120,28 @@ to gold-tagged rows.
 |------------|--------|--------|
 | `ASTRA_SENDER_TOKEN` | candle ingest + sync | read news, purge data |
 | `ASTRA_ADMIN_TOKEN` | admin quarantine inspect/purge | write candles |
-| `ASTRA_CLIENT_TOKEN` | read news/analyze/history | write candles, purge |
+| `ASTRA_CLIENT_TOKEN` | read news/analyze/history + `/ayzr/*` (engines, trades, ecosystem) | write candles, purge |
 
 The Android app holds **only** the client token (read-only). No database
 credential, sender token, admin token, or LLM7 token is ever embedded in the APK.
+
+### Ecosystem read surface (`/api/v1/ayzr/ecosystem/*`)
+
+Four client-token routes expose the AYZR engine ecosystem. Each returns the
+standard `{api,schema,data}` envelope; a missing field is `null`, never a
+fabricated zero, and an uncalibrated confidence carries `probability:null`.
+
+| Route | Returns |
+|-------|---------|
+| `GET /ayzr/ecosystem/sessions` | session-clock snapshot (IANA zones, phase, overlap) |
+| `GET /ayzr/ecosystem/engines` | engine registry with health + Arabic labels |
+| `GET /ayzr/ecosystem/opportunities` | one orchestration cycle (decisions, levels, conflicts) |
+| `GET /ayzr/ecosystem/ledger?limit=` | append-only decision ledger page |
+
+Consumed by both the Android app (`lib/ui/screens/ecosystem_screen.dart`) and
+the private observatory (`tools/ayzr_observatory`, "المنظومة" tab). The
+observatory proxy allowlists exactly these read paths and refuses every
+write-shaped sibling.
 
 ## 5. Failure isolation
 
