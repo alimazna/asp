@@ -1,0 +1,8 @@
+{
+  "source": "FRED",
+  "series": "VIXCLS",
+  "description": "CBOE Volatility Index (daily)",
+  "license": "US federal data, public domain",
+  "url": "https://fred.stlouisfed.org/series/VIXCLS",
+  "fetched": "2026-11-01T17:45:45Z"
+}

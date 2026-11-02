@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AYZR — منصة ذكاء أسواق الذهب</title>
+<link rel="icon" href="/static/assets/logo-96.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/assets/logo-96.png" alt="شعار AYZR" class="brand-logo">
+      <div class="brand-text">
+        <h1>AYZR</h1>
+        <span>ذكاء أسواق الذهب</span>
+      </div>
+    </div>
+    <div class="feed-status" id="feedStatus">
+      <span class="dot" id="feedDot"></span>
+      <span id="feedLabel">جارٍ الاتصال…</span>
+    </div>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-route="home">
+      <img src="/static/assets/icon-home.png" alt=""><span>الرئيسية</span>
+    </button>
+    <button class="tab" data-route="analysis">
+      <img src="/static/assets/icon-chart.png" alt=""><span>التحليل</span>
+    </button>
+    <button class="tab" data-route="news">
+      <img src="/static/assets/icon-news.png" alt=""><span>الأخبار</span>
+    </button>
+    <button class="tab" data-route="history">
+      <img src="/static/assets/icon-history.png" alt=""><span>السجل</span>
+    </button>
+  </nav>
+
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

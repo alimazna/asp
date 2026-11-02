@@ -1,0 +1,22 @@
+{
+  "agent-a-api": {
+    "id": "04ae8c1e-ae90-4ed0-bd0d-be08b026cbfe",
+    "status": "created"
+  },
+  "agent-b-store": {
+    "id": "8e13702a-c95b-494a-9a2e-152f0c058936",
+    "status": "created"
+  },
+  "agent-c-realdata": {
+    "id": "ce655d99-2a21-4e6b-b082-831f58d33353",
+    "status": "created"
+  },
+  "agent-d-security": {
+    "id": "5b3ffa20-6da6-4cef-8720-9272439be865",
+    "status": "created"
+  },
+  "agent-e-perf": {
+    "id": "87c7363e-5f89-4137-afe1-95bb14709800",
+    "status": "created"
+  }
+}

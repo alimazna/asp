@@ -1,0 +1,42 @@
+{
+  "baseline": {
+    "train_n": 274,
+    "train_expR": 0.028,
+    "oos_n": 211,
+    "oos_expR": 0.0471,
+    "pooled_expR": 0.0363,
+    "top10pct_profit_share": 2.732
+  },
+  "breakeven": {
+    "train_n": 274,
+    "train_expR": -0.0619,
+    "oos_n": 211,
+    "oos_expR": -0.0226,
+    "pooled_expR": -0.0448,
+    "top10pct_profit_share": -2.213
+  },
+  "trail_1.5": {
+    "train_n": 280,
+    "train_expR": 0.0208,
+    "oos_n": 219,
+    "oos_expR": -0.012,
+    "pooled_expR": 0.0064,
+    "top10pct_profit_share": 16.786
+  },
+  "time_stop_20": {
+    "train_n": 300,
+    "train_expR": 0.0713,
+    "oos_n": 220,
+    "oos_expR": 0.0563,
+    "pooled_expR": 0.0649,
+    "top10pct_profit_share": 1.546
+  },
+  "partial_tp": {
+    "train_n": 274,
+    "train_expR": -0.0144,
+    "oos_n": 211,
+    "oos_expR": 0.0147,
+    "pooled_expR": -0.0017,
+    "top10pct_profit_share": -57.49
+  }
+}

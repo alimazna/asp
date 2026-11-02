@@ -1,0 +1,319 @@
+# AYZR — Android App (Arabic, RTL, read-only)
+
+Owner: **Agent B**. Scope: `ayzr-android/**` and this document. The backend
+(C++), the existing `astra-frontend/`, and the Windows MT5 Sender are out of
+scope and were not modified.
+
+AYZR is a **shadow-only** XAUUSD (gold) market-intelligence client. It never
+executes an order. It reads a documented, authenticated subset of the backend
+API and presents it in Arabic, right-to-left.
+
+## 1. What it is
+
+- Flutter 3.24.5 / Dart 3.5.4, Android only.
+- Four sections, all user-facing text Arabic:
+  - **الرئيسية** (Home) — system health, market state, latest-signal summary,
+    and the **preparation section** ("تحضير للخبر القادم").
+  - **التحليل** (Analysis) — context, signal, suggested levels, metadata.
+  - **الأخبار** (News) — article list with a gold-only filter + detail view.
+  - **السجل** (History) — persisted analyses, newest first.
+- Dark-navy surfaces with restrained gold accents (`lib/core/theme.dart`).
+- RTL layout: the whole shell is wrapped in `Directionality(textDirection: rtl)`
+  and the app locale is `ar`.
+- Arabic typeface: Cairo (OFL), bundled from `assets/fonts/`.
+
+## 2. Backend integration (real, authenticated)
+
+Base URL default: `https://astra-server-production.up.railway.app`
+(override with `--dart-define=AYZR_BASE_URL=...` or in-app **الإعدادات**).
+
+Every request carries `Authorization: Bearer <client token>`. The token is the
+backend's **read-only client credential** (`ASTRA_CLIENT_TOKEN` →
+`AstraApiServerConfig::clientTokens`). It is:
+
+- supplied at runtime (in-app settings, stored in `shared_preferences`), or via
+  `--dart-define=AYZR_CLIENT_TOKEN=...`;
+- **never** hardcoded in source and **never** a privileged secret — it cannot
+  ingest candles, sync, or reach the admin surface.
+
+Routes called (all GET, all client-token gated in
+`src/api/AstraApiServer.cpp`):
+
+| Route | Purpose |
+|-------|---------|
+| `/api/v1/health/v1` | liveness/status (`ok`/`degraded`/`offline`) |
+| `/api/v1/analysis/latest` | context + signal + levels + meta |
+| `/api/v1/news?limit=&gold_only=` | article list with analysis status |
+| `/api/v1/news/analyze?id=` | one article + its Arabic analysis |
+| `/api/v1/news/results?limit=&direction=` | news-results log: each analysis joined to its article's source metadata |
+| `/api/v1/events?scope=upcoming&gold_only=false` | the macro-event calendar for the preparation section |
+| `/api/v1/events/detail?key=` | one event + its expectation/result turns |
+| `/api/v1/history?limit=` | persisted analyses |
+
+Ingestion (`/candles/ingest`), `/sync/latest` and `/admin/candles` are
+deliberately **not** implemented in the client. A leaked read token cannot write.
+
+Responses are enveloped as `{"api":"v1","schema":"1.0","data":...}`; the client
+unwraps `data` and rejects anything that is not an envelope. Backend errors use
+the flat `{error,code,message}` object and are mapped to typed failures.
+
+## 3. Honesty rules carried into the client
+
+- **RULE C (probability vs score).** `signal.probability` is shown as a
+  probability **only** when `signal.probability_calibrated` is `true`. Otherwise
+  the raw `signal.score` is shown, labelled **الدرجة** (score) with an explicit
+  "هذه درجة غير معايرة وليست احتمالاً" caveat. A score is never titled
+  "الاحتمال". This is enforced in `lib/data/models/analysis.dart` (probability is
+  only read from `probability`, never from `score`) and asserted by tests.
+- **Never fabricate.** Every absent/`null`/`UNKNOWN` field renders as
+  **غير متاح** (unavailable), never `0`, never blank. See `Fmt` in
+  `lib/ui/widgets/info_widgets.dart`.
+- **Distinct states.** loading / empty / offline / stale / degraded / error /
+  unauthorized are separate Arabic states (`lib/ui/widgets/state_panel.dart`).
+  Empty is never shown as an error, and a connectivity failure is never shown as
+  "no data".
+- **Stale is annotated, not hidden.** When `meta.data_freshness_sec > 3600`, or
+  the backend reports degraded, a banner appears above the data.
+- **Shadow-only notice** is permanently visible on the home screen.
+- **News analysis gate.** Only `status == "ok"` presents a proposal/levels; any
+  other status shows the reason instead.
+- **Results log join is honest.** `GET /api/v1/news/results` joins each persisted
+  analysis to its article's source metadata. A row whose article was not retained
+  carries `article_available: false` and empty headline/source; the UI renders
+  **غير متاح** for those rather than inventing a headline. The two classifiers the
+  model assigns — `gold_channel` and `impact_horizon` — are closed vocabularies:
+  an unrecognised value shows as **غير محدَّد**, never a friendlier guess.
+- **Tone card (`_ToneChip` / `_SubtextBlock`).** When an analysis carries a tone
+  classification, `AnalysisView` renders a separate card reading the *wording*:
+  the tone label and strength, the quoted `tone_evidence_ar`, plus
+  `source_register`, `sensationalism`, `novelty` and `uncertainty`, then the
+  `hidden_context_ar` / `framing_bias_ar` prose under their own headings. The
+  card carries a standing caveat that tone does not change the facts, and is
+  **omitted entirely** when the model classified nothing — a card of five
+  **غير محدَّدة** rows would be noise, not understanding. An unrecognised tone
+  value renders as **غير محدَّدة**. Tone is shown separately from `direction`
+  because the same tone can sit on opposite market implications.
+- **Relative levels when a price cannot be grounded.** An actionable analysis
+  whose absolute levels were dropped (no candle reference) still carries the
+  model's honest *distances* — `levels.expected_move_points`,
+  `levels.stop_distance_points`, `levels.relative_levels_note_ar`. The client
+  renders the absolute levels when present and these relative distances
+  otherwise, and says plainly when neither exists rather than printing a number.
+
+### Preparation for the upcoming event ("تحضير للخبر القادم")
+
+Home carries a preparation section built from the macro-event calendar:
+
+- it lists the nearest upcoming events, each with a **countdown** to its real
+  `scheduled_at` (see `lib/ui/widgets/countdown.dart`);
+- the **nearest** event is selected client-side as the minimum `scheduled_at`
+  (never "row 0"), so a server ordering change cannot surface the wrong event;
+- it requests `gold_only=false`, so the countdown is not silently limited to
+  gold-tagged rows;
+- opening an event shows its **expectation** turn (pre-release) and **result**
+  turn (post-release) from `/api/v1/events/detail`, each marked as prepared,
+  released, or failed — an event with no turn yet shows that state, not an
+  invented analysis.
+
+The countdown here is *not* the rejected per-article "remaining validity"
+countdown of §8: it counts down to a timestamp the backend actually stores
+(`scheduled_events.scheduled_at`), so nothing is invented. §8 still stands — no
+notification, no invented validity window.
+
+## 4. Layout of the code
+
+```
+ayzr-android/
+  lib/
+    main.dart                     app entry (loads settings, runs AyzrApp)
+    core/
+      app_config.dart             base URL + client token, endpoint builder
+      strings_ar.dart             every Arabic string, centralized
+      theme.dart                  dark-navy + gold tokens, Cairo font
+    data/
+      api_result.dart             ApiResult<T> + typed ApiFailure
+      api_client.dart             authenticated client for the 8 routes
+      models/analysis.dart        analysis surface models (RULE C aware)
+      models/news.dart            news + history + news-results models
+      models/events.dart          macro-event calendar models
+      models/health.dart          health model
+    state/
+      app_state.dart              ChangeNotifier: sections, phases, flags
+      settings_store.dart         persists URL + token on-device
+    ui/
+      app_shell.dart              RTL shell, bottom nav, MaterialApp
+      screens/                    home, analysis, news, news_detail,
+                                  news_results, history, settings,
+                                  event_detail
+      widgets/                    state panels, banners, info rows, chips,
+                                  upcoming_news_section, countdown
+  test/                           see §6
+  assets/                         owned by Agent D (icons, fonts, graphics)
+```
+
+## 5. Running
+
+```bash
+export PATH=$PATH:/opt/flutter/bin
+export ANDROID_HOME=/opt/android-sdk
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+
+cd ayzr-android
+flutter pub get
+flutter analyze
+LD_LIBRARY_PATH=/tmp/sqlite-lib flutter test   # journal tests need libsqlite3.so
+flutter build apk --debug
+```
+
+The debug APK is written to
+`ayzr-android/build/app/outputs/flutter-apk/app-debug.apk`.
+
+### Reproducible build
+
+`tool/build_apk.sh` runs the whole chain — `pub get`, `analyze`, `test`, then
+`build apk` — and prints each APK's size, full-file SHA-256, and payload
+SHA-256 so two builds can be compared. It also creates the `libsqlite3.so`
+symlink the journal tests need and warns if the Flutter/Dart version differs
+from the one verified here.
+
+```bash
+tool/build_apk.sh            # both APKs
+tool/build_apk.sh release    # release only
+```
+
+Verified toolchain: Flutter **3.24.5** (stable), Dart **3.5.4**, JDK 17,
+Android SDK build-tools 34.0.0, NDK 27.0.12077973, compileSdk 34, minSdk 21.
+
+**What "reproducible" means here.** The APK *payload* — every local file
+header, every compressed entry, and the central directory — is byte-identical
+across builds. The only bytes that differ between two builds are inside the APK
+Signing Block, because an ECDSA signature embeds a random nonce. So:
+
+- `tool/apk_payload_hash.py <apk>` hashes everything up to the signing block.
+  Two builds of the same source produce the same value; this is the number to
+  compare across machines.
+- The full-file SHA-256 is stable for the *same signed artifact* (e.g. a
+  verified incremental rebuild) but not across independent signings.
+
+Observed: a clean `flutter clean` rebuild and an incremental rebuild of the same
+tree gave identical payload hashes (`c76bf38f…`, 22 925 025 B) with differing
+full-file hashes.
+
+Release signing is fail-closed: `flutter build apk --release` **refuses** unless
+`ayzr-android/android/key.properties` exists (it is git-ignored). Supplying that
+file — `storeFile`, `storePassword`, `keyAlias`, `keyPassword` — makes the same
+command produce a privately signed APK. A template with the `keytool` command is
+at `android/key.properties.example`.
+
+The check is scoped to release tasks, so `flutter build apk --debug` still works
+without a keystore. This replaced an earlier behaviour that silently signed a
+release APK with the debug key: a debug-signed artifact is not distributable,
+and shipping one under a release name hides that. **Never commit the keystore or
+`key.properties`.**
+
+To run against a specific backend without editing settings:
+
+```bash
+flutter build apk --debug \
+  --dart-define=AYZR_BASE_URL=https://astra-server-production.up.railway.app \
+  --dart-define=AYZR_CLIENT_TOKEN=<read-only client token>
+```
+
+> The client token is a read-only credential. Prefer entering it in the in-app
+> settings on the device rather than committing it into a build script.
+
+## 6. Tests
+
+Widget/unit tests use a `MockClient` (from `package:http/testing.dart`) so the
+**real** parsing, state-transition and widget code paths run without a network.
+They assert, among other things, that an uncalibrated signal renders a score and
+never a probability, that a network failure renders the offline panel (not an
+empty state), and that empty lists render the empty state (not an error).
+`test/relative_levels_and_countdown_test.dart` covers the relative-level fields,
+the `EventCountdown` formatting, nearest-event selection, and the preparation
+section.
+
+```bash
+flutter analyze                 # No issues found
+flutter test                    # 108 passed, 3 skipped (live)
+```
+
+### Live integration test (opt-in)
+
+`test/live_integration_test.dart` drives the app's real `ApiClient` against a
+running backend. It is **skipped** unless `AYZR_LIVE_BASE_URL` is set, so the
+default run stays hermetic:
+
+```bash
+AYZR_LIVE_BASE_URL=http://127.0.0.1:12001 AYZR_LIVE_TOKEN=<client token> \
+  flutter test --tags live      # 3 passed
+```
+
+It asserts the events feed is soonest-first and impact-agnostic, and that an
+actionable analysis is priced **or** distanced (never faked).
+
+See `docs/ayzr/reports/agent-b.md` for the exact pass/fail totals from the last
+run.
+
+## 7. Android specifics
+
+- `android/app/build.gradle` pins `compileSdk = 34`,
+  `buildToolsVersion = "34.0.0"` (the environment has platform 34 / build-tools
+  34.0.0 only; AGP's default 33.0.1 is unavailable offline), and
+  `ndkVersion = "27.0.12077973"`. The NDK pin removes a Flutter build warning:
+  `shared_preferences_android` declares NDK 27.0.12077973 while Flutter's default
+  is 23.1.7779620. NDK releases are backward compatible, so pinning the highest
+  required version is the documented fix. NDK 27 was installed with
+  `sdkmanager --install "ndk;27.0.12077973"`.
+- Gradle wrapper is 8.7 (required for JDK 21; the template default 8.3 supports
+  only up to Java 20).
+- `AndroidManifest.xml`: `android:supportsRtl="true"`, label **أيزر**, and the
+  single `INTERNET` permission. No other permission is requested.
+- Launch/normal themes are dark-navy (`values/styles.xml`,
+  `values-night/styles.xml`) so there is no white flash before the first frame.
+- Launcher icons and splash mark are the generated assets from Agent D
+  (`assets/android-res/**`), installed into `android/app/src/main/res/**`.
+
+## 8. Notification delivery: deliberately not implemented
+
+The owner asked for per-article notifications with a live countdown of
+"remaining validity". This is not implemented, on purpose, for two independent
+reasons that are worth recording rather than quietly skipping:
+
+1. **No validity window exists to count down.** The backend has no
+   `valid_until` / `expires_at` field anywhere in `news_articles`,
+   `news_analyses` or the candle store. A countdown would therefore have to
+   invent a duration (say 24h) and present that invention as a real property of
+   the article. That is exactly the fabrication the project rules forbid, so the
+   honest move is to not ship a countdown until a validity window is a real,
+   persisted, backend-defined value.
+2. **It would widen the permission surface.** A real Android notification needs
+   `POST_NOTIFICATIONS` (and `SCHEDULE_EXACT_ALARM` for an exact countdown),
+   which breaks the "INTERNET only, read-only client" constraint the app was
+   accepted under. Widening permissions is a decision for the owner, not a
+   side effect of adding a feature.
+
+If the owner wants this later, the correct order is: define and persist a
+validity window in the backend first, then expose it on the news envelope, then
+request the notification permissions explicitly.
+
+## 9. Out of scope / not done
+
+- No order execution, no write path, no ingestion, no admin route.
+- No `astra-frontend/` or Windows-sender changes; backend changes are additive
+  and documented in `docs/ayzr/BACKEND.md`.
+- Not deployed; no store submission.
+- Both APKs are buildable and verified locally:
+  - debug — `build/app/outputs/flutter-apk/app-debug.apk` (~91 MB, built and
+    payload-hashed in this pass);
+  - release — `build/app/outputs/flutter-apk/app-release.apk`, produced by
+    `flutter build apk --release` **only when** `android/key.properties` and a
+    real keystore are present. Without them the release build refuses with an
+    explanatory message rather than emitting a debug-signed APK.
+  The release build is therefore not produced in this environment; the debug APK
+  is the tested artifact. A distributable release needs `android/key.properties`
+  and a real keystore — the only thing standing between this tree and a signed
+  release.
+- No device or emulator run was possible in this environment: the APK is built
+  and its manifest/permissions verified with `aapt`, but it has **not** been
+  installed on a real device.

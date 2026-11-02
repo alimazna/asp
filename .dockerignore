@@ -8,6 +8,7 @@
 astra-frontend/node_modules
 /windows-sender
 /tests
+tools/ayzr_agents/__pycache__
 build
 build-linux
 build-verify

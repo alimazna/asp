@@ -1,0 +1,95 @@
+{
+  "a1_checksums": {
+    "status": "mismatch",
+    "ok": 10,
+    "bad": 5,
+    "details": [
+      "missing 2021.csv",
+      "missing 2022.csv",
+      "missing 2023.csv",
+      "missing 2024.csv",
+      "missing 2025.csv"
+    ]
+  },
+  "a2_oracle": {
+    "status": "ok",
+    "rebuilt": "aee61fa9225b4fc6",
+    "frozen": "aee61fa9225b4fc6",
+    "match": true
+  },
+  "a3_reproduce": {
+    "per_year": {
+      "2021": {
+        "n": 74,
+        "win": 0.5135,
+        "expR": -0.0039,
+        "totalR": -0.2872
+      },
+      "2022": {
+        "n": 93,
+        "win": 0.5161,
+        "expR": -0.002,
+        "totalR": -0.1876
+      },
+      "2023": {
+        "n": 91,
+        "win": 0.5385,
+        "expR": 0.0446,
+        "totalR": 4.0568
+      },
+      "2024": {
+        "n": 82,
+        "win": 0.5122,
+        "expR": -0.0104,
+        "totalR": -0.8535
+      },
+      "2025": {
+        "n": 102,
+        "win": 0.5686,
+        "expR": 0.1091,
+        "totalR": 11.1292
+      }
+    },
+    "pooled": {
+      "n": 442,
+      "expR": 0.0314,
+      "pf": 1.0663,
+      "totalR": 13.8577
+    }
+  },
+  "a4_distinct": {
+    "n22": 93,
+    "n25": 102,
+    "overlap": 0,
+    "identical": false
+  },
+  "a5_math": {
+    "independent": {
+      "n": 442,
+      "expR": 0.031352,
+      "totalR": 13.8577,
+      "pf": 1.066255
+    },
+    "summary": {
+      "n": 442,
+      "expR": 0.031352,
+      "totalR": 13.8577,
+      "pf": 1.066255
+    },
+    "agree": true
+  },
+  "a6_bootstrap": {
+    "n": 442,
+    "mean": 0.0314,
+    "iid_ci": [
+      -0.0618,
+      0.1238
+    ],
+    "block_ci": [
+      -0.0453,
+      0.1134
+    ],
+    "iid_crosses_zero": true,
+    "block_crosses_zero": true
+  }
+}

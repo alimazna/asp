@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AyzrColors.navyDeep (#070B18) — matches lib/core/theme.dart. -->
+    <color name="ic_launcher_background">#070B18</color>
+</resources>
