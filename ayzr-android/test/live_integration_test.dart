@@ -76,5 +76,35 @@ void main() {
             reason: 'an actionable analysis must price it or distance it');
       }
     }, skip: skip);
+
+    test('ecosystem routes parse against a real backend', () async {
+      await state.loadEcosystem();
+      // Every route must answer with a parseable envelope, not a raw body.
+      expect(state.sessions.phase, isNot(LoadPhase.error));
+      expect(state.ecosystemEngines.phase, isNot(LoadPhase.error));
+      expect(state.opportunities.phase, isNot(LoadPhase.error));
+      expect(state.ledger.phase, isNot(LoadPhase.error));
+
+      final reg = state.ecosystemEngines.data;
+      if (reg != null) {
+        expect(reg.schemaVersion, greaterThan(0));
+        expect(reg.engines, isNotEmpty);
+      }
+      final cyc = state.opportunities.data;
+      if (cyc != null) {
+        // A decision is either present with a rationale, or the cycle is
+        // honestly empty — never a placeholder trade.
+        for (final op in cyc.opportunities) {
+          expect(op.symbol, 'XAUUSD');
+          expect(op.rationaleAr, isNotEmpty);
+          // A probability is only ever a number when the backend calibrated it.
+          for (final ev in op.contributingEvents) {
+            if (!ev.confidenceCalibrated) {
+              expect(ev.confidenceProbability, isNull);
+            }
+          }
+        }
+      }
+    }, skip: skip);
   });
 }
