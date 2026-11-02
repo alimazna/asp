@@ -89,3 +89,22 @@ ASTRA CORE (frozen) ────────────────────
   `docs/ayzr/reports/biquote-audit.md`; Microstructure engine reports
   `Unavailable` until verified.
 - Live LLM7 blocked on free-tier 429 + token rotation (F-E-6 in SECURITY.md).
+
+## 6. Premium-evolution decisions (2026-11-02)
+
+- **D-09 Scheduled market closures are not data defects.** A real gold feed
+  stops for the daily rollover and over the weekend. `barsContiguous` (strict)
+  is unchanged and still rejects those gaps. A new
+  `barsContiguousAllowingClosures` treats a gap as expected ONLY when the whole
+  interval lies inside a modelled closure band (daily `[20:00,03:00]` UTC,
+  weekend `[Fri 19:00, Mon 03:00]` UTC — a band wide enough to cover MT5's
+  23:00→01:00 and BiQuote's 21:00→22:00 rollovers). `EcosystemRuntime::buildView`
+  now uses it, so a series with only closure gaps is `VALID` and can publish;
+  a mid-session gap or an out-of-order/duplicate bar is still `INCOMPLETE`.
+  Skipped closures are recorded in `MarketView::closureGaps` so the UI can label
+  them instead of the series looking corrupt. ASTRA CORE untouched; fingerprint
+  unchanged; C++ suite 50/50.
+
+- **Effect (verified):** with real BiQuote bars the M15 cycle now returns
+  `PUBLISH` (previously every real-data cycle returned `WITHHOLD` /
+  `non_decision_grade_data`), because a real feed always contains a weekend gap.

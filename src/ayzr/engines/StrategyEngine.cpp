@@ -9,26 +9,106 @@ namespace aura {
 namespace ayzr {
 namespace eco {
 
+namespace {
+
+/// Seconds in one bar of `tf`, or 0 when the timeframe is not a grid we model.
+std::int64_t timeframeStepSeconds(Timeframe t) noexcept {
+    switch (t) {
+        case Timeframe::M1:  return 60;
+        case Timeframe::M5:  return 300;
+        case Timeframe::M15: return 900;
+        case Timeframe::M30: return 1800;
+        case Timeframe::H1:  return 3600;
+        case Timeframe::H4:  return 14400;
+        case Timeframe::D1:  return 86400;
+        case Timeframe::W1:  return 604800;
+        case Timeframe::MN1: return 2592000;   // nominal; not used for gaps
+    }
+    return 0;
+}
+
+}  // namespace
+
 bool barsContiguous(const std::vector<Bar>& bars, Timeframe tf) noexcept {
     if (bars.size() < 2) return !bars.empty();
-    const std::int64_t step = [] (Timeframe t) -> std::int64_t {
-        switch (t) {
-            case Timeframe::M1:  return 60;
-            case Timeframe::M5:  return 300;
-            case Timeframe::M15: return 900;
-            case Timeframe::M30: return 1800;
-            case Timeframe::H1:  return 3600;
-            case Timeframe::H4:  return 14400;
-            case Timeframe::D1:  return 86400;
-            case Timeframe::W1:  return 604800;
-            case Timeframe::MN1: return 2592000;   // nominal; not used for gaps
-        }
-        return 0;
-    }(tf);
+    const std::int64_t step = timeframeStepSeconds(tf);
     for (std::size_t i = 1; i < bars.size(); ++i) {
         std::int64_t d = bars[i].openTimeUtc - bars[i - 1].openTimeUtc;
         if (d <= 0) return false;              // out of order or duplicate
         if (step > 0 && d > step) return false; // a gap
+    }
+    return true;
+}
+
+bool isScheduledClosure(std::int64_t fromUtc, std::int64_t toUtc) noexcept {
+    if (toUtc <= fromUtc) return false;
+    // Gold's feed stops for a daily rollover and over the weekend. Brokers place
+    // the rollover at slightly different wall-clock times (the operator's MT5
+    // export closes 23:00->01:00 UTC; BiQuote closes 21:00->22:00 UTC), so the
+    // predicate models a *band* that covers every observed variant rather than
+    // one broker's exact minute:
+    //   daily   : [20:00, 03:00 next day] UTC
+    //   weekend : [Friday 19:00, Monday 03:00] UTC
+    // An interval counts as a closure ONLY when it lies wholly inside a single
+    // such band. A gap that starts mid-session, or runs past the band, is a
+    // defect — the predicate never degrades into "any gap is fine".
+    const std::int64_t daySec = 86400;
+    const std::int64_t hour = 3600;
+    const std::int64_t tod = ((fromUtc % daySec) + daySec) % daySec;
+    const std::int64_t startOfDay = fromUtc - tod;
+    const std::int64_t days = fromUtc >= 0 ? fromUtc / daySec
+                                           : -(( -fromUtc + daySec - 1) / daySec);
+    const std::int64_t dow = ((days % 7) + 7 + 4) % 7;   // 0=Sun
+
+    // Daily band containing `fromUtc`.
+    std::int64_t bandStart = 0, bandEnd = 0;
+    if (tod >= 20 * hour) {
+        bandStart = startOfDay + 20 * hour;
+        bandEnd = startOfDay + daySec + 3 * hour;
+    } else if (tod <= 3 * hour) {
+        bandStart = startOfDay - 4 * hour;               // previous day 20:00
+        bandEnd = startOfDay + 3 * hour;
+    } else {
+        bandStart = bandEnd = 0;
+    }
+    if (bandEnd > bandStart && fromUtc >= bandStart && toUtc <= bandEnd) return true;
+
+    // Weekend band: [Fri 19:00, Mon 03:00] UTC. It only applies when `fromUtc`
+    // actually falls in that window (Fri/Sat/Sun, or the small hours of Monday);
+    // a mid-week gap must never be mistaken for it.
+    const bool inWeekendWindow =
+        dow == 5 || dow == 6 || dow == 0 || (dow == 1 && tod <= 3 * hour);
+    if (inWeekendWindow) {
+        std::int64_t untilMon = (1 - dow + 7) % 7;       // days from dow to Monday
+        if (dow == 1) untilMon = 0;                      // Monday itself
+        const std::int64_t weekendEnd = startOfDay + untilMon * daySec + 3 * hour;
+        const std::int64_t weekendStart = weekendEnd - 56 * hour;
+        if (fromUtc >= weekendStart && toUtc <= weekendEnd) return true;
+    }
+
+    return false;
+}
+
+bool barsContiguousAllowingClosures(const std::vector<Bar>& bars, Timeframe tf,
+                                    std::vector<GapInfo>* closures) noexcept {
+    if (bars.size() < 2) return !bars.empty();
+    const std::int64_t step = timeframeStepSeconds(tf);
+    for (std::size_t i = 1; i < bars.size(); ++i) {
+        std::int64_t d = bars[i].openTimeUtc - bars[i - 1].openTimeUtc;
+        if (d <= 0) return false;              // out of order or duplicate
+        if (step > 0 && d > step) {
+            if (isScheduledClosure(bars[i - 1].openTimeUtc, bars[i].openTimeUtc)) {
+                if (closures) {
+                    GapInfo g;
+                    g.prevOpenUtc = bars[i - 1].openTimeUtc;
+                    g.nextOpenUtc = bars[i].openTimeUtc;
+                    g.missingBars = (d / step) - 1;
+                    closures->push_back(g);
+                }
+                continue;                      // expected absence, not a defect
+            }
+            return false;                      // a real gap during open hours
+        }
     }
     return true;
 }

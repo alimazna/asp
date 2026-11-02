@@ -67,8 +67,16 @@ MarketView EcosystemRuntime::buildView(const CandleStore& store, Timeframe tf,
         v.bars.push_back(b);
     }
     v.latestOpenUtc = v.bars.back().openTimeUtc;
-    v.quality = barsContiguous(v.bars, tf) ? DataQualityState::VALID
-                                           : DataQualityState::INCOMPLETE;
+    // A gap that falls entirely inside a scheduled market closure (the daily
+    // rollover or the weekend) is an expected absence in a real gold feed, not
+    // corrupted data. Only a gap during open hours — or an out-of-order /
+    // duplicate bar — makes the series non-decision-grade. The skipped closures
+    // are recorded so the caller can surface them instead of hiding them.
+    std::vector<GapInfo> closures;
+    v.quality = barsContiguousAllowingClosures(v.bars, tf, &closures)
+                    ? DataQualityState::VALID
+                    : DataQualityState::INCOMPLETE;
+    v.closureGaps = std::move(closures);
     return v;
 }
 

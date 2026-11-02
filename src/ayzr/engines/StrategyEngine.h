@@ -31,6 +31,13 @@ struct Bar {
     bool hasSpread = false;       // distinguishes a real 0 from "not supplied"
 };
 
+/// A gap between two consecutive bars, classified against the market calendar.
+struct GapInfo {
+    std::int64_t prevOpenUtc = 0;   // open of the bar before the gap
+    std::int64_t nextOpenUtc = 0;   // open of the bar after the gap
+    std::int64_t missingBars = 0;   // bars absent from the grid
+};
+
 /// A frozen, read-only view of the market for one symbol/timeframe. `bars` are
 /// ordered oldest -> newest and are all closed. The engine must not mutate it.
 struct MarketView {
@@ -47,6 +54,10 @@ struct MarketView {
     std::int64_t latestOpenUtc = 0;
     /// Wall-clock instant the snapshot was taken.
     std::int64_t snapshotUtc = 0;
+    /// Expected market-closure gaps that were skipped when judging contiguity
+    /// (the daily rollover and the weekend). Empty for a fully dense window.
+    /// Recorded so the UI can label them instead of the series looking corrupt.
+    std::vector<GapInfo> closureGaps;
 
     std::size_t size() const noexcept { return bars.size(); }
     const Bar& newest() const { return bars.back(); }
@@ -56,6 +67,22 @@ struct MarketView {
 /// True when `bars` are strictly ascending in open time with no gaps larger than
 /// one timeframe step. Used by engines that need contiguous history.
 bool barsContiguous(const std::vector<Bar>& bars, Timeframe tf) noexcept;
+
+/// True when the interval [fromUtc, toUtc) lies entirely inside a scheduled
+/// market closure (the daily maintenance break or the weekend close) for gold.
+/// Gold is OTC but the broker feed stops between the daily rollover and over the
+/// weekend; those absences are *expected*, not corrupted data. This predicate
+/// encodes only the closure windows observed in the operator's own corpus — it
+/// never widens to "any gap is fine".
+bool isScheduledClosure(std::int64_t fromUtc, std::int64_t toUtc) noexcept;
+
+/// Like `barsContiguous`, but a gap that falls entirely inside a scheduled
+/// market closure does not break contiguity. Returns false only for a real
+/// defect: out-of-order bars, duplicates, or a gap during open market hours.
+/// Every skipped closure gap is appended to `closures` so the caller can report
+/// it honestly instead of silently ignoring it.
+bool barsContiguousAllowingClosures(const std::vector<Bar>& bars, Timeframe tf,
+                                    std::vector<GapInfo>* closures = nullptr) noexcept;
 
 /// Simple average of closes over the last `n` bars. nullopt when too few bars.
 std::optional<double> sma(const std::vector<Bar>& bars, std::size_t n);
