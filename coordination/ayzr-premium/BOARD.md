@@ -110,3 +110,38 @@ Commit `16b41f1`.
 `com.ayzr.ayzr_app`, label `أيزر`, 357 Arabic strings in `strings_ar.dart`.
 Release signing blocked: no JDK in the image.
 
+
+### T5 LLM7 live path + e2e lifecycle → DONE (local)
+
+**libcurl gap closed.** The first live analysis reported
+`outbound HTTP transport not compiled (libcurl missing)`. `libcurl4` was present
+but `libcurl4-openssl-dev` was not, so CMake's `find_package(CURL)` failed and
+`ASTRA_HAVE_CURL` stayed undefined. After installing the header, CMake found
+`CURL 8.14.1`, the build defined `ASTRA_HAVE_CURL=1`, and `ldd` showed
+`libcurl.so.4`. **Local toolchain only** — `Dockerfile` already ships both
+packages, so Railway was never affected.
+
+**Root cause of the failing analysis was the timeout, not the transport.**
+`nemotron-3-nano:30b` is a reasoning model: it burns most of its token budget
+before emitting content. Measured live: a 120-word gold analysis took **75.6 s**
+and 11,264 completion tokens; a `max_tokens=800` request returned **empty**
+content with `finish_reason=length`. The default `LLM7_READ_TIMEOUT_MS=45000`
+therefore timed out every real analysis. Default raised to `120000` in
+`AstraServerMain.cpp`; measured table added to `docs/ayzr/DEPLOYMENT.md §LLM7`.
+
+**Quota handling verified honest.** A burst produced a real `429`
+(`rate_limit_error`, `retry_after: 1`) → classified `RateLimited`, no cooldown.
+The reasoning-model token burn later hit the provider's daily budget
+(`retry_after ≈ 89030 s`) → `provider daily quota exhausted; cooling down`,
+`chain_summary: all_quota_exhausted`. No fabricated analysis was served.
+
+**End-to-end lifecycle** (mock provider, real server, `/tmp/e2e_test.py`):
+news ingest `stored_new` → duplicate `duplicate_content` (content dedup) →
+10 M15 bars `ingested: 10` → identical batch `already_stored` ×10 (idempotent) →
+read back `bars` count 5 → analysis `status: ok / direction: bullish` in Arabic →
+no-auth ingest **401** → bad OHLC candle `rejected`. Field names confirmed
+against the running server: `source_id` + `candle.time` on write; `tf`/`limit`
+and a `bars` array on read.
+
+Commits `b3387af`, `5d2ae65`. **Still not done:** production deployment (no
+Railway/Cloudflare credentials here) and device/emulator install.
