@@ -128,6 +128,16 @@ public:
     std::function<ApiResponse()> ayzrEnginesHandler;
     std::function<ApiResponse(const std::string&)> ayzrTradesHandler;
     std::function<ApiResponse(const std::string&)> ayzrTradeDetailHandler;
+    // AYZR-ECO-API — ecosystem read surface (sessions, engines, opportunities,
+    // ledger). Additive; disabled (401) when no client token is configured.
+    //   GET /api/v1/ayzr/ecosystem/sessions        -> ecoSessionsHandler()
+    //   GET /api/v1/ayzr/ecosystem/engines         -> ecoEnginesHandler()
+    //   GET /api/v1/ayzr/ecosystem/opportunities   -> ecoOpportunitiesHandler(query)
+    //   GET /api/v1/ayzr/ecosystem/ledger          -> ecoLedgerHandler(query)
+    std::function<ApiResponse()> ecoSessionsHandler;
+    std::function<ApiResponse()> ecoEnginesHandler;
+    std::function<ApiResponse(const std::string&)> ecoOpportunitiesHandler;
+    std::function<ApiResponse(const std::string&)> ecoLedgerHandler;
     //   POST /api/v1/news/ingest             -> newsIngestHandler(body)
     std::function<ApiResponse(const std::string&)> newsIngestHandler;
 

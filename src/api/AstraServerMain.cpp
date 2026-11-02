@@ -25,6 +25,17 @@
 #include "data/BarNormalizer.h"
 #include "foundation/Json.h"
 #include "foundation/OutboundHttpClient.h"
+#include "ayzr/ecosystem/CentralOrchestrator.h"
+#include "ayzr/ecosystem/DecisionLedger.h"
+#include "ayzr/ecosystem/EcosystemJson.h"
+#include "ayzr/ecosystem/EcosystemRuntime.h"
+#include "ayzr/ecosystem/EngineContract.h"
+#include "ayzr/ecosystem/SessionIntelligence.h"
+#include "ayzr/engines/BreakoutEngine.h"
+#include "ayzr/engines/EventDrivenEngine.h"
+#include "ayzr/engines/MeanReversionEngine.h"
+#include "ayzr/engines/MicrostructureEngine.h"
+#include "ayzr/engines/TrendFollowingEngine.h"
 #include "governance/ApprovalGate.h"
 #include "governance/IncidentManager.h"
 #include "macro/CalendarFeed.h"
@@ -1194,6 +1205,22 @@ int main(int argc, char** argv) {
     static aura::ayzr::TradeLifecycleManager ayzrTrades;
     seedTestTrade(ayzrTrades);
 
+    // AYZR ecosystem layer (Phase 1-5). Owns the specialised strategy engines,
+    // the central orchestrator and the append-only decision ledger. It reads the
+    // candle store and never writes candles or ASTRA decisions. The ledger is
+    // SQLite-backed next to the other durable stores so the audit trail survives
+    // a restart; if the file cannot be opened we fall back to memory-only and
+    // say so rather than failing the whole server.
+    static aura::ayzr::eco::DecisionLedger ecoLedger;
+    {
+        const std::string ledgerPath = dataDir + "/ayzr_ledger.sqlite";
+        if (!ecoLedger.open(ledgerPath)) {
+            std::cerr << "WARN: AYZR decision ledger not persistent at "
+                      << ledgerPath << "; continuing memory-only\n";
+        }
+    }
+    static aura::ayzr::eco::EcosystemRuntime ecoRuntime(&ecoLedger);
+
     server.newsListHandler = [&](const std::string& query) -> ApiResponse {
         int limit = 50;
         const std::string limitRaw = queryParam(query, "limit");
@@ -1425,6 +1452,65 @@ int main(int argc, char** argv) {
         r.contentType = "application/json";
         r.body = aura::ayzr::tradeDetailJson(ayzrTrades, id);
         r.status = r.body.find("\"not_found\"") != std::string::npos ? 404 : 200;
+        return r;
+    };
+
+    // AYZR ecosystem read routes. All read-only. Sessions come straight from the
+    // IANA clock; engines/opportunities/ledger reflect the current cycle. A
+    // cycle is run on demand against the persisted candles for the operational
+    // timeframe; when there are no candles the engines stay silent and the
+    // response honestly reports no opportunities.
+    server.ecoSessionsHandler = []() -> ApiResponse {
+        const std::int64_t now =
+            static_cast<std::int64_t>(std::time(nullptr));
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::eco::sessionsJson(
+            aura::ayzr::eco::computeSessionSnapshot(now));
+        return r;
+    };
+
+    server.ecoEnginesHandler = [&]() -> ApiResponse {
+        const std::int64_t now =
+            static_cast<std::int64_t>(std::time(nullptr));
+        aura::ayzr::eco::MarketView view =
+            ecoRuntime.buildView(store, aura::Timeframe::M15, now);
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::eco::enginesJson(
+            ecoRuntime.describeEngines(view, now));
+        return r;
+    };
+
+    server.ecoOpportunitiesHandler = [&](const std::string& query) -> ApiResponse {
+        (void)query;
+        const std::int64_t now =
+            static_cast<std::int64_t>(std::time(nullptr));
+        aura::ayzr::eco::MarketView view =
+            ecoRuntime.buildView(store, aura::Timeframe::M15, now);
+        const std::string corr = "cycle-" + std::to_string(now);
+        aura::ayzr::eco::CycleResult cyc = ecoRuntime.runCycle(view, now, corr);
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::eco::opportunitiesJson(cyc);
+        return r;
+    };
+
+    server.ecoLedgerHandler = [&](const std::string& query) -> ApiResponse {
+        int limit = 200;
+        const std::string limitRaw = queryParam(query, "limit");
+        if (!limitRaw.empty()) {
+            try { limit = std::stoi(limitRaw); } catch (...) { limit = 200; }
+        }
+        if (limit < 1 || limit > 2000) limit = 200;
+        ApiResponse r;
+        r.status = 200;
+        r.contentType = "application/json";
+        r.body = aura::ayzr::eco::ledgerJson(
+            ecoLedger.recent(static_cast<std::size_t>(limit)));
         return r;
     };
 

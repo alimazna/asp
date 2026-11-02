@@ -741,7 +741,11 @@ ApiResponse AstraApiServer::handleRequest(
         path == "/api/v1/activity" || path == "/api/v1/providers" ||
         path == "/api/v1/events" || path == "/api/v1/events/detail" ||
         path == "/api/v1/ayzr/engines" || path == "/api/v1/ayzr/trades" ||
-        path == "/api/v1/ayzr/trades/detail") {
+        path == "/api/v1/ayzr/trades/detail" ||
+        path == "/api/v1/ayzr/ecosystem/sessions" ||
+        path == "/api/v1/ayzr/ecosystem/engines" ||
+        path == "/api/v1/ayzr/ecosystem/opportunities" ||
+        path == "/api/v1/ayzr/ecosystem/ledger") {
         if (method == "OPTIONS") {
             return ApiResponse{204, "application/json", "", true, ""};
         }
@@ -821,6 +825,26 @@ ApiResponse AstraApiServer::handleRequest(
             if (ayzrTradeDetailHandler) return ayzrTradeDetailHandler(query);
             return errorResponse(503, "dependency_unavailable",
                                  "ayzr trade detail handler not configured");
+        }
+        if (path == "/api/v1/ayzr/ecosystem/sessions") {
+            if (ecoSessionsHandler) return ecoSessionsHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "ecosystem sessions handler not configured");
+        }
+        if (path == "/api/v1/ayzr/ecosystem/engines") {
+            if (ecoEnginesHandler) return ecoEnginesHandler();
+            return errorResponse(503, "dependency_unavailable",
+                                 "ecosystem engines handler not configured");
+        }
+        if (path == "/api/v1/ayzr/ecosystem/opportunities") {
+            if (ecoOpportunitiesHandler) return ecoOpportunitiesHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "ecosystem opportunities handler not configured");
+        }
+        if (path == "/api/v1/ayzr/ecosystem/ledger") {
+            if (ecoLedgerHandler) return ecoLedgerHandler(query);
+            return errorResponse(503, "dependency_unavailable",
+                                 "ecosystem ledger handler not configured");
         }
         if (historyHandler) return historyHandler(query);
         return errorResponse(503, "dependency_unavailable",
