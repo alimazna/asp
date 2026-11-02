@@ -6,7 +6,12 @@
 /// read-only AYZR mobile surface (`/news`, `/news/analyze`, `/history`,
 /// `/analysis/latest`, `/health`), never ingestion or admin routes.
 class AppConfig {
-  const AppConfig({required this.baseUrl, required this.clientToken});
+  const AppConfig({
+    required this.baseUrl,
+    required this.clientToken,
+    this.aiBaseUrl = '',
+    this.aiToken = '',
+  });
 
   /// e.g. `https://astra-server-production.up.railway.app`
   final String baseUrl;
@@ -15,7 +20,28 @@ class AppConfig {
   /// screens then show a clear configuration state instead of calling out.
   final String clientToken;
 
+  /// Base URL of the separate AYZR Native AI Core service. Empty means the AI
+  /// features are not configured, and their screens say so rather than calling
+  /// out. It is a different host from [baseUrl] on purpose: the AI service is a
+  /// separate deployment with its own failure domain.
+  final String aiBaseUrl;
+
+  /// Bearer token for the AI service. Separate from [clientToken] so the AI
+  /// service can be rotated or revoked without touching backend access.
+  final String aiToken;
+
   bool get hasToken => clientToken.trim().isNotEmpty;
+
+  bool get hasAiToken => aiToken.trim().isNotEmpty;
+
+  /// True when the AI service is configured well enough to call.
+  bool get aiConfigured => aiBaseUrl.trim().isNotEmpty && hasAiToken;
+
+  /// Config for the AI client: same shape, but pointed at the AI service.
+  AppConfig get forAi => AppConfig(
+        baseUrl: aiBaseUrl,
+        clientToken: aiToken,
+      );
 
   /// Normalized base: the host root, without a trailing slash and without a
   /// trailing `/api/v1` (or `/api`) segment.
@@ -53,9 +79,17 @@ class AppConfig {
     );
   }
 
-  AppConfig copyWith({String? baseUrl, String? clientToken}) => AppConfig(
+  AppConfig copyWith({
+    String? baseUrl,
+    String? clientToken,
+    String? aiBaseUrl,
+    String? aiToken,
+  }) =>
+      AppConfig(
         baseUrl: baseUrl ?? this.baseUrl,
         clientToken: clientToken ?? this.clientToken,
+        aiBaseUrl: aiBaseUrl ?? this.aiBaseUrl,
+        aiToken: aiToken ?? this.aiToken,
       );
 
   static const String defaultBaseUrl = String.fromEnvironment(
@@ -65,6 +99,16 @@ class AppConfig {
 
   static const String buildToken = String.fromEnvironment(
     'AYZR_CLIENT_TOKEN',
+    defaultValue: '',
+  );
+
+  static const String defaultAiBaseUrl = String.fromEnvironment(
+    'AYZR_AI_BASE_URL',
+    defaultValue: '',
+  );
+
+  static const String buildAiToken = String.fromEnvironment(
+    'AYZR_AI_TOKEN',
     defaultValue: '',
   );
 }

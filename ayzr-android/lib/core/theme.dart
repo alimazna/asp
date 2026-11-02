@@ -58,7 +58,7 @@ class AyzrTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AyzrColors.navy,
         elevation: 0,
         shape: RoundedRectangleBorder(
